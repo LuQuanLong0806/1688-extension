@@ -178,7 +178,7 @@
     h += '.card:hover{box-shadow:0 6px 24px rgba(0,0,0,.12);transform:translateY(-2px)}';
     h += '.card.on{border-color:#1890ff;box-shadow:0 4px 16px rgba(24,144,255,.3)}';
     h += '.card .iw{width:100%;height:200px;background:#fafafa;display:flex;align-items:center;justify-content:center;overflow:hidden;pointer-events:none;position:relative}';
-    h += '.card.big .iw::after{content:"\u5927";position:absolute;top:8px;right:8px;background:linear-gradient(135deg,#1890ff,#096dd9);color:#fff;font-size:12px;font-weight:bold;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(24,144,255,.5)}';
+    h += '.card.big .iw::after{content:"LARGE";position:absolute;top:8px;right:8px;background:linear-gradient(135deg,#ff4d4f,#cf1322);color:#fff;font-size:10px;font-weight:bold;letter-spacing:1px;padding:3px 10px;border-radius:10px;box-shadow:0 2px 8px rgba(207,19,34,.4)}';
     h += '.card .iw img{max-width:100%;max-height:100%;object-fit:contain}';
     h += '.card .ck{padding:10px 15px;display:flex;align-items:center;gap:8px}';
     h += '.card .ck input{width:18px;height:18px;accent-color:#1890ff;cursor:pointer;pointer-events:auto}';

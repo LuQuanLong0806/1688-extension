@@ -15,7 +15,7 @@
   var s = document.createElement('style');
   s.textContent =
     '#__1688_grab_panel{position:fixed;z-index:2147483647;font-family:"Microsoft YaHei",Arial,sans-serif;' +
-    'left:0;top:50%;transform:translateY(-50%);user-select:none;font-size:14px;line-height:1.5;' +
+    'left:0;top:30%;user-select:none;font-size:14px;line-height:1.5;' +
     'display:flex;align-items:center}' +
     '#__1688_grab_panel *{margin:0;padding:0;box-sizing:border-box}' +
     '#__1688_grab_body{background:#fff;border-radius:12px;padding:16px;width:180px;' +
