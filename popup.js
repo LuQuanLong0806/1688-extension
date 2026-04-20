@@ -23,7 +23,7 @@ document.getElementById('grabBtn').addEventListener('click', function () {
     chrome.scripting.executeScript(
       {
         target: { tabId: tab.id },
-        files: ['content.js']
+        files: ['grab-core.js', 'content.js']
       },
       function (results) {
         btn.disabled = false;

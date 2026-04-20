@@ -15,7 +15,7 @@
   "content_scripts": [
     {
       "matches": ["*://*.1688.com/*"],
-      "js": ["float-btn.js"]
+      "js": ["grab-core.js", "float-btn.js"]
     }
   ]
 }
