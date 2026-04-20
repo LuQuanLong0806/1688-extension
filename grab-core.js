@@ -232,6 +232,9 @@ h += '<button id="btnSmall" class="s4">\uD83D\uDD0D \u663E\u793A\u5C0F\u56FE</bu
 h += 'else{var s=document.createElement("span");s.className="sz";s.textContent=w+"\u00D7"+h;el.closest(".iw").appendChild(s);';
     h += 'if(w>=400&&h>=400){el.closest(".card").classList.add("big");}}';
     h += 'if(_fd===_ft){var n=grid.querySelectorAll(".card").length;var p=document.querySelector(".hd p");if(p)p.innerHTML="\u6709\u6548\u56FE\u7247 <b>"+(n-_sn)+"</b> \u5F20 | \u5C0F\u56FE <b>"+_sn+"</b> \u5F20";}}';
+    h += 'document.getElementById("btnSmall").addEventListener("click",function(){';
+    h += 'var show=this.textContent.indexOf("\u663E\u793A")!==-1;this.textContent=show?"\uD83D\uDD0D \u9690\u85CF\u5C0F\u56FE":"\uD83D\uDD0D \u663E\u793A\u5C0F\u56FE";';
+    h += 'grid.querySelectorAll(".card.small").forEach(function(c){c.style.display=show?"block":"none";});});';
     h += 'var pvEl=document.getElementById("preview");var pvImg=document.getElementById("previewImg");';
     h += 'function openPreview(u){pvImg.src=u;pvEl.classList.add("show");}';
     h += 'pvEl.addEventListener("click",function(e){if(e.target===pvImg)return;pvEl.classList.remove("show");});';
