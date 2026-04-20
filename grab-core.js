@@ -52,7 +52,7 @@
       url = url.replace(/\?x-oss-process=.*$/i, '');
       try { new URL(url); } catch (e) { return; }
       if (/\.(html?|php|asp|jsp|js|css)(\?|$)/i.test(url)) return;
-      if (/\/offer\/\d/i.test(url)) return;
+      if (/\/offer\//i.test(url)) return;
       var lower = url.toLowerCase();
       if (SKIP_PATTERNS.some(function (p) { return lower.indexOf(p) !== -1; })) return;
       if (/\d+x\d+/.test(url) && !/\d{3,}x\d{3,}/.test(url)) return;
@@ -176,11 +176,11 @@
     h += '.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}';
     h += '.card{background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.06);border:2px solid transparent;cursor:pointer;transition:all .2s}';
     h += '.card:hover{box-shadow:0 6px 24px rgba(0,0,0,.12);transform:translateY(-2px)}';
-    h += '.card.on{border-color:#ff6a00;box-shadow:0 0 0 3px rgba(255,106,0,.2)}';
+    h += '.card.on{border-color:#1890ff;box-shadow:0 4px 16px rgba(24,144,255,.3)}';
     h += '.card .iw{width:100%;height:200px;background:#fafafa;display:flex;align-items:center;justify-content:center;overflow:hidden;pointer-events:none}';
     h += '.card .iw img{max-width:100%;max-height:100%;object-fit:contain}';
     h += '.card .ck{padding:10px 15px;display:flex;align-items:center;gap:8px}';
-    h += '.card .ck input{width:18px;height:18px;accent-color:#ff6a00;cursor:pointer;pointer-events:auto}';
+    h += '.card .ck input{width:18px;height:18px;accent-color:#1890ff;cursor:pointer;pointer-events:auto}';
     h += '.card .ck label{font-size:12px;color:#999;cursor:pointer;pointer-events:auto}';
     h += '.card .ua{padding:10px 15px;border-top:1px solid #f0f0f0}';
     h += '.card .url{word-break:break-all;font-size:11px;color:#666;max-height:48px;overflow:hidden}';
