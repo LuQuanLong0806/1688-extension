@@ -4,6 +4,9 @@
   "version": "1.0",
   "description": "一键抓取1688商品页所有图片，支持主图、详情图、SKU图",
   "permissions": ["activeTab", "scripting"],
+  "background": {
+    "service_worker": "background.js"
+  },
   "action": {
     "default_popup": "popup.html",
     "default_icon": "icon.svg"

@@ -2,7 +2,7 @@ var fs = require('fs');
 var svg =
   '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128">' +
   '<rect width="128" height="128" rx="20" fill="#ff6a00"/>' +
-  '<text x="64" y="82" font-size="60" text-anchor="middle" fill="white" font-family="Arial" font-weight="bold">G</text>' +
+  '<text x="64" y="82" font-size="60" text-anchor="middle" fill="white" font-family="Arial" font-weight="bold">Z</text>' +
   '</svg>';
 fs.writeFileSync('icon.svg', svg);
 console.log('icon.svg created');

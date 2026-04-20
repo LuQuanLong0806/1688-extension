@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const OUT = '1688-extension';
-const files = ['manifest.json', 'popup.html', 'popup.js', 'content.js', 'float-btn.js', 'grab-core.js', 'icon.svg'];
+const files = ['manifest.json', 'popup.html', 'popup.js', 'background.js', 'content.js', 'float-btn.js', 'grab-core.js', 'icon.svg'];
 
 if (fs.existsSync(OUT)) fs.rmSync(OUT, { recursive: true });
 fs.mkdirSync(OUT);

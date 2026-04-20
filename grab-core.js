@@ -236,7 +236,7 @@
     h += 'function toggleCard(card,cb){cb.checked=!cb.checked;card.classList.toggle("on",cb.checked);updateCount();}';
     h += 'function updateCount(){scEl.textContent=document.querySelectorAll(".ci:checked").length;}';
     h += 'document.getElementById("btnAll").addEventListener("click",function(){';
-    h += 'document.querySelectorAll(".ci").forEach(function(c){c.checked=true;c.closest(".card").classList.add("on");});updateCount();});';
+    h += 'document.querySelectorAll(".card").forEach(function(c){if(c.style.display==="none")return;var cb=c.querySelector(".ci");cb.checked=true;c.classList.add("on");});updateCount();});';
     h += 'document.getElementById("btnNone").addEventListener("click",function(){';
     h += 'document.querySelectorAll(".ci").forEach(function(c){c.checked=false;c.closest(".card").classList.remove("on");});updateCount();});';
     h += 'function doCopy(t,n){navigator.clipboard.writeText(t).then(function(){showToast("\u5DF2\u590D\u5236"+n+"\u4E2A\u5730\u5740");}).catch(function(){';
@@ -259,11 +259,10 @@
     var blobUrl = URL.createObjectURL(blob);
     var w = window.open(blobUrl, '_blank');
     if (!w) {
-      // Fallback: try chrome.tabs if available (extension context)
-      if (typeof chrome !== 'undefined' && chrome.tabs) {
+      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
         var reader = new FileReader();
         reader.onload = function () {
-          chrome.tabs.create({ url: reader.result });
+          chrome.runtime.sendMessage({ action: 'openTab', url: reader.result });
         };
         reader.readAsDataURL(blob);
       } else {

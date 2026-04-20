@@ -10,7 +10,7 @@
     '<button id="__1688_grab_btn">🚀 抓取图片</button>' +
     '<div id="__1688_grab_status"></div>' +
     '</div>' +
-    '<div id="__1688_grab_toggle" title="拖动 / 悬浮展开">G</div>';
+    '<div id="__1688_grab_toggle" title="拖动 / 悬浮展开">Z</div>';
 
   var s = document.createElement('style');
   s.textContent =
@@ -70,7 +70,9 @@
     }
     panel.style.top = topY + 'px';
     panel.style.transform = 'none';
-    setTimeout(function () { panel.style.transition = ''; }, 260);
+    setTimeout(function () {
+      panel.style.transition = '';
+    }, 260);
   }
 
   toggle.addEventListener('mousedown', function (e) {
@@ -104,7 +106,9 @@
     toggle.style.cursor = 'grab';
     if (dragMoved) {
       snapToEdge();
-      setTimeout(function () { dragMoved = false; }, 300);
+      setTimeout(function () {
+        dragMoved = false;
+      }, 300);
     }
   });
 
@@ -139,10 +143,16 @@
     function doAttempt() {
       attempt++;
       if (attempt < maxAttempts) {
-        window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' });
+        window.scrollTo({
+          top: document.documentElement.scrollHeight,
+          behavior: 'smooth'
+        });
         setTimeout(doAttempt, 400);
       } else {
-        window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' });
+        window.scrollTo({
+          top: document.documentElement.scrollHeight,
+          behavior: 'smooth'
+        });
         setTimeout(cb, 400);
       }
     }
