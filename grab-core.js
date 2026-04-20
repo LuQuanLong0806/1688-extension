@@ -187,8 +187,6 @@
     h += '.card .ac{margin-top:8px;display:flex;gap:8px}';
     h += '.card .ac a,.card .ac button{font-size:12px;color:#ff6a00;border:1px solid #ff6a00;border-radius:3px;background:none;cursor:pointer;padding:2px 8px;text-decoration:none;pointer-events:auto}';
     h += '.card .ac a:hover,.card .ac button:hover{background:#ff6a00;color:#fff}';
-    h += '.po{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.85);z-index:9999;justify-content:center;align-items:center;cursor:pointer}';
-    h += '.po.show{display:flex}.po img{max-width:90%;max-height:90%;border-radius:8px}';
     h += '.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:12px 28px;border-radius:8px;font-size:14px;z-index:99999;opacity:0;transition:opacity .3s;pointer-events:none}';
     h += '.toast.show{opacity:1}';
     h += '</style></head><body>';
@@ -199,10 +197,10 @@
     h += '<button id="btnCopy">\uD83D\uDCCB \u590D\u5236\u9009\u4E2D\u5730\u5740</button><button id="btnDl" class="s3">\uD83D\uDCBE \u4E0B\u8F7D\u5217\u8868</button>';
     h += '<button id="btnSmall" class="s4">\uD83D\uDD0D \u663E\u793A\u5C0F\u56FE</button>';
     h += '<div class="cnt">\u5DF2\u9009 <b id="sc">0</b> \u5F20</div></div>';
-    h += '<div class="grid" id="grid"></div><div class="po" id="po"><img id="pi"></div>';
+    h += '<div class="grid" id="grid"></div>';
     h += '<scr' + 'ipt>';
     h += 'var urls=' + urlsJson + ';var grid=document.getElementById("grid");';
-    h += 'var scEl=document.getElementById("sc");var poEl=document.getElementById("po");var piEl=document.getElementById("pi");';
+    h += 'var scEl=document.getElementById("sc");';
     h += 'var toastEl=document.getElementById("toast");';
     h += 'function showToast(msg){toastEl.textContent=msg;toastEl.classList.add("show");setTimeout(function(){toastEl.classList.remove("show");},2000);}';
     h += 'urls.forEach(function(u,i){var d=document.createElement("div");d.className="card";d.dataset.idx=i;';
@@ -234,7 +232,6 @@
     h += 'var card=e.target.closest(".card");if(!card)return;';
     h += 'var cb=card.querySelector(".ci");';
     h += 'if(e.target===cb){toggleCard(card,cb);return;}';
-    h += 'if(e.target.tagName==="IMG"&&e.target.closest(".iw")){piEl.src=e.target.src;poEl.classList.add("show");return;}';
     h += 'toggleCard(card,cb);});';
     h += 'function toggleCard(card,cb){cb.checked=!cb.checked;card.classList.toggle("on",cb.checked);updateCount();}';
     h += 'function updateCount(){scEl.textContent=document.querySelectorAll(".ci:checked").length;}';
@@ -251,7 +248,6 @@
     h += 'var arr=[];document.querySelectorAll(".ci:checked").forEach(function(c){arr.push(c.closest(".card").querySelector(".url").textContent);});';
     h += 'if(!arr.length){showToast("\u8BF7\u5148\u9009\u62E9\u56FE\u7247");return;}var b=new Blob([arr.join("\\n")],{type:"text/plain"});';
     h += 'var a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="1688_"+Date.now()+".txt";a.click();});';
-    h += 'poEl.addEventListener("click",function(){poEl.classList.remove("show");});';
     h += 'function copyOne(u){doCopy(u,"");}';
     h += '</' + 'script></body></html>';
     return h;
