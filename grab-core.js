@@ -178,8 +178,8 @@
     h += '.card:hover{box-shadow:0 6px 24px rgba(0,0,0,.12);transform:translateY(-2px)}';
     h += '.card.on{border-color:#1890ff;box-shadow:0 4px 16px rgba(24,144,255,.3)}';
     h += '.card .iw{width:100%;height:200px;background:#fafafa;display:flex;align-items:center;justify-content:center;overflow:hidden;pointer-events:none;position:relative}';
-    h += '.card.big .iw::after{content:"HD";position:absolute;top:4px;right:8px;background:linear-gradient(135deg,#ff4d4f,#cf1322);color:#fff;font-size:12px;font-weight:bold;letter-spacing:1px;padding:4px 12px;border-radius:12px;box-shadow:0 2px 8px rgba(207,19,34,.4)}';
-    h += '.card .sz{position:absolute;bottom:4px;left:8px;background:rgba(0,0,0,.7);color:#fff;font-size:14px;font-weight:bold;padding:3px 8px;border-radius:8px;pointer-events:none}';
+    h += '.card.big .iw::after{content:"HD";position:absolute;top:4px;right:8px;background:linear-gradient(135deg,#ff4d4f,#cf1322);color:#fff;font-size:14px;font-weight:bold;letter-spacing:1px;padding:4px 12px;border-radius:12px;box-shadow:0 2px 8px rgba(207,19,34,.4)}';
+    h += '.card .sz{position:absolute;bottom:4px;left:8px;background:rgba(0,0,0,.7);color:#fff;font-size:12px;font-weight:bold;padding:3px 8px;border-radius:8px;pointer-events:none}';
     h += '.card .iw img{max-width:100%;max-height:100%;object-fit:contain}';
     h += '.card .ck{padding:10px 15px;display:flex;align-items:center;gap:8px}';
     h += '.card .ck input{width:18px;height:18px;accent-color:#1890ff;cursor:pointer;pointer-events:auto}';
@@ -224,8 +224,8 @@ h += '<button id="btnSmall" class="s4">\uD83D\uDD0D \u663E\u793A\u5C0F\u56FE</bu
     h += 'var _fd=0,_ft=urls.length,_sn=0;';
     h += 'function fImg(el){_fd++;var w=el.naturalWidth,h=el.naturalHeight;';
     h += 'if(w<200&&h<200){var c=el.closest(".card");c.classList.add("small");c.style.display="none";_sn++;}';
-    h += 'else{if(w>=400&&h>=400){el.closest(".card").classList.add("big");}';
-    h += 'else{var s=document.createElement("span");s.className="sz";s.textContent=w+"\u00D7"+h;el.closest(".iw").appendChild(s);}}';
+h += 'else{var s=document.createElement("span");s.className="sz";s.textContent=w+"\u00D7"+h;el.closest(".iw").appendChild(s);';
+    h += 'if(w>=400&&h>=400){el.closest(".card").classList.add("big");}}';
     h += 'if(_fd===_ft){var n=grid.querySelectorAll(".card").length;var p=document.querySelector(".hd p");if(p)p.innerHTML="\u6709\u6548\u56FE\u7247 <b>"+(n-_sn)+"</b> \u5F20 | \u5C0F\u56FE <b>"+_sn+"</b> \u5F20";}}';
     h += 'grid.addEventListener("click",function(e){';
     h += 'var cpBtn=e.target.closest(".cpbtn");if(cpBtn){e.stopPropagation();copyOne(cpBtn.dataset.u);return;}';
