@@ -138,24 +138,27 @@
   });
 
   function autoScroll(cb) {
-    var attempt = 0;
-    var maxAttempts = 3;
-    function doAttempt() {
-      attempt++;
-      if (attempt < maxAttempts) {
-        window.scrollTo({
-          top: document.documentElement.scrollHeight,
-          behavior: 'smooth'
-        });
-        setTimeout(doAttempt, 400);
+    var maxRounds = 8;
+    var round = 0;
+    var lastH = 0;
+    var stableCount = 0;
+    function doRound() {
+      round++;
+      var h = document.documentElement.scrollHeight;
+      if (h === lastH) {
+        stableCount++;
       } else {
-        window.scrollTo({
-          top: document.documentElement.scrollHeight,
-          behavior: 'smooth'
-        });
-        setTimeout(cb, 400);
+        stableCount = 0;
+        lastH = h;
       }
+      if (stableCount >= 2 || round >= maxRounds) {
+        window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' });
+        setTimeout(cb, 300);
+        return;
+      }
+      window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' });
+      setTimeout(doRound, 500);
     }
-    doAttempt();
+    doRound();
   }
 })();
