@@ -190,6 +190,8 @@
     h += 'body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:20px}';
     h += '.hd{background:linear-gradient(135deg,#ff6a00,#ff4444);color:#fff;padding:25px 30px;border-radius:12px;margin-bottom:20px}';
     h += '.hd h1{font-size:24px;margin-bottom:8px}.hd p{opacity:.9;font-size:14px}';
+    h += '.keys{background:#fff;padding:12px 25px;border-radius:10px;margin-bottom:16px;display:flex;gap:20px;flex-wrap:wrap;font-size:13px;color:#666;box-shadow:0 1px 6px rgba(0,0,0,.05)}';
+    h += '.keys b{color:#ff6a00;margin-right:4px}';
     h += '.tb{background:#fff;padding:18px 25px;border-radius:12px;margin-bottom:20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;position:sticky;top:10px;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.08)}';
     h += '.tb button{background:#ff6a00;color:#fff;border:none;padding:10px 22px;border-radius:6px;cursor:pointer;font-size:14px;font-weight:bold}';
     h += '.tb button:hover{background:#ff8533}.tb button.s2{background:#666}.tb button.s2:hover{background:#888}';
@@ -231,6 +233,7 @@
     h += '<div class="toast" id="toast"></div>';
     h += '<div class="hd"><h1>1688\u56FE\u7247\u62B1\u53D6\u7ED3\u679C</h1>';
     h += '<p>\u5171 <b>' + images.length + '</b> \u5F20 | \u4E3B\u56FE <b>' + groups.main.length + '</b> | \u8BE6\u60C5 <b>' + groups.detail.length + '</b> | \u5176\u4ED6 <b>' + groups.other.length + '</b></p></div>';
+    h += '<div class="keys"><span><b>Ctrl+C</b> 复制选中地址</span><span><b>← →</b> 切换图片</span><span><b>A / D</b> 切换图片</span><span><b>空格</b> 选中/取消</span><span><b>ESC</b> 关闭预览</span></div>';
     h += '<div class="tb"><button id="btnAll">\u2705 \u5168\u9009</button><button id="btnNone" class="s2">\u2B1C \u53D6\u6D88\u5168\u9009</button>';
     h += '<button id="btnCopy">\uD83D\uDCCB \u590D\u5236\u9009\u4E2D\u5730\u5740</button><button id="btnDl" class="s3">\uD83D\uDCBE \u4E0B\u8F7D\u5217\u8868</button>';
 h += '<button id="btnSmall" class="s4">\uD83D\uDD0D \u663E\u793A\u5C0F\u56FE</button>';
@@ -296,6 +299,9 @@ h += 'var pvEl=document.getElementById("preview");var pvImg=document.getElementB
     h += 'document.getElementById("pvCopyAll").addEventListener("click",function(e){e.stopPropagation();';
     h += 'var arr=[];document.querySelectorAll(".ci:checked").forEach(function(c){arr.push(c.closest(".card").querySelector(".url").textContent);});';
     h += 'if(!arr.length){showToast("\u8BF7\u5148\u9009\u62E9\u56FE\u7247");return;}doCopy(arr.join("\\n"),arr.length);});';
+    h += 'document.addEventListener("keydown",function(e){if((e.ctrlKey||e.metaKey)&&e.key=="c"){e.preventDefault();';
+    h += 'var arr=[];document.querySelectorAll(".ci:checked").forEach(function(c){arr.push(c.closest(".card").querySelector(".url").textContent);});';
+    h += 'if(!arr.length){showToast("请先选择图片");return;}doCopy(arr.join("\\n"),arr.length);}});';
     h += 'document.getElementById("pvPrev").addEventListener("click",function(e){e.stopPropagation();pvNavigate(-1);});';
     h += 'document.getElementById("pvNext").addEventListener("click",function(e){e.stopPropagation();pvNavigate(1);});';
     h += 'document.addEventListener("keydown",function(e){';
