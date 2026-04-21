@@ -235,7 +235,7 @@
     h += '<button id="btnCopy">\uD83D\uDCCB \u590D\u5236\u9009\u4E2D\u5730\u5740</button><button id="btnDl" class="s3">\uD83D\uDCBE \u4E0B\u8F7D\u5217\u8868</button>';
 h += '<button id="btnSmall" class="s4">\uD83D\uDD0D \u663E\u793A\u5C0F\u56FE</button>';
     h += '<div class="cnt">\u5DF2\u9009 <b id="sc">0</b> \u5F20</div></div>';
-    h += '<div class="grid" id="grid"></div><div class="preview" id="preview"><div class="close" id="previewClose">\u2715</div><button class="nav nav-l" id="pvPrev">\u2039</button><button class="nav nav-r" id="pvNext">\u203A</button><img id="previewImg"><div class="toolbar" id="pvToolbar"><button id="pvZoomIn" title="\u653E\u5927">+</button><button id="pvZoomOut" title="\u7F29\u5C0F">-</button><button id="pvRotL" title="\u5DE6\u65CB">\u21BA</button><button id="pvRotR" title="\u53F3\u65CB">\u21BB</button><button id="pvReset" title="\u91CD\u7F6E">\u21BA\u21BB</button><button id="pvToggle" title="\u9009\u4E2D/\u53D6\u6D88">\u2611</button><button id="pvCopyAll" title="\u590D\u5236\u5168\u90E8\u9009\u4E2D\u5730\u5740">\uD83D\uDCCB</button></div></div>';
+    h += '<div class="grid" id="grid"></div><div class="preview" id="preview"><div class="close" id="previewClose">\u2715</div><button class="nav nav-l" id="pvPrev">\u2039</button><button class="nav nav-r" id="pvNext">\u203A</button><img id="previewImg"><div class="toolbar" id="pvToolbar"><button id="pvZoomIn" title="\u653E\u5927">+</button><button id="pvZoomOut" title="\u7F29\u5C0F">-</button><button id="pvRotL" title="\u5DE6\u65CB">\u21BA</button><button id="pvRotR" title="\u53F3\u65CB">\u21BB</button><button id="pvReset" title="\u91CD\u7F6E">\u21BA\u21BB</button><button id="pvToggle" title="\u9009\u4E2D/\u53D6\u6D88">\u2713</button><button id="pvCopyAll" title="\u590D\u5236\u5168\u90E8\u9009\u4E2D\u5730\u5740">\uD83D\uDCCB</button></div></div>';
     h += '<scr' + 'ipt>';
     h += 'var urls=' + urlsJson + ';var grid=document.getElementById("grid");';
     h += 'var scEl=document.getElementById("sc");';
@@ -272,7 +272,7 @@ h += 'var pvEl=document.getElementById("preview");var pvImg=document.getElementB
     h += 'function pvReset(){_pz=1;_px=0;_py=0;_pr=0;pvApply();pvImg.style.cursor="grab";}';
     h += 'function visibleCards(){return Array.from(grid.children).filter(function(c){return c.style.display!=="none"});}';
     h += 'function pvUpdateToggle(){var vc=visibleCards();var card=vc[_pvi];var cb=card?card.querySelector(".ci"):null;';
-    h += 'var btn=document.getElementById("pvToggle");btn.classList.toggle("active",cb&&cb.checked);}';
+    h += 'var btn=document.getElementById("pvToggle");var on=cb&&cb.checked;btn.classList.toggle("active",on);btn.textContent=on?"\u2713":" "}';
     h += 'function openPreview(u){pvImg.src=u;pvReset();var vc=visibleCards();';
     h += '_pvi=vc.findIndex(function(c){return c.querySelector(".url").textContent===u;});if(_pvi<0)_pvi=0;';
     h += 'pvUpdateToggle();pvEl.classList.add("show");}';
@@ -300,7 +300,10 @@ h += 'var pvEl=document.getElementById("preview");var pvImg=document.getElementB
     h += 'document.getElementById("pvNext").addEventListener("click",function(e){e.stopPropagation();pvNavigate(1);});';
     h += 'document.addEventListener("keydown",function(e){';
     h += 'if(!pvEl.classList.contains("show"))return;';
-    h += 'if(e.key==="ArrowLeft")pvNavigate(-1);else if(e.key==="ArrowRight")pvNavigate(1);});';
+    h += 'if(e.key==="ArrowLeft"||e.key==="a"||e.key==="A")pvNavigate(-1);';
+    h += 'else if(e.key==="ArrowRight"||e.key==="d"||e.key==="D")pvNavigate(1);';
+    h += 'else if(e.key===" "){e.preventDefault();var vc=visibleCards();var card=vc[_pvi];if(card){var cb=card.querySelector(".ci");toggleCard(card,cb);pvUpdateToggle();}}';
+	    h += 'else if(e.key==="Escape"){pvEl.classList.remove("show");}});';
     h += 'pvEl.addEventListener("click",function(e){if(e.target===pvImg)return;pvEl.classList.remove("show");});';
     h += 'document.getElementById("previewClose").addEventListener("click",function(e){e.stopPropagation();pvEl.classList.remove("show");});';
     h += 'grid.addEventListener("click",function(e){';
