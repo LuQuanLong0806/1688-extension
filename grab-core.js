@@ -272,7 +272,7 @@ h += 'var pvEl=document.getElementById("preview");var pvImg=document.getElementB
     h += 'function pvReset(){_pz=1;_px=0;_py=0;_pr=0;pvApply();pvImg.style.cursor="grab";}';
     h += 'function visibleCards(){return Array.from(grid.children).filter(function(c){return c.style.display!=="none"});}';
     h += 'function pvUpdateToggle(){var vc=visibleCards();var card=vc[_pvi];var cb=card?card.querySelector(".ci"):null;';
-    h += 'var btn=document.getElementById("pvToggle");var on=cb&&cb.checked;btn.classList.toggle("active",on);btn.textContent=on?"\u2713":" "}';
+    h += 'var btn=document.getElementById("pvToggle");var on=cb&&cb.checked;btn.classList.toggle("active",on);btn.textContent=on?"\u2713":"\u2713";btn.style.opacity=on?"1":"0.35"}';
     h += 'function openPreview(u){pvImg.src=u;pvReset();var vc=visibleCards();';
     h += '_pvi=vc.findIndex(function(c){return c.querySelector(".url").textContent===u;});if(_pvi<0)_pvi=0;';
     h += 'pvUpdateToggle();pvEl.classList.add("show");}';
