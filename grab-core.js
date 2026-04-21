@@ -55,7 +55,7 @@
       if (/\/offer\//i.test(url)) return;
       var lower = url.toLowerCase();
       if (SKIP_PATTERNS.some(function (p) { return lower.indexOf(p) !== -1; })) return;
-      if (/\d+x\d+/.test(url) && !/\d{3,}x\d{3,}/.test(url)) return;
+      if (/\d+x\d+/.test(url) && !/\d{3,}x\d+|\d+x\d{3,}/.test(url)) return;
       if (/\.gif(\?|$)/i.test(url)) return;
       if (!urlSet.has(url)) { urlSet.add(url); images.push(url); }
     }
@@ -92,6 +92,29 @@
       });
 
       queryAll(DESC_SELECTORS, getAttrs);
+
+      // Shadow DOM scan
+      document.querySelectorAll('*').forEach(function (el) {
+        if (el.shadowRoot) {
+          try {
+            el.shadowRoot.querySelectorAll('img').forEach(function (img) {
+              var s = img.src;
+              if (s && (s.indexOf('alicdn') !== -1 || s.indexOf('1688') !== -1 || s.indexOf('taobaocdn') !== -1))
+                addImage(s);
+              getAttrs(img);
+            });
+            el.shadowRoot.querySelectorAll('[style*="url("]').forEach(function (e) {
+              var st = e.getAttribute('style') || '';
+              try { var bg = getComputedStyle(e).backgroundImage; if (bg && bg !== 'none') st += ' ' + bg; } catch (ex) { }
+              var m = st.match(/url\(['"]?([^'")\s]+)['"]?\)/g);
+              if (m) m.forEach(function (x) {
+                var u = x.replace(/url\(['"]?|['"]?\)/g, '');
+                if (u && (u.indexOf('alicdn') !== -1 || u.indexOf('1688') !== -1)) addImage(u);
+              });
+            });
+          } catch (e) { }
+        }
+      });
 
       document.querySelectorAll('img').forEach(function (img) {
         var s = img.src;
