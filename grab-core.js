@@ -225,8 +225,6 @@
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:20px}
 .tb .title{font-size:16px;font-weight:bold;color:#ff6a00;margin-right:6px;white-space:nowrap}
-.tb .stat{font-size:13px;color:#999;white-space:nowrap}
-.tb .stat b{color:#ff6a00}
 .pinfo{background:#fff;border-radius:10px;padding:18px 25px;margin-bottom:16px;box-shadow:0 1px 6px rgba(0,0,0,.05)}
 .pinfo h3{font-size:15px;font-weight:bold;color:#333;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #f0f0f0}
 .pinfo table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
@@ -240,12 +238,15 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:2
 .tb button:hover{background:#ff8533}
 .tb button.s2{background:#666}
 .tb button.s2:hover{background:#888}
-.tb button.s3{background:#ff4444}
-.tb button.s3:hover{background:#ff6666}
-.tb button.s5{background:#1890ff}
-.tb button.s5:hover{background:#40a9ff}
-.cnt{color:#666;font-size:14px;margin-left:auto}
-.cnt b{color:#ff6a00;font-size:18px}
+.tb button.s3{background:#1890ff}
+.tb button.s3:hover{background:#40a9ff}
+.tb button.s5{background:#ff4444}
+.tb button.s5:hover{background:#ff6666}
+.cnt{color:#999;font-size:14px;margin-left:auto;white-space:nowrap}
+.cnt b{font-size:20px;font-weight:bold}
+.cnt .cg{color:#52c41a}
+.cnt .cf{color:#ff4d4f}
+.cnt .cs{color:#1890ff}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
 .card{background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.06);border:2px solid transparent;cursor:pointer;transition:all .2s}
 .card:hover{box-shadow:0 6px 24px rgba(0,0,0,.12);transform:translateY(-2px)}
@@ -281,9 +282,9 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:2
 .gotop{position:fixed;right:24px;bottom:40%;width:44px;height:44px;border-radius:50%;border:none;background:linear-gradient(135deg,#ff6a00,#ff4444);color:#fff;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(255,68,68,.3);z-index:9990;opacity:0;transition:opacity .3s,transform .2s}
 .gotop:hover{transform:scale(1.1);box-shadow:0 6px 20px rgba(255,68,68,.5)}
 .gotop.show{opacity:1}
-.sf{display:flex;align-items:center;gap:6px;margin-left:8px;font-size:12px;color:#999}
-.sf input[type=range]{width:160px;accent-color:#ff6a00}
-.sf .sv{color:#ff6a00;font-weight:bold;min-width:40px}
+.sf{display:flex;align-items:center;gap:8px;margin-left:8px;font-size:14px;color:#999}
+.sf input[type=range]{width:320px;height:12px;accent-color:#ff6a00;cursor:pointer}
+.sf .sv{color:#ff6a00;font-weight:bold;font-size:15px;min-width:46px}
 .ksrow{font-size:12px;color:#bbb;padding:4px 20px 0;margin-bottom:12px;display:flex;gap:16px;flex-wrap:wrap}
 .ksrow b{color:#ff6a00;margin-right:2px}
 </style>
@@ -292,13 +293,12 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:2
 <div class="toast" id="toast"></div>
 <div class="tb">
   <span class="title">1688图片</span>
-  <span class="stat" id="statLine">共 <b>${images.length}</b> 张 | 主图 <b>${groups.main.length}</b> | 详情 <b>${groups.detail.length}</b> | 其他 <b>${groups.other.length}</b></span>
   <button id="btnAll">✅ 全选</button>
   <button id="btnNone" class="s2">⬜ 取消全选</button>
   <button id="btnCopy" class="s3">📋 复制选中地址</button>
   <button id="btnZip" class="s5">📦 打包下载</button>
-  <div class="sf"><span>最小尺寸:</span><input type="range" id="sizeFilter" min="0" max="2000" value="200" step="10"><span id="sizeLabel" class="sv">200px</span></div>
-  <div class="cnt">已选 <b id="sc">0</b> 张</div>
+  <div class="sf"><span>最小展示尺寸:</span><input type="range" id="sizeFilter" min="0" max="2000" value="" step="10"><span id="sizeLabel" class="sv"></span></div>
+  <div class="cnt" id="statLine">共 <b class="cg">${images.length}</b> 张 | 已选 <b class="cs">0</b> 张</div>
 </div>
 <div class="ksrow"><span><b>Ctrl+X</b> 复制选中地址</span><span>预览: <b>←→ A D</b> 切换, <b>空格</b> 选中, <b>ESC</b> 关闭</span></div>
 ${productInfo || ''}
@@ -323,7 +323,6 @@ ${productInfo || ''}
 <script>
 var urls=${urlsJson};
 var grid=document.getElementById("grid");
-var scEl=document.getElementById("sc");
 var toastEl=document.getElementById("toast");
 function showToast(msg){toastEl.textContent=msg;toastEl.classList.add("show");setTimeout(function(){toastEl.classList.remove("show");},2000);}
 function getCheckedUrls(){var arr=[];document.querySelectorAll(".ci:checked").forEach(function(c){var card=c.closest(".card");if(card.style.display!=="none")arr.push(card.querySelector(".url").textContent);});return arr;}
@@ -343,21 +342,26 @@ var cpBtn=document.createElement("button");cpBtn.className="cpbtn";cpBtn.textCon
 ac.appendChild(openLink);ac.appendChild(cpBtn);
 ua.appendChild(urlDiv);ua.appendChild(ac);d.appendChild(ua);
 grid.appendChild(d);});
+var _sf=document.getElementById("sizeFilter"),_sl=document.getElementById("sizeLabel");
+var _sv=parseInt(localStorage.getItem("1688_sizeFilter"));
+if(isNaN(_sv))_sv=200;
+_sf.value=_sv;_sl.textContent=_sv?_sv+"px":"0px";
 var _fd=0,_ft=urls.length,_sn=0;
 function fImg(el){_fd++;var w=el.naturalWidth,h=el.naturalHeight;var c=el.closest(".card");
 c.dataset.w=w;c.dataset.h=h;
 if(w>0&&h>0){var s=document.createElement("span");s.className="sz";s.textContent=w+"×"+h;el.closest(".iw").appendChild(s);
 if(w>=400&&h>=400){c.classList.add("big");}}
-var fv=parseInt(document.getElementById("sizeFilter").value)||0;
+var fv=parseInt(_sf.value)||0;
 if(fv>0&&(w<fv||h<fv)){c.style.display="none";_sn++;}
 if(_fd===_ft){var mx=0;grid.querySelectorAll(".card[data-w]").forEach(function(cd){mx=Math.max(mx,parseInt(cd.dataset.w),parseInt(cd.dataset.h));});
-document.getElementById("sizeFilter").max=mx;
-var n=grid.querySelectorAll(".card").length;document.getElementById("statLine").innerHTML="有效 <b>"+(n-_sn)+"</b> 张 | 过滤 <b>"+_sn+"</b> 张";}}
-document.getElementById("sizeFilter").addEventListener("input",function(){var v=parseInt(this.value);document.getElementById("sizeLabel").textContent=v?v+"px":"0px";
+_sf.max=mx;
+var n=grid.querySelectorAll(".card").length;document.getElementById("statLine").innerHTML="有效 <b class='cg'>"+(n-_sn)+"</b> 张 | 过滤 <b class='cf'>"+_sn+"</b> 张 | 已选 <b class='cs'>"+getCheckedUrls().length+"</b> 张";}}
+_sf.addEventListener("input",function(){var v=parseInt(this.value);_sl.textContent=v?v+"px":"0px";
+localStorage.setItem("1688_sizeFilter",v);
 var hidden=0;grid.querySelectorAll(".card").forEach(function(c){
 if(v>0&&c.dataset.w&&c.dataset.h&&(parseInt(c.dataset.w)<v||parseInt(c.dataset.h)<v)){c.style.display="none";hidden++;}
 else{c.style.display="";}});
-var n=grid.querySelectorAll(".card").length;document.getElementById("statLine").innerHTML="有效 <b>"+(n-hidden)+"</b> 张 | 过滤 <b>"+hidden+"</b> 张";
+var n=grid.querySelectorAll(".card").length;document.getElementById("statLine").innerHTML="有效 <b class='cg'>"+(n-hidden)+"</b> 张 | 过滤 <b class='cf'>"+hidden+"</b> 张 | 已选 <b class='cs'>"+getCheckedUrls().length+"</b> 张";
 updateCount();});
 var pvEl=document.getElementById("preview");var pvImg=document.getElementById("previewImg");
 var _pz=1,_px=0,_py=0,_pr=0,_pd=false,_psx=0,_psy=0,_pvi=0;
@@ -411,7 +415,9 @@ if(e.target===cb){card.classList.toggle("on",cb.checked);updateCount();return;}
 if(e.target.tagName==="LABEL")return;
 toggleCard(card,cb);});
 function toggleCard(card,cb){cb.checked=!cb.checked;card.classList.toggle("on",cb.checked);updateCount();}
-function updateCount(){scEl.textContent=getCheckedUrls().length;}
+function updateCount(){var hidden=0;grid.querySelectorAll(".card").forEach(function(c){if(c.style.display==="none")hidden++;});
+var n=grid.querySelectorAll(".card").length;
+document.getElementById("statLine").innerHTML="有效 <b class='cg'>"+(n-hidden)+"</b> 张 | 过滤 <b class='cf'>"+hidden+"</b> 张 | 已选 <b class='cs'>"+getCheckedUrls().length+"</b> 张";}
 document.getElementById("btnAll").addEventListener("click",function(){
 document.querySelectorAll(".card").forEach(function(c){if(c.style.display==="none")return;var cb=c.querySelector(".ci");cb.checked=true;c.classList.add("on");});updateCount();});
 document.getElementById("btnNone").addEventListener("click",function(){
