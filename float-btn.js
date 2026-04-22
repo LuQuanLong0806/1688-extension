@@ -10,7 +10,7 @@
     '<button id="__1688_grab_btn">🚀 抓取图片</button>' +
     '<div id="__1688_grab_status"></div>' +
     '</div>' +
-    '<div id="__1688_grab_toggle" title="拖动 / 悬浮展开"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>';
+    '<div id="__1688_grab_toggle" title="拖动 / 悬浮展开"><svg viewBox="0 0 36 36" fill="none"><defs><linearGradient id="fpg" x1="4" y1="4" x2="32" y2="32" gradientUnits="userSpaceOnUse"><stop stop-color="#ff6a00"/><stop offset="1" stop-color="#ff4444"/></linearGradient></defs><path d="M15 3c-1 2 0 4 1 5" stroke="#ff6a00" stroke-width="2" stroke-linecap="round"/><path d="M17 2c0 2 0 4 1 5" stroke="#ff8533" stroke-width="2" stroke-linecap="round"/><path d="M19 3c1 1.5 0 3.5-1 4.5" stroke="#ff4444" stroke-width="1.5" stroke-linecap="round"/><path d="M21 7c-5 0-9 4.5-9 10 0 3.5 1.5 6.5 4 8.5L11 31l5-3.5c1.5.5 3 .7 4.5.4 5-1 8.5-5.5 8.5-11C29 11 25.5 7 21 7z" fill="url(#fpg)"/><path d="M13 15c-2 3-2.5 6-1 9.5 1.5-3 4-5 7-6" fill="#e85600" opacity=".5"/><circle cx="23" cy="13" r="2.2" fill="#fff"/><circle cx="23.5" cy="12.4" r="1" fill="#333"/><circle cx="23.1" cy="12" r=".35" fill="#fff"/><path d="M25.5 15l4-2-2 4.5z" fill="#ff4444"/><path d="M26 16.5l2 1.5-2.5-.5z" fill="#cc3333"/><path d="M13 25l-3 6 4-3z" fill="url(#fpg)" opacity=".45"/><path d="M15 26l-1 6 3-4z" fill="url(#fpg)" opacity=".35"/></svg></div>';
 
   var s = document.createElement('style');
   s.textContent =
@@ -22,11 +22,12 @@
     'box-shadow:0 4px 24px rgba(0,0,0,.15);border:1px solid #f0f0f0;' +
     'will-change:width,padding,opacity;transition:width .25s,padding .25s,opacity .25s;overflow:hidden}' +
     '#__1688_grab_panel:not(:hover) #__1688_grab_body{width:0;padding:0;opacity:0;border:0}' +
-    '#__1688_grab_toggle{width:48px;height:48px;flex-shrink:0;border-radius:50%;' +
-    'background:linear-gradient(135deg,#ff6a00,#ff4444);color:#fff;font-size:20px;font-weight:bold;' +
+    '#__1688_grab_toggle{width:48px;height:48px;flex-shrink:0;' +
+    'background:transparent;' +
     'display:flex;align-items:center;justify-content:center;cursor:grab;' +
-    'box-shadow:0 4px 16px rgba(255,68,68,.4);will-change:transform;transition:transform .2s,box-shadow .2s}' +
-    '#__1688_grab_toggle:hover{transform:scale(1.1);box-shadow:0 6px 20px rgba(255,68,68,.5)}' +
+    'will-change:transform;transition:transform .2s}' +
+    '#__1688_grab_toggle:hover{transform:scale(1.15)}' +
+    '#__1688_grab_toggle svg{width:100%;height:100%;filter:drop-shadow(0 2px 6px rgba(255,68,68,.3))}' +
     '#__1688_grab_title{font-size:15px;font-weight:bold;color:#333;margin-bottom:10px;text-align:center;white-space:nowrap}' +
     '#__1688_grab_btn{width:100%;padding:10px;border:none;border-radius:8px;' +
     'background:linear-gradient(135deg,#ff6a00,#ff4444);color:#fff;font-size:15px;font-weight:bold;' +
