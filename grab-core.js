@@ -291,14 +291,14 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:2
 .gotop{position:fixed;right:24px;bottom:40%;width:44px;height:44px;border-radius:50%;border:none;background:linear-gradient(135deg,#ff6a00,#ff4444);color:#fff;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(255,68,68,.3);z-index:9990;opacity:0;transition:opacity .3s,transform .2s}
 .gotop:hover{transform:scale(1.1);box-shadow:0 6px 20px rgba(255,68,68,.5)}
 .gotop.show{opacity:1}
-.sf{display:flex;align-items:center;gap:12px;margin-left:8px;font-size:14px;color:#999;margin-top:-3px}
+.sf{display:flex;align-items:center;gap:12px;margin-left:8px;font-size:14px;color:#999}
 .sf input[type=range]{-webkit-appearance:none;width:420px;height:6px;border-radius:3px;outline:none;cursor:pointer}
 .sf input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:transparent}
 .sf input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:#fff;border:2px solid #ff6a00;cursor:pointer;margin-top:-7px;transition:box-shadow .2s}
 .sf input[type=range]::-webkit-slider-thumb:hover{box-shadow:0 0 0 5px rgba(255,106,0,.2)}
 .sf input[type=range]:active::-webkit-slider-thumb{box-shadow:0 0 0 6px rgba(255,106,0,.25)}
 .sf .sv{color:#ff6a00;font-weight:bold;font-size:15px;min-width:46px}
-.sf .wrap{position:relative;width:420px}
+.sf .wrap{position:relative;width:420px;margin-top:-3px}
 .sf .ticks{position:absolute;top:14px;left:0;width:420px;height:22px}
 .sf .ticks span{position:absolute;bottom:0;font-size:10px;color:#c5c8ce;transform:translateX(-50%);white-space:nowrap}
 .sf .ticks span::before{content:"";position:absolute;top:-6px;left:50%;width:1px;height:5px;background:#dcdee2}
