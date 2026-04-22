@@ -40,24 +40,45 @@
   var JS_GLOBALS = ['__INIT_DATA__', '__pageData__', 'pageConfig', 'g_config', 'offerData'];
 
   function createCollector() {
-    var images = [];
-    var urlSet = new Set();
+    var urlMap = new Map();
 
-    function addImage(url) {
-      if (!url || url.indexOf('data:') === 0) return;
+    function addImage(rawUrl) {
+      if (!rawUrl || rawUrl.indexOf('data:') === 0) return;
+      var url = rawUrl;
       if (url.indexOf('//') === 0) url = 'https:' + url;
-      url = url.replace(/_\d+x\d+\.\w+$/i, '');
-      url = url.replace(/\.jpg_\.\w+$/i, '.jpg');
-      url = url.replace(/\.png_\.\w+$/i, '.png');
-      url = url.replace(/\?x-oss-process=.*$/i, '');
-      try { new URL(url); } catch (e) { return; }
-      if (/\.(html?|php|asp|jsp|js|css)(\?|$)/i.test(url)) return;
-      if (/\/offer\//i.test(url)) return;
-      var lower = url.toLowerCase();
+
+      var fetchUrl = url.replace(/\?x-oss-process=.*$/i, '');
+
+      var normalized = fetchUrl;
+      normalized = normalized.replace(/_\d+x\d+\.\w+$/i, '');
+      normalized = normalized.replace(/\.jpg_\.\w+$/i, '.jpg');
+      normalized = normalized.replace(/\.png_\.\w+$/i, '.png');
+
+      try { new URL(normalized); } catch (e) { return; }
+      if (/\.(html?|php|asp|jsp|js|css)(\?|$)/i.test(normalized)) return;
+      if (/\/offer\//i.test(normalized)) return;
+      var lower = normalized.toLowerCase();
       if (SKIP_PATTERNS.some(function (p) { return lower.indexOf(p) !== -1; })) return;
-      if (/\d+x\d+/.test(url) && !/\d{3,}x\d+|\d+x\d{3,}/.test(url)) return;
-      if (/\.gif(\?|$)/i.test(url)) return;
-      if (!urlSet.has(url)) { urlSet.add(url); images.push(url); }
+      if (/\d+x\d+/.test(normalized) && !/\d{3,}x\d+|\d+x\d{3,}/.test(normalized)) return;
+      if (/\.gif(\?|$)/i.test(normalized)) return;
+
+      if (urlMap.has(normalized)) {
+        var existing = urlMap.get(normalized);
+        if (isBetterQuality(fetchUrl, existing)) {
+          urlMap.set(normalized, fetchUrl);
+        }
+      } else {
+        urlMap.set(normalized, fetchUrl);
+      }
+    }
+
+    function isBetterQuality(newUrl, oldUrl) {
+      var ns = newUrl.match(/_(\d+)x\d+\.\w+$/i);
+      var os = oldUrl.match(/_(\d+)x\d+\.\w+$/i);
+      if (!ns && os) return true;
+      if (ns && !os) return false;
+      if (ns && os) return parseInt(ns[1]) > parseInt(os[1]);
+      return false;
     }
 
     function getAttrs(el) {
@@ -175,7 +196,7 @@
         });
       } catch (e) { }
 
-      return images;
+      return Array.from(urlMap.values());
     }
 
     return { scan: scan };
@@ -203,9 +224,9 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:20px}
-.hd{background:linear-gradient(135deg,#ff6a00,#ff4444);color:#fff;padding:25px 30px;border-radius:12px;margin-bottom:20px}
-.hd h1{font-size:24px;margin-bottom:8px}
-.hd p{opacity:.9;font-size:14px}
+.tb .title{font-size:16px;font-weight:bold;color:#ff6a00;margin-right:6px;white-space:nowrap}
+.tb .stat{font-size:13px;color:#999;white-space:nowrap}
+.tb .stat b{color:#ff6a00}
 .pinfo{background:#fff;border-radius:10px;padding:18px 25px;margin-bottom:16px;box-shadow:0 1px 6px rgba(0,0,0,.05)}
 .pinfo h3{font-size:15px;font-weight:bold;color:#333;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #f0f0f0}
 .pinfo table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
@@ -214,17 +235,15 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:2
 .pinfo td{color:#333;word-wrap:break-word;overflow:hidden;text-overflow:ellipsis}
 .pcopy{display:inline-flex;width:18px;height:18px;border-radius:3px;background:none;border:none;cursor:pointer;align-items:center;justify-content:center;vertical-align:text-bottom;margin-left:4px;font-size:15px;color:#ccc;transition:color .2s,transform .15s}
 .pcopy:hover{color:#1890ff;transform:scale(1.15)}
-.ks{font-size:12px;color:#999;margin-left:4px;white-space:nowrap}
-.ks b{color:#ff6a00;margin-right:2px}
-.tb{background:#fff;padding:18px 25px;border-radius:12px;margin-bottom:20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;position:sticky;top:10px;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.08)}
+.tb{background:#fff;padding:14px 20px;border-radius:12px;margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.08)}
 .tb button{background:#ff6a00;color:#fff;border:none;padding:10px 22px;border-radius:6px;cursor:pointer;font-size:14px;font-weight:bold}
 .tb button:hover{background:#ff8533}
 .tb button.s2{background:#666}
 .tb button.s2:hover{background:#888}
 .tb button.s3{background:#ff4444}
 .tb button.s3:hover{background:#ff6666}
-.tb button.s4{background:#888}
-.tb button.s4:hover{background:#aaa}
+.tb button.s5{background:#1890ff}
+.tb button.s5:hover{background:#40a9ff}
 .cnt{color:#666;font-size:14px;margin-left:auto}
 .cnt b{color:#ff6a00;font-size:18px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
@@ -262,24 +281,26 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:2
 .gotop{position:fixed;right:24px;bottom:40%;width:44px;height:44px;border-radius:50%;border:none;background:linear-gradient(135deg,#ff6a00,#ff4444);color:#fff;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(255,68,68,.3);z-index:9990;opacity:0;transition:opacity .3s,transform .2s}
 .gotop:hover{transform:scale(1.1);box-shadow:0 6px 20px rgba(255,68,68,.5)}
 .gotop.show{opacity:1}
+.sf{display:flex;align-items:center;gap:6px;margin-left:8px;font-size:12px;color:#999}
+.sf input[type=range]{width:160px;accent-color:#ff6a00}
+.sf .sv{color:#ff6a00;font-weight:bold;min-width:40px}
+.ksrow{font-size:12px;color:#bbb;padding:4px 20px 0;margin-bottom:12px;display:flex;gap:16px;flex-wrap:wrap}
+.ksrow b{color:#ff6a00;margin-right:2px}
 </style>
 </head>
 <body>
 <div class="toast" id="toast"></div>
-<div class="hd">
-  <h1>1688图片抓取结果</h1>
-  <p>共 <b>${images.length}</b> 张 | 主图 <b>${groups.main.length}</b> | 详情 <b>${groups.detail.length}</b> | 其他 <b>${groups.other.length}</b></p>
-</div>
 <div class="tb">
+  <span class="title">1688图片</span>
+  <span class="stat" id="statLine">共 <b>${images.length}</b> 张 | 主图 <b>${groups.main.length}</b> | 详情 <b>${groups.detail.length}</b> | 其他 <b>${groups.other.length}</b></span>
   <button id="btnAll">✅ 全选</button>
   <button id="btnNone" class="s2">⬜ 取消全选</button>
-  <button id="btnCopy">📋 复制选中地址</button>
-  <button id="btnDl" class="s3">💾 下载列表</button>
-  <button id="btnSmall" class="s4">🔍 显示小图</button>
-  <span class="ks"><b>Ctrl+X</b> 复制选中地址</span>
-  <span class="ks">预览: <b>←→ A D</b> 切换, <b>空格</b> 选中, <b>ESC</b> 关闭</span>
+  <button id="btnCopy" class="s3">📋 复制选中地址</button>
+  <button id="btnZip" class="s5">📦 打包下载</button>
+  <div class="sf"><span>最小尺寸:</span><input type="range" id="sizeFilter" min="0" max="2000" value="200" step="10"><span id="sizeLabel" class="sv">200px</span></div>
   <div class="cnt">已选 <b id="sc">0</b> 张</div>
 </div>
+<div class="ksrow"><span><b>Ctrl+X</b> 复制选中地址</span><span>预览: <b>←→ A D</b> 切换, <b>空格</b> 选中, <b>ESC</b> 关闭</span></div>
 ${productInfo || ''}
 <div class="grid" id="grid"></div>
 <div class="preview" id="preview">
@@ -298,12 +319,14 @@ ${productInfo || ''}
   </div>
 </div>
 <button class="gotop" id="goTop" title="回到顶部">↑</button>
+<script src="https://cdn.bootcdn.net/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
 var urls=${urlsJson};
 var grid=document.getElementById("grid");
 var scEl=document.getElementById("sc");
 var toastEl=document.getElementById("toast");
 function showToast(msg){toastEl.textContent=msg;toastEl.classList.add("show");setTimeout(function(){toastEl.classList.remove("show");},2000);}
+function getCheckedUrls(){var arr=[];document.querySelectorAll(".ci:checked").forEach(function(c){var card=c.closest(".card");if(card.style.display!=="none")arr.push(card.querySelector(".url").textContent);});return arr;}
 urls.forEach(function(u,i){var d=document.createElement("div");d.className="card";d.dataset.idx=i;
 var ck=document.createElement("div");ck.className="ck";
 var inp=document.createElement("input");inp.type="checkbox";inp.className="ci";inp.id="c"+i;
@@ -321,14 +344,21 @@ ac.appendChild(openLink);ac.appendChild(cpBtn);
 ua.appendChild(urlDiv);ua.appendChild(ac);d.appendChild(ua);
 grid.appendChild(d);});
 var _fd=0,_ft=urls.length,_sn=0;
-function fImg(el){_fd++;var w=el.naturalWidth,h=el.naturalHeight;
-if(w<200&&h<200){var c=el.closest(".card");c.classList.add("small");c.style.display="none";_sn++;}
-else{var s=document.createElement("span");s.className="sz";s.textContent=w+"×"+h;el.closest(".iw").appendChild(s);
-if(w>=400&&h>=400){el.closest(".card").classList.add("big");}}
-if(_fd===_ft){var n=grid.querySelectorAll(".card").length;var p=document.querySelector(".hd p");if(p)p.innerHTML="有效图片 <b>"+(n-_sn)+"</b> 张 | 小图 <b>"+_sn+"</b> 张";}}
-document.getElementById("btnSmall").addEventListener("click",function(){
-var show=this.textContent.indexOf("显示")!==-1;this.textContent=show?"🔍 隐藏小图":"🔍 显示小图";
-grid.querySelectorAll(".card.small").forEach(function(c){c.style.display=show?"block":"none";});});
+function fImg(el){_fd++;var w=el.naturalWidth,h=el.naturalHeight;var c=el.closest(".card");
+c.dataset.w=w;c.dataset.h=h;
+if(w>0&&h>0){var s=document.createElement("span");s.className="sz";s.textContent=w+"×"+h;el.closest(".iw").appendChild(s);
+if(w>=400&&h>=400){c.classList.add("big");}}
+var fv=parseInt(document.getElementById("sizeFilter").value)||0;
+if(fv>0&&(w<fv||h<fv)){c.style.display="none";_sn++;}
+if(_fd===_ft){var mx=0;grid.querySelectorAll(".card[data-w]").forEach(function(cd){mx=Math.max(mx,parseInt(cd.dataset.w),parseInt(cd.dataset.h));});
+document.getElementById("sizeFilter").max=mx;
+var n=grid.querySelectorAll(".card").length;document.getElementById("statLine").innerHTML="有效 <b>"+(n-_sn)+"</b> 张 | 过滤 <b>"+_sn+"</b> 张";}}
+document.getElementById("sizeFilter").addEventListener("input",function(){var v=parseInt(this.value);document.getElementById("sizeLabel").textContent=v?v+"px":"0px";
+var hidden=0;grid.querySelectorAll(".card").forEach(function(c){
+if(v>0&&c.dataset.w&&c.dataset.h&&(parseInt(c.dataset.w)<v||parseInt(c.dataset.h)<v)){c.style.display="none";hidden++;}
+else{c.style.display="";}});
+var n=grid.querySelectorAll(".card").length;document.getElementById("statLine").innerHTML="有效 <b>"+(n-hidden)+"</b> 张 | 过滤 <b>"+hidden+"</b> 张";
+updateCount();});
 var pvEl=document.getElementById("preview");var pvImg=document.getElementById("previewImg");
 var _pz=1,_px=0,_py=0,_pr=0,_pd=false,_psx=0,_psy=0,_pvi=0;
 function pvApply(){pvImg.style.transform="translate("+_px+"px,"+_py+"px) scale("+_pz+") rotate("+_pr+"deg)";}
@@ -357,10 +387,10 @@ document.getElementById("pvToggle").addEventListener("click",function(e){e.stopP
 var vc=visibleCards();var card=vc[_pvi];if(!card)return;var cb=card.querySelector(".ci");
 toggleCard(card,cb);pvUpdateToggle();});
 document.getElementById("pvCopyAll").addEventListener("click",function(e){e.stopPropagation();
-var arr=[];document.querySelectorAll(".ci:checked").forEach(function(c){arr.push(c.closest(".card").querySelector(".url").textContent);});
+var arr=getCheckedUrls();
 if(!arr.length){showToast("请先选择图片");return;}doCopy(arr.join("\\n"),arr.length);});
 document.addEventListener("keydown",function(e){if((e.ctrlKey||e.metaKey)&&e.key=="x"){e.preventDefault();
-var arr=[];document.querySelectorAll(".ci:checked").forEach(function(c){arr.push(c.closest(".card").querySelector(".url").textContent);});
+var arr=getCheckedUrls();
 if(!arr.length){showToast("请先选择图片");return;}doCopy(arr.join("\\n"),arr.length);}});
 document.getElementById("pvPrev").addEventListener("click",function(e){e.stopPropagation();pvNavigate(-1);});
 document.getElementById("pvNext").addEventListener("click",function(e){e.stopPropagation();pvNavigate(1);});
@@ -377,10 +407,11 @@ var cpBtn=e.target.closest(".cpbtn");if(cpBtn){e.stopPropagation();copyOne(cpBtn
 var openBtn=e.target.closest(".openbtn");if(openBtn){e.stopPropagation();openPreview(openBtn.dataset.u);return;}
 var card=e.target.closest(".card");if(!card)return;
 var cb=card.querySelector(".ci");
-if(e.target===cb){toggleCard(card,cb);return;}
+if(e.target===cb){card.classList.toggle("on",cb.checked);updateCount();return;}
+if(e.target.tagName==="LABEL")return;
 toggleCard(card,cb);});
 function toggleCard(card,cb){cb.checked=!cb.checked;card.classList.toggle("on",cb.checked);updateCount();}
-function updateCount(){scEl.textContent=document.querySelectorAll(".ci:checked").length;}
+function updateCount(){scEl.textContent=getCheckedUrls().length;}
 document.getElementById("btnAll").addEventListener("click",function(){
 document.querySelectorAll(".card").forEach(function(c){if(c.style.display==="none")return;var cb=c.querySelector(".ci");cb.checked=true;c.classList.add("on");});updateCount();});
 document.getElementById("btnNone").addEventListener("click",function(){
@@ -388,13 +419,22 @@ document.querySelectorAll(".ci").forEach(function(c){c.checked=false;c.closest("
 function doCopy(t,n){navigator.clipboard.writeText(t).then(function(){showToast("已复制"+n+"个地址");}).catch(function(){
 var ta=document.createElement("textarea");ta.value=t;document.body.appendChild(ta);ta.select();document.execCommand("copy");document.body.removeChild(ta);showToast("已复制"+n+"个地址");});}
 document.getElementById("btnCopy").addEventListener("click",function(){
-var arr=[];document.querySelectorAll(".ci:checked").forEach(function(c){arr.push(c.closest(".card").querySelector(".url").textContent);});
+var arr=getCheckedUrls();
 if(!arr.length){showToast("请先选择图片");return;}doCopy(arr.join("\\n"),arr.length);});
-document.getElementById("btnDl").addEventListener("click",function(){
-var arr=[];document.querySelectorAll(".ci:checked").forEach(function(c){arr.push(c.closest(".card").querySelector(".url").textContent);});
-if(!arr.length){showToast("请先选择图片");return;}var b=new Blob([arr.join("\\n")],{type:"text/plain"});
-var a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="1688_"+Date.now()+".txt";a.click();});
 function copyOne(u){doCopy(u,1);}
+document.getElementById("btnZip").addEventListener("click",async function(){if(typeof JSZip==="undefined"){showToast("JSZip 库加载失败，请检查网络");return;}
+var arr=getCheckedUrls();
+if(!arr.length){showToast("请先选择图片");return;}
+var btn=this;btn.disabled=true;var orig=btn.textContent;
+var zip=new JSZip();var done=0,failed=0;
+for(var i=0;i<arr.length;i++){try{var resp=await fetch(arr[i]);var blob=await resp.blob();
+var ext=arr[i].match(/\.(jpg|png|jpeg|webp)/i);zip.file("image_"+String(i+1).padStart(3,"0")+"."+(ext?ext[1]:"jpg"),blob);
+}catch(e){failed++;}
+done++;btn.textContent="⏳ "+done+"/"+arr.length;}
+var content=await zip.generateAsync({type:"blob"});
+var a=document.createElement("a");a.href=URL.createObjectURL(content);a.download="1688_images_"+Date.now()+".zip";a.click();
+btn.disabled=false;btn.textContent=orig;
+showToast("下载完成！"+arr.length+"张"+(failed?"，"+failed+"张失败":""));});
 document.addEventListener("click",function(e){var b=e.target.closest(".pcopy");if(!b)return;e.stopPropagation();var t=b.getAttribute("data-copy");if(t){navigator.clipboard.writeText(t).then(function(){showToast("已复制到粘贴板");}).catch(function(){var ta=document.createElement("textarea");ta.value=t;document.body.appendChild(ta);ta.select();document.execCommand("copy");document.body.removeChild(ta);showToast("已复制到粘贴板");});}});
 document.addEventListener("scroll",function(){document.getElementById("goTop").classList.toggle("show",window.scrollY>300);});
 document.getElementById("goTop").addEventListener("click",function(){window.scrollTo({top:0,behavior:"smooth"});});
