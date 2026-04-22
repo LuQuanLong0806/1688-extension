@@ -198,7 +198,7 @@
     h += '.pinfo h3{font-size:15px;font-weight:bold;color:#333;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #f0f0f0}';
     h += '.pinfo table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}';
     h += '.pinfo td,.pinfo th{padding:6px 12px;border:1px solid #f0f0f0;text-align:left}';
-    h += '.pinfo th{background:#fafafa;color:#999;font-weight:normal;white-space:nowrap}';
+    h += '.pinfo th{background:#fafafa;color:#999;font-weight:normal;white-space:nowrap;width:15%}';
     h += '.pinfo td{color:#333;word-wrap:break-word;overflow:hidden;text-overflow:ellipsis}';
     h += '.ks{font-size:12px;color:#999;margin-left:4px;white-space:nowrap}';
     h += '.ks b{color:#ff6a00;margin-right:2px}';
