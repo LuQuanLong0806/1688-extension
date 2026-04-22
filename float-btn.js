@@ -10,19 +10,19 @@
     '<button id="__1688_grab_btn">🚀 抓取图片</button>' +
     '<div id="__1688_grab_status"></div>' +
     '</div>' +
-    '<div id="__1688_grab_toggle" title="拖动 / 悬浮展开">Z</div>';
+    '<div id="__1688_grab_toggle" title="拖动 / 悬浮展开"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>';
 
   var s = document.createElement('style');
   s.textContent =
     '#__1688_grab_panel{position:fixed;z-index:2147483647;font-family:"Microsoft YaHei",Arial,sans-serif;' +
-    'left:0;top:30%;user-select:none;font-size:14px;line-height:1.5;' +
+    'left:0;top:25%;user-select:none;font-size:14px;line-height:1.5;' +
     'display:flex;align-items:center}' +
     '#__1688_grab_panel *{margin:0;padding:0;box-sizing:border-box}' +
     '#__1688_grab_body{background:#fff;border-radius:12px;padding:16px;width:180px;' +
     'box-shadow:0 4px 24px rgba(0,0,0,.15);border:1px solid #f0f0f0;' +
     'transition:width .25s,padding .25s,opacity .25s,margin .25s;overflow:hidden}' +
     '#__1688_grab_panel:not(:hover) #__1688_grab_body{width:0;padding:0;opacity:0;margin:0;border:0}' +
-    '#__1688_grab_toggle{width:42px;height:42px;flex-shrink:0;border-radius:50%;' +
+    '#__1688_grab_toggle{width:48px;height:48px;flex-shrink:0;border-radius:50%;' +
     'background:linear-gradient(135deg,#ff6a00,#ff4444);color:#fff;font-size:20px;font-weight:bold;' +
     'display:flex;align-items:center;justify-content:center;cursor:grab;' +
     'box-shadow:0 4px 16px rgba(255,68,68,.4);transition:transform .2s,box-shadow .2s}' +
@@ -95,8 +95,8 @@
     if (!dragMoved) return;
     var nx = origX + dx;
     var ny = origY + dy;
-    ny = Math.max(0, Math.min(window.innerHeight - 42, ny));
-    nx = Math.max(0, Math.min(window.innerWidth - 42, nx));
+    ny = Math.max(0, Math.min(window.innerHeight - 48, ny));
+    nx = Math.max(0, Math.min(window.innerWidth - 48, nx));
     setPosition(nx, ny);
   });
 

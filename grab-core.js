@@ -239,6 +239,9 @@
     h += '.preview .nav{position:fixed;top:50%;transform:translateY(-50%);width:50px;height:50px;border-radius:50%;border:none;background:rgba(255,255,255,.15);color:#fff;font-size:28px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:99999}';
     h += '.preview .nav:hover{background:rgba(255,255,255,.35)}';
     h += '.preview .nav-l{left:20px}.preview .nav-r{right:20px}';
+    h += '.gotop{position:fixed;right:24px;bottom:40%;width:44px;height:44px;border-radius:50%;border:none;background:linear-gradient(135deg,#ff6a00,#ff4444);color:#fff;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(255,68,68,.3);z-index:9990;opacity:0;transition:opacity .3s,transform .2s}';
+    h += '.gotop:hover{transform:scale(1.1);box-shadow:0 6px 20px rgba(255,68,68,.5)}';
+    h += '.gotop.show{opacity:1}';
     h += '</style></head><body>';
     h += '<div class="toast" id="toast"></div>';
     h += '<div class="hd"><h1>1688\u56FE\u7247\u62B1\u53D6\u7ED3\u679C</h1>';
@@ -250,7 +253,8 @@ h += '<button id="btnSmall" class="s4">\uD83D\uDD0D \u663E\u793A\u5C0F\u56FE</bu
     h += '<div class="cnt">\u5DF2\u9009 <b id="sc">0</b> \u5F20</div></div>';
     if(productInfo)h += productInfo;
     h += '<div class="grid" id="grid"></div><div class="preview" id="preview"><div class="close" id="previewClose">\u2715</div><button class="nav nav-l" id="pvPrev">\u2039</button><button class="nav nav-r" id="pvNext">\u203A</button><img id="previewImg"><div class="toolbar" id="pvToolbar"><button id="pvZoomIn" title="\u653E\u5927">+</button><button id="pvZoomOut" title="\u7F29\u5C0F">-</button><button id="pvRotL" title="\u5DE6\u65CB">\u21BA</button><button id="pvRotR" title="\u53F3\u65CB">\u21BB</button><button id="pvReset" title="\u91CD\u7F6E">\u21BA\u21BB</button><button id="pvToggle" title="\u9009\u4E2D/\u53D6\u6D88">\u2713</button><button id="pvCopyAll" title="\u590D\u5236\u5168\u90E8\u9009\u4E2D\u5730\u5740">\uD83D\uDCCB</button></div></div>';
-    h += '<scr' + 'ipt>';
+    h += '<button class="gotop" id="goTop" title="回到顶部">↑</button>';
+h += '<scr' + 'ipt>';
     h += 'var urls=' + urlsJson + ';var grid=document.getElementById("grid");';
     h += 'var scEl=document.getElementById("sc");';
     h += 'var toastEl=document.getElementById("toast");';
@@ -346,7 +350,9 @@ h += 'var pvEl=document.getElementById("preview");var pvImg=document.getElementB
     h += 'if(!arr.length){showToast("\u8BF7\u5148\u9009\u62E9\u56FE\u7247");return;}var b=new Blob([arr.join("\\n")],{type:"text/plain"});';
     h += 'var a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="1688_"+Date.now()+".txt";a.click();});';
     h += 'function copyOne(u){doCopy(u,"");}';
-    h += '</' + 'script></body></html>';
+    h += 'document.addEventListener("scroll",function(){document.getElementById("goTop").classList.toggle("show",window.scrollY>300);});';
+h += 'document.getElementById("goTop").addEventListener("click",function(){window.scrollTo({top:0,behavior:"smooth"});});';
+h += '</' + 'script></body></html>';
     return h;
   }
 
