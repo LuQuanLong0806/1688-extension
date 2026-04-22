@@ -251,7 +251,7 @@
     h += '<div class="tb"><button id="btnAll">\u2705 \u5168\u9009</button><button id="btnNone" class="s2">\u2B1C \u53D6\u6D88\u5168\u9009</button>';
     h += '<button id="btnCopy">\uD83D\uDCCB \u590D\u5236\u9009\u4E2D\u5730\u5740</button><button id="btnDl" class="s3">\uD83D\uDCBE \u4E0B\u8F7D\u5217\u8868</button>';
 h += '<button id="btnSmall" class="s4">\uD83D\uDD0D \u663E\u793A\u5C0F\u56FE</button>';
-    h += '<span class="ks"><b>Ctrl+C</b> 复制选中地址</span><span class="ks">预览:<b>←→ A D</b> 切换</span><span class="ks">预览:<b>空格</b> 选中</span><span class="ks">预览:<b>ESC</b> 关闭</span>';
+    h += '<span class="ks"><b>Ctrl+X</b> 复制选中地址</span><span class="ks">预览: <b>←→ A D</b> 切换, <b>空格</b> 选中, <b>ESC</b> 关闭</span>';
     h += '<div class="cnt">\u5DF2\u9009 <b id="sc">0</b> \u5F20</div></div>';
     if(productInfo)h += productInfo;
     h += '<div class="grid" id="grid"></div><div class="preview" id="preview"><div class="close" id="previewClose">\u2715</div><button class="nav nav-l" id="pvPrev">\u2039</button><button class="nav nav-r" id="pvNext">\u203A</button><img id="previewImg"><div class="toolbar" id="pvToolbar"><button id="pvZoomIn" title="\u653E\u5927">+</button><button id="pvZoomOut" title="\u7F29\u5C0F">-</button><button id="pvRotL" title="\u5DE6\u65CB">\u21BA</button><button id="pvRotR" title="\u53F3\u65CB">\u21BB</button><button id="pvReset" title="\u91CD\u7F6E">\u21BA\u21BB</button><button id="pvToggle" title="\u9009\u4E2D/\u53D6\u6D88">\u2713</button><button id="pvCopyAll" title="\u590D\u5236\u5168\u90E8\u9009\u4E2D\u5730\u5740">\uD83D\uDCCB</button></div></div>';
@@ -316,7 +316,7 @@ h += 'var pvEl=document.getElementById("preview");var pvImg=document.getElementB
     h += 'document.getElementById("pvCopyAll").addEventListener("click",function(e){e.stopPropagation();';
     h += 'var arr=[];document.querySelectorAll(".ci:checked").forEach(function(c){arr.push(c.closest(".card").querySelector(".url").textContent);});';
     h += 'if(!arr.length){showToast("\u8BF7\u5148\u9009\u62E9\u56FE\u7247");return;}doCopy(arr.join("\\n"),arr.length);});';
-    h += 'document.addEventListener("keydown",function(e){if((e.ctrlKey||e.metaKey)&&e.key=="c"){e.preventDefault();';
+    h += 'document.addEventListener("keydown",function(e){if((e.ctrlKey||e.metaKey)&&e.key=="x"){e.preventDefault();';
     h += 'var arr=[];document.querySelectorAll(".ci:checked").forEach(function(c){arr.push(c.closest(".card").querySelector(".url").textContent);});';
     h += 'if(!arr.length){showToast("请先选择图片");return;}doCopy(arr.join("\\n"),arr.length);}});';
     h += 'document.getElementById("pvPrev").addEventListener("click",function(e){e.stopPropagation();pvNavigate(-1);});';
