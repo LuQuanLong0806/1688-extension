@@ -182,7 +182,7 @@
     return { main: mainImgs, detail: detailImgs, other: otherImgs };
   }
 
-  function generateResultPage(images, groups) {
+  function generateResultPage(images, groups, productInfo) {
     var urlsJson = JSON.stringify(images);
     var h = '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">';
     h += '<title>1688\u56FE\u7247 - ' + images.length + '\u5F20</title>';
@@ -190,8 +190,14 @@
     h += 'body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:20px}';
     h += '.hd{background:linear-gradient(135deg,#ff6a00,#ff4444);color:#fff;padding:25px 30px;border-radius:12px;margin-bottom:20px}';
     h += '.hd h1{font-size:24px;margin-bottom:8px}.hd p{opacity:.9;font-size:14px}';
-    h += '.keys{background:#fff;padding:12px 25px;border-radius:10px;margin-bottom:16px;display:flex;gap:20px;flex-wrap:wrap;font-size:13px;color:#666;box-shadow:0 1px 6px rgba(0,0,0,.05)}';
-    h += '.keys b{color:#ff6a00;margin-right:4px}';
+    h += '.pinfo{background:#fff;border-radius:10px;padding:18px 25px;margin-bottom:16px;box-shadow:0 1px 6px rgba(0,0,0,.05)}';
+    h += '.pinfo h3{font-size:15px;font-weight:bold;color:#333;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #f0f0f0}';
+    h += '.pinfo table{width:100%;border-collapse:collapse;font-size:13px}';
+    h += '.pinfo td,.pinfo th{padding:6px 12px;border:1px solid #f0f0f0;text-align:left}';
+    h += '.pinfo th{background:#fafafa;color:#999;font-weight:normal;white-space:nowrap}';
+    h += '.pinfo td{color:#333}';
+    h += '.ks{font-size:12px;color:#999;margin-left:4px;white-space:nowrap}';
+    h += '.ks b{color:#ff6a00;margin-right:2px}';
     h += '.tb{background:#fff;padding:18px 25px;border-radius:12px;margin-bottom:20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;position:sticky;top:10px;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.08)}';
     h += '.tb button{background:#ff6a00;color:#fff;border:none;padding:10px 22px;border-radius:6px;cursor:pointer;font-size:14px;font-weight:bold}';
     h += '.tb button:hover{background:#ff8533}.tb button.s2{background:#666}.tb button.s2:hover{background:#888}';
@@ -233,11 +239,12 @@
     h += '<div class="toast" id="toast"></div>';
     h += '<div class="hd"><h1>1688\u56FE\u7247\u62B1\u53D6\u7ED3\u679C</h1>';
     h += '<p>\u5171 <b>' + images.length + '</b> \u5F20 | \u4E3B\u56FE <b>' + groups.main.length + '</b> | \u8BE6\u60C5 <b>' + groups.detail.length + '</b> | \u5176\u4ED6 <b>' + groups.other.length + '</b></p></div>';
-    h += '<div class="keys"><span><b>Ctrl+C</b> 复制选中地址</span><span><b>← →</b> 切换图片</span><span><b>A / D</b> 切换图片</span><span><b>空格</b> 选中/取消</span><span><b>ESC</b> 关闭预览</span></div>';
     h += '<div class="tb"><button id="btnAll">\u2705 \u5168\u9009</button><button id="btnNone" class="s2">\u2B1C \u53D6\u6D88\u5168\u9009</button>';
     h += '<button id="btnCopy">\uD83D\uDCCB \u590D\u5236\u9009\u4E2D\u5730\u5740</button><button id="btnDl" class="s3">\uD83D\uDCBE \u4E0B\u8F7D\u5217\u8868</button>';
 h += '<button id="btnSmall" class="s4">\uD83D\uDD0D \u663E\u793A\u5C0F\u56FE</button>';
+    h += '<span class="ks"><b>Ctrl+C</b> 复制</span><span class="ks"><b>←→ A D</b> 切换</span><span class="ks"><b>空格</b> 选中</span><span class="ks"><b>ESC</b> 关闭</span>';
     h += '<div class="cnt">\u5DF2\u9009 <b id="sc">0</b> \u5F20</div></div>';
+    if(productInfo)h += productInfo;
     h += '<div class="grid" id="grid"></div><div class="preview" id="preview"><div class="close" id="previewClose">\u2715</div><button class="nav nav-l" id="pvPrev">\u2039</button><button class="nav nav-r" id="pvNext">\u203A</button><img id="previewImg"><div class="toolbar" id="pvToolbar"><button id="pvZoomIn" title="\u653E\u5927">+</button><button id="pvZoomOut" title="\u7F29\u5C0F">-</button><button id="pvRotL" title="\u5DE6\u65CB">\u21BA</button><button id="pvRotR" title="\u53F3\u65CB">\u21BB</button><button id="pvReset" title="\u91CD\u7F6E">\u21BA\u21BB</button><button id="pvToggle" title="\u9009\u4E2D/\u53D6\u6D88">\u2713</button><button id="pvCopyAll" title="\u590D\u5236\u5168\u90E8\u9009\u4E2D\u5730\u5740">\uD83D\uDCCB</button></div></div>';
     h += '<scr' + 'ipt>';
     h += 'var urls=' + urlsJson + ';var grid=document.getElementById("grid");';
@@ -339,8 +346,27 @@ h += 'var pvEl=document.getElementById("preview");var pvImg=document.getElementB
     return h;
   }
 
-  function showResult(images, groups) {
-    var html = generateResultPage(images, groups);
+  function extractProductInfo() {
+    var parts = [];
+    var ids = [
+      { id: "productAttributes", title: "商品属性" },
+      { id: "productPackInfo", title: "包装信息" }
+    ];
+    ids.forEach(function(item) {
+      var el = document.getElementById(item.id);
+      if (!el) return;
+      var tables = el.querySelectorAll("table");
+      if (!tables.length) return;
+      var html = "";
+      tables.forEach(function(t) { html += t.outerHTML; });
+      parts.push("<div class=\"pinfo\"><h3>" + item.title + "</h3>" + html + "</div>");
+    });
+    return parts.length > 0 ? parts.join("") : null;
+  }
+
+
+  function showResult(images, groups, productInfo) {
+    var html = generateResultPage(images, groups, productInfo);
     var blob = new Blob([html], { type: 'text/html' });
     var blobUrl = URL.createObjectURL(blob);
     var w = window.open(blobUrl, '_blank');
@@ -363,7 +389,8 @@ h += 'var pvEl=document.getElementById("preview");var pvImg=document.getElementB
       var images = collector.scan();
       if (images.length === 0) return null;
       var groups = classify(images);
-      showResult(images, groups);
+      var productInfo = extractProductInfo();
+      showResult(images, groups, productInfo);
       return images.length;
     },
     getImageCount: function () {
