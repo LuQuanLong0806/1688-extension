@@ -10,7 +10,7 @@
     '<button id="__1688_grab_btn">🚀 抓取图片</button>' +
     '<div id="__1688_grab_status"></div>' +
     '</div>' +
-    '<div id="__1688_grab_toggle" title="拖动 / 悬浮展开"><svg viewBox="0 0 56 36" fill="none"><path d="M10 26L3 35l5-1z" fill="#1565C0"/><path d="M12 27L5 35l4.5-.5z" fill="#C62828"/><path d="M13.5 27.5L8 35l3.5-.5z" fill="#B71C1C"/><ellipse cx="20" cy="18" rx="10" ry="11" fill="#4CAF50"/><path d="M24 10c3 1 5 5 5 9s-2 8-5 9c-2-2-3-7-3-13s1-5 3-5z" fill="#C5E1A5"/><path d="M12 15c-2.5 3-3.5 7-2 9.5 1.5-3 4-5.5 7-6.5" fill="#2E7D32"/><path d="M10.5 22l-1.5 2.5 2-1.5" fill="#1976D2" opacity=".7"/><circle cx="30" cy="9" r="6.5" fill="#757575"/><ellipse cx="32" cy="10.5" rx="3" ry="2.5" fill="#A1887F"/><circle cx="33" cy="8.5" r="2" fill="#fff"/><circle cx="33.5" cy="8.2" r="1" fill="#4E342E"/><circle cx="33.2" cy="7.8" r=".3" fill="#fff"/><path d="M33.5 9.5c1.5 0 4 .5 4.5 1.8c.3 1-.5 2-1.8 2c-1.2 0-2.5-.8-3-1.5z" fill="#9E9E9E"/><path d="M34 11c1.5.5 3 1 3.5 1.5" stroke="#757575" stroke-width=".5" fill="none"/><g stroke="#8D6E63" stroke-width="1.2" fill="none" stroke-linecap="round"><path d="M18 28l-1 4"/><path d="M17 32l-2.5-.8"/><path d="M17 32l-1.5 2"/><path d="M17 32l1.8 1.5"/><path d="M21 28.5l-.8 4"/><path d="M20.2 32.5l-2.5-.8"/><path d="M20.2 32.5l-1.5 2"/><path d="M20.2 32.5l1.8 1.5"/></g><circle cx="35" cy="32.5" r="2" fill="#8BC34A"/><circle cx="34.2" cy="31.8" r=".4" fill="#333"/><path d="M33.5 30.5l-1-1.5" stroke="#7CB342" stroke-width=".5" stroke-linecap="round"/><path d="M34.8 30l-.2-1.5" stroke="#7CB342" stroke-width=".5" stroke-linecap="round"/><circle cx="39.5" cy="33" r="2" fill="#7CB342"/><text x="39.5" y="34" text-anchor="middle" fill="#fff" font-size="2.5" font-weight="bold" font-family="Arial,sans-serif">1</text><circle cx="44" cy="32.5" r="2" fill="#9CCC65"/><text x="44" y="33.5" text-anchor="middle" fill="#fff" font-size="2.5" font-weight="bold" font-family="Arial,sans-serif">6</text><circle cx="48.5" cy="33" r="2" fill="#7CB342"/><text x="48.5" y="34" text-anchor="middle" fill="#fff" font-size="2.5" font-weight="bold" font-family="Arial,sans-serif">8</text><circle cx="53" cy="32.5" r="2" fill="#9CCC65"/><text x="53" y="33.5" text-anchor="middle" fill="#fff" font-size="2.5" font-weight="bold" font-family="Arial,sans-serif">8</text><g stroke="#689F38" stroke-width=".4"><line x1="35" y1="34.5" x2="34" y2="35.8"/><line x1="39.5" y1="35" x2="38.5" y2="36.3"/><line x1="44" y1="34.5" x2="43" y2="35.8"/><line x1="48.5" y1="35" x2="47.5" y2="36.3"/><line x1="53" y1="34.5" x2="52" y2="35.8"/></g></svg></div>';
+    '<div id="__1688_grab_toggle" title="拖动 / 悬浮展开"><svg viewBox="0 0 40 44" fill="none"><path d="M10 26L3 35l5-1z" fill="#1565C0"/><path d="M12 27L5 35l4.5-.5z" fill="#C62828"/><path d="M13.5 27.5L8 35l3.5-.5z" fill="#B71C1C"/><ellipse cx="20" cy="18" rx="10" ry="11" fill="#4CAF50"/><path d="M24 10c3 1 5 5 5 9s-2 8-5 9c-2-2-3-7-3-13s1-5 3-5z" fill="#C5E1A5"/><path d="M12 15c-2.5 3-3.5 7-2 9.5 1.5-3 4-5.5 7-6.5" fill="#2E7D32"/><path d="M10.5 22l-1.5 2.5 2-1.5" fill="#1976D2" opacity=".7"/><circle cx="30" cy="9" r="6.5" fill="#757575"/><ellipse cx="32" cy="10.5" rx="3" ry="2.5" fill="#A1887F"/><circle cx="33" cy="8.5" r="2" fill="#fff"/><circle cx="33.5" cy="8.2" r="1" fill="#4E342E"/><circle cx="33.2" cy="7.8" r=".3" fill="#fff"/><path d="M33.5 9.5c1.5 0 4 .5 4.5 1.8c.3 1-.5 2-1.8 2c-1.2 0-2.5-.8-3-1.5z" fill="#9E9E9E"/><path d="M34 11c1.5.5 3 1 3.5 1.5" stroke="#757575" stroke-width=".5" fill="none"/><g stroke="#8D6E63" stroke-width="1.2" fill="none" stroke-linecap="round"><path d="M18 28l-1 4"/><path d="M17 32l-2.5-.8"/><path d="M17 32l-1.5 2"/><path d="M17 32l1.8 1.5"/><path d="M21 28.5l-.8 4"/><path d="M20.2 32.5l-2.5-.8"/><path d="M20.2 32.5l-1.5 2"/><path d="M20.2 32.5l1.8 1.5"/></g><rect x="5" y="34.5" width="30" height="3.5" rx="1.75" fill="#8B6914"/><rect x="5" y="34.5" width="30" height="1.2" rx=".6" fill="#A07B28" opacity=".4"/><text x="20" y="43" text-anchor="middle" fill="#8B6914" font-size="7" font-weight="bold" font-family="Arial,sans-serif">1688</text></svg></div>';
 
   var s = document.createElement('style');
   s.textContent =
@@ -22,7 +22,7 @@
     'box-shadow:0 4px 24px rgba(0,0,0,.15);border:1px solid #f0f0f0;' +
     'will-change:width,padding,opacity;transition:width .25s,padding .25s,opacity .25s;overflow:hidden}' +
     '#__1688_grab_panel:not(:hover) #__1688_grab_body{width:0;padding:0;opacity:0;border:0}' +
-    '#__1688_grab_toggle{width:48px;height:48px;flex-shrink:0;' +
+    '#__1688_grab_toggle{width:58px;height:58px;flex-shrink:0;' +
     'background:transparent;' +
     'display:flex;align-items:center;justify-content:center;cursor:grab;' +
     'will-change:transform;transition:transform .2s}' +
@@ -96,8 +96,8 @@
     if (!dragMoved) return;
     var nx = origX + dx;
     var ny = origY + dy;
-    ny = Math.max(0, Math.min(window.innerHeight - 48, ny));
-    nx = Math.max(0, Math.min(window.innerWidth - 48, nx));
+    ny = Math.max(0, Math.min(window.innerHeight - 58, ny));
+    nx = Math.max(0, Math.min(window.innerWidth - 58, nx));
     setPosition(nx, ny);
   });
 
