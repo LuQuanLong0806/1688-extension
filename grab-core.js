@@ -77,7 +77,9 @@
       });
     }
 
-    function scan() {
+    function isFooter(el) { var node = el; while (node) { if (node.id === "bottom" || (node.tagName && node.tagName.toLowerCase() === "ali-footer")) return true; node = node.parentElement; } return false; }
+
+      function scan() {
       queryAll(GALLERY_SELECTORS, getAttrs);
 
       IFRAME_SELECTORS.forEach(function (sel) {
@@ -95,7 +97,7 @@
 
       // Shadow DOM scan
       document.querySelectorAll('*').forEach(function (el) {
-        if (el.shadowRoot) {
+        if (el.shadowRoot && !isFooter(el)) {
           try {
             el.shadowRoot.querySelectorAll('img').forEach(function (img) {
               var s = img.src;
@@ -117,6 +119,7 @@
       });
 
       document.querySelectorAll('img').forEach(function (img) {
+        if(isFooter(img)) return;
         var s = img.src;
         if (s && (s.indexOf('alicdn') !== -1 || s.indexOf('1688') !== -1 || s.indexOf('taobaocdn') !== -1))
           addImage(s);
@@ -124,6 +127,7 @@
       });
 
       document.querySelectorAll('[style*="url("]').forEach(function (el) {
+        if(isFooter(el)) return;
         var st = el.getAttribute('style') || '';
         try {
           var bg = getComputedStyle(el).backgroundImage;
@@ -192,10 +196,10 @@
     h += '.hd h1{font-size:24px;margin-bottom:8px}.hd p{opacity:.9;font-size:14px}';
     h += '.pinfo{background:#fff;border-radius:10px;padding:18px 25px;margin-bottom:16px;box-shadow:0 1px 6px rgba(0,0,0,.05)}';
     h += '.pinfo h3{font-size:15px;font-weight:bold;color:#333;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #f0f0f0}';
-    h += '.pinfo table{width:100%;border-collapse:collapse;font-size:13px}';
+    h += '.pinfo table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}';
     h += '.pinfo td,.pinfo th{padding:6px 12px;border:1px solid #f0f0f0;text-align:left}';
     h += '.pinfo th{background:#fafafa;color:#999;font-weight:normal;white-space:nowrap}';
-    h += '.pinfo td{color:#333}';
+    h += '.pinfo td{color:#333;word-wrap:break-word;overflow:hidden;text-overflow:ellipsis}';
     h += '.ks{font-size:12px;color:#999;margin-left:4px;white-space:nowrap}';
     h += '.ks b{color:#ff6a00;margin-right:2px}';
     h += '.tb{background:#fff;padding:18px 25px;border-radius:12px;margin-bottom:20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;position:sticky;top:10px;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.08)}';
