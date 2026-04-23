@@ -442,7 +442,7 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:2
 @keyframes logoFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
 .pinfo{background:#fff;border-radius:10px;padding:18px 25px;margin-bottom:16px;box-shadow:0 1px 6px rgba(0,0,0,.05)}
 .pinfo h3{font-size:16px;font-weight:bold;color:#333;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #f0f0f0}
-.pinfo table{width:100%;border-collapse:collapse;font-size:14px;table-layout:fixed}
+.pinfo table{width:100%;border-collapse:collapse;font-size:18px;table-layout:fixed}
 .pinfo td,.pinfo th{padding:6px 12px;border:1px solid #f0f0f0;text-align:left}
 .pinfo th{background:#fafafa;color:#999;font-weight:normal;white-space:nowrap;width:15%}
 .pinfo td{color:#333;word-wrap:break-word;overflow:hidden;text-overflow:ellipsis}
@@ -686,7 +686,7 @@ var arr=getCheckedUrls();
 if(!arr.length){showToast("请先选择图片");return;}doCopy(arr.join("\\n"),arr.length);});
 document.addEventListener("keydown",function(e){if((e.ctrlKey||e.metaKey)&&e.key=="c"&&!window.getSelection().toString()){e.preventDefault();
 var arr=getCheckedUrls();
-if(!arr.length){showToast("请先选择图片");return;}doCopy(arr.join("\\n"),arr.length);}
+if(!arr.length){showToast("请先选择图片");return;}doCopy(arr.join("\\n"),arr.length);document.querySelectorAll(".ci").forEach(function(c){c.checked=false;c.closest(".card").classList.remove("on");});updateCount();}
 else if((e.ctrlKey||e.metaKey)&&e.key=="a"){e.preventDefault();document.querySelectorAll(".card").forEach(function(c){if(c.style.display==="none")return;var cb=c.querySelector(".ci");cb.checked=true;c.classList.add("on");});updateCount();showToast("已选中可见图片");}
 else if((e.ctrlKey||e.metaKey)&&e.key=="z"){e.preventDefault();document.querySelectorAll(".ci").forEach(function(c){c.checked=false;c.closest(".card").classList.remove("on");});updateCount();showToast("已取消全选");}});
 document.getElementById("pvPrev").addEventListener("click",function(e){e.stopPropagation();pvNavigate(-1);});
@@ -741,7 +741,8 @@ function doCopy(t,n){navigator.clipboard.writeText(t).then(function(){showToast(
 var ta=document.createElement("textarea");ta.value=t;document.body.appendChild(ta);ta.select();document.execCommand("copy");document.body.removeChild(ta);showToast("已复制"+n+"个地址");});}
 document.getElementById("btnCopy").addEventListener("click",function(){
 var arr=getCheckedUrls();
-if(!arr.length){showToast("请先选择图片");return;}doCopy(arr.join("\\n"),arr.length);});
+if(!arr.length){showToast("请先选择图片");return;}doCopy(arr.join("\\n"),arr.length);
+document.querySelectorAll(".ci").forEach(function(c){c.checked=false;c.closest(".card").classList.remove("on");});updateCount();});
 function copyOne(u){doCopy(u,1);}
 document.getElementById("btnZip").addEventListener("click",async function(){if(typeof JSZip==="undefined"){showToast("JSZip 库加载失败，请检查网络");return;}
 var arr=getCheckedUrls();
