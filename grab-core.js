@@ -345,22 +345,6 @@
         getAttrs(img);
       });
 
-      document.querySelectorAll('[style*="url("]').forEach(function (el) {
-        if (isFooter(el)) return;
-        var st = el.getAttribute('style') || '';
-        try {
-          var bg = getComputedStyle(el).backgroundImage;
-          if (bg && bg !== 'none') st += ' ' + bg;
-        } catch (e) {}
-        var m = st.match(/url\(['"]?([^'")\s]+)['"]?\)/g);
-        if (m)
-          m.forEach(function (x) {
-            var u = x.replace(/url\(['"]?|['"]?\)/g, '');
-            if (u && (u.indexOf('alicdn') !== -1 || u.indexOf('1688') !== -1))
-              addImage(u);
-          });
-      });
-
       document.querySelectorAll('video').forEach(function (v) {
         if (v.poster) addImage(v.poster);
       });
