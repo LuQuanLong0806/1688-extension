@@ -288,13 +288,14 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:2
 .preview .nav:hover{background:rgba(255,255,255,.35)}
 .preview .nav-l{left:20px}
 .preview .nav-r{right:20px}
-.gotop{position:fixed;right:20px;bottom:40%;display:flex;flex-direction:column;gap:8px;z-index:9990;opacity:0;transition:opacity .3s}
-.gotop.show{opacity:1}
-.gotop button{width:44px;height:44px;border-radius:50%;border:none;color:#fff;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,.15);transition:transform .2s,box-shadow .2s}
-.gotop button:hover{transform:scale(1.1);box-shadow:0 6px 16px rgba(0,0,0,.25)}
-.gotop .nav-attr{background:linear-gradient(135deg,#1890ff,#40a9ff)}
-.gotop .nav-pack{background:linear-gradient(135deg,#52c41a,#73d13d)}
-.gotop .nav-top{background:linear-gradient(135deg,#ff6a00,#ff4444)}
+.sidenav{position:fixed;right:8px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:2px;z-index:9990;background:linear-gradient(180deg,rgba(255,255,255,.92),rgba(245,247,250,.92));backdrop-filter:blur(10px);border-radius:22px;padding:0;box-shadow:0 2px 12px rgba(0,0,0,.08)}
+.sidenav a{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#999;text-decoration:none;transition:all .25s;position:relative}
+.sidenav a svg{width:17px;height:17px;flex-shrink:0;transition:transform .2s}
+.sidenav a:hover{background:#f5f5f5}
+.sidenav a:hover svg{transform:scale(1.15)}
+.sidenav .nav-attr:hover{color:#1890ff;background:rgba(24,144,255,.08)}
+.sidenav .nav-pack:hover{color:#52c41a;background:rgba(82,196,26,.08)}
+.sidenav .nav-top:hover{color:#ff6a00;background:rgba(255,106,0,.08)}
 .sf{display:flex;align-items:center;gap:12px;margin-left:8px;font-size:14px;color:#999}
 .sf input[type=range]{-webkit-appearance:none;width:420px;height:6px;border-radius:3px;outline:none;cursor:pointer}
 .sf input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:transparent}
@@ -308,6 +309,7 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:2
 .sf .ticks span::before{content:"";position:absolute;top:-6px;left:50%;width:1px;height:5px;background:#dcdee2}
 .ksrow{font-size:12px;color:#bbb;padding:4px 20px 0;margin-bottom:12px;display:flex;gap:16px;flex-wrap:wrap}
 .ksrow b{color:#ff6a00;margin-right:2px}
+#productInfoArea{margin-top:28px}
 </style>
 </head>
 <body>
@@ -339,11 +341,11 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:2
     <button id="pvCopyAll" title="复制全部选中地址">📋</button>
   </div>
 </div>
-<div class="gotop" id="goTop">
-  <button class="nav-attr" id="navAttr" title="商品属性">📋</button>
-  <button class="nav-pack" id="navPack" title="包装信息">📦</button>
-  <button class="nav-top" id="navTop" title="回到顶部">↑</button>
-</div>
+<nav class="sidenav">
+  <a class="nav-attr" id="navAttr" title="商品属性" href="javascript:void(0)"><svg viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="12" rx="2" stroke="currentColor" stroke-width="1.5"/><line x1="4" y1="5.5" x2="12" y2="5.5" stroke="currentColor" stroke-width="1.2"/><line x1="4" y1="8" x2="10" y2="8" stroke="currentColor" stroke-width="1.2"/><line x1="4" y1="10.5" x2="8" y2="10.5" stroke="currentColor" stroke-width="1.2"/></svg></a>
+  <a class="nav-pack" id="navPack" title="包装信息" href="javascript:void(0)"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M2 7h12" stroke="currentColor" stroke-width="1.2"/><path d="M6 3v4" stroke="currentColor" stroke-width="1.2"/></svg></a>
+  <a class="nav-top" id="navTop" title="回到顶部" href="javascript:void(0)"><svg viewBox="0 0 16 16" fill="none"><path d="M8 13V3M4 6l4-3 4 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+</nav>
 <script src="https://cdn.bootcdn.net/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
 var urls=${urlsJson};
@@ -465,10 +467,9 @@ var a=document.createElement("a");a.href=URL.createObjectURL(content);a.download
 btn.disabled=false;btn.textContent=orig;
 showToast("下载完成！"+arr.length+"张"+(failed?"，"+failed+"张失败":""));});
 document.addEventListener("click",function(e){var b=e.target.closest(".pcopy");if(!b)return;e.stopPropagation();var t=b.getAttribute("data-copy");if(t){navigator.clipboard.writeText(t).then(function(){showToast("已复制到粘贴板");}).catch(function(){var ta=document.createElement("textarea");ta.value=t;document.body.appendChild(ta);ta.select();document.execCommand("copy");document.body.removeChild(ta);showToast("已复制到粘贴板");});}});
-document.addEventListener("scroll",function(){document.getElementById("goTop").classList.toggle("show",window.scrollY>300);});
-document.getElementById("navTop").addEventListener("click",function(){window.scrollTo({top:0,behavior:"smooth"});});
-document.getElementById("navAttr").addEventListener("click",function(){var el=document.querySelector("#productInfoArea .pinfo:first-child");if(el)el.scrollIntoView({behavior:"smooth",block:"start"});});
-document.getElementById("navPack").addEventListener("click",function(){var el=document.querySelectorAll("#productInfoArea .pinfo");if(el.length>1)el[1].scrollIntoView({behavior:"smooth",block:"start"});else if(el.length===1)el[0].scrollIntoView({behavior:"smooth",block:"start"});});
+document.getElementById("navTop").addEventListener("click",function(e){e.preventDefault();window.scrollTo({top:0,behavior:"smooth"});});
+document.getElementById("navAttr").addEventListener("click",function(e){e.preventDefault();var el=document.querySelector("#productInfoArea .pinfo:first-child");if(el)el.scrollIntoView({behavior:"smooth",block:"start"});});
+document.getElementById("navPack").addEventListener("click",function(e){e.preventDefault();var el=document.querySelectorAll("#productInfoArea .pinfo");if(el.length>1)el[1].scrollIntoView({behavior:"smooth",block:"start"});else if(el.length===1)el[0].scrollIntoView({behavior:"smooth",block:"start"});});
 </script>
 </body>
 </html>`;
