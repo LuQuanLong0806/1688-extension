@@ -445,12 +445,14 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:2
 .sf .sv{color:#ff6a00;font-weight:bold;font-size:15px;min-width:46px}
 .sf .wrap{position:relative;width:500px;margin-top:3px}
 .sf .ticks{position:absolute;top:14px;left:0;width:500px;height:22px}
-.sf .ticks span{position:absolute;bottom:0;font-size:11px;color:#a8abb2;transform:translateX(-50%);white-space:nowrap}
+.sf .ticks span{position:absolute;bottom:0;font-size:12px;color:#a8abb2;transform:translateX(-50%);white-space:nowrap;cursor:pointer}
 .sf .ticks span.minor{color:transparent}
+.sf .ticks span:hover::before{background:#ff6a00}
+.sf .ticks span:not(.minor):hover{color:#ff6a00}
 .sf .tip{position:absolute;top:-34px;background:#ff6a00;color:#fff;font-size:13px;font-weight:bold;padding:4px 10px;border-radius:6px;transform:translateX(-50%);opacity:0;transition:opacity .15s;pointer-events:none;white-space:nowrap;box-shadow:0 2px 8px rgba(255,106,0,.3)}
 .sf .tip::after{content:"";position:absolute;bottom:-5px;left:50%;margin-left:-5px;border:5px solid transparent;border-top-color:#ff6a00}
 .sf .tip.show{opacity:1}
-.sf .ticks span::before{content:"";position:absolute;top:-6px;left:50%;width:1px;height:5px;background:#bbbcc2}
+.sf .ticks span::before{content:"";position:absolute;top:-6px;left:50%;width:1px;height:6px;background:#bbbcc2}
 .ksrow{font-size:12px;color:#bbb;padding:4px 20px 0;margin-bottom:12px;display:flex;gap:16px;flex-wrap:wrap}
 .ksrow b{color:#ff6a00;margin-right:2px}
 #productInfoArea{margin-top:28px}
@@ -523,7 +525,8 @@ _sfFill();
 var _stip=document.getElementById("sliderTip");
 _sf.addEventListener("mousemove",function(e){var r=_sf.getBoundingClientRect();var p=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width));var v=Math.round(p*1000/10)*10;_stip.textContent=v+"px";_stip.style.left=(p*100)+"%";_stip.classList.add("show");});
 _sf.addEventListener("mouseleave",function(){_stip.classList.remove("show");});
-var _tk=document.getElementById("sliderTicks");for(var t=0;t<=1000;t+=50){var sp=document.createElement("span");if(t%100===0){sp.textContent=t;}else{sp.textContent="0";sp.className="minor";}sp.style.left=(t/1000*100)+"%";_tk.appendChild(sp);}
+var _tk=document.getElementById("sliderTicks");for(var t=0;t<=1000;t+=50){var sp=document.createElement("span");sp.setAttribute("data-v",t);if(t%100===0){sp.textContent=t;}else{sp.textContent="0";sp.className="minor";}sp.style.left=(t/1000*100)+"%";_tk.appendChild(sp);}
+_tk.addEventListener("click",function(e){var s=e.target;if(s.tagName!=="SPAN")return;var v=parseInt(s.getAttribute("data-v"));if(isNaN(v))return;_sf.value=v;_sf.dispatchEvent(new Event("input"));});
 var _fd=0,_ft=urls.length,_sn=0;
 function fImg(el){_fd++;var w=el.naturalWidth,h=el.naturalHeight;var c=el.closest(".card");
 c.dataset.w=w;c.dataset.h=h;
