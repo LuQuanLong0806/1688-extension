@@ -1,9 +1,20 @@
 (function () {
   var _resultWindows = [];
+  function _getLocalBool(k, d) {
+    var v = localStorage.getItem(k);
+    return v === null ? d : v === 'true';
+  }
+  window.addEventListener('message', function (e) {
+    if (e.data && e.data.type === '1688setting') {
+      localStorage.setItem(e.data.key, String(e.data.value));
+    }
+  });
   window.addEventListener('beforeunload', function () {
-    _resultWindows.forEach(function (w) {
-      try { w.close(); } catch (e) {}
-    });
+    if (_getLocalBool('1688_set_closeDetailSync', true)) {
+      _resultWindows.forEach(function (w) {
+        try { w.close(); } catch (e) {}
+      });
+    }
     _resultWindows = [];
   });
 
@@ -520,6 +531,28 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:2
 .ksrow{font-size:12px;color:#bbb;padding:4px 20px 0;margin-bottom:12px;display:flex;gap:16px;flex-wrap:wrap}
 .ksrow b{color:#ff6a00;margin-right:2px}
 #productInfoArea{margin-top:28px}
+.setwrap{position:relative;display:inline-flex}
+.setbtn{color:#aaa;border:none;width:28px;height:28px;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;background:transparent;transition:all .25s;padding:0;font-size:20px;line-height:1}
+.setbtn:hover{color:#ff6a00;background:rgba(255,106,0,.08);transform:rotate(30deg)}
+.setbtn:active{transform:scale(.92) rotate(30deg)}
+.setpanel{display:none;position:absolute;top:48px;right:0;width:310px;background:#fff;border-radius:14px;box-shadow:0 8px 32px rgba(0,0,0,.15);padding:16px 18px;z-index:200;border:1px solid #f0f0f0;max-height:calc(100vh - 120px);overflow-y:auto;animation:setPanelIn .2s ease}
+.setpanel.show{display:block}
+@keyframes setPanelIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+.setpanel h4{font-size:14px;font-weight:bold;color:#333;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;gap:6px}
+.setpanel h4 svg{width:16px;height:16px;fill:#999}
+.setrow{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f8f8f8;font-size:13px;color:#555}
+.setrow:last-child{border-bottom:none}
+.setrow .setlabel{display:flex;flex-direction:column;gap:2px}
+.setrow .setlabel small{font-size:11px;color:#bbb}
+.setrow .setinput{width:70px;padding:4px 8px;border:1px solid #ddd;border-radius:6px;font-size:13px;text-align:center;outline:none;transition:border-color .2s}
+.setrow .setinput:focus{border-color:#ff6a00}
+.switch{position:relative;width:40px;height:22px;flex-shrink:0}
+.switch input{opacity:0;width:0;height:0;position:absolute}
+.switch .slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:#ccc;border-radius:22px;transition:.3s}
+.switch .slider::before{content:"";position:absolute;height:18px;width:18px;left:2px;bottom:2px;background:#fff;border-radius:50%;transition:.3s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.switch input:checked+.slider{background:linear-gradient(135deg,#ff6a00,#ff8533)}
+.switch input:checked+.slider::before{transform:translateX(18px)}
+.switch input:focus+.slider{box-shadow:0 0 0 2px rgba(255,106,0,.2)}
 </style>
 </head>
 <body>
@@ -532,6 +565,20 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:2
   <button id="btnZip" class="s5">📦 打包下载</button>
   <div class="sf"><span>过滤尺寸:</span><div class="wrap"><input type="range" id="sizeFilter" min="0" max="1000" value="" step="10"><div class="ticks" id="sliderTicks"></div><div class="tip" id="sliderTip"></div></div><span id="sizeLabel" class="sv"></span></div>
   <div class="cnt" id="statLine">共 <b class="cg">${images.length}</b> 张 | 已选 <b class="cs">0</b> 张</div>
+  <div class="setwrap">
+    <button class="setbtn" id="btnSet" title="设置">&#9881;</button>
+    <div class="setpanel" id="setPanel">
+      <h4>&#9881; 设置</h4>
+      <div class="setrow"><div class="setlabel">HD标签尺寸<small>宽高均≥此值标记HD</small></div><input class="setinput" type="number" id="setHdSize" min="0" max="9999" value="400"></div>
+      <div class="setrow"><div class="setlabel">显示HD标签</div><label class="switch"><input type="checkbox" id="setHdShow" checked><span class="slider"></span></label></div>
+      <div class="setrow"><div class="setlabel">快捷键说明</div><label class="switch"><input type="checkbox" id="setKsShow" checked><span class="slider"></span></label></div>
+      <div class="setrow"><div class="setlabel">关闭详情页→关闭当前页<small>关闭1688详情页时同步关闭结果页</small></div><label class="switch"><input type="checkbox" id="setCloseDetailSync" checked><span class="slider"></span></label></div>
+      <div class="setrow"><div class="setlabel">关闭当前页→关闭详情页<small>关闭结果页时同步关闭1688详情页</small></div><label class="switch"><input type="checkbox" id="setCloseResultSync" checked><span class="slider"></span></label></div>
+      <div class="setrow"><div class="setlabel">商品属性</div><label class="switch"><input type="checkbox" id="setShowAttr" checked><span class="slider"></span></label></div>
+      <div class="setrow"><div class="setlabel">包装信息</div><label class="switch"><input type="checkbox" id="setShowPack" checked><span class="slider"></span></label></div>
+      <div class="setrow"><div class="setlabel">打包下载按钮</div><label class="switch"><input type="checkbox" id="setShowZip" checked><span class="slider"></span></label></div>
+    </div>
+  </div>
 </div>
 <div class="ksrow"><span><b>Ctrl+A</b> 选中可见 | <b>Ctrl+Z</b> 取消全选 | <b>Ctrl+C</b> 复制地址</span><span><b>拖拽框选</b> 批量选中 | <b>Ctrl+框选</b> 取消选中</span><span>预览: <b>←→ A D</b> 切换, <b>空格</b> 选中, <b>ESC</b> 关闭</span></div>
 <div class="grid" id="grid"></div>
@@ -588,10 +635,14 @@ _sf.addEventListener("mouseleave",function(){_stip.classList.remove("show");});
 var _tk=document.getElementById("sliderTicks");for(var t=0;t<=1000;t+=50){var sp=document.createElement("span");sp.setAttribute("data-v",t);if(t%100===0){sp.textContent=t;}else{sp.textContent="0";sp.className="minor";}sp.style.left=(t/1000*100)+"%";_tk.appendChild(sp);}
 _tk.addEventListener("click",function(e){var s=e.target;if(s.tagName!=="SPAN")return;var v=parseInt(s.getAttribute("data-v"));if(isNaN(v))return;_sf.value=v;_sf.dispatchEvent(new Event("input"));});
 var _fd=0,_ft=urls.length,_sn=0;
+function _getSetting(k,d){var v=localStorage.getItem(k);return v===null?d:v;}
+function _getSettingBool(k,d){return _getSetting(k,d?\"true\":\"false\")===\"true\";}
+var _hdSize=parseInt(_getSetting("1688_set_hdSize","400"))||400;
+var _hdShow=_getSettingBool("1688_set_hdShow",true);
 function fImg(el){_fd++;var w=el.naturalWidth,h=el.naturalHeight;var c=el.closest(".card");
 c.dataset.w=w;c.dataset.h=h;
 if(w>0&&h>0){var s=document.createElement("span");s.className="sz";s.textContent=w+"×"+h;el.closest(".iw").appendChild(s);
-if(w>=400&&h>=400){c.classList.add("big");}}
+if(_hdShow&&w>=_hdSize&&h>=_hdSize){c.classList.add("big");}}
 var fv=parseInt(_sf.value)||0;
 if(fv>0&&(w<fv||h<fv)){c.style.display="none";_sn++;}
 if(_fd===_ft){var n=grid.querySelectorAll(".card").length;document.getElementById("statLine").innerHTML="有效 <b class='cg'>"+(n-_sn)+"</b> 张 | 过滤 <b class='cf'>"+_sn+"</b> 张 | 已选 <b class='cs'>"+getCheckedUrls().length+"</b> 张";}}
@@ -702,6 +753,43 @@ document.addEventListener("click",function(e){var b=e.target.closest(".pcopy");i
 document.getElementById("navTop").addEventListener("click",function(e){e.preventDefault();window.scrollTo({top:0,behavior:"smooth"});});
 document.getElementById("navAttr").addEventListener("click",function(e){e.preventDefault();var el=document.querySelector("#productInfoArea .pinfo:first-child");if(el)el.scrollIntoView({behavior:"smooth",block:"start"});});
 document.getElementById("navPack").addEventListener("click",function(e){e.preventDefault();var el=document.querySelectorAll("#productInfoArea .pinfo");if(el.length>1)el[1].scrollIntoView({behavior:"smooth",block:"start"});else if(el.length===1)el[0].scrollIntoView({behavior:"smooth",block:"start"});});
+// === Settings Panel ===
+var _setPanel=document.getElementById("setPanel");
+var _setBtn=document.getElementById("btnSet");
+_setBtn.addEventListener("click",function(e){e.stopPropagation();_setPanel.classList.toggle("show");});
+_setPanel.addEventListener("mouseleave",function(){_setPanel.classList.remove("show");});
+_setPanel.addEventListener("click",function(e){e.stopPropagation();});
+document.addEventListener("click",function(){_setPanel.classList.remove("show");});
+function _notifyOpener(k,v){try{if(window.opener&&!window.opener.closed)window.opener.postMessage({type:"1688setting",key:k,value:v},"*");}catch(e){}}
+function _applyHdSettings(){var hs=parseInt(document.getElementById("setHdSize").value)||400;var show=document.getElementById("setHdShow").checked;_hdSize=hs;_hdShow=show;localStorage.setItem("1688_set_hdSize",hs);localStorage.setItem("1688_set_hdShow",show);
+grid.querySelectorAll(".card").forEach(function(c){c.classList.remove("big");if(show&&c.dataset.w&&c.dataset.h&&parseInt(c.dataset.w)>=hs&&parseInt(c.dataset.h)>=hs)c.classList.add("big");});}
+document.getElementById("setHdSize").value=_hdSize;
+document.getElementById("setHdShow").checked=_hdShow;
+document.getElementById("setHdSize").addEventListener("change",function(){_applyHdSettings();});
+document.getElementById("setHdShow").addEventListener("change",function(){_applyHdSettings();});
+var _ksrow=document.querySelector(".ksrow");
+var _ksInit=_getSettingBool("1688_set_ksShow",true);
+document.getElementById("setKsShow").checked=_ksInit;
+if(!_ksInit&&_ksrow)_ksrow.style.display="none";
+document.getElementById("setKsShow").addEventListener("change",function(){var on=this.checked;localStorage.setItem("1688_set_ksShow",on);if(_ksrow)_ksrow.style.display=on?"flex":"none";});
+document.getElementById("setCloseDetailSync").checked=_getSettingBool("1688_set_closeDetailSync",true);
+document.getElementById("setCloseDetailSync").addEventListener("change",function(){var on=this.checked;localStorage.setItem("1688_set_closeDetailSync",on);_notifyOpener("1688_set_closeDetailSync",on);});
+document.getElementById("setCloseResultSync").checked=_getSettingBool("1688_set_closeResultSync",true);
+document.getElementById("setCloseResultSync").addEventListener("change",function(){var on=this.checked;localStorage.setItem("1688_set_closeResultSync",on);_notifyOpener("1688_set_closeResultSync",on);});
+var _pinfoBlocks=document.querySelectorAll("#productInfoArea .pinfo");
+var _attrInit=_getSettingBool("1688_set_showAttr",true);
+var _packInit=_getSettingBool("1688_set_showPack",true);
+document.getElementById("setShowAttr").checked=_attrInit;
+document.getElementById("setShowPack").checked=_packInit;
+if(!_attrInit&&_pinfoBlocks[0])_pinfoBlocks[0].style.display="none";
+if(!_packInit&&_pinfoBlocks[1])_pinfoBlocks[1].style.display="none";
+document.getElementById("setShowAttr").addEventListener("change",function(){var on=this.checked;localStorage.setItem("1688_set_showAttr",on);if(_pinfoBlocks[0])_pinfoBlocks[0].style.display=on?"block":"none";});
+document.getElementById("setShowPack").addEventListener("change",function(){var on=this.checked;localStorage.setItem("1688_set_showPack",on);if(_pinfoBlocks[1])_pinfoBlocks[1].style.display=on?"block":"none";});
+var _zipBtn=document.getElementById("btnZip");
+var _zipInit=_getSettingBool("1688_set_showZip",true);
+document.getElementById("setShowZip").checked=_zipInit;
+if(!_zipInit&&_zipBtn)_zipBtn.style.display="none";
+document.getElementById("setShowZip").addEventListener("change",function(){var on=this.checked;localStorage.setItem("1688_set_showZip",on);if(_zipBtn)_zipBtn.style.display=on?"":"none";});
 </script>
 </body>
 </html>`;
@@ -750,8 +838,10 @@ document.getElementById("navPack").addEventListener("click",function(e){e.preven
           clearInterval(_pollTimer);
           var idx = _resultWindows.indexOf(w);
           if (idx !== -1) _resultWindows.splice(idx, 1);
-          if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
-            chrome.runtime.sendMessage({ action: 'closeSourceTab' });
+          if (_getLocalBool('1688_set_closeResultSync', true)) {
+            if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+              chrome.runtime.sendMessage({ action: 'closeSourceTab' });
+            }
           }
         }
       }, 1000);
