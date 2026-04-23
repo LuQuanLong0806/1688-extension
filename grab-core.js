@@ -298,14 +298,14 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:2
 .sidenav .nav-pack:hover{color:#52c41a;background:rgba(82,196,26,.08)}
 .sidenav .nav-top:hover{color:#ff6a00;background:rgba(255,106,0,.08)}
 .sf{display:flex;align-items:center;gap:12px;margin-left:8px;font-size:14px;color:#999}
-.sf input[type=range]{-webkit-appearance:none;width:420px;height:6px;border-radius:3px;outline:none;cursor:pointer}
+.sf input[type=range]{-webkit-appearance:none;width:336px;height:6px;border-radius:3px;outline:none;cursor:pointer}
 .sf input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:transparent}
 .sf input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:#fff;border:2px solid #ff6a00;cursor:pointer;margin-top:-7px;transition:box-shadow .2s}
 .sf input[type=range]::-webkit-slider-thumb:hover{box-shadow:0 0 0 5px rgba(255,106,0,.2)}
 .sf input[type=range]:active::-webkit-slider-thumb{box-shadow:0 0 0 6px rgba(255,106,0,.25)}
 .sf .sv{color:#ff6a00;font-weight:bold;font-size:15px;min-width:46px}
-.sf .wrap{position:relative;width:420px;margin-top:-3px}
-.sf .ticks{position:absolute;top:14px;left:0;width:420px;height:22px}
+.sf .wrap{position:relative;width:336px;margin-top:-3px}
+.sf .ticks{position:absolute;top:14px;left:0;width:336px;height:22px}
 .sf .ticks span{position:absolute;bottom:0;font-size:10px;color:#c5c8ce;transform:translateX(-50%);white-space:nowrap}
 .sf .ticks span::before{content:"";position:absolute;top:-6px;left:50%;width:1px;height:5px;background:#dcdee2}
 .ksrow{font-size:12px;color:#bbb;padding:4px 20px 0;margin-bottom:12px;display:flex;gap:16px;flex-wrap:wrap}
@@ -317,7 +317,7 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:2
 <div class="toast" id="toast"></div>
 <div class="tb">
   <span class="logo"><svg viewBox="0 0 40 44" fill="none"><path d="M10 26L3 35l5-1z" fill="#1565C0"/><path d="M12 27L5 35l4.5-.5z" fill="#C62828"/><path d="M13.5 27.5L8 35l3.5-.5z" fill="#B71C1C"/><ellipse cx="20" cy="18" rx="10" ry="11" fill="#4CAF50"/><path d="M24 10c3 1 5 5 5 9s-2 8-5 9c-2-2-3-7-3-13s1-5 3-5z" fill="#C5E1A5"/><ellipse cx="24" cy="25" rx="3.5" ry="3" fill="#E57373" opacity=".5"/><path d="M12 15c-2.5 3-3.5 7-2 9.5 1.5-3 4-5.5 7-6.5" fill="#2E7D32"/><path d="M10.5 22l-1.5 2.5 2-1.5" fill="#1976D2" opacity=".7"/><circle cx="30" cy="9" r="6.5" fill="#757575"/><ellipse cx="32" cy="10.5" rx="3" ry="2.5" fill="#A1887F"/><ellipse cx="31" cy="11" rx="2.5" ry="2" fill="#81C784" opacity=".55"/><circle cx="33" cy="8.5" r="2" fill="#fff"/><circle cx="33.5" cy="8.2" r="1" fill="#4E342E"/><circle cx="33.2" cy="7.8" r=".3" fill="#fff"/><path d="M33.5 9.5c1.5 0 4 .5 4.5 1.8c.3 1-.5 2-1.8 2c-1.2 0-2.5-.8-3-1.5z" fill="#9E9E9E"/><path d="M34 11c1.5.5 3 1 3.5 1.5" stroke="#757575" stroke-width=".5" fill="none"/><g stroke="#8D6E63" stroke-width="1.2" fill="none" stroke-linecap="round"><path d="M18 28l-1 4"/><path d="M17 32l-2.5-.8"/><path d="M17 32l-1.5 2"/><path d="M17 32l1.8 1.5"/><path d="M21 28.5l-.8 4"/><path d="M20.2 32.5l-2.5-.8"/><path d="M20.2 32.5l-1.5 2"/><path d="M20.2 32.5l1.8 1.5"/></g><rect x="5" y="34.5" width="30" height="3.5" rx="1.75" fill="#8B6914"/><rect x="5" y="34.5" width="30" height="1.2" rx=".6" fill="#A07B28" opacity=".4"/><text x="20" y="43" text-anchor="middle" fill="#8B6914" font-size="7" font-weight="bold" font-family="Arial,sans-serif">1688</text></svg>Parrot</span>
-  <button id="btnAll" class="s1">✅ 全选</button>
+  <button id="btnAll" class="s1">✅ 选中可见</button>
   <button id="btnNone" class="s2">⬜ 取消全选</button>
   <button id="btnCopy" class="s3">📋 复制选中地址</button>
   <button id="btnZip" class="s5">📦 打包下载</button>
@@ -430,17 +430,16 @@ document.getElementById("pvPrev").addEventListener("click",function(e){e.stopPro
 document.getElementById("pvNext").addEventListener("click",function(e){e.stopPropagation();pvNavigate(1);});
 document.addEventListener("keydown",function(e){
 if(!pvEl.classList.contains("show"))return;
-if(e.key==="ArrowLeft"||e.key==="a"||e.key==="A")pvNavigate(-1);
-else if(e.key==="ArrowRight"||e.key==="d"||e.key==="D")pvNavigate(1);
+if(e.key==="ArrowLeft"||e.key==="a"||e.key==="A"){e.preventDefault();pvNavigate(-1);}
+else if(e.key==="ArrowRight"||e.key==="d"||e.key==="D"){e.preventDefault();pvNavigate(1);}
 else if(e.key===" "){e.preventDefault();var vc=visibleCards();var card=vc[_pvi];if(card){var cb=card.querySelector(".ci");toggleCard(card,cb);pvUpdateToggle();}}
 else if(e.key==="Escape"){pvEl.classList.remove("show");}});
 pvEl.addEventListener("click",function(e){if(e.target===pvImg)return;pvEl.classList.remove("show");});
 document.getElementById("previewClose").addEventListener("click",function(e){e.stopPropagation();pvEl.classList.remove("show");});
 var selRect=document.getElementById("selRect");
-var _seling=false,_selMoved=false,_selStartX=0,_selStartY=0,_selOrig=new Map(),_selWasDrag=false;
+var _seling=false,_selMoved=false,_selStartX=0,_selStartY=0,_selWasDrag=false,_selRaf=0;
 grid.addEventListener("mousedown",function(e){if(e.button!==0)return;if(e.target.closest(".cpbtn")||e.target.closest(".openbtn"))return;if(pvEl.classList.contains("show"))return;
-_seling=true;_selMoved=false;_selStartX=e.clientX;_selStartY=e.clientY;_selOrig.clear();
-grid.querySelectorAll(".card").forEach(function(c){if(c.style.display!=="none")_selOrig.set(c,c.querySelector(".ci").checked);});});
+_seling=true;_selMoved=false;_selStartX=e.clientX;_selStartY=e.clientY;});
 document.addEventListener("mousemove",function(e){if(!_seling)return;
 var dx=e.clientX-_selStartX,dy=e.clientY-_selStartY;
 if(!_selMoved&&(Math.abs(dx)<5&&Math.abs(dy)<5))return;
@@ -451,7 +450,7 @@ var sr={left:l,top:t,right:r,bottom:b};
 grid.querySelectorAll(".card").forEach(function(c){if(c.style.display==="none")return;
 var cr=c.getBoundingClientRect();var hit=cr.right>sr.left&&cr.left<sr.right&&cr.bottom>sr.top&&cr.top<sr.bottom;
 if(hit){if(e.ctrlKey||e.metaKey){c.querySelector(".ci").checked=false;c.classList.remove("on");}else{c.querySelector(".ci").checked=true;c.classList.add("on");}}});
-updateCount();});
+if(!_selRaf)_selRaf=requestAnimationFrame(function(){updateCount();_selRaf=0;});});
 document.addEventListener("mouseup",function(e){if(!_seling)return;_seling=false;selRect.style.display="none";grid.style.userSelect="";grid.style.webkitUserSelect="";});
 grid.addEventListener("click",function(e){if(_selWasDrag){_selWasDrag=false;return;}
 var cpBtn=e.target.closest(".cpbtn");if(cpBtn){e.stopPropagation();copyOne(cpBtn.dataset.u);return;}
