@@ -288,9 +288,13 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:2
 .preview .nav:hover{background:rgba(255,255,255,.35)}
 .preview .nav-l{left:20px}
 .preview .nav-r{right:20px}
-.gotop{position:fixed;right:24px;bottom:40%;width:44px;height:44px;border-radius:50%;border:none;background:linear-gradient(135deg,#ff6a00,#ff4444);color:#fff;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(255,68,68,.3);z-index:9990;opacity:0;transition:opacity .3s,transform .2s}
-.gotop:hover{transform:scale(1.1);box-shadow:0 6px 20px rgba(255,68,68,.5)}
+.gotop{position:fixed;right:20px;bottom:40%;display:flex;flex-direction:column;gap:8px;z-index:9990;opacity:0;transition:opacity .3s}
 .gotop.show{opacity:1}
+.gotop button{width:44px;height:44px;border-radius:50%;border:none;color:#fff;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,.15);transition:transform .2s,box-shadow .2s}
+.gotop button:hover{transform:scale(1.1);box-shadow:0 6px 16px rgba(0,0,0,.25)}
+.gotop .nav-attr{background:linear-gradient(135deg,#1890ff,#40a9ff)}
+.gotop .nav-pack{background:linear-gradient(135deg,#52c41a,#73d13d)}
+.gotop .nav-top{background:linear-gradient(135deg,#ff6a00,#ff4444)}
 .sf{display:flex;align-items:center;gap:12px;margin-left:8px;font-size:14px;color:#999}
 .sf input[type=range]{-webkit-appearance:none;width:420px;height:6px;border-radius:3px;outline:none;cursor:pointer}
 .sf input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:transparent}
@@ -317,9 +321,9 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:2
   <div class="sf"><span>最小展示尺寸:</span><div class="wrap"><input type="range" id="sizeFilter" min="0" max="1000" value="" step="10"><div class="ticks" id="sliderTicks"></div></div><span id="sizeLabel" class="sv"></span></div>
   <div class="cnt" id="statLine">共 <b class="cg">${images.length}</b> 张 | 已选 <b class="cs">0</b> 张</div>
 </div>
-<div class="ksrow"><span><b>Ctrl+X</b> 复制选中地址</span><span>预览: <b>←→ A D</b> 切换, <b>空格</b> 选中, <b>ESC</b> 关闭</span></div>
-${productInfo || ''}
+<div class="ksrow"><span><b>Ctrl+C</b> 复制选中地址</span><span>预览: <b>←→ A D</b> 切换, <b>空格</b> 选中, <b>ESC</b> 关闭</span></div>
 <div class="grid" id="grid"></div>
+<div id="productInfoArea">${productInfo || ''}</div>
 <div class="preview" id="preview">
   <div class="close" id="previewClose">✕</div>
   <button class="nav nav-l" id="pvPrev">‹</button>
@@ -335,7 +339,11 @@ ${productInfo || ''}
     <button id="pvCopyAll" title="复制全部选中地址">📋</button>
   </div>
 </div>
-<button class="gotop" id="goTop" title="回到顶部">↑</button>
+<div class="gotop" id="goTop">
+  <button class="nav-attr" id="navAttr" title="商品属性">📋</button>
+  <button class="nav-pack" id="navPack" title="包装信息">📦</button>
+  <button class="nav-top" id="navTop" title="回到顶部">↑</button>
+</div>
 <script src="https://cdn.bootcdn.net/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
 var urls=${urlsJson};
@@ -411,7 +419,7 @@ toggleCard(card,cb);pvUpdateToggle();});
 document.getElementById("pvCopyAll").addEventListener("click",function(e){e.stopPropagation();
 var arr=getCheckedUrls();
 if(!arr.length){showToast("请先选择图片");return;}doCopy(arr.join("\\n"),arr.length);});
-document.addEventListener("keydown",function(e){if((e.ctrlKey||e.metaKey)&&e.key=="x"){e.preventDefault();
+document.addEventListener("keydown",function(e){if((e.ctrlKey||e.metaKey)&&e.key=="c"&&!window.getSelection().toString()){e.preventDefault();
 var arr=getCheckedUrls();
 if(!arr.length){showToast("请先选择图片");return;}doCopy(arr.join("\\n"),arr.length);}});
 document.getElementById("pvPrev").addEventListener("click",function(e){e.stopPropagation();pvNavigate(-1);});
@@ -458,7 +466,9 @@ btn.disabled=false;btn.textContent=orig;
 showToast("下载完成！"+arr.length+"张"+(failed?"，"+failed+"张失败":""));});
 document.addEventListener("click",function(e){var b=e.target.closest(".pcopy");if(!b)return;e.stopPropagation();var t=b.getAttribute("data-copy");if(t){navigator.clipboard.writeText(t).then(function(){showToast("已复制到粘贴板");}).catch(function(){var ta=document.createElement("textarea");ta.value=t;document.body.appendChild(ta);ta.select();document.execCommand("copy");document.body.removeChild(ta);showToast("已复制到粘贴板");});}});
 document.addEventListener("scroll",function(){document.getElementById("goTop").classList.toggle("show",window.scrollY>300);});
-document.getElementById("goTop").addEventListener("click",function(){window.scrollTo({top:0,behavior:"smooth"});});
+document.getElementById("navTop").addEventListener("click",function(){window.scrollTo({top:0,behavior:"smooth"});});
+document.getElementById("navAttr").addEventListener("click",function(){var el=document.querySelector("#productInfoArea .pinfo:first-child");if(el)el.scrollIntoView({behavior:"smooth",block:"start"});});
+document.getElementById("navPack").addEventListener("click",function(){var el=document.querySelectorAll("#productInfoArea .pinfo");if(el.length>1)el[1].scrollIntoView({behavior:"smooth",block:"start"});else if(el.length===1)el[0].scrollIntoView({behavior:"smooth",block:"start"});});
 </script>
 </body>
 </html>`;
