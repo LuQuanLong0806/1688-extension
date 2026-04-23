@@ -7,18 +7,18 @@
     '/avatar/',
     '/badge/',
     '/flag/',
-    '/arrow',
-    '/btn',
-    '/button',
-    '/loading',
-    '/placeholder',
-    '/empty',
+    '/arrow/',
+    '/btn/',
+    '/button/',
+    '/loading/',
+    '/placeholder/',
+    '/empty/',
     '/default/',
     '/search/',
     '/share/',
-    '/star',
-    '/rank',
-    '/score',
+    '/star/',
+    '/rank/',
+    '/score/',
     '/header/',
     '/footer/',
     '/nav-',
@@ -31,13 +31,7 @@
     '.svg',
     'captcha',
     'verify',
-    '/tfs/',
-    '/tb/',
     'tingyun',
-    'alicdn.com/t/',
-    'alicdn.com/tps/',
-    'alicdn.com/L1/',
-    'alicdn.com/s/',
     '.gif/',
     'alipay'
   ];
@@ -148,11 +142,6 @@
         })
       )
         return;
-      if (
-        /\d+x\d+/.test(normalized) &&
-        !/\d{3,}x\d+|\d+x\d{3,}/.test(normalized)
-      )
-        return;
       if (/\.gif(\?|$)/i.test(normalized)) return;
 
       if (urlMap.has(normalized)) {
@@ -207,7 +196,88 @@
       return false;
     }
 
+    function scanScope(root) {
+      if (!root) return;
+      root.querySelectorAll('img').forEach(function (img) {
+        var s = img.src;
+        if (
+          s &&
+          (s.indexOf('alicdn') !== -1 ||
+            s.indexOf('1688') !== -1 ||
+            s.indexOf('taobaocdn') !== -1)
+        )
+          addImage(s);
+        getAttrs(img);
+      });
+      root.querySelectorAll('[style*="url("]').forEach(function (el) {
+        var st = el.getAttribute('style') || '';
+        try {
+          var bg = getComputedStyle(el).backgroundImage;
+          if (bg && bg !== 'none') st += ' ' + bg;
+        } catch (ex) {}
+        var m = st.match(/url\(['"]?([^'")\s]+)['"]?\)/g);
+        if (m)
+          m.forEach(function (x) {
+            var u = x.replace(/url\(['"]?|['"]?\)/g, '');
+            if (
+              u &&
+              (u.indexOf('alicdn') !== -1 || u.indexOf('1688') !== -1)
+            )
+              addImage(u);
+          });
+      });
+      root.querySelectorAll('iframe').forEach(function (f) {
+        try {
+          (f.contentDocument || f.contentWindow.document)
+            .querySelectorAll('img')
+            .forEach(getAttrs);
+        } catch (e) {}
+      });
+      root.querySelectorAll('*').forEach(function (el) {
+        if (el.shadowRoot && !isFooter(el)) {
+          try {
+            el.shadowRoot.querySelectorAll('img').forEach(function (img) {
+              var s = img.src;
+              if (
+                s &&
+                (s.indexOf('alicdn') !== -1 ||
+                  s.indexOf('1688') !== -1 ||
+                  s.indexOf('taobaocdn') !== -1)
+              )
+                addImage(s);
+              getAttrs(img);
+            });
+            el.shadowRoot
+              .querySelectorAll('[style*="url("]')
+              .forEach(function (e) {
+                var st = e.getAttribute('style') || '';
+                try {
+                  var bg = getComputedStyle(e).backgroundImage;
+                  if (bg && bg !== 'none') st += ' ' + bg;
+                } catch (ex) {}
+                var m = st.match(/url\(['"]?([^'")\s]+)['"]?\)/g);
+                if (m)
+                  m.forEach(function (x) {
+                    var u = x.replace(/url\(['"]?|['"]?\)/g, '');
+                    if (
+                      u &&
+                      (u.indexOf('alicdn') !== -1 ||
+                        u.indexOf('1688') !== -1)
+                    )
+                      addImage(u);
+                  });
+              });
+          } catch (e) {}
+        }
+      });
+    }
+
     function scan() {
+      // 1. #gallery 主图优先
+      scanScope(document.getElementById('gallery'));
+      // 2. #description 详情图其次
+      scanScope(document.getElementById('description'));
+      // 3. 原有选择器扫描
       queryAll(GALLERY_SELECTORS, getAttrs);
 
       IFRAME_SELECTORS.forEach(function (sel) {
@@ -579,6 +649,7 @@ document.getElementById("pvPrev").addEventListener("click",function(e){e.stopPro
 document.getElementById("pvNext").addEventListener("click",function(e){e.stopPropagation();pvNavigate(1);});
 document.addEventListener("keydown",function(e){
 if(!pvEl.classList.contains("show"))return;
+if(e.ctrlKey||e.metaKey)return;
 if(e.key==="ArrowLeft"||e.key==="a"||e.key==="A"){e.preventDefault();pvNavigate(-1);}
 else if(e.key==="ArrowRight"||e.key==="d"||e.key==="D"){e.preventDefault();pvNavigate(1);}
 else if(e.key===" "){e.preventDefault();var vc=visibleCards();var card=vc[_pvi];if(card){var cb=card.querySelector(".ci");toggleCard(card,cb);pvUpdateToggle();}}
@@ -624,6 +695,7 @@ document.getElementById("btnZip").addEventListener("click",async function(){if(t
 var arr=getCheckedUrls();
 if(!arr.length){showToast("请先选择图片");return;}
 var btn=this;btn.disabled=true;var orig=btn.textContent;
+try{
 var zip=new JSZip();var done=0,failed=0;
 for(var i=0;i<arr.length;i++){try{var resp=await fetch(arr[i]);var blob=await resp.blob();
 var ext=arr[i].match(/\.(jpg|png|jpeg|webp)/i);zip.file("image_"+String(i+1).padStart(3,"0")+"."+(ext?ext[1]:"jpg"),blob);
@@ -631,8 +703,9 @@ var ext=arr[i].match(/\.(jpg|png|jpeg|webp)/i);zip.file("image_"+String(i+1).pad
 done++;btn.textContent="⏳ "+done+"/"+arr.length;}
 var content=await zip.generateAsync({type:"blob"});
 var a=document.createElement("a");a.href=URL.createObjectURL(content);a.download="1688_images_"+Date.now()+".zip";a.click();
-btn.disabled=false;btn.textContent=orig;
-showToast("下载完成！"+arr.length+"张"+(failed?"，"+failed+"张失败":""));});
+showToast("下载完成！"+arr.length+"张"+(failed?"，"+failed+"张失败":""));
+}catch(e){showToast("打包失败："+e.message);}
+btn.disabled=false;btn.textContent=orig;});
 document.addEventListener("click",function(e){var b=e.target.closest(".pcopy");if(!b)return;e.stopPropagation();var t=b.getAttribute("data-copy");if(t){navigator.clipboard.writeText(t).then(function(){showToast("已复制到粘贴板");}).catch(function(){var ta=document.createElement("textarea");ta.value=t;document.body.appendChild(ta);ta.select();document.execCommand("copy");document.body.removeChild(ta);showToast("已复制到粘贴板");});}});
 document.getElementById("navTop").addEventListener("click",function(e){e.preventDefault();window.scrollTo({top:0,behavior:"smooth"});});
 document.getElementById("navAttr").addEventListener("click",function(e){e.preventDefault();var el=document.querySelector("#productInfoArea .pinfo:first-child");if(el)el.scrollIntoView({behavior:"smooth",block:"start"});});
