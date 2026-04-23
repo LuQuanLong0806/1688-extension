@@ -1,43 +1,123 @@
 (function () {
   var SKIP_PATTERNS = [
-    '/icon/', '/logo/', '/sprite/', '/emoji/', '/avatar/', '/badge/', '/flag/',
-    '/arrow', '/btn', '/button', '/loading', '/placeholder', '/empty', '/default/',
-    '/search/', '/share/', '/star', '/rank', '/score', '/header/', '/footer/',
-    '/nav-', '/sidebar', 'lazy.gif', 'blank.gif', 'spacer.gif', 'pixel.gif',
-    'spinner', '.svg', 'captcha', 'verify', '/tfs/', '/tb/', 'tingyun',
-    'alicdn.com/t/', 'alicdn.com/tps/', 'alicdn.com/L1/', 'alicdn.com/s/',
-    '.gif/', 'alipay'
+    '/icon/',
+    '/logo/',
+    '/sprite/',
+    '/emoji/',
+    '/avatar/',
+    '/badge/',
+    '/flag/',
+    '/arrow',
+    '/btn',
+    '/button',
+    '/loading',
+    '/placeholder',
+    '/empty',
+    '/default/',
+    '/search/',
+    '/share/',
+    '/star',
+    '/rank',
+    '/score',
+    '/header/',
+    '/footer/',
+    '/nav-',
+    '/sidebar',
+    'lazy.gif',
+    'blank.gif',
+    'spacer.gif',
+    'pixel.gif',
+    'spinner',
+    '.svg',
+    'captcha',
+    'verify',
+    '/tfs/',
+    '/tb/',
+    'tingyun',
+    'alicdn.com/t/',
+    'alicdn.com/tps/',
+    'alicdn.com/L1/',
+    'alicdn.com/s/',
+    '.gif/',
+    'alipay'
   ];
 
   var GALLERY_SELECTORS = [
-    '.offer-detail img', '.nav-slide img', '.slider-wrap img', '.main-visual img',
-    '.image-nav img', '.offer-detail-show img', '.detail-gallery img', '#detail-gallery img',
-    '.swipe-wrap img', '.slider-slide img', '.offer-detail-img img', '.mod-detail-gallery img',
-    '.gallery-wrap img', '.main-image-wrap img', '.vertical-view img', '.horizontal-view img',
-    '.offer-detail-left img', '.detail-left img', '.detail-img img', '.photo-panel img'
+    '.offer-detail img',
+    '.nav-slide img',
+    '.slider-wrap img',
+    '.main-visual img',
+    '.image-nav img',
+    '.offer-detail-show img',
+    '.detail-gallery img',
+    '#detail-gallery img',
+    '.swipe-wrap img',
+    '.slider-slide img',
+    '.offer-detail-img img',
+    '.mod-detail-gallery img',
+    '.gallery-wrap img',
+    '.main-image-wrap img',
+    '.vertical-view img',
+    '.horizontal-view img',
+    '.offer-detail-left img',
+    '.detail-left img',
+    '.detail-img img',
+    '.photo-panel img'
   ];
 
   var IFRAME_SELECTORS = [
-    'iframe[src*="desc"]', 'iframe[src*="offer"]', 'iframe[src*="detail"]',
-    '#detailDescIframe', '.desc-iframe iframe', '#desc-lazyload-container iframe',
+    'iframe[src*="desc"]',
+    'iframe[src*="offer"]',
+    'iframe[src*="detail"]',
+    '#detailDescIframe',
+    '.desc-iframe iframe',
+    '#desc-lazyload-container iframe',
     '.mod-detail-description iframe'
   ];
 
   var DESC_SELECTORS = [
-    '.desc-content img', '.desc-lazyload-container img', '.mod-detail-description img',
-    '#mod-detail-description img', '.content-detail img', '.detail-content img',
-    '.detail-desc img', '.offer-detail-content img', '.description-content img',
-    '.text-area img', '.widget-text img', '.detail-text img', '.detail-property img',
-    '.offer-attr img', '.sku-area img', '.offer-sku img', '.mod-detail-props img'
+    '.desc-content img',
+    '.desc-lazyload-container img',
+    '.mod-detail-description img',
+    '#mod-detail-description img',
+    '.content-detail img',
+    '.detail-content img',
+    '.detail-desc img',
+    '.offer-detail-content img',
+    '.description-content img',
+    '.text-area img',
+    '.widget-text img',
+    '.detail-text img',
+    '.detail-property img',
+    '.offer-attr img',
+    '.sku-area img',
+    '.offer-sku img',
+    '.mod-detail-props img'
   ];
 
   var IMG_ATTRS = [
-    'src', 'data-src', 'data-lazy-src', 'data-lazyload-src', 'data-original',
-    'data-lazy', 'data-srcset', 'data-image-src', 'data-big', 'data-large',
-    'data-zoom-image', 'data-zoom-url', 'data-real-src'
+    'src',
+    'data-src',
+    'data-lazy-src',
+    'data-lazyload-src',
+    'data-original',
+    'data-lazy',
+    'data-srcset',
+    'data-image-src',
+    'data-big',
+    'data-large',
+    'data-zoom-image',
+    'data-zoom-url',
+    'data-real-src'
   ];
 
-  var JS_GLOBALS = ['__INIT_DATA__', '__pageData__', 'pageConfig', 'g_config', 'offerData'];
+  var JS_GLOBALS = [
+    '__INIT_DATA__',
+    '__pageData__',
+    'pageConfig',
+    'g_config',
+    'offerData'
+  ];
 
   function createCollector() {
     var urlMap = new Map();
@@ -54,12 +134,25 @@
       normalized = normalized.replace(/\.jpg_\.\w+$/i, '.jpg');
       normalized = normalized.replace(/\.png_\.\w+$/i, '.png');
 
-      try { new URL(normalized); } catch (e) { return; }
+      try {
+        new URL(normalized);
+      } catch (e) {
+        return;
+      }
       if (/\.(html?|php|asp|jsp|js|css)(\?|$)/i.test(normalized)) return;
       if (/\/offer\//i.test(normalized)) return;
       var lower = normalized.toLowerCase();
-      if (SKIP_PATTERNS.some(function (p) { return lower.indexOf(p) !== -1; })) return;
-      if (/\d+x\d+/.test(normalized) && !/\d{3,}x\d+|\d+x\d{3,}/.test(normalized)) return;
+      if (
+        SKIP_PATTERNS.some(function (p) {
+          return lower.indexOf(p) !== -1;
+        })
+      )
+        return;
+      if (
+        /\d+x\d+/.test(normalized) &&
+        !/\d{3,}x\d+|\d+x\d{3,}/.test(normalized)
+      )
+        return;
       if (/\.gif(\?|$)/i.test(normalized)) return;
 
       if (urlMap.has(normalized)) {
@@ -86,22 +179,29 @@
         var v = el.getAttribute(a);
         if (v) addImage(v);
       });
-      if (el.srcset) el.srcset.split(',').forEach(function (p) {
-        var s = p.trim().split(/\s+/)[0];
-        if (s) addImage(s);
-      });
+      if (el.srcset)
+        el.srcset.split(',').forEach(function (p) {
+          var s = p.trim().split(/\s+/)[0];
+          if (s) addImage(s);
+        });
     }
 
     function queryAll(selectors, fn) {
       selectors.forEach(function (sel) {
-        try { document.querySelectorAll(sel).forEach(fn); } catch (e) { }
+        try {
+          document.querySelectorAll(sel).forEach(fn);
+        } catch (e) {}
       });
     }
 
     function isFooter(el) {
       var node = el;
       while (node) {
-        if (node.id === "bottom" || (node.tagName && node.tagName.toLowerCase() === "ali-footer")) return true;
+        if (
+          node.id === 'bottom' ||
+          (node.tagName && node.tagName.toLowerCase() === 'ali-footer')
+        )
+          return true;
         node = node.parentElement;
       }
       return false;
@@ -115,10 +215,11 @@
           document.querySelectorAll(sel).forEach(function (f) {
             try {
               (f.contentDocument || f.contentWindow.document)
-                .querySelectorAll('img').forEach(getAttrs);
-            } catch (e) { }
+                .querySelectorAll('img')
+                .forEach(getAttrs);
+            } catch (e) {}
           });
-        } catch (e) { }
+        } catch (e) {}
       });
 
       queryAll(DESC_SELECTORS, getAttrs);
@@ -129,27 +230,47 @@
           try {
             el.shadowRoot.querySelectorAll('img').forEach(function (img) {
               var s = img.src;
-              if (s && (s.indexOf('alicdn') !== -1 || s.indexOf('1688') !== -1 || s.indexOf('taobaocdn') !== -1))
+              if (
+                s &&
+                (s.indexOf('alicdn') !== -1 ||
+                  s.indexOf('1688') !== -1 ||
+                  s.indexOf('taobaocdn') !== -1)
+              )
                 addImage(s);
               getAttrs(img);
             });
-            el.shadowRoot.querySelectorAll('[style*="url("]').forEach(function (e) {
-              var st = e.getAttribute('style') || '';
-              try { var bg = getComputedStyle(e).backgroundImage; if (bg && bg !== 'none') st += ' ' + bg; } catch (ex) { }
-              var m = st.match(/url\(['"]?([^'")\s]+)['"]?\)/g);
-              if (m) m.forEach(function (x) {
-                var u = x.replace(/url\(['"]?|['"]?\)/g, '');
-                if (u && (u.indexOf('alicdn') !== -1 || u.indexOf('1688') !== -1)) addImage(u);
+            el.shadowRoot
+              .querySelectorAll('[style*="url("]')
+              .forEach(function (e) {
+                var st = e.getAttribute('style') || '';
+                try {
+                  var bg = getComputedStyle(e).backgroundImage;
+                  if (bg && bg !== 'none') st += ' ' + bg;
+                } catch (ex) {}
+                var m = st.match(/url\(['"]?([^'")\s]+)['"]?\)/g);
+                if (m)
+                  m.forEach(function (x) {
+                    var u = x.replace(/url\(['"]?|['"]?\)/g, '');
+                    if (
+                      u &&
+                      (u.indexOf('alicdn') !== -1 || u.indexOf('1688') !== -1)
+                    )
+                      addImage(u);
+                  });
               });
-            });
-          } catch (e) { }
+          } catch (e) {}
         }
       });
 
       document.querySelectorAll('img').forEach(function (img) {
         if (isFooter(img)) return;
         var s = img.src;
-        if (s && (s.indexOf('alicdn') !== -1 || s.indexOf('1688') !== -1 || s.indexOf('taobaocdn') !== -1))
+        if (
+          s &&
+          (s.indexOf('alicdn') !== -1 ||
+            s.indexOf('1688') !== -1 ||
+            s.indexOf('taobaocdn') !== -1)
+        )
           addImage(s);
         getAttrs(img);
       });
@@ -160,41 +281,52 @@
         try {
           var bg = getComputedStyle(el).backgroundImage;
           if (bg && bg !== 'none') st += ' ' + bg;
-        } catch (e) { }
+        } catch (e) {}
         var m = st.match(/url\(['"]?([^'")\s]+)['"]?\)/g);
-        if (m) m.forEach(function (x) {
-          var u = x.replace(/url\(['"]?|['"]?\)/g, '');
-          if (u && (u.indexOf('alicdn') !== -1 || u.indexOf('1688') !== -1)) addImage(u);
-        });
+        if (m)
+          m.forEach(function (x) {
+            var u = x.replace(/url\(['"]?|['"]?\)/g, '');
+            if (u && (u.indexOf('alicdn') !== -1 || u.indexOf('1688') !== -1))
+              addImage(u);
+          });
       });
 
       document.querySelectorAll('video').forEach(function (v) {
         if (v.poster) addImage(v.poster);
       });
-      document.querySelectorAll('[data-poster],[data-video-poster]').forEach(function (el) {
-        var p = el.getAttribute('data-poster') || el.getAttribute('data-video-poster');
-        if (p) addImage(p);
-      });
+      document
+        .querySelectorAll('[data-poster],[data-video-poster]')
+        .forEach(function (el) {
+          var p =
+            el.getAttribute('data-poster') ||
+            el.getAttribute('data-video-poster');
+          if (p) addImage(p);
+        });
 
       try {
         document.querySelectorAll('script').forEach(function (sc) {
           var t = sc.textContent || '',
             m = t.match(/https?:\/\/[^\s"'<>]+?\.(jpg|png|jpeg|gif|webp)/gi);
-          if (m) m.forEach(function (u) {
-            if (u.indexOf('alicdn') !== -1 || u.indexOf('1688') !== -1) addImage(u);
-          });
+          if (m)
+            m.forEach(function (u) {
+              if (u.indexOf('alicdn') !== -1 || u.indexOf('1688') !== -1)
+                addImage(u);
+            });
         });
-      } catch (e) { }
+      } catch (e) {}
 
       try {
         JS_GLOBALS.forEach(function (k) {
           if (window[k]) {
             var j = JSON.stringify(window[k]),
               m = j.match(/https?:\/\/[^\s"'<>"]+?\.(jpg|png|jpeg|gif|webp)/gi);
-            if (m) m.forEach(function (u) { addImage(u.replace(/\\u002F/g, '/')); });
+            if (m)
+              m.forEach(function (u) {
+                addImage(u.replace(/\\u002F/g, '/'));
+              });
           }
         });
-      } catch (e) { }
+      } catch (e) {}
 
       return Array.from(urlMap.values());
     }
@@ -203,11 +335,18 @@
   }
 
   function classify(images) {
-    var mainImgs = [], detailImgs = [], otherImgs = [];
+    var mainImgs = [],
+      detailImgs = [],
+      otherImgs = [];
     images.forEach(function (u) {
       var l = u.toLowerCase();
-      if (l.indexOf('/imgextra/') !== -1 || l.indexOf('/bao/uploaded/') !== -1 || l.indexOf('/img/') !== -1) {
-        if (l.indexOf('desc') !== -1 || l.indexOf('detail') !== -1) detailImgs.push(u);
+      if (
+        l.indexOf('/imgextra/') !== -1 ||
+        l.indexOf('/bao/uploaded/') !== -1 ||
+        l.indexOf('/img/') !== -1
+      ) {
+        if (l.indexOf('desc') !== -1 || l.indexOf('detail') !== -1)
+          detailImgs.push(u);
         else mainImgs.push(u);
       } else otherImgs.push(u);
     });
@@ -249,7 +388,7 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:2
 .tb button.s5{background:linear-gradient(135deg,#ff4444,#ff7875)}
 .tb button.s5:hover{background:linear-gradient(135deg,#ff6666,#ffa39e)}
 .cnt{color:#999;font-size:14px;margin-left:auto;white-space:nowrap}
-.cnt b{font-size:20px;font-weight:bold}
+.cnt b{font-size:16px;font-weight:bold}
 .cnt .cg{color:#52c41a}
 .cnt .cf{color:#ff4d4f}
 .cnt .cs{color:#1890ff}
@@ -298,16 +437,20 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:2
 .sidenav .nav-pack:hover{color:#52c41a;background:rgba(82,196,26,.08)}
 .sidenav .nav-top:hover{color:#ff6a00;background:rgba(255,106,0,.08)}
 .sf{display:flex;align-items:center;gap:12px;margin-left:8px;font-size:14px;color:#999}
-.sf input[type=range]{-webkit-appearance:none;width:336px;height:6px;border-radius:3px;outline:none;cursor:pointer}
-.sf input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:transparent}
-.sf input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:#fff;border:2px solid #ff6a00;cursor:pointer;margin-top:-7px;transition:box-shadow .2s}
-.sf input[type=range]::-webkit-slider-thumb:hover{box-shadow:0 0 0 5px rgba(255,106,0,.2)}
-.sf input[type=range]:active::-webkit-slider-thumb{box-shadow:0 0 0 6px rgba(255,106,0,.25)}
+.sf input[type=range]{-webkit-appearance:none;width:500px;height:14px;border-radius:7px;outline:none;cursor:pointer}
+.sf input[type=range]::-webkit-slider-runnable-track{height:14px;border-radius:7px;background:transparent}
+.sf input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:24px;height:24px;border-radius:50%;background:#fff;border:2px solid #ff6a00;cursor:pointer;margin-top:-5px;transition:box-shadow .2s}
+.sf input[type=range]::-webkit-slider-thumb:hover{box-shadow:0 0 0 6px rgba(255,106,0,.2)}
+.sf input[type=range]:active::-webkit-slider-thumb{box-shadow:0 0 0 8px rgba(255,106,0,.25)}
 .sf .sv{color:#ff6a00;font-weight:bold;font-size:15px;min-width:46px}
-.sf .wrap{position:relative;width:336px;margin-top:-3px}
-.sf .ticks{position:absolute;top:14px;left:0;width:336px;height:22px}
-.sf .ticks span{position:absolute;bottom:0;font-size:10px;color:#c5c8ce;transform:translateX(-50%);white-space:nowrap}
-.sf .ticks span::before{content:"";position:absolute;top:-6px;left:50%;width:1px;height:5px;background:#dcdee2}
+.sf .wrap{position:relative;width:500px;margin-top:3px}
+.sf .ticks{position:absolute;top:14px;left:0;width:500px;height:22px}
+.sf .ticks span{position:absolute;bottom:0;font-size:11px;color:#a8abb2;transform:translateX(-50%);white-space:nowrap}
+.sf .ticks span.minor{color:transparent}
+.sf .tip{position:absolute;top:-34px;background:#ff6a00;color:#fff;font-size:13px;font-weight:bold;padding:4px 10px;border-radius:6px;transform:translateX(-50%);opacity:0;transition:opacity .15s;pointer-events:none;white-space:nowrap;box-shadow:0 2px 8px rgba(255,106,0,.3)}
+.sf .tip::after{content:"";position:absolute;bottom:-5px;left:50%;margin-left:-5px;border:5px solid transparent;border-top-color:#ff6a00}
+.sf .tip.show{opacity:1}
+.sf .ticks span::before{content:"";position:absolute;top:-6px;left:50%;width:1px;height:5px;background:#bbbcc2}
 .ksrow{font-size:12px;color:#bbb;padding:4px 20px 0;margin-bottom:12px;display:flex;gap:16px;flex-wrap:wrap}
 .ksrow b{color:#ff6a00;margin-right:2px}
 #productInfoArea{margin-top:28px}
@@ -321,7 +464,7 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:2
   <button id="btnNone" class="s2">⬜ 取消全选</button>
   <button id="btnCopy" class="s3">📋 复制选中地址</button>
   <button id="btnZip" class="s5">📦 打包下载</button>
-  <div class="sf"><span>最小展示尺寸:</span><div class="wrap"><input type="range" id="sizeFilter" min="0" max="1000" value="" step="10"><div class="ticks" id="sliderTicks"></div></div><span id="sizeLabel" class="sv"></span></div>
+  <div class="sf"><span>过滤尺寸:</span><div class="wrap"><input type="range" id="sizeFilter" min="0" max="1000" value="" step="10"><div class="ticks" id="sliderTicks"></div><div class="tip" id="sliderTip"></div></div><span id="sizeLabel" class="sv"></span></div>
   <div class="cnt" id="statLine">共 <b class="cg">${images.length}</b> 张 | 已选 <b class="cs">0</b> 张</div>
 </div>
 <div class="ksrow"><span><b>Ctrl+C</b> 复制选中地址</span><span><b>拖拽框选</b> 批量选中 | <b>Ctrl+框选</b> 取消选中</span><span>预览: <b>←→ A D</b> 切换, <b>空格</b> 选中, <b>ESC</b> 关闭</span></div>
@@ -377,7 +520,10 @@ if(isNaN(_sv))_sv=200;
 _sf.value=_sv;_sl.textContent=_sv?_sv+"px":"0px";
 function _sfFill(){var p=(parseInt(_sf.value)/1000*100).toFixed(1);_sf.style.background='linear-gradient(to right,#ff6a00 '+p+'%,#e8e8e8 '+p+'%)';}
 _sfFill();
-var _tk=document.getElementById("sliderTicks");for(var t=0;t<=1000;t+=100){var sp=document.createElement("span");sp.textContent=t;sp.style.left=(t/1000*100)+"%";_tk.appendChild(sp);}
+var _stip=document.getElementById("sliderTip");
+_sf.addEventListener("mousemove",function(e){var r=_sf.getBoundingClientRect();var p=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width));var v=Math.round(p*1000/10)*10;_stip.textContent=v+"px";_stip.style.left=(p*100)+"%";_stip.classList.add("show");});
+_sf.addEventListener("mouseleave",function(){_stip.classList.remove("show");});
+var _tk=document.getElementById("sliderTicks");for(var t=0;t<=1000;t+=50){var sp=document.createElement("span");if(t%100===0){sp.textContent=t;}else{sp.textContent="0";sp.className="minor";}sp.style.left=(t/1000*100)+"%";_tk.appendChild(sp);}
 var _fd=0,_ft=urls.length,_sn=0;
 function fImg(el){_fd++;var w=el.naturalWidth,h=el.naturalHeight;var c=el.closest(".card");
 c.dataset.w=w;c.dataset.h=h;
@@ -496,30 +642,32 @@ document.getElementById("navPack").addEventListener("click",function(e){e.preven
   function extractProductInfo() {
     var parts = [];
     var ids = [
-      { id: "productAttributes", title: "商品属性" },
-      { id: "productPackInfo", title: "包装信息" }
+      { id: 'productAttributes', title: '商品属性' },
+      { id: 'productPackInfo', title: '包装信息' }
     ];
     ids.forEach(function (item) {
       var el = document.getElementById(item.id);
       if (!el) return;
-      var tables = el.querySelectorAll("table");
+      var tables = el.querySelectorAll('table');
       if (!tables.length) return;
-      var html = "";
+      var html = '';
       tables.forEach(function (t) {
         var clone = t.cloneNode(true);
-        clone.querySelectorAll("td, th").forEach(function (cell) {
-          var btn = document.createElement("button");
-          btn.className = "pcopy";
-          btn.title = "复制文本";
-          btn.textContent = "📋";
-          btn.setAttribute("data-copy", cell.textContent.trim());
+        clone.querySelectorAll('td, th').forEach(function (cell) {
+          var btn = document.createElement('button');
+          btn.className = 'pcopy';
+          btn.title = '复制文本';
+          btn.textContent = '📋';
+          btn.setAttribute('data-copy', cell.textContent.trim());
           cell.appendChild(btn);
         });
         html += clone.outerHTML;
       });
-      parts.push('<div class="pinfo"><h3>' + item.title + '</h3>' + html + '</div>');
+      parts.push(
+        '<div class="pinfo"><h3>' + item.title + '</h3>' + html + '</div>'
+      );
     });
-    return parts.length > 0 ? parts.join("") : null;
+    return parts.length > 0 ? parts.join('') : null;
   }
 
   function showResult(images, groups, productInfo) {
@@ -528,7 +676,11 @@ document.getElementById("navPack").addEventListener("click",function(e){e.preven
     var blobUrl = URL.createObjectURL(blob);
     var w = window.open(blobUrl, '_blank');
     if (!w) {
-      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+      if (
+        typeof chrome !== 'undefined' &&
+        chrome.runtime &&
+        chrome.runtime.sendMessage
+      ) {
         var reader = new FileReader();
         reader.onload = function () {
           chrome.runtime.sendMessage({ action: 'openTab', url: reader.result });
