@@ -532,9 +532,12 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:2
 .ksrow b{color:#ff6a00;margin-right:2px}
 #productInfoArea{margin-top:28px}
 .setwrap{position:relative;display:inline-flex}
-.setbtn{color:#666;border:none;width:28px;height:28px;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;background:transparent;transition:all .25s;padding:0;font-size:20px;line-height:1;font-variant-emoji:text;-webkit-font-variant-emoji:text}
-.setbtn:hover{color:#ff6a00;background:rgba(255,106,0,.08);transform:rotate(30deg)}
-.setbtn:active{transform:scale(.92) rotate(30deg)}
+.setbtn{color:#666;border:none;width:28px;height:28px;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;background:transparent;transition:all .25s;padding:0}
+.setbtn:hover{color:#ff6a00;background:rgba(255,106,0,.08)}
+.setbtn:active{transform:scale(.92)}
+.setbtn svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;transition:transform .4s}
+.setbtn:hover svg{transform:rotate(60deg)}
+.card._selhint{box-shadow:0 0 0 3px rgba(24,144,255,.35);opacity:.75;transform:scale(.97);transition:box-shadow .15s,opacity .15s,transform .15s}
 .setpanel{display:none;position:absolute;top:48px;right:0;width:310px;background:#fff;border-radius:14px;box-shadow:0 8px 32px rgba(0,0,0,.15);padding:16px 18px;z-index:200;border:1px solid #f0f0f0;max-height:calc(100vh - 120px);overflow-y:auto;animation:setPanelIn .2s ease}
 .setpanel.show{display:block}
 @keyframes setPanelIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
@@ -566,9 +569,9 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:2
   <div class="sf"><span>过滤尺寸:</span><div class="wrap"><input type="range" id="sizeFilter" min="0" max="1000" value="" step="10"><div class="ticks" id="sliderTicks"></div><div class="tip" id="sliderTip"></div></div><span id="sizeLabel" class="sv"></span></div>
   <div class="cnt" id="statLine">共 <b class="cg">${images.length}</b> 张 | 已选 <b class="cs">0</b> 张</div>
   <div class="setwrap">
-    <button class="setbtn" id="btnSet" title="设置">&#9881;&#xFE0E;</button>
+    <button class="setbtn" id="btnSet" title="设置"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="3.5"/><path d="M10 1v2.5M10 16.5V19M1 10h2.5M16.5 10H19M3.5 3.5l1.8 1.8M14.7 14.7l1.8 1.8M3.5 16.5l1.8-1.8M14.7 5.3l1.8-1.8"/></svg></button>
     <div class="setpanel" id="setPanel">
-      <h4>&#9881;&#xFE0E; 设置</h4>
+      <h4><svg viewBox="0 0 20 20" style="width:14px;height:14px;stroke:#999;fill:none;stroke-width:2;stroke-linecap:round"><circle cx="10" cy="10" r="3.5"/><path d="M10 1v2.5M10 16.5V19M1 10h2.5M16.5 10H19M3.5 3.5l1.8 1.8M14.7 14.7l1.8 1.8M3.5 16.5l1.8-1.8M14.7 5.3l1.8-1.8"/></svg> 设置</h4>
       <div class="setrow"><div class="setlabel">HD标签尺寸<small>宽高均≥此值标记HD</small></div><input class="setinput" type="number" id="setHdSize" min="0" max="9999" value="400"></div>
       <div class="setrow"><div class="setlabel">显示HD标签</div><label class="switch"><input type="checkbox" id="setHdShow" checked><span class="slider"></span></label></div>
       <div class="setrow"><div class="setlabel">快捷键说明</div><label class="switch"><input type="checkbox" id="setKsShow" checked><span class="slider"></span></label></div>
@@ -708,8 +711,13 @@ var dx=e.clientX-_selStartX,dy=e.clientY-_selStartY;
 if(!_selMoved&&(Math.abs(dx)<5&&Math.abs(dy)<5))return;
 if(!_selMoved)_selMoved=true;_selWasDrag=true;e.preventDefault();grid.style.userSelect="none";grid.style.webkitUserSelect="none";
 var l=Math.min(_selStartX,e.clientX),t=Math.min(_selStartY,e.clientY),r=Math.max(_selStartX,e.clientX),b=Math.max(_selStartY,e.clientY);
-selRect.style.display="block";selRect.style.left=l+"px";selRect.style.top=t+"px";selRect.style.width=(r-l)+"px";selRect.style.height=(b-t)+"px";});
+selRect.style.display="block";selRect.style.left=l+"px";selRect.style.top=t+"px";selRect.style.width=(r-l)+"px";selRect.style.height=(b-t)+"px";
+var sr={left:l,top:t,right:r,bottom:b};
+grid.querySelectorAll(".card").forEach(function(c){if(c.style.display==="none")return;
+var cr=c.getBoundingClientRect();var hit=cr.right>sr.left&&cr.left<sr.right&&cr.bottom>sr.top&&cr.top<sr.bottom;
+if(hit){c.classList.add("_selhint");}else{c.classList.remove("_selhint");}});});
 document.addEventListener("mouseup",function(e){if(!_seling)return;
+grid.querySelectorAll("._selhint").forEach(function(c){c.classList.remove("_selhint");});
 var wasDrag=_selMoved;_seling=false;selRect.style.display="none";grid.style.userSelect="";grid.style.webkitUserSelect="";
 if(wasDrag){
 var l=Math.min(_selStartX,e.clientX),t=Math.min(_selStartY,e.clientY),r=Math.max(_selStartX,e.clientX),b=Math.max(_selStartY,e.clientY);
