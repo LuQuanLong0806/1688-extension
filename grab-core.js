@@ -465,7 +465,7 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:2
 .cnt .cg{color:#52c41a}
 .cnt .cf{color:#ff4d4f}
 .cnt .cs{color:#1890ff}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(clamp(260px,16vw,380px),1fr));gap:16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(max(240px,min(280px,calc((100vw - 120px)/7))),1fr));gap:16px}
 .card{background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.06);border:2px solid transparent;cursor:pointer;transition:all .25s;user-select:none}
 .card:hover{box-shadow:0 6px 24px rgba(0,0,0,.12);transform:translateY(-2px)}
 .card.on{border-color:#1890ff;box-shadow:0 4px 20px rgba(24,144,255,.25)}
