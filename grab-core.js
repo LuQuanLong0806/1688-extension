@@ -745,6 +745,16 @@ document.getElementById("navPack").addEventListener("click",function(e){e.preven
     var w = window.open(blobUrl, '_blank');
     if (w) {
       _resultWindows.push(w);
+      var _pollTimer = setInterval(function () {
+        if (w.closed) {
+          clearInterval(_pollTimer);
+          var idx = _resultWindows.indexOf(w);
+          if (idx !== -1) _resultWindows.splice(idx, 1);
+          if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+            chrome.runtime.sendMessage({ action: 'closeSourceTab' });
+          }
+        }
+      }, 1000);
     } else {
       if (
         typeof chrome !== 'undefined' &&
@@ -769,7 +779,10 @@ document.getElementById("navPack").addEventListener("click",function(e){e.preven
       if (images.length === 0) return null;
       var groups = classify(images);
       var productInfo = extractProductInfo();
-      showResult(images, groups, productInfo);
+      window.scrollTo({ top: 0, behavior: 'auto' });
+      setTimeout(function () {
+        showResult(images, groups, productInfo);
+      }, 300);
       return images.length;
     },
     getImageCount: function () {

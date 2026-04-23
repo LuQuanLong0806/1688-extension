@@ -8,20 +8,27 @@ chrome.runtime.onMessage.addListener(function (msg, sender) {
       resultTabsMap[sourceId].push(tab.id);
     });
   }
+  if (msg.action === 'closeSourceTab') {
+    chrome.tabs.remove(sender.tab.id);
+  }
 });
 
 chrome.tabs.onRemoved.addListener(function (tabId) {
+  // Source tab closed -> close result tabs
   if (resultTabsMap[tabId]) {
     resultTabsMap[tabId].forEach(function (rid) {
       chrome.tabs.remove(rid);
     });
     delete resultTabsMap[tabId];
+    return;
   }
+  // Result tab closed -> close source tab
   for (var sid in resultTabsMap) {
     var idx = resultTabsMap[sid].indexOf(tabId);
     if (idx !== -1) {
-      resultTabsMap[sid].splice(idx, 1);
-      if (resultTabsMap[sid].length === 0) delete resultTabsMap[sid];
+      chrome.tabs.remove(parseInt(sid));
+      delete resultTabsMap[sid];
+      break;
     }
   }
 });
