@@ -460,7 +460,7 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:2
 .tb button.s3:hover{background:linear-gradient(135deg,#40a9ff,#91d5ff)}
 .tb button.s5{background:linear-gradient(135deg,#ff4444,#ff7875)}
 .tb button.s5:hover{background:linear-gradient(135deg,#ff6666,#ffa39e)}
-.cnt{color:#999;font-size:14px;margin-left:auto;white-space:nowrap}
+.cnt{color:#999;font-size:14px;white-space:nowrap}
 .cnt b{font-size:16px;font-weight:bold}
 .cnt .cg{color:#52c41a}
 .cnt .cf{color:#ff4d4f}
@@ -531,14 +531,10 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:2
 .ksrow{font-size:12px;color:#bbb;padding:4px 20px 0;margin-bottom:12px;display:flex;gap:16px;flex-wrap:wrap}
 .ksrow b{color:#ff6a00;margin-right:2px}
 #productInfoArea{margin-top:28px}
-.setwrap{position:relative;display:inline-flex}
-.setbtn{color:#666;border:none;width:28px;height:28px;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;background:transparent;transition:all .25s;padding:0}
-.setbtn:hover{color:#ff6a00;background:rgba(255,106,0,.08)}
-.setbtn:active{transform:scale(.92)}
-.setbtn svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;transition:transform .4s}
-.setbtn:hover svg{transform:rotate(60deg)}
+.setwrap{position:relative}
+.setwrap a:hover{color:#ff6a00;background:rgba(255,106,0,.08)}
 .card._selhint{box-shadow:0 0 0 3px rgba(24,144,255,.35);opacity:.75;transform:scale(.97);transition:box-shadow .15s,opacity .15s,transform .15s}
-.setpanel{display:none;position:absolute;top:48px;right:0;width:310px;background:#fff;border-radius:14px;box-shadow:0 8px 32px rgba(0,0,0,.15);padding:16px 18px;z-index:200;border:1px solid #f0f0f0;max-height:calc(100vh - 120px);overflow-y:auto;animation:setPanelIn .2s ease}
+.setpanel{display:none;position:absolute;top:38px;right:0;width:310px;background:#fff;border-radius:14px;box-shadow:0 8px 32px rgba(0,0,0,.15);padding:16px 18px;z-index:200;border:1px solid #f0f0f0;max-height:calc(100vh - 80px);overflow-y:auto;animation:setPanelIn .2s ease}
 .setpanel.show{display:block}
 @keyframes setPanelIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
 .setpanel h4{font-size:14px;font-weight:bold;color:#333;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;gap:6px}
@@ -567,19 +563,21 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:2
   <button id="btnCopy" class="s3">📋 复制选中地址</button>
   <button id="btnZip" class="s5">📦 打包下载</button>
   <div class="sf"><span>过滤尺寸:</span><div class="wrap"><input type="range" id="sizeFilter" min="0" max="1000" value="" step="10"><div class="ticks" id="sliderTicks"></div><div class="tip" id="sliderTip"></div></div><span id="sizeLabel" class="sv"></span></div>
-  <div class="cnt" id="statLine">共 <b class="cg">${images.length}</b> 张 | 已选 <b class="cs">0</b> 张</div>
-  <div class="setwrap">
-    <button class="setbtn" id="btnSet" title="设置"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="3.5"/><path d="M10 1v2.5M10 16.5V19M1 10h2.5M16.5 10H19M3.5 3.5l1.8 1.8M14.7 14.7l1.8 1.8M3.5 16.5l1.8-1.8M14.7 5.3l1.8-1.8"/></svg></button>
-    <div class="setpanel" id="setPanel">
-      <h4><svg viewBox="0 0 20 20" style="width:14px;height:14px;stroke:#999;fill:none;stroke-width:2;stroke-linecap:round"><circle cx="10" cy="10" r="3.5"/><path d="M10 1v2.5M10 16.5V19M1 10h2.5M16.5 10H19M3.5 3.5l1.8 1.8M14.7 14.7l1.8 1.8M3.5 16.5l1.8-1.8M14.7 5.3l1.8-1.8"/></svg> 设置</h4>
-      <div class="setrow"><div class="setlabel">HD标签尺寸<small>宽高均≥此值标记HD</small></div><input class="setinput" type="number" id="setHdSize" min="0" max="9999" value="400"></div>
-      <div class="setrow"><div class="setlabel">显示HD标签</div><label class="switch"><input type="checkbox" id="setHdShow" checked><span class="slider"></span></label></div>
-      <div class="setrow"><div class="setlabel">快捷键说明</div><label class="switch"><input type="checkbox" id="setKsShow" checked><span class="slider"></span></label></div>
-      <div class="setrow"><div class="setlabel">关闭详情页→关闭当前页<small>关闭1688详情页时同步关闭结果页</small></div><label class="switch"><input type="checkbox" id="setCloseDetailSync" checked><span class="slider"></span></label></div>
-      <div class="setrow"><div class="setlabel">关闭当前页→关闭详情页<small>关闭结果页时同步关闭1688详情页</small></div><label class="switch"><input type="checkbox" id="setCloseResultSync" checked><span class="slider"></span></label></div>
-      <div class="setrow"><div class="setlabel">商品属性</div><label class="switch"><input type="checkbox" id="setShowAttr" checked><span class="slider"></span></label></div>
-      <div class="setrow"><div class="setlabel">包装信息</div><label class="switch"><input type="checkbox" id="setShowPack" checked><span class="slider"></span></label></div>
-      <div class="setrow"><div class="setlabel">打包下载按钮</div><label class="switch"><input type="checkbox" id="setShowZip" checked><span class="slider"></span></label></div>
+  <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+    <div class="cnt" id="statLine">共 <b class="cg">${images.length}</b> 张 | 已选 <b class="cs">0</b> 张</div>
+    <div class="setwrap">
+      <a id="navSet" title="设置" href="javascript:void(0)" style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#999;transition:all .25s"><svg viewBox="0 0 16 16" fill="none" style="width:17px;height:17px"><circle cx="8" cy="8" r="2.8" stroke="currentColor" stroke-width="1.3"/><path d="M8 1v2.2M8 12.8V15M1 8h2.2M12.8 8H15M3.1 3.1l1.6 1.6M11.3 11.3l1.6 1.6M3.1 12.9l1.6-1.6M11.3 4.7l1.6-1.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></a>
+      <div class="setpanel" id="setPanel">
+        <h4>设置</h4>
+        <div class="setrow"><div class="setlabel">HD标签尺寸<small>宽高均≥此值标记HD</small></div><input class="setinput" type="number" id="setHdSize" min="0" max="9999" value="400"></div>
+        <div class="setrow"><div class="setlabel">显示HD标签</div><label class="switch"><input type="checkbox" id="setHdShow" checked><span class="slider"></span></label></div>
+        <div class="setrow"><div class="setlabel">快捷键说明</div><label class="switch"><input type="checkbox" id="setKsShow" checked><span class="slider"></span></label></div>
+        <div class="setrow"><div class="setlabel">关闭详情页→关闭当前页<small>关闭1688详情页时同步关闭结果页</small></div><label class="switch"><input type="checkbox" id="setCloseDetailSync" checked><span class="slider"></span></label></div>
+        <div class="setrow"><div class="setlabel">关闭当前页→关闭详情页<small>关闭结果页时同步关闭1688详情页</small></div><label class="switch"><input type="checkbox" id="setCloseResultSync" checked><span class="slider"></span></label></div>
+        <div class="setrow"><div class="setlabel">商品属性</div><label class="switch"><input type="checkbox" id="setShowAttr" checked><span class="slider"></span></label></div>
+        <div class="setrow"><div class="setlabel">包装信息</div><label class="switch"><input type="checkbox" id="setShowPack" checked><span class="slider"></span></label></div>
+        <div class="setrow"><div class="setlabel">打包下载按钮</div><label class="switch"><input type="checkbox" id="setShowZip" checked><span class="slider"></span></label></div>
+      </div>
     </div>
   </div>
 </div>
@@ -766,8 +764,8 @@ document.getElementById("navAttr").addEventListener("click",function(e){e.preven
 document.getElementById("navPack").addEventListener("click",function(e){e.preventDefault();var el=document.querySelectorAll("#productInfoArea .pinfo");if(el.length>1)el[1].scrollIntoView({behavior:"smooth",block:"start"});else if(el.length===1)el[0].scrollIntoView({behavior:"smooth",block:"start"});});
 // === Settings Panel ===
 var _setPanel=document.getElementById("setPanel");
-var _setBtn=document.getElementById("btnSet");
-_setBtn.addEventListener("click",function(e){e.stopPropagation();_setPanel.classList.toggle("show");});
+var _setBtn=document.getElementById("navSet");
+_setBtn.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();_setPanel.classList.toggle("show");});
 _setPanel.addEventListener("mouseleave",function(){_setPanel.classList.remove("show");});
 _setPanel.addEventListener("click",function(e){e.stopPropagation();});
 document.addEventListener("click",function(){_setPanel.classList.remove("show");});
