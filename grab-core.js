@@ -533,7 +533,7 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:2
 #productInfoArea{margin-top:28px}
 .setwrap{position:relative}
 .setwrap a:hover{color:#ff6a00;background:rgba(255,106,0,.08)}
-.card._selhint{box-shadow:0 0 0 3px rgba(24,144,255,.35);opacity:.75;transform:scale(.97);transition:box-shadow .15s,opacity .15s,transform .15s}
+.card._selhint{box-shadow:0 0 0 2px rgba(255,106,0,.4),0 4px 16px rgba(255,106,0,.15);opacity:.6;transform:scale(.96)}
 .setpanel{display:none;position:absolute;top:38px;right:0;width:310px;background:#fff;border-radius:14px;box-shadow:0 8px 32px rgba(0,0,0,.15);padding:16px 18px;z-index:200;border:1px solid #f0f0f0;max-height:calc(100vh - 80px);overflow-y:auto;animation:setPanelIn .2s ease}
 .setpanel.show{display:block}
 @keyframes setPanelIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
@@ -566,7 +566,7 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:2
   <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
     <div class="cnt" id="statLine">共 <b class="cg">${images.length}</b> 张 | 已选 <b class="cs">0</b> 张</div>
     <div class="setwrap">
-      <a id="navSet" title="设置" href="javascript:void(0)" style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#999;transition:all .25s"><svg viewBox="0 0 16 16" fill="none" style="width:17px;height:17px"><circle cx="8" cy="8" r="2.8" stroke="currentColor" stroke-width="1.3"/><path d="M8 1v2.2M8 12.8V15M1 8h2.2M12.8 8H15M3.1 3.1l1.6 1.6M11.3 11.3l1.6 1.6M3.1 12.9l1.6-1.6M11.3 4.7l1.6-1.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></a>
+      <a id="navSet" title="设置" href="javascript:void(0)" style="width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#999;transition:all .25s"><svg viewBox="0 0 16 16" fill="none" style="width:20px;height:20px"><circle cx="8" cy="8" r="2.8" stroke="currentColor" stroke-width="1.3"/><path d="M8 1v2.2M8 12.8V15M1 8h2.2M12.8 8H15M3.1 3.1l1.6 1.6M11.3 11.3l1.6 1.6M3.1 12.9l1.6-1.6M11.3 4.7l1.6-1.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></a>
       <div class="setpanel" id="setPanel">
         <h4>设置</h4>
         <div class="setrow"><div class="setlabel">HD标签尺寸<small>宽高均≥此值标记HD</small></div><input class="setinput" type="number" id="setHdSize" min="0" max="9999" value="400"></div>
