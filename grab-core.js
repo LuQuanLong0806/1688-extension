@@ -512,14 +512,14 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:2
 .sidenav .nav-pack:hover{color:#52c41a;background:rgba(82,196,26,.08)}
 .sidenav .nav-top:hover{color:#ff6a00;background:rgba(255,106,0,.08)}
 .sf{display:flex;align-items:center;gap:12px;margin-left:8px;font-size:14px;color:#999}
-.sf input[type=range]{-webkit-appearance:none;width:500px;height:14px;border-radius:7px;outline:none;cursor:pointer}
+.sf input[type=range]{-webkit-appearance:none;width:400px;height:14px;border-radius:7px;outline:none;cursor:pointer}
 .sf input[type=range]::-webkit-slider-runnable-track{height:14px;border-radius:7px;background:transparent}
 .sf input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:24px;height:24px;border-radius:50%;background:#fff;border:2px solid #ff6a00;cursor:pointer;margin-top:-5px;transition:box-shadow .2s}
 .sf input[type=range]::-webkit-slider-thumb:hover{box-shadow:0 0 0 6px rgba(255,106,0,.2)}
 .sf input[type=range]:active::-webkit-slider-thumb{box-shadow:0 0 0 8px rgba(255,106,0,.25)}
 .sf .sv{color:#ff6a00;font-weight:bold;font-size:15px;min-width:46px}
-.sf .wrap{position:relative;width:500px;margin-top:3px}
-.sf .ticks{position:absolute;top:14px;left:0;width:500px;height:22px}
+.sf .wrap{position:relative;width:400px;margin-top:3px}
+.sf .ticks{position:absolute;top:14px;left:0;width:400px;height:22px}
 .sf .ticks span{position:absolute;bottom:0;font-size:12px;color:#a8abb2;transform:translateX(-50%);white-space:nowrap;cursor:pointer}
 .sf .ticks span.minor{color:transparent}
 .sf .ticks span:hover::before{background:#ff6a00}
@@ -564,7 +564,7 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:2
   <button id="btnZip" class="s5">📦 打包下载</button>
   <div class="sf"><span>过滤尺寸:</span><div class="wrap"><input type="range" id="sizeFilter" min="0" max="1000" value="" step="10"><div class="ticks" id="sliderTicks"></div><div class="tip" id="sliderTip"></div></div><span id="sizeLabel" class="sv"></span></div>
   <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
-    <div class="cnt" id="statLine">共 <b class="cg">${images.length}</b> 张 | 已选 <b class="cs">0</b> 张</div>
+    <div class="cnt" id="statLine">有效 <b class="cg">${images.length}</b> 张 | 已选 <b class="cs">0</b> 张</div>
     <div class="setwrap">
       <a id="navSet" title="设置" href="javascript:void(0)" style="width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#999;transition:all .25s"><svg viewBox="0 0 16 16" fill="none" style="width:20px;height:20px"><circle cx="8" cy="8" r="2.8" stroke="currentColor" stroke-width="1.3"/><path d="M8 1v2.2M8 12.8V15M1 8h2.2M12.8 8H15M3.1 3.1l1.6 1.6M11.3 11.3l1.6 1.6M3.1 12.9l1.6-1.6M11.3 4.7l1.6-1.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></a>
       <div class="setpanel" id="setPanel">
@@ -577,6 +577,7 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:2
         <div class="setrow"><div class="setlabel">商品属性</div><label class="switch"><input type="checkbox" id="setShowAttr" checked><span class="slider"></span></label></div>
         <div class="setrow"><div class="setlabel">包装信息</div><label class="switch"><input type="checkbox" id="setShowPack" checked><span class="slider"></span></label></div>
         <div class="setrow"><div class="setlabel">打包下载按钮</div><label class="switch"><input type="checkbox" id="setShowZip" checked><span class="slider"></span></label></div>
+        <div class="setrow"><div class="setlabel">复制后清除选中<small>复制地址后自动取消卡片选中状态</small></div><label class="switch"><input type="checkbox" id="setCopyClear" checked><span class="slider"></span></label></div>
       </div>
     </div>
   </div>
@@ -646,13 +647,13 @@ if(w>0&&h>0){var s=document.createElement("span");s.className="sz";s.textContent
 if(_hdShow&&w>=_hdSize&&h>=_hdSize){c.classList.add("big");}}
 var fv=parseInt(_sf.value)||0;
 if(fv>0&&(w<fv||h<fv)){c.style.display="none";_sn++;}
-if(_fd===_ft){var n=grid.querySelectorAll(".card").length;document.getElementById("statLine").innerHTML="有效 <b class='cg'>"+(n-_sn)+"</b> 张 | 过滤 <b class='cf'>"+_sn+"</b> 张 | 已选 <b class='cs'>"+getCheckedUrls().length+"</b> 张";}}
+if(_fd===_ft){var n=grid.querySelectorAll(".card").length;document.getElementById("statLine").innerHTML="有效 <b class='cg'>"+(n-_sn)+"</b> 张 | 已选 <b class='cs'>"+getCheckedUrls().length+"</b> 张";}}
 _sf.addEventListener("input",function(){var v=parseInt(this.value);_sl.textContent=v?v+"px":"0px";
 localStorage.setItem("1688_sizeFilter",v);_sfFill();
 var hidden=0;grid.querySelectorAll(".card").forEach(function(c){
 if(v>0&&c.dataset.w&&c.dataset.h&&(parseInt(c.dataset.w)<v||parseInt(c.dataset.h)<v)){c.style.display="none";hidden++;}
 else{c.style.display="";}});
-var n=grid.querySelectorAll(".card").length;document.getElementById("statLine").innerHTML="有效 <b class='cg'>"+(n-hidden)+"</b> 张 | 过滤 <b class='cf'>"+hidden+"</b> 张 | 已选 <b class='cs'>"+getCheckedUrls().length+"</b> 张";
+var n=grid.querySelectorAll(".card").length;document.getElementById("statLine").innerHTML="有效 <b class='cg'>"+(n-hidden)+"</b> 张 | 已选 <b class='cs'>"+getCheckedUrls().length+"</b> 张";
 updateCount();});
 var pvEl=document.getElementById("preview");var pvImg=document.getElementById("previewImg");
 var _pz=1,_px=0,_py=0,_pr=0,_pd=false,_psx=0,_psy=0,_pvi=0;
@@ -686,7 +687,7 @@ var arr=getCheckedUrls();
 if(!arr.length){showToast("请先选择图片");return;}doCopy(arr.join("\\n"),arr.length);});
 document.addEventListener("keydown",function(e){if((e.ctrlKey||e.metaKey)&&e.key=="c"&&!window.getSelection().toString()){e.preventDefault();
 var arr=getCheckedUrls();
-if(!arr.length){showToast("请先选择图片");return;}doCopy(arr.join("\\n"),arr.length);document.querySelectorAll(".ci").forEach(function(c){c.checked=false;c.closest(".card").classList.remove("on");});updateCount();}
+if(!arr.length){showToast("请先选择图片");return;}doCopy(arr.join("\\n"),arr.length);if(_getSettingBool("1688_set_copyClear",true))_clearSelection();}
 else if((e.ctrlKey||e.metaKey)&&e.key=="a"){e.preventDefault();document.querySelectorAll(".card").forEach(function(c){if(c.style.display==="none")return;var cb=c.querySelector(".ci");cb.checked=true;c.classList.add("on");});updateCount();showToast("已选中可见图片");}
 else if((e.ctrlKey||e.metaKey)&&e.key=="z"){e.preventDefault();document.querySelectorAll(".ci").forEach(function(c){c.checked=false;c.closest(".card").classList.remove("on");});updateCount();showToast("已取消全选");}});
 document.getElementById("pvPrev").addEventListener("click",function(e){e.stopPropagation();pvNavigate(-1);});
@@ -732,7 +733,7 @@ toggleCard(card,card.querySelector(".ci"));});
 function toggleCard(card,cb){cb.checked=!cb.checked;card.classList.toggle("on",cb.checked);updateCount();}
 function updateCount(){var hidden=0;grid.querySelectorAll(".card").forEach(function(c){if(c.style.display==="none")hidden++;});
 var n=grid.querySelectorAll(".card").length;
-document.getElementById("statLine").innerHTML="有效 <b class='cg'>"+(n-hidden)+"</b> 张 | 过滤 <b class='cf'>"+hidden+"</b> 张 | 已选 <b class='cs'>"+getCheckedUrls().length+"</b> 张";}
+document.getElementById("statLine").innerHTML="有效 <b class='cg'>"+(n-hidden)+"</b> 张 | 已选 <b class='cs'>"+getCheckedUrls().length+"</b> 张";}
 document.getElementById("btnAll").addEventListener("click",function(){
 document.querySelectorAll(".card").forEach(function(c){if(c.style.display==="none")return;var cb=c.querySelector(".ci");cb.checked=true;c.classList.add("on");});updateCount();});
 document.getElementById("btnNone").addEventListener("click",function(){
@@ -742,7 +743,7 @@ var ta=document.createElement("textarea");ta.value=t;document.body.appendChild(t
 document.getElementById("btnCopy").addEventListener("click",function(){
 var arr=getCheckedUrls();
 if(!arr.length){showToast("请先选择图片");return;}doCopy(arr.join("\\n"),arr.length);
-document.querySelectorAll(".ci").forEach(function(c){c.checked=false;c.closest(".card").classList.remove("on");});updateCount();});
+if(_getSettingBool("1688_set_copyClear",true))_clearSelection();});
 function copyOne(u){doCopy(u,1);}
 document.getElementById("btnZip").addEventListener("click",async function(){if(typeof JSZip==="undefined"){showToast("JSZip 库加载失败，请检查网络");return;}
 var arr=getCheckedUrls();
@@ -800,6 +801,10 @@ var _zipInit=_getSettingBool("1688_set_showZip",true);
 document.getElementById("setShowZip").checked=_zipInit;
 if(!_zipInit&&_zipBtn)_zipBtn.style.display="none";
 document.getElementById("setShowZip").addEventListener("change",function(){var on=this.checked;localStorage.setItem("1688_set_showZip",on);if(_zipBtn)_zipBtn.style.display=on?"":"none";});
+	var _copyClearInit=_getSettingBool("1688_set_copyClear",true);
+	document.getElementById("setCopyClear").checked=_copyClearInit;
+	document.getElementById("setCopyClear").addEventListener("change",function(){localStorage.setItem("1688_set_copyClear",this.checked);});
+	function _clearSelection(){document.querySelectorAll(".ci").forEach(function(c){c.checked=false;c.closest(".card").classList.remove("on");});updateCount();}
 </script>
 </body>
 </html>`;
