@@ -1,4 +1,12 @@
 (function () {
+  var _resultWindows = [];
+  window.addEventListener('beforeunload', function () {
+    _resultWindows.forEach(function (w) {
+      try { w.close(); } catch (e) {}
+    });
+    _resultWindows = [];
+  });
+
   var SKIP_PATTERNS = [
     '/icon/',
     '/logo/',
@@ -735,7 +743,9 @@ document.getElementById("navPack").addEventListener("click",function(e){e.preven
     var blob = new Blob([html], { type: 'text/html' });
     var blobUrl = URL.createObjectURL(blob);
     var w = window.open(blobUrl, '_blank');
-    if (!w) {
+    if (w) {
+      _resultWindows.push(w);
+    } else {
       if (
         typeof chrome !== 'undefined' &&
         chrome.runtime &&
