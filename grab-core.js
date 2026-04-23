@@ -532,7 +532,7 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:2
 .ksrow b{color:#ff6a00;margin-right:2px}
 #productInfoArea{margin-top:28px}
 .setwrap{position:relative;display:inline-flex}
-.setbtn{color:#aaa;border:none;width:28px;height:28px;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;background:transparent;transition:all .25s;padding:0;font-size:20px;line-height:1}
+.setbtn{color:#666;border:none;width:28px;height:28px;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;background:transparent;transition:all .25s;padding:0;font-size:20px;line-height:1;font-variant-emoji:text;-webkit-font-variant-emoji:text}
 .setbtn:hover{color:#ff6a00;background:rgba(255,106,0,.08);transform:rotate(30deg)}
 .setbtn:active{transform:scale(.92) rotate(30deg)}
 .setpanel{display:none;position:absolute;top:48px;right:0;width:310px;background:#fff;border-radius:14px;box-shadow:0 8px 32px rgba(0,0,0,.15);padding:16px 18px;z-index:200;border:1px solid #f0f0f0;max-height:calc(100vh - 120px);overflow-y:auto;animation:setPanelIn .2s ease}
@@ -566,9 +566,9 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:2
   <div class="sf"><span>过滤尺寸:</span><div class="wrap"><input type="range" id="sizeFilter" min="0" max="1000" value="" step="10"><div class="ticks" id="sliderTicks"></div><div class="tip" id="sliderTip"></div></div><span id="sizeLabel" class="sv"></span></div>
   <div class="cnt" id="statLine">共 <b class="cg">${images.length}</b> 张 | 已选 <b class="cs">0</b> 张</div>
   <div class="setwrap">
-    <button class="setbtn" id="btnSet" title="设置">&#9881;</button>
+    <button class="setbtn" id="btnSet" title="设置">&#9881;&#xFE0E;</button>
     <div class="setpanel" id="setPanel">
-      <h4>&#9881; 设置</h4>
+      <h4>&#9881;&#xFE0E; 设置</h4>
       <div class="setrow"><div class="setlabel">HD标签尺寸<small>宽高均≥此值标记HD</small></div><input class="setinput" type="number" id="setHdSize" min="0" max="9999" value="400"></div>
       <div class="setrow"><div class="setlabel">显示HD标签</div><label class="switch"><input type="checkbox" id="setHdShow" checked><span class="slider"></span></label></div>
       <div class="setrow"><div class="setlabel">快捷键说明</div><label class="switch"><input type="checkbox" id="setKsShow" checked><span class="slider"></span></label></div>
@@ -700,7 +700,7 @@ else if(e.key==="Escape"){pvEl.classList.remove("show");}});
 pvEl.addEventListener("click",function(e){if(e.target===pvImg)return;pvEl.classList.remove("show");});
 document.getElementById("previewClose").addEventListener("click",function(e){e.stopPropagation();pvEl.classList.remove("show");});
 var selRect=document.getElementById("selRect");
-var _seling=false,_selMoved=false,_selStartX=0,_selStartY=0,_selWasDrag=false,_selRaf=0;
+var _seling=false,_selMoved=false,_selStartX=0,_selStartY=0,_selWasDrag=false;
 grid.addEventListener("mousedown",function(e){if(e.button!==0)return;if(e.target.closest(".cpicon")||e.target.closest(".eyeicon"))return;if(pvEl.classList.contains("show"))return;
 _seling=true;_selMoved=false;_selStartX=e.clientX;_selStartY=e.clientY;});
 document.addEventListener("mousemove",function(e){if(!_seling)return;
@@ -708,13 +708,16 @@ var dx=e.clientX-_selStartX,dy=e.clientY-_selStartY;
 if(!_selMoved&&(Math.abs(dx)<5&&Math.abs(dy)<5))return;
 if(!_selMoved)_selMoved=true;_selWasDrag=true;e.preventDefault();grid.style.userSelect="none";grid.style.webkitUserSelect="none";
 var l=Math.min(_selStartX,e.clientX),t=Math.min(_selStartY,e.clientY),r=Math.max(_selStartX,e.clientX),b=Math.max(_selStartY,e.clientY);
-selRect.style.display="block";selRect.style.left=l+"px";selRect.style.top=t+"px";selRect.style.width=(r-l)+"px";selRect.style.height=(b-t)+"px";
+selRect.style.display="block";selRect.style.left=l+"px";selRect.style.top=t+"px";selRect.style.width=(r-l)+"px";selRect.style.height=(b-t)+"px";});
+document.addEventListener("mouseup",function(e){if(!_seling)return;
+var wasDrag=_selMoved;_seling=false;selRect.style.display="none";grid.style.userSelect="";grid.style.webkitUserSelect="";
+if(wasDrag){
+var l=Math.min(_selStartX,e.clientX),t=Math.min(_selStartY,e.clientY),r=Math.max(_selStartX,e.clientX),b=Math.max(_selStartY,e.clientY);
 var sr={left:l,top:t,right:r,bottom:b};
 grid.querySelectorAll(".card").forEach(function(c){if(c.style.display==="none")return;
 var cr=c.getBoundingClientRect();var hit=cr.right>sr.left&&cr.left<sr.right&&cr.bottom>sr.top&&cr.top<sr.bottom;
 if(hit){if(e.ctrlKey||e.metaKey){c.querySelector(".ci").checked=false;c.classList.remove("on");}else{c.querySelector(".ci").checked=true;c.classList.add("on");}}});
-if(!_selRaf)_selRaf=requestAnimationFrame(function(){updateCount();_selRaf=0;});});
-document.addEventListener("mouseup",function(e){if(!_seling)return;_seling=false;selRect.style.display="none";grid.style.userSelect="";grid.style.webkitUserSelect="";});
+updateCount();}});
 grid.addEventListener("click",function(e){if(_selWasDrag){_selWasDrag=false;return;}
 var cpIcon=e.target.closest(".cpicon");if(cpIcon){e.stopPropagation();copyOne(cpIcon.dataset.u);return;}
 var eyeIcon=e.target.closest(".eyeicon");if(eyeIcon){e.stopPropagation();openPreview(eyeIcon.dataset.u);return;}
