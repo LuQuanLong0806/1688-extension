@@ -273,6 +273,7 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:2
 .card .ac{margin-top:8px;display:flex;gap:8px}
 .card .ac a,.card .ac button{font-size:14px;color:#ff6a00;border:1px solid #ff6a00;border-radius:3px;background:none;cursor:pointer;padding:2px 8px;text-decoration:none;pointer-events:auto}
 .card .ac a:hover,.card .ac button:hover{background:#ff6a00;color:#fff}
+.selRect{position:fixed;border:1.5px dashed #1890ff;background:rgba(24,144,255,.06);pointer-events:none;z-index:9989;display:none;border-radius:3px}
 .toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:12px 28px;border-radius:8px;font-size:14px;z-index:99999;opacity:0;transition:opacity .3s;pointer-events:none}
 .toast.show{opacity:1}
 .preview{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.85);z-index:99998;justify-content:center;align-items:center;cursor:pointer}
@@ -323,7 +324,7 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:2
   <div class="sf"><span>最小展示尺寸:</span><div class="wrap"><input type="range" id="sizeFilter" min="0" max="1000" value="" step="10"><div class="ticks" id="sliderTicks"></div></div><span id="sizeLabel" class="sv"></span></div>
   <div class="cnt" id="statLine">共 <b class="cg">${images.length}</b> 张 | 已选 <b class="cs">0</b> 张</div>
 </div>
-<div class="ksrow"><span><b>Ctrl+C</b> 复制选中地址</span><span>预览: <b>←→ A D</b> 切换, <b>空格</b> 选中, <b>ESC</b> 关闭</span></div>
+<div class="ksrow"><span><b>Ctrl+C</b> 复制选中地址</span><span><b>拖拽框选</b> 批量选中 | <b>Ctrl+框选</b> 取消选中</span><span>预览: <b>←→ A D</b> 切换, <b>空格</b> 选中, <b>ESC</b> 关闭</span></div>
 <div class="grid" id="grid"></div>
 <div id="productInfoArea">${productInfo || ''}</div>
 <div class="preview" id="preview">
@@ -346,6 +347,7 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:2
   <a class="nav-pack" id="navPack" title="包装信息" href="javascript:void(0)"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M2 7h12" stroke="currentColor" stroke-width="1.2"/><path d="M6 3v4" stroke="currentColor" stroke-width="1.2"/></svg></a>
   <a class="nav-top" id="navTop" title="回到顶部" href="javascript:void(0)"><svg viewBox="0 0 16 16" fill="none"><path d="M8 13V3M4 6l4-3 4 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
 </nav>
+<div class="selRect" id="selRect"></div>
 <script src="https://cdn.bootcdn.net/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
 var urls=${urlsJson};
@@ -434,7 +436,24 @@ else if(e.key===" "){e.preventDefault();var vc=visibleCards();var card=vc[_pvi];
 else if(e.key==="Escape"){pvEl.classList.remove("show");}});
 pvEl.addEventListener("click",function(e){if(e.target===pvImg)return;pvEl.classList.remove("show");});
 document.getElementById("previewClose").addEventListener("click",function(e){e.stopPropagation();pvEl.classList.remove("show");});
-grid.addEventListener("click",function(e){
+var selRect=document.getElementById("selRect");
+var _seling=false,_selMoved=false,_selStartX=0,_selStartY=0,_selOrig=new Map(),_selWasDrag=false;
+grid.addEventListener("mousedown",function(e){if(e.button!==0)return;if(e.target.closest(".cpbtn")||e.target.closest(".openbtn"))return;if(pvEl.classList.contains("show"))return;
+_seling=true;_selMoved=false;_selStartX=e.clientX;_selStartY=e.clientY;_selOrig.clear();
+grid.querySelectorAll(".card").forEach(function(c){if(c.style.display!=="none")_selOrig.set(c,c.querySelector(".ci").checked);});});
+document.addEventListener("mousemove",function(e){if(!_seling)return;
+var dx=e.clientX-_selStartX,dy=e.clientY-_selStartY;
+if(!_selMoved&&(Math.abs(dx)<5&&Math.abs(dy)<5))return;
+if(!_selMoved)_selMoved=true;_selWasDrag=true;e.preventDefault();grid.style.userSelect="none";grid.style.webkitUserSelect="none";
+var l=Math.min(_selStartX,e.clientX),t=Math.min(_selStartY,e.clientY),r=Math.max(_selStartX,e.clientX),b=Math.max(_selStartY,e.clientY);
+selRect.style.display="block";selRect.style.left=l+"px";selRect.style.top=t+"px";selRect.style.width=(r-l)+"px";selRect.style.height=(b-t)+"px";
+var sr={left:l,top:t,right:r,bottom:b};
+grid.querySelectorAll(".card").forEach(function(c){if(c.style.display==="none")return;
+var cr=c.getBoundingClientRect();var hit=cr.right>sr.left&&cr.left<sr.right&&cr.bottom>sr.top&&cr.top<sr.bottom;
+if(hit){if(e.ctrlKey||e.metaKey){c.querySelector(".ci").checked=false;c.classList.remove("on");}else{c.querySelector(".ci").checked=true;c.classList.add("on");}}});
+updateCount();});
+document.addEventListener("mouseup",function(e){if(!_seling)return;_seling=false;selRect.style.display="none";grid.style.userSelect="";grid.style.webkitUserSelect="";});
+grid.addEventListener("click",function(e){if(_selWasDrag){_selWasDrag=false;return;}
 var cpBtn=e.target.closest(".cpbtn");if(cpBtn){e.stopPropagation();copyOne(cpBtn.dataset.u);return;}
 var openBtn=e.target.closest(".openbtn");if(openBtn){e.stopPropagation();openPreview(openBtn.dataset.u);return;}
 var card=e.target.closest(".card");if(!card)return;
