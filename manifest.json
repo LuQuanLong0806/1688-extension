@@ -1,14 +1,13 @@
 {
   "manifest_version": 3,
-  "name": "1688图片抓取",
-  "version": "1.0",
-  "description": "一键抓取1688商品页所有图片，支持主图、详情图、SKU图",
+  "name": "电商辅助工具",
+  "version": "1.1",
+  "description": "电商辅助工具集 - 支持1688图片抓取、店小蜜TEMU辅助等功能",
   "permissions": ["activeTab", "scripting"],
   "background": {
     "service_worker": "background.js"
   },
   "action": {
-    "default_popup": "popup.html",
     "default_icon": "icon.svg"
   },
   "icons": {
@@ -18,7 +17,14 @@
   "content_scripts": [
     {
       "matches": ["*://*.1688.com/*"],
-      "js": ["grab-core.js", "float-btn.js"]
+      "js": ["sites/1688/grab-core.js", "sites/1688/float-btn.js"]
+    },
+    {
+      "matches": [
+        "*://www.dianxiaomi.com/web/temu/choiceTemuList/draft*",
+        "*://www.dianxiaomi.com/web/temu/add*"
+      ],
+      "js": ["sites/dianxiaomi/dxm-float-bee.js"]
     }
   ]
 }
