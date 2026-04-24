@@ -1025,6 +1025,14 @@ document.getElementById("setShowZip").addEventListener("change",function(){var o
         td.appendChild(icon);
       });
     }
+    var titleContent = document.querySelector('#productTitle .title-content');
+    if (titleContent) {
+      var h1 = titleContent.querySelector('h1');
+      if (h1 && !h1.querySelector('.__1688_copy_icon')) {
+        var titleText = h1.childNodes[0].textContent.trim();
+        h1.appendChild(_createCopyIcon(function () { return titleText; }));
+      }
+    }
   }
 
   setupCopyIcons();
