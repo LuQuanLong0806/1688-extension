@@ -446,9 +446,6 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:2
 .pinfo td,.pinfo th{padding:6px 12px;border:1px solid #f0f0f0;text-align:left}
 .pinfo th{background:#fafafa;color:#999;font-weight:normal;white-space:nowrap;width:15%}
 .pinfo td{color:#333;word-wrap:break-word;overflow:hidden;text-overflow:ellipsis}
-.pcopy{display:inline-flex;width:18px;height:18px;border-radius:3px;background:none;border:none;cursor:pointer;align-items:center;justify-content:center;vertical-align:text-bottom;margin-left:4px;color:#bbb;transition:color .2s,transform .15s}
-.pcopy:hover{color:#1890ff;transform:scale(1.1)}
-.pcopy svg{width:16px;height:16px;stroke:currentColor;fill:none}
 .tb{background:#fff;padding:14px 20px;border-radius:14px;margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.06)}
 .tb button{color:#fff;border:none;padding:9px 20px;border-radius:20px;cursor:pointer;font-size:13px;font-weight:600;letter-spacing:.5px;transition:all .25s;box-shadow:0 2px 6px rgba(0,0,0,.1)}
 .tb button:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.15)}
@@ -763,7 +760,7 @@ var a=document.createElement("a");a.href=URL.createObjectURL(content);a.download
 showToast("下载完成！"+arr.length+"张"+(failed?"，"+failed+"张失败":""));
 }catch(e){showToast("打包失败："+e.message);}
 btn.disabled=false;btn.textContent=orig;});
-document.addEventListener("click",function(e){var b=e.target.closest(".pcopy");if(!b)return;e.stopPropagation();var t=b.getAttribute("data-copy");if(t){navigator.clipboard.writeText(t).then(function(){showToast("已复制到粘贴板");}).catch(function(){var ta=document.createElement("textarea");ta.value=t;document.body.appendChild(ta);ta.select();document.execCommand("copy");document.body.removeChild(ta);showToast("已复制到粘贴板");});}});
+document.addEventListener("click",function(e){var td=e.target.closest(".pinfo td[data-copy]");if(!td)return;e.stopPropagation();var t=td.getAttribute("data-copy");if(t){navigator.clipboard.writeText(t).then(function(){showToast("已复制: "+t);}).catch(function(){var ta=document.createElement("textarea");ta.value=t;document.body.appendChild(ta);ta.select();document.execCommand("copy");document.body.removeChild(ta);showToast("已复制: "+t);});}});
 document.getElementById("navTop").addEventListener("click",function(e){e.preventDefault();window.scrollTo({top:0,behavior:"smooth"});});
 document.getElementById("navAttr").addEventListener("click",function(e){e.preventDefault();var el=document.querySelector("#productInfoArea .pinfo:first-child");if(el)el.scrollIntoView({behavior:"smooth",block:"start"});});
 document.getElementById("navPack").addEventListener("click",function(e){e.preventDefault();var el=document.querySelectorAll("#productInfoArea .pinfo");if(el.length>1)el[1].scrollIntoView({behavior:"smooth",block:"start"});else if(el.length===1)el[0].scrollIntoView({behavior:"smooth",block:"start"});});
@@ -831,18 +828,17 @@ document.getElementById("setShowZip").addEventListener("change",function(){var o
       tables.forEach(function (t) {
         var clone = t.cloneNode(true);
         clone.querySelectorAll('.__1688_copy_icon').forEach(function (ic) { ic.remove(); });
-        clone.querySelectorAll('td, th').forEach(function (cell) {
-          var btn = document.createElement('button');
-          btn.className = 'pcopy';
-          btn.title = '复制';
-          btn.innerHTML = '<svg viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M3 11V3.5A1.5 1.5 0 014.5 2H11" stroke="currentColor" stroke-width="1.3"/></svg>';
-          btn.setAttribute('data-copy', cell.textContent.trim());
-          cell.appendChild(btn);
+        clone.querySelectorAll('td').forEach(function (cell) {
+          var text = cell.textContent.trim();
+          if (text) cell.setAttribute('data-copy', text);
+          cell.style.cursor = 'pointer';
         });
         html += clone.outerHTML;
       });
+      var hide = (item.id === 'productAttributes' && !_getLocalBool('1688_set_showAttr', true)) ||
+                 (item.id === 'productPackInfo' && !_getLocalBool('1688_set_showPack', true));
       parts.push(
-        '<div class="pinfo"><h3>' + item.title + '</h3>' + html + '</div>'
+        '<div class="pinfo"' + (hide ? ' style="display:none"' : '') + '><h3>' + item.title + '</h3>' + html + '</div>'
       );
     });
     return parts.length > 0 ? parts.join('') : null;
