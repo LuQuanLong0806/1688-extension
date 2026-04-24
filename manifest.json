@@ -22,7 +22,8 @@
     {
       "matches": [
         "*://www.dianxiaomi.com/web/temu/choiceTemuList/draft*",
-        "*://www.dianxiaomi.com/web/temu/add*"
+        "*://www.dianxiaomi.com/web/temu/add*",
+        "*://www.dianxiaomi.com/web/temu/edit*"
       ],
       "js": ["sites/dianxiaomi/dxm-float-bee.js"]
     }
