@@ -947,6 +947,50 @@ document.getElementById("setShowZip").addEventListener("change",function(){var o
     });
   }
 
+  function _createCopyIcon(getText) {
+    var icon = document.createElement('span');
+    icon.className = '__1688_copy_icon';
+    icon.innerHTML = '<svg viewBox="0 0 16 16" fill="none" style="width:18px;height:18px;vertical-align:middle;cursor:pointer;margin-left:4px;color:#bbb;transition:color .2s,transform .15s"><rect x="5" y="5" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M3 11V3.5A1.5 1.5 0 014.5 2H11" stroke="currentColor" stroke-width="1.3"/></svg>';
+    icon.title = '复制';
+    icon.style.cssText = 'display:inline-flex;align-items:center;margin-left:6px;vertical-align:middle;position:relative;z-index:1;';
+    icon.addEventListener('mouseenter', function () { var svg = icon.querySelector('svg'); svg.style.transform = 'scale(1.1)'; svg.style.color = '#1890ff'; });
+    icon.addEventListener('mouseleave', function () { var svg = icon.querySelector('svg'); svg.style.transform = 'scale(1)'; svg.style.color = '#bbb'; });
+    icon.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var text = getText();
+      if (!text) return;
+      function _pageToast(msg) {
+        var t = document.getElementById('__1688_page_toast');
+        if (!t) { t = document.createElement('div'); t.id = '__1688_page_toast'; t.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:8px 20px;border-radius:6px;font-size:13px;z-index:2147483647;opacity:0;transition:opacity .3s;pointer-events:none;font-family:"Microsoft YaHei",Arial,sans-serif'; document.body.appendChild(t); }
+        t.textContent = msg; t.style.opacity = '1'; clearTimeout(t._timer); t._timer = setTimeout(function () { t.style.opacity = '0'; }, 1500);
+      }
+      navigator.clipboard.writeText(text).then(function () { _pageToast('已复制: ' + text); }).catch(function () {
+        var ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); _pageToast('已复制: ' + text);
+      });
+    });
+    return icon;
+  }
+
+  function injectTableCopyIcons(root) {
+    if (!root) return;
+    root.querySelectorAll('.ant-table-body table tr').forEach(function (tr) {
+      tr.querySelectorAll('td').forEach(function (td) {
+        var titleEl = td.querySelector('.gyp-pro-table-title');
+        if (titleEl && !titleEl.querySelector('.__1688_copy_icon')) {
+          var el = titleEl;
+          el.appendChild(_createCopyIcon(function () { return el.textContent.trim(); }));
+        }
+        var valueEls = td.querySelectorAll('.gyp-pro-table-value');
+        valueEls.forEach(function (vel) {
+          if (vel.querySelector('.__1688_copy_icon')) return;
+          var velRef = vel;
+          velRef.appendChild(_createCopyIcon(function () { return velRef.textContent.trim(); }));
+        });
+      });
+    });
+  }
+
   function setupCopyIcons() {
     injectCopyIcons(document.getElementById('skuSelection'), '.item-label');
     var skuEl = document.getElementById('skuSelection');
@@ -959,6 +1003,7 @@ document.getElementById("setShowZip").addEventListener("change",function(){var o
         document.head.appendChild(s);
       }
       injectCopyIcons(skuEl, '.label-name');
+      injectTableCopyIcons(skuEl);
     }
   }
 
