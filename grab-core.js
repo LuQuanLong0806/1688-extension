@@ -446,8 +446,9 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:2
 .pinfo td,.pinfo th{padding:6px 12px;border:1px solid #f0f0f0;text-align:left}
 .pinfo th{background:#fafafa;color:#999;font-weight:normal;white-space:nowrap;width:15%}
 .pinfo td{color:#333;word-wrap:break-word;overflow:hidden;text-overflow:ellipsis}
-.pcopy{display:inline-flex;width:18px;height:18px;border-radius:3px;background:none;border:none;cursor:pointer;align-items:center;justify-content:center;vertical-align:text-bottom;margin-left:4px;font-size:15px;color:#ccc;transition:color .2s,transform .15s}
-.pcopy:hover{color:#1890ff;transform:scale(1.15)}
+.pcopy{display:inline-flex;width:18px;height:18px;border-radius:3px;background:none;border:none;cursor:pointer;align-items:center;justify-content:center;vertical-align:text-bottom;margin-left:4px;color:#bbb;transition:color .2s,transform .15s}
+.pcopy:hover{color:#1890ff;transform:scale(1.1)}
+.pcopy svg{width:16px;height:16px;stroke:currentColor;fill:none}
 .tb{background:#fff;padding:14px 20px;border-radius:14px;margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.06)}
 .tb button{color:#fff;border:none;padding:9px 20px;border-radius:20px;cursor:pointer;font-size:13px;font-weight:600;letter-spacing:.5px;transition:all .25s;box-shadow:0 2px 6px rgba(0,0,0,.1)}
 .tb button:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.15)}
@@ -829,11 +830,12 @@ document.getElementById("setShowZip").addEventListener("change",function(){var o
       var html = '';
       tables.forEach(function (t) {
         var clone = t.cloneNode(true);
+        clone.querySelectorAll('.__1688_copy_icon').forEach(function (ic) { ic.remove(); });
         clone.querySelectorAll('td, th').forEach(function (cell) {
           var btn = document.createElement('button');
           btn.className = 'pcopy';
-          btn.title = '复制文本';
-          btn.textContent = '📋';
+          btn.title = '复制';
+          btn.innerHTML = '<svg viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M3 11V3.5A1.5 1.5 0 014.5 2H11" stroke="currentColor" stroke-width="1.3"/></svg>';
           btn.setAttribute('data-copy', cell.textContent.trim());
           cell.appendChild(btn);
         });
@@ -1024,11 +1026,14 @@ document.getElementById("setShowZip").addEventListener("change",function(){var o
       });
     }
     var titleContent = document.querySelector('#productTitle .title-content');
-    if (titleContent) {
+    if (titleContent && !titleContent.querySelector('.__1688_copy_icon')) {
       var h1 = titleContent.querySelector('h1');
-      if (h1 && !h1.querySelector('.__1688_copy_icon')) {
-        var titleText = h1.childNodes[0].textContent.trim();
-        h1.appendChild(_createCopyIcon(function () { return titleText; }));
+      if (h1) {
+        var titleText = h1.textContent.trim();
+        titleContent.style.position = 'relative';
+        var icon = _createCopyIcon(function () { return titleText; });
+        icon.style.cssText = 'position:absolute;right:0;top:50%;transform:translateY(-50%);margin-left:0;display:flex;align-items:center;z-index:1;';
+        titleContent.appendChild(icon);
       }
     }
   }
