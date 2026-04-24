@@ -161,7 +161,7 @@
         top: document.documentElement.scrollHeight,
         behavior: 'smooth'
       });
-      setTimeout(doRound, 600);
+      setTimeout(doRound, 500);
     }
     doRound();
   }
