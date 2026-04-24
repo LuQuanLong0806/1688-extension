@@ -903,21 +903,22 @@ document.getElementById("setShowZip").addEventListener("change",function(){var o
     }
   };
 
+  function _showPageToast(msg) {
+    var t = document.getElementById('__1688_page_toast');
+    if (!t) {
+      t = document.createElement('div');
+      t.id = '__1688_page_toast';
+      t.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:8px 20px;border-radius:6px;font-size:13px;z-index:2147483647;opacity:0;transition:opacity .3s;pointer-events:none;font-family:"Microsoft YaHei",Arial,sans-serif';
+      document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.style.opacity = '1';
+    clearTimeout(t._timer);
+    t._timer = setTimeout(function () { t.style.opacity = '0'; }, 1500);
+  }
+
   function injectCopyIcons(root, selector) {
     if (!root) return;
-    function _showPageToast(msg) {
-      var t = document.getElementById('__1688_page_toast');
-      if (!t) {
-        t = document.createElement('div');
-        t.id = '__1688_page_toast';
-        t.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:8px 20px;border-radius:6px;font-size:13px;z-index:2147483647;opacity:0;transition:opacity .3s;pointer-events:none;font-family:"Microsoft YaHei",Arial,sans-serif';
-        document.body.appendChild(t);
-      }
-      t.textContent = msg;
-      t.style.opacity = '1';
-      clearTimeout(t._timer);
-      t._timer = setTimeout(function () { t.style.opacity = '0'; }, 1500);
-    }
     var items = root.querySelectorAll(selector);
     items.forEach(function (el) {
       if (el.querySelector('.__1688_copy_icon')) return;
@@ -1006,15 +1007,52 @@ document.getElementById("setShowZip").addEventListener("change",function(){var o
       }
       injectCopyIcons(skuEl, '.label-name');
       injectTableCopyIcons(skuEl);
+      skuEl.querySelectorAll('.item-price-stock').forEach(function (el) {
+        if (el.dataset.__1688PriceClick) return;
+        el.dataset.__1688PriceClick = '1';
+        el.style.cursor = 'pointer';
+        el.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          var text = el.textContent.trim().replace(/[¥￥]/g, '');
+          if (!text) return;
+          navigator.clipboard.writeText(text).then(function () {
+            _showPageToast('已复制: ' + text);
+          }).catch(function () {
+            var ta = document.createElement('textarea');
+            ta.value = text;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            _showPageToast('已复制: ' + text);
+          });
+        });
+      });
     }
     var attrEl = document.getElementById('productAttributes');
     if (attrEl) {
       attrEl.querySelectorAll('table td:nth-child(even)').forEach(function (td) {
-        if (td.querySelector('.__1688_copy_icon')) return;
-        var tdRef = td;
-        var icon = _createCopyIcon(function () { return tdRef.textContent.trim(); });
-        icon.style.cssText = 'position:absolute;right:4px;top:50%;transform:translateY(-50%);margin-left:0;display:flex;align-items:center;z-index:1;';
-        td.appendChild(icon);
+        if (td.dataset.__1688TdClick) return;
+        td.dataset.__1688TdClick = '1';
+        td.style.cursor = 'pointer';
+        td.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          var text = td.textContent.trim();
+          if (!text) return;
+          navigator.clipboard.writeText(text).then(function () {
+            _showPageToast('已复制: ' + text);
+          }).catch(function () {
+            var ta = document.createElement('textarea');
+            ta.value = text;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            _showPageToast('已复制: ' + text);
+          });
+        });
       });
     }
     var packEl = document.getElementById('productPackInfo');
