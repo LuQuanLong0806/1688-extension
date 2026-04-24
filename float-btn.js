@@ -139,7 +139,7 @@
   });
 
   function autoScroll(cb) {
-    var maxRounds = 8;
+    var maxRounds = 4;
     var round = 0;
     var lastH = 0;
     var stableCount = 0;
@@ -153,12 +153,15 @@
         lastH = h;
       }
       if (stableCount >= 2 || round >= maxRounds) {
-        window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' });
+        window.scrollTo({ top: 0, behavior: 'auto' });
         setTimeout(cb, 300);
         return;
       }
-      window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' });
-      setTimeout(doRound, 500);
+      window.scrollTo({
+        top: document.documentElement.scrollHeight,
+        behavior: 'smooth'
+      });
+      setTimeout(doRound, 600);
     }
     doRound();
   }
