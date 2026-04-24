@@ -57,8 +57,8 @@
     '#__dxm_bee_icon svg{width:100%;height:auto;filter:drop-shadow(0 2px 6px rgba(255,202,40,.4))}' +
     '#__dxm_bee.flying #__dxm_bee_icon{animation:__dxm_fly 1s ease-in-out infinite}' +
     '@keyframes __dxm_fly{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-8px) rotate(3deg)}}' +
-    '#__dxm_bee_bubble{display:none;position:absolute;bottom:100%;left:50%;transform:translateX(-50%);margin-bottom:10px;background:#fff;border-radius:12px;padding:10px 14px;box-shadow:0 4px 16px rgba(0,0,0,.15);border:1px solid #f0f0f0;font:12px/1.6 "Microsoft YaHei",Arial,sans-serif;color:#333;white-space:nowrap}' +
-    '#__dxm_bee_bubble::after{content:"";position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:6px solid #fff}' +
+    '#__dxm_bee_bubble{display:none;position:absolute;left:100%;top:50%;transform:translateY(-50%);margin-left:10px;background:#fff;border-radius:12px;padding:10px 14px;box-shadow:0 4px 16px rgba(0,0,0,.15);border:1px solid #f0f0f0;font:12px/1.6 "Microsoft YaHei",Arial,sans-serif;color:#333;white-space:nowrap}' +
+    '#__dxm_bee_bubble::after{content:"";position:absolute;top:50%;left:-6px;transform:translateY(-50%);width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;border-right:6px solid #fff}' +
     '#__dxm_bee.show_bubble #__dxm_bee_bubble{display:block}' +
     '#__dxm_bee_bubble.ok{color:#52c41a}' +
     '#__dxm_bee_bubble.err{color:#ff4444}' +
@@ -427,7 +427,7 @@
       if (!input || !input.value) {
         log(4, '⚠️ 未找到标题输入框或值为空，跳过过滤');
         updateProgress(4, '标题为空，跳过过滤', 'ok');
-        setTimeout(doStep5, 2000);
+        setTimeout(doStep5, 600);
         return;
       }
       var title = input.value;
@@ -450,7 +450,7 @@
         log(4, '✅ 标题无违规字样');
         updateProgress(4, '标题无违规字样', 'ok');
       }
-      setTimeout(doStep5, 2000);
+      setTimeout(doStep5, 600);
     }
 
     // Step 5: 悬浮「一键翻译」，点击「中文→英文」
@@ -479,7 +479,7 @@
           unhoverElement(translateBtn);
           log(5, '✅ 已点击中文→英文');
           updateProgress(5, '已点击中文→英文', 'ok');
-          doStep6();
+          setTimeout(doStep6, 1000);
           return;
         }
         if (Date.now() - start > 3000) {
@@ -492,7 +492,7 @@
               unhoverElement(translateBtn);
               log(5, '✅ 已点击中文→英文');
               updateProgress(5, '已点击中文→英文', 'ok');
-              doStep6();
+              setTimeout(doStep6, 1000);
               return;
             }
             if (Date.now() - start2 > 3000) {
