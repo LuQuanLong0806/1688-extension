@@ -43,28 +43,37 @@
   var wrapper = document.createElement('div');
   wrapper.id = '__dxm_bee';
   wrapper.innerHTML =
-    '<div id="__dxm_bee_bubble"><div id="__dxm_bee_bubble_text"></div><div id="__dxm_bee_bubble_arrow"></div></div>' +
-    '<div id="__dxm_bee_icon" title="' + (isWorkPage ? '点击开始工作 / 拖动移动' : '小蜜蜂工具') + '">' + beeSVG + '</div>';
+    '<div id="__dxm_bee_bubble"><div id="__dxm_bee_ghosts"></div><div id="__dxm_bee_bubble_text"></div><div id="__dxm_bee_bubble_arrow"></div></div>' +
+    '<div id="__dxm_bee_icon" title="' + (isWorkPage ? '点击开始工作 / 拖动移动' : '小蜜蜂工具') + '">' + beeSVG + '</div>' +
+    '<div id="__dxm_bee_translate" title="一键翻译">译</div>';
 
   // ========== Styles ==========
   var s = document.createElement('style');
   s.textContent =
-    '#__dxm_bee{position:fixed;z-index:2147483647;left:0;top:30%;user-select:none;display:flex;flex-direction:column;align-items:center}' +
+    '#__dxm_bee{position:fixed;z-index:2147483647;left:0;top:45%;user-select:none;display:flex;flex-direction:column;align-items:center}' +
     '#__dxm_bee *{margin:0;padding:0;box-sizing:border-box}' +
     '#__dxm_bee_icon{width:56px;height:56px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .2s}' +
     '#__dxm_bee_icon:hover{transform:scale(1.1)}' +
     '#__dxm_bee_icon svg{width:100%;height:auto;filter:drop-shadow(0 2px 6px rgba(255,202,40,.4))}' +
     '#__dxm_bee.flying #__dxm_bee_icon{animation:__dxm_fly 1s ease-in-out infinite}' +
     '@keyframes __dxm_fly{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-8px) rotate(3deg)}}' +
-    '#__dxm_bee_bubble{display:none;margin-bottom:6px;position:relative;max-width:200px}' +
-    '#__dxm_bee.show_bubble #__dxm_bee_bubble{display:block}' +
-    '#__dxm_bee_bubble_text{background:#fff;border-radius:12px;padding:8px 12px;box-shadow:0 4px 16px rgba(0,0,0,.15);border:1px solid #f0f0f0;font:12px/1.6 "Microsoft YaHei",Arial,sans-serif;color:#333}' +
+    '#__dxm_bee_bubble{display:none;position:absolute;bottom:100%;left:50%;transform:translateX(-50%);margin-bottom:8px;width:280px;flex-direction:column;align-items:stretch}' +
+    '#__dxm_bee.show_bubble #__dxm_bee_bubble{display:flex}' +
+    '#__dxm_bee_ghosts{display:flex;flex-direction:column;gap:4px}' +
+    '#__dxm_bee_bubble_text{background:#fff;border-radius:12px;padding:10px 14px;box-shadow:0 4px 16px rgba(0,0,0,.15);border:1px solid #f0f0f0;font:13px/1.6 "Microsoft YaHei",Arial,sans-serif;color:#333}' +
     '#__dxm_bee_bubble_text.ok{color:#52c41a}' +
     '#__dxm_bee_bubble_text.err{color:#ff4444}' +
     '#__dxm_bee_bubble_text.loading{color:#FFA000}' +
-    '#__dxm_bee_bubble_arrow{width:0;height:0;margin:0 auto;border-left:6px solid transparent;border-right:6px solid transparent;border-top:6px solid #fff}' +
+    '#__dxm_bee_bubble_arrow{width:0;height:0;margin:0 auto;border-left:7px solid transparent;border-right:7px solid transparent;border-top:7px solid #fff}' +
     '#__dxm_bee_progress{height:3px;background:#f0f0f0;border-radius:2px;margin-top:6px;overflow:hidden}' +
-    '#__dxm_bee_progress_bar{height:100%;background:linear-gradient(90deg,#FFCA28,#FFA000);border-radius:2px;transition:width .3s;width:0}';
+    '#__dxm_bee_progress_bar{height:100%;background:linear-gradient(90deg,#FFCA28,#FFA000);border-radius:2px;transition:width .3s;width:0}' +
+    '#__dxm_bee_translate{margin-top:2px;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#FFCA28,#FFA000);color:#fff;font:bold 19px/1 "楷体","KaiTi","STKaiti",serif;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(255,160,0,.35);transition:transform .2s,box-shadow .2s;user-select:none;text-shadow:0 1px 2px rgba(0,0,0,.15)}' +
+    '#__dxm_bee_translate:hover{transform:scale(1.12);box-shadow:0 4px 12px rgba(255,160,0,.5)}' +
+    '.__dxm_bee_ghost{background:#fafafa;border-radius:10px;padding:6px 12px;box-shadow:0 2px 10px rgba(0,0,0,.08);border:1px solid #eee;font:12px/1.5 "Microsoft YaHei",Arial,sans-serif;pointer-events:none;animation:__dxm_ghost_out 1.5s ease forwards}' +
+    '.__dxm_bee_ghost.ok{color:#52c41a}' +
+    '.__dxm_bee_ghost.err{color:#ff4444}' +
+    '.__dxm_bee_ghost.loading{color:#FFA000}' +
+    '@keyframes __dxm_ghost_out{to{opacity:0}}';
 
   document.head.appendChild(s);
   document.body.appendChild(wrapper);
@@ -72,10 +81,18 @@
   // ========== State ==========
   var icon = document.getElementById('__dxm_bee_icon');
   var bubbleText = document.getElementById('__dxm_bee_bubble_text');
+  var ghostsContainer = document.getElementById('__dxm_bee_ghosts');
   var isWorking = false;
 
   // ========== Bubble ==========
   function showBubble(text, type) {
+    if (bubbleText.innerHTML) {
+      var ghost = document.createElement('div');
+      ghost.className = '__dxm_bee_ghost ' + (bubbleText.className || '');
+      ghost.innerHTML = bubbleText.innerHTML;
+      ghostsContainer.appendChild(ghost);
+      setTimeout(function () { if (ghost.parentNode) ghost.parentNode.removeChild(ghost); }, 1500);
+    }
     bubbleText.className = type || '';
     bubbleText.innerHTML = text;
     wrapper.classList.add('show_bubble');
@@ -158,8 +175,13 @@
   // ========== DOM Helpers ==========
   function hoverElement(el) {
     el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-    el.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    el.dispatchEvent(new MouseEvent('mouseenter', { bubbles: false }));
     el.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+  }
+
+  function unhoverElement(el) {
+    el.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
+    el.dispatchEvent(new MouseEvent('mouseleave', { bubbles: false }));
   }
 
   function waitForElement(selector, timeout, cb) {
@@ -231,7 +253,7 @@
     }
     log(stepNum, '✅ ' + okText);
     updateProgress(stepNum, okText, 'ok');
-    if (nextFn) setTimeout(nextFn, 800);
+    if (nextFn) setTimeout(nextFn, 1200);
   }
 
   function finishWork() {
@@ -250,6 +272,76 @@
       console.log('%c[小蜜蜂] ===== 开始工作 =====', 'color:#FFCA28;font-weight:bold;font-size:14px');
       doStep1();
     });
+
+    // 译 按钮：单独触发翻译
+    var translateEl = document.getElementById('__dxm_bee_translate');
+    if (translateEl) {
+      translateEl.addEventListener('click', function () {
+        if (isWorking) return;
+        doTranslateOnly();
+      });
+    }
+
+    function doTranslateOnly() {
+      console.log('%c[小蜜蜂] 一键翻译', 'color:#FFCA28;font-weight:bold;font-size:14px');
+      showBubble('⏳ 正在触发一键翻译...', 'loading');
+      var translateBtn = document.querySelector('#app .product-add-layout .header .btn-box button.translation-btn');
+      if (!translateBtn) {
+        console.log('%c[小蜜蜂] ❌ 未找到翻译按钮', 'color:#ff4444;font-weight:bold');
+        showBubble('❌ 未找到翻译按钮', 'err');
+        setTimeout(hideBubble, 2000);
+        return;
+      }
+
+      function findTranslateMenuItem() {
+        var items = document.querySelectorAll('.ant-dropdown:not(.ant-dropdown-hidden) li.menu-item');
+        for (var i = 0; i < items.length; i++) {
+          var t = items[i].textContent || '';
+          if (t.indexOf('中文') !== -1 && t.indexOf('英文') !== -1) return items[i];
+        }
+        return null;
+      }
+
+      hoverElement(translateBtn);
+
+      var start = Date.now();
+      (function tryMenu() {
+        var item = findTranslateMenuItem();
+        if (item) {
+          item.click();
+          unhoverElement(translateBtn);
+          console.log('%c[小蜜蜂] ✅ 翻译完成', 'color:#52c41a;font-weight:bold');
+          showBubble('✅ 翻译完成', 'ok');
+          setTimeout(hideBubble, 2000);
+          return;
+        }
+        if (Date.now() - start > 3000) {
+          translateBtn.click();
+          var start2 = Date.now();
+          (function tryMenu2() {
+            var item2 = findTranslateMenuItem();
+            if (item2) {
+              item2.click();
+              unhoverElement(translateBtn);
+              console.log('%c[小蜜蜂] ✅ 翻译完成', 'color:#52c41a;font-weight:bold');
+              showBubble('✅ 翻译完成', 'ok');
+              setTimeout(hideBubble, 2000);
+              return;
+            }
+            if (Date.now() - start2 > 3000) {
+              unhoverElement(translateBtn);
+              console.log('%c[小蜜蜂] ❌ 未找到翻译菜单', 'color:#ff4444;font-weight:bold');
+              showBubble('❌ 未找到翻译菜单', 'err');
+              setTimeout(hideBubble, 2000);
+              return;
+            }
+            requestAnimationFrame(tryMenu2);
+          })();
+          return;
+        }
+        requestAnimationFrame(tryMenu);
+      })();
+    }
 
     // Step 1: 检查店铺名称
     function doStep1() {
@@ -315,7 +407,7 @@
         log(1, '✅ 已选择店铺: ' + configStore + '（跳过分类步骤）');
         updateProgress(1, '已选择店铺: ' + configStore, 'ok');
         // 店铺变更后分类会清空，跳过 Step 2(分类按钮) 和 Step 3(确认弹窗)
-        setTimeout(doStep4, 800);
+        setTimeout(doStep4, 1200);
       });
     }
 
@@ -384,26 +476,53 @@
       log(5, '翻译按钮', translateBtn);
       if (!translateBtn) { updateProgress(5, '未找到一键翻译按钮', 'err'); finishWork(); return; }
       hoverElement(translateBtn);
-      var ts = '.ant-dropdown:not(.ant-dropdown-hidden) li.menu-item span';
-      waitForElement(ts, 3000, function (opt) {
-        if (!opt) {
-          translateBtn.click();
-          waitForElement(ts, 3000, function (opt2) {
-            if (!opt2) { log(5, '❌ 未找到翻译菜单'); updateProgress(5, '未找到翻译菜单', 'err'); finishWork(); return; }
-            log(5, '翻译菜单项', opt2);
-            opt2.click();
-            log(5, '✅ 已点击中文→英文');
-            updateProgress(5, '已点击中文→英文', 'ok');
-            doStep6();
-          });
+
+      function findTranslateMenuItem() {
+        var items = document.querySelectorAll('.ant-dropdown:not(.ant-dropdown-hidden) li.menu-item');
+        for (var i = 0; i < items.length; i++) {
+          var t = items[i].textContent || '';
+          if (t.indexOf('中文') !== -1 && t.indexOf('英文') !== -1) return items[i];
+        }
+        return null;
+      }
+
+      var start = Date.now();
+      (function tryMenu() {
+        var item = findTranslateMenuItem();
+        if (item) {
+          item.click();
+          unhoverElement(translateBtn);
+          log(5, '✅ 已点击中文→英文');
+          updateProgress(5, '已点击中文→英文', 'ok');
+          doStep6();
           return;
         }
-        log(5, '翻译菜单项', opt);
-        opt.click();
-        log(5, '✅ 已点击中文→英文');
-        updateProgress(5, '已点击中文→英文', 'ok');
-        doStep6();
-      });
+        if (Date.now() - start > 3000) {
+          translateBtn.click();
+          var start2 = Date.now();
+          (function tryMenu2() {
+            var item2 = findTranslateMenuItem();
+            if (item2) {
+              item2.click();
+              unhoverElement(translateBtn);
+              log(5, '✅ 已点击中文→英文');
+              updateProgress(5, '已点击中文→英文', 'ok');
+              doStep6();
+              return;
+            }
+            if (Date.now() - start2 > 3000) {
+              unhoverElement(translateBtn);
+              log(5, '❌ 未找到翻译菜单');
+              updateProgress(5, '未找到翻译菜单', 'err');
+              finishWork();
+              return;
+            }
+            requestAnimationFrame(tryMenu2);
+          })();
+          return;
+        }
+        requestAnimationFrame(tryMenu);
+      })();
     }
 
     // Step 6: 省份下拉框
@@ -418,7 +537,7 @@
         forceOpenAntSelect(sel);
         log(6, '✅ 已打开省份下拉框');
         updateProgress(6, '已打开省份下拉框', 'ok');
-        setTimeout(doStep7, 800);
+        setTimeout(doStep7, 1200);
       });
     }
 
@@ -445,7 +564,7 @@
           forceOpenAntSelect(sel);
           log(8, '✅ 已打开外包装形状');
           updateProgress(8, '已打开外包装形状', 'ok');
-          setTimeout(doStep9, 800);
+          setTimeout(doStep9, 1200);
         }, 300);
       });
     }
@@ -473,7 +592,7 @@
           forceOpenAntSelect(sel);
           log(10, '✅ 已打开外包装类型');
           updateProgress(10, '已打开外包装类型', 'ok');
-          setTimeout(doStep11, 800);
+          setTimeout(doStep11, 1200);
         }, 300);
       });
     }
@@ -617,6 +736,7 @@
       if (!Config.loadAutoPublish()) {
         log(18, '⏭️ 自动发布已关闭，跳过发布步骤');
         updateProgress(18, '自动发布已关闭，跳过', 'ok');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
         finishWork();
         return;
       }

@@ -20,7 +20,7 @@
     '#__dxm_bee_menu .switch.on::after{transform:translateX(16px)}' +
     // --- Menu value & arrow ---
     '#__dxm_bee_menu .menu-value{font-size:12px;color:#999;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
-    '#__dxm_bee_menu .menu-arrow{font-size:10px;color:#ccc;margin-left:4px}' +
+    '#__dxm_bee_menu .menu-arrow{font-size:14px;color:#999;margin-left:4px}' +
     // --- Store popup ---
     '#__dxm_bee_store_overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:2147483647;align-items:center;justify-content:center}' +
     '#__dxm_bee_store_overlay.show{display:flex}' +
@@ -78,7 +78,7 @@
   var autoPublishOn = Config.loadAutoPublish();
   var currentStore = Config.loadSelectedStore();
   menu.innerHTML =
-    '<div class="menu-item" id="__dxm_bee_menu_filter"><span class="menu-label">📝 文字过滤配置</span></div>' +
+    '<div class="menu-item" id="__dxm_bee_menu_filter"><span class="menu-label">📝 文字过滤配置</span><span class="menu-arrow">▸</span></div>' +
     '<div class="menu-item" id="__dxm_bee_menu_store"><span class="menu-label">🏪 选择店铺</span><span class="menu-value" id="__dxm_bee_menu_store_name">' + (currentStore || '未选择') + '</span><span class="menu-arrow">▸</span></div>' +
     '<div class="menu-item"><span class="menu-label">🚀 自动发布</span><div class="switch ' + (autoPublishOn ? 'on' : '') + '" id="__dxm_bee_menu_publish_switch"></div></div>';
   document.body.appendChild(menu);
