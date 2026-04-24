@@ -561,6 +561,7 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:2
   <span class="logo"><svg viewBox="0 0 40 44" fill="none"><path d="M10 26L3 35l5-1z" fill="#1565C0"/><path d="M12 27L5 35l4.5-.5z" fill="#C62828"/><path d="M13.5 27.5L8 35l3.5-.5z" fill="#B71C1C"/><ellipse cx="20" cy="18" rx="10" ry="11" fill="#4CAF50"/><path d="M24 10c3 1 5 5 5 9s-2 8-5 9c-2-2-3-7-3-13s1-5 3-5z" fill="#C5E1A5"/><ellipse cx="24" cy="25" rx="3.5" ry="3" fill="#E57373" opacity=".5"/><path d="M12 15c-2.5 3-3.5 7-2 9.5 1.5-3 4-5.5 7-6.5" fill="#2E7D32"/><path d="M10.5 22l-1.5 2.5 2-1.5" fill="#1976D2" opacity=".7"/><circle cx="30" cy="9" r="6.5" fill="#757575"/><ellipse cx="32" cy="10.5" rx="3" ry="2.5" fill="#A1887F"/><ellipse cx="31" cy="11" rx="2.5" ry="2" fill="#81C784" opacity=".55"/><circle cx="33" cy="8.5" r="2" fill="#fff"/><circle cx="33.5" cy="8.2" r="1" fill="#4E342E"/><circle cx="33.2" cy="7.8" r=".3" fill="#fff"/><path d="M33.5 9.5c1.5 0 4 .5 4.5 1.8c.3 1-.5 2-1.8 2c-1.2 0-2.5-.8-3-1.5z" fill="#9E9E9E"/><path d="M34 11c1.5.5 3 1 3.5 1.5" stroke="#757575" stroke-width=".5" fill="none"/><g stroke="#8D6E63" stroke-width="1.2" fill="none" stroke-linecap="round"><path d="M18 28l-1 4"/><path d="M17 32l-2.5-.8"/><path d="M17 32l-1.5 2"/><path d="M17 32l1.8 1.5"/><path d="M21 28.5l-.8 4"/><path d="M20.2 32.5l-2.5-.8"/><path d="M20.2 32.5l-1.5 2"/><path d="M20.2 32.5l1.8 1.5"/></g><rect x="5" y="34.5" width="30" height="3.5" rx="1.75" fill="#8B6914"/><rect x="5" y="34.5" width="30" height="1.2" rx=".6" fill="#A07B28" opacity=".4"/><text x="20" y="43" text-anchor="middle" fill="#8B6914" font-size="7" font-weight="bold" font-family="Arial,sans-serif">1688</text></svg>Parrot</span>
   <button id="btnAll" class="s1">✅ 选中可见</button>
   <button id="btnNone" class="s2">⬜ 取消选中</button>
+  <button id="btnCopy" class="s3" style="display:none">📋 复制选中地址</button>
   <button id="btnZip" class="s5">📦 打包下载</button>
   <div class="sf"><span>过滤尺寸:</span><div class="wrap"><input type="range" id="sizeFilter" min="0" max="1000" value="" step="10"><div class="ticks" id="sliderTicks"></div><div class="tip" id="sliderTip"></div></div><span id="sizeLabel" class="sv"></span></div>
   <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
@@ -579,7 +580,6 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f2f5;padding:2
         <div class="setrow"><div class="setlabel">打包下载按钮</div><label class="switch"><input type="checkbox" id="setShowZip" checked><span class="slider"></span></label></div>
         <div class="setrow"><div class="setlabel">选中自动复制<small>选中/取消时自动复制地址到剪贴板</small></div><label class="switch"><input type="checkbox" id="setAutoCopy" checked><span class="slider"></span></label></div>
         <div class="setrow"><div class="setlabel">复制选中地址按钮<small>开启后显示手动复制按钮和Ctrl+C</small></div><label class="switch"><input type="checkbox" id="setShowCopy"><span class="slider"></span></label></div>
-        <div class="setrow" id="setCopyRow" style="display:none"><button id="btnCopy" style="width:100%;padding:8px;border:none;border-radius:8px;background:linear-gradient(135deg,#1890ff,#69c0ff);color:#fff;font-size:13px;font-weight:600;cursor:pointer">📋 复制选中地址</button></div>
       </div>
     </div>
   </div>
@@ -804,11 +804,11 @@ var _zipInit=_getSettingBool("1688_set_showZip",true);
 document.getElementById("setShowZip").checked=_zipInit;
 if(!_zipInit&&_zipBtn)_zipBtn.style.display="none";
 document.getElementById("setShowZip").addEventListener("change",function(){var on=this.checked;localStorage.setItem("1688_set_showZip",on);if(_zipBtn)_zipBtn.style.display=on?"":"none";});
-	var _copyRow=document.getElementById("setCopyRow");
+	var _copyBtn=document.getElementById("btnCopy");
 	var _copyBtnInit=_getSettingBool("1688_set_showCopy",false);
 	document.getElementById("setShowCopy").checked=_copyBtnInit;
-	if(_copyBtnInit&&_copyRow)_copyRow.style.display="flex";
-	document.getElementById("setShowCopy").addEventListener("change",function(){var on=this.checked;localStorage.setItem("1688_set_showCopy",on);if(_copyRow)_copyRow.style.display=on?"flex":"none";});
+	if(_copyBtnInit&&_copyBtn)_copyBtn.style.display="";
+	document.getElementById("setShowCopy").addEventListener("change",function(){var on=this.checked;localStorage.setItem("1688_set_showCopy",on);if(_copyBtn)_copyBtn.style.display=on?"":"none";});
 	document.getElementById("setAutoCopy").checked=_getSettingBool("1688_set_autoCopy",true);
 	document.getElementById("setAutoCopy").addEventListener("change",function(){localStorage.setItem("1688_set_autoCopy",this.checked);});
 </script>
@@ -1024,17 +1024,6 @@ document.getElementById("setShowZip").addEventListener("change",function(){var o
         var tdRef = td;
         td.appendChild(_createCopyIcon(function () { return tdRef.textContent.trim(); }));
       });
-    }
-    var titleContent = document.querySelector('#productTitle .title-content');
-    if (titleContent && !titleContent.querySelector('.__1688_copy_icon')) {
-      var h1 = titleContent.querySelector('h1');
-      if (h1) {
-        var titleText = h1.textContent.trim();
-        titleContent.style.position = 'relative';
-        var icon = _createCopyIcon(function () { return titleText; });
-        icon.style.cssText = 'position:absolute;right:0;top:50%;transform:translateY(-50%);margin-left:0;display:flex;align-items:center;z-index:1;';
-        titleContent.appendChild(icon);
-      }
     }
   }
 
