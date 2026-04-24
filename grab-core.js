@@ -949,6 +949,17 @@ document.getElementById("setShowZip").addEventListener("change",function(){var o
 
   function setupCopyIcons() {
     injectCopyIcons(document.getElementById('skuSelection'), '.item-label');
+    var skuEl = document.getElementById('skuSelection');
+    if (skuEl) {
+      var s = document.getElementById('__1688_copy_style');
+      if (!s) {
+        s = document.createElement('style');
+        s.id = '__1688_copy_style';
+        s.textContent = '#skuSelection .label-name{overflow:visible!important;display:inline-flex!important;align-items:center!important;gap:2px!important}';
+        document.head.appendChild(s);
+      }
+      injectCopyIcons(skuEl, '.label-name');
+    }
   }
 
   setupCopyIcons();
