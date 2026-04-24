@@ -57,7 +57,33 @@
     '#__dxm_bee_bubble_text.loading{color:#FFA000}' +
     '#__dxm_bee_bubble_arrow{width:0;height:0;margin:0 auto;border-left:6px solid transparent;border-right:6px solid transparent;border-top:6px solid #fff}' +
     '#__dxm_bee_progress{height:3px;background:#f0f0f0;border-radius:2px;margin-top:6px;overflow:hidden}' +
-    '#__dxm_bee_progress_bar{height:100%;background:linear-gradient(90deg,#FFCA28,#FFA000);border-radius:2px;transition:width .3s;width:0}';
+    '#__dxm_bee_progress_bar{height:100%;background:linear-gradient(90deg,#FFCA28,#FFA000);border-radius:2px;transition:width .3s;width:0}' +
+    // --- 设置面板样式 ---
+    '#__dxm_bee_overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:2147483646;align-items:center;justify-content:center}' +
+    '#__dxm_bee_overlay.show{display:flex}' +
+    '#__dxm_bee_settings{background:#fff;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.2);width:500px;max-height:80vh;display:flex;flex-direction:column;font:13px/1.5 "Microsoft YaHei",Arial,sans-serif;color:#333;overflow:hidden}' +
+    '#__dxm_bee_settings_header{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #f0f0f0;background:#FFFDE7}' +
+    '#__dxm_bee_settings_header h3{margin:0;font-size:15px;color:#5D4037}' +
+    '#__dxm_bee_settings_close{width:28px;height:28px;border:none;background:none;font-size:18px;cursor:pointer;color:#999;border-radius:50%;display:flex;align-items:center;justify-content:center}' +
+    '#__dxm_bee_settings_close:hover{background:#f0f0f0;color:#333}' +
+    '#__dxm_bee_settings_toolbar{display:flex;gap:8px;padding:12px 20px;border-bottom:1px solid #f0f0f0}' +
+    '#__dxm_bee_settings_toolbar button{padding:5px 14px;border:1px solid #d9d9d9;border-radius:6px;background:#fff;cursor:pointer;font-size:12px}' +
+    '#__dxm_bee_settings_toolbar button:hover{border-color:#FFA000;color:#E65100}' +
+    '#__dxm_bee_settings_toolbar .btn-primary{background:#FFA000;color:#fff;border-color:#FFA000}' +
+    '#__dxm_bee_settings_toolbar .btn-primary:hover{background:#FF8F00}' +
+    '#__dxm_bee_settings_body{flex:1;overflow-y:auto;padding:0 20px 16px}' +
+    '#__dxm_bee_settings table{width:100%;border-collapse:collapse;margin-top:12px}' +
+    '#__dxm_bee_settings th{text-align:left;padding:8px 6px;color:#666;font-weight:normal;border-bottom:2px solid #FFA000;font-size:12px}' +
+    '#__dxm_bee_settings td{padding:6px;border-bottom:1px solid #f5f5f5}' +
+    '#__dxm_bee_settings td input{width:100%;padding:4px 8px;border:1px solid #d9d9d9;border-radius:4px;font-size:12px;outline:none}' +
+    '#__dxm_bee_settings td input:focus{border-color:#FFA000;box-shadow:0 0 0 2px rgba(255,160,0,.15)}' +
+    '#__dxm_bee_settings .btn-toggle{padding:3px 8px;border:1px solid #d9d9d9;border-radius:4px;background:#fff;cursor:pointer;font-size:11px}' +
+    '#__dxm_bee_settings .btn-toggle.off{color:#999;border-color:#eee}' +
+    '#__dxm_bee_settings .btn-toggle.on{color:#52c41a;border-color:#b7eb8f;background:#f6ffed}' +
+    '#__dxm_bee_settings .btn-del{padding:3px 8px;border:1px solid #ffccc7;border-radius:4px;background:#fff;color:#ff4d4f;cursor:pointer;font-size:11px}' +
+    '#__dxm_bee_settings .btn-del:hover{background:#fff1f0}' +
+    '#__dxm_bee_settings .toast{display:none;position:absolute;top:60px;left:50%;transform:translateX(-50%);background:#52c41a;color:#fff;padding:6px 16px;border-radius:6px;font-size:12px}' +
+    '#__dxm_bee_settings .toast.show{display:block}';
 
   document.head.appendChild(s);
   document.body.appendChild(wrapper);
@@ -65,7 +91,7 @@
   var icon = document.getElementById('__dxm_bee_icon');
   var bubbleText = document.getElementById('__dxm_bee_bubble_text');
   var isWorking = false;
-  var totalSteps = 16;
+  var totalSteps = 17;
 
   function showBubble(text, type) {
     bubbleText.className = type || '';
@@ -93,6 +119,145 @@
     console.log.apply(console, args);
   }
 
+  // --- Filter config ---
+  var FILTER_KEY = '__dxm_bee_filters';
+
+  function getDefaultFilters() {
+    return [
+      { from: '黄金', to: '金色调', enabled: true },
+      { from: '金子', to: '金色调', enabled: true },
+      { from: '金色', to: '金色调', enabled: true },
+      { from: '天然', to: '合成', enabled: true },
+      { from: '原木', to: '合成', enabled: true },
+      { from: '儿童', to: '', enabled: true },
+      { from: '未成年', to: '', enabled: true },
+      { from: '可爱的', to: '时尚美观的', enabled: true },
+      { from: '可爱', to: '时尚美观', enabled: true }
+    ];
+  }
+
+  function loadFilters() {
+    try {
+      var raw = localStorage.getItem(FILTER_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch (e) {}
+    var defaults = getDefaultFilters();
+    saveFilters(defaults);
+    return defaults;
+  }
+
+  function saveFilters(data) {
+    localStorage.setItem(FILTER_KEY, JSON.stringify(data));
+  }
+
+  // --- Settings panel ---
+  var overlay = document.createElement('div');
+  overlay.id = '__dxm_bee_overlay';
+  overlay.innerHTML =
+    '<div id="__dxm_bee_settings" style="position:relative">' +
+    '<div class="toast" id="__dxm_bee_settings_toast">已保存</div>' +
+    '<div id="__dxm_bee_settings_header">' +
+      '<h3>文字过滤设置</h3>' +
+      '<button id="__dxm_bee_settings_close">✕</button>' +
+    '</div>' +
+    '<div id="__dxm_bee_settings_toolbar">' +
+      '<button class="btn-primary" id="__dxm_bee_settings_add">新增</button>' +
+      '<button class="btn-primary" id="__dxm_bee_settings_save">保存</button>' +
+    '</div>' +
+    '<div id="__dxm_bee_settings_body">' +
+      '<table><thead><tr><th>被过滤文字</th><th>填充文字</th><th>操作</th></tr></thead>' +
+      '<tbody id="__dxm_bee_settings_tbody"></tbody></table>' +
+    '</div></div>';
+  document.body.appendChild(overlay);
+
+  var settingsEl = document.getElementById('__dxm_bee_settings');
+  var tbody = document.getElementById('__dxm_bee_settings_tbody');
+  var toastEl = document.getElementById('__dxm_bee_settings_toast');
+
+  function renderFilterRow(f) {
+    var tr = document.createElement('tr');
+    var toggleClass = f.enabled ? 'btn-toggle on' : 'btn-toggle off';
+    var toggleText = f.enabled ? '启用' : '禁用';
+    tr.innerHTML =
+      '<td><input type="text" maxlength="20" class="f-from" value="' + (f.from || '') + '"></td>' +
+      '<td><input type="text" maxlength="20" class="f-to" value="' + (f.to || '') + '"></td>' +
+      '<td><button class="' + toggleClass + '">' + toggleText + '</button> <button class="btn-del">删除</button></td>';
+    return tr;
+  }
+
+  function renderSettings() {
+    tbody.innerHTML = '';
+    var filters = loadFilters();
+    for (var i = 0; i < filters.length; i++) {
+      tbody.appendChild(renderFilterRow(filters[i]));
+    }
+  }
+
+  function openSettings() {
+    renderSettings();
+    overlay.classList.add('show');
+  }
+
+  function closeSettings() {
+    overlay.classList.remove('show');
+  }
+
+  overlay.addEventListener('click', function (e) {
+    if (e.target === overlay) closeSettings();
+  });
+  document.getElementById('__dxm_bee_settings_close').addEventListener('click', closeSettings);
+
+  document.getElementById('__dxm_bee_settings_add').addEventListener('click', function () {
+    tbody.appendChild(renderFilterRow({ from: '', to: '', enabled: true }));
+  });
+
+  document.getElementById('__dxm_bee_settings_save').addEventListener('click', function () {
+    var rows = tbody.querySelectorAll('tr');
+    var data = [];
+    for (var i = 0; i < rows.length; i++) {
+      var fromInput = rows[i].querySelector('.f-from');
+      var toInput = rows[i].querySelector('.f-to');
+      var toggleBtn = rows[i].querySelector('.btn-toggle');
+      if (!fromInput) continue;
+      var from = fromInput.value.trim();
+      if (!from) continue;
+      data.push({
+        from: from,
+        to: toInput ? toInput.value : '',
+        enabled: toggleBtn ? toggleBtn.classList.contains('on') : true
+      });
+    }
+    saveFilters(data);
+    toastEl.classList.add('show');
+    setTimeout(function () { toastEl.classList.remove('show'); }, 1500);
+    console.log('%c[小蜜蜂] 过滤配置已保存', 'color:#52c41a;font-weight:bold', data);
+  });
+
+  tbody.addEventListener('click', function (e) {
+    if (e.target.classList.contains('btn-toggle')) {
+      if (e.target.classList.contains('on')) {
+        e.target.classList.remove('on');
+        e.target.classList.add('off');
+        e.target.textContent = '禁用';
+      } else {
+        e.target.classList.remove('off');
+        e.target.classList.add('on');
+        e.target.textContent = '启用';
+      }
+    }
+    if (e.target.classList.contains('btn-del')) {
+      var tr = e.target.closest('tr');
+      if (tr) tr.remove();
+    }
+  });
+
+  // Right-click opens settings
+  icon.addEventListener('contextmenu', function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    openSettings();
+  });
+
   // --- Drag ---
   var dragging = false;
   var dragMoved = false;
@@ -116,6 +281,7 @@
   }
 
   icon.addEventListener('mousedown', function (e) {
+    if (e.button !== 0) return;
     e.preventDefault();
     dragging = true;
     dragMoved = false;
@@ -212,6 +378,13 @@
     })();
   }
 
+  function setInputValue(input, val) {
+    var nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+    nativeSetter.call(input, val);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
   // --- Step chain ---
   function step(stepNum, loadingText, okText, action, nextFn) {
     log(stepNum, loadingText);
@@ -252,170 +425,185 @@
         if (!btn) return false;
         btn.click();
         return true;
-      }, function () {
+      }, doStep3);
 
-      // Step 3: 悬浮「一键翻译」，点击「中文→英文」
-      log(3, '正在触发一键翻译...');
-      updateProgress(3, '正在触发一键翻译...', 'loading');
+      }); // end step 1
+    });
+
+    // Step 3: 过滤标题违规字样
+    function doStep3() {
+      log(3, '正在过滤标题违规字样...');
+      updateProgress(3, '正在过滤标题...', 'loading');
+      var input = document.querySelector('#productProductInfo form .ant-form-item input');
+      log(3, '标题输入框', input);
+      if (!input || !input.value) {
+        log(3, '⚠️ 未找到标题输入框或值为空，跳过过滤');
+        updateProgress(3, '标题为空，跳过过滤', 'ok');
+        setTimeout(doStep4, 3000);
+        return;
+      }
+      var title = input.value;
+      log(3, '原标题: "' + title + '"');
+      var filters = loadFilters().filter(function (f) { return f.enabled && f.from; });
+      var changed = false;
+      for (var i = 0; i < filters.length; i++) {
+        var f = filters[i];
+        if (title.indexOf(f.from) === -1) continue;
+        var before = title;
+        title = title.split(f.from).join(f.to);
+        log(3, '命中规则: "' + f.from + '" → "' + f.to + '"');
+        changed = true;
+      }
+      if (changed) {
+        log(3, '过滤后: "' + title + '"');
+        setInputValue(input, title);
+        log(3, '✅ 标题已过滤');
+        updateProgress(3, '标题已过滤', 'ok');
+      } else {
+        log(3, '✅ 标题无违规字样');
+        updateProgress(3, '标题无违规字样', 'ok');
+      }
+      setTimeout(doStep4, 3000);
+    }
+
+    // Step 4: 悬浮「一键翻译」，点击「中文→英文」
+    function doStep4() {
+      log(4, '正在触发一键翻译...');
+      updateProgress(4, '正在触发一键翻译...', 'loading');
       var translateBtn = document.querySelector('#app .product-add-layout .header .btn-box button.translation-btn');
-      log(3, '翻译按钮', translateBtn);
-      if (!translateBtn) { updateProgress(3, '未找到一键翻译按钮', 'err'); finishWork(); return; }
+      log(4, '翻译按钮', translateBtn);
+      if (!translateBtn) { updateProgress(4, '未找到一键翻译按钮', 'err'); finishWork(); return; }
       hoverElement(translateBtn);
       var ts = '.ant-dropdown:not(.ant-dropdown-hidden) li.menu-item span';
       waitForElement(ts, 3000, function (opt) {
         if (!opt) {
           translateBtn.click();
           waitForElement(ts, 3000, function (opt2) {
-            if (!opt2) { log(3, '❌ 未找到翻译菜单'); updateProgress(3, '未找到翻译菜单', 'err'); finishWork(); return; }
-            log(3, '翻译菜单项', opt2);
+            if (!opt2) { log(4, '❌ 未找到翻译菜单'); updateProgress(4, '未找到翻译菜单', 'err'); finishWork(); return; }
+            log(4, '翻译菜单项', opt2);
             opt2.click();
-            log(3, '✅ 已点击中文→英文');
-            updateProgress(3, '已点击中文→英文', 'ok');
-            doStep4();
+            log(4, '✅ 已点击中文→英文');
+            updateProgress(4, '已点击中文→英文', 'ok');
+            doStep5();
           });
           return;
         }
-        log(3, '翻译菜单项', opt);
+        log(4, '翻译菜单项', opt);
         opt.click();
-        log(3, '✅ 已点击中文→英文');
-        updateProgress(3, '已点击中文→英文', 'ok');
-        doStep4();
+        log(4, '✅ 已点击中文→英文');
+        updateProgress(4, '已点击中文→英文', 'ok');
+        doStep5();
       });
+    }
 
-      }); // end step 2
-      }); // end step 1
-    });
-
-    // Step 4: 省份下拉框
-    function doStep4() {
-      log(4, '正在打开省份选择...');
-      updateProgress(4, '正在打开省份选择...', 'loading');
+    // Step 5: 省份下拉框
+    function doStep5() {
+      log(5, '正在打开省份选择...');
+      updateProgress(5, '正在打开省份选择...', 'loading');
       waitForProvinceSelect(function (sel) {
-        log(4, '省份下拉框', sel);
-        if (!sel) { updateProgress(4, '未找到省份下拉框', 'err'); finishWork(); return; }
+        log(5, '省份下拉框', sel);
+        if (!sel) { updateProgress(5, '未找到省份下拉框', 'err'); finishWork(); return; }
         var input = sel.querySelector('.ant-select-selection-search-input');
         if (input) input.focus();
         forceOpenAntSelect(sel);
-        log(4, '✅ 已打开省份下拉框');
-        updateProgress(4, '已打开省份下拉框', 'ok');
-        setTimeout(doStep5, 800);
+        log(5, '✅ 已打开省份下拉框');
+        updateProgress(5, '已打开省份下拉框', 'ok');
+        setTimeout(doStep6, 800);
       });
     }
 
-    // Step 5: 选择福建省
-    function doStep5() {
-      step(5, '正在选择福建省...', '已选择福建省', function () {
-        var o = document.querySelector('.ant-select-item-option[title="福建省"]');
-        log(5, '福建省选项', o);
-        if (!o) return false;
-        o.click();
-        return true;
-      }, doStep6);
-    }
-
-    // Step 6: 外包装形状
+    // Step 6: 选择福建省
     function doStep6() {
-      log(6, '正在打开外包装形状...');
-      updateProgress(6, '正在打开外包装形状...', 'loading');
-      waitForAntSelect('外包装形状', function (sel) {
-        log(6, '外包装形状下拉框', sel);
-        if (!sel) { updateProgress(6, '未找到外包装形状', 'err'); finishWork(); return; }
-        sel.scrollIntoView({ block: 'center' });
-        setTimeout(function () {
-          forceOpenAntSelect(sel);
-          log(6, '✅ 已打开外包装形状');
-          updateProgress(6, '已打开外包装形状', 'ok');
-          setTimeout(doStep7, 800);
-        }, 300);
-      });
+      step(6, '正在选择福建省...', '已选择福建省', function () {
+        var o = document.querySelector('.ant-select-item-option[title="福建省"]');
+        log(6, '福建省选项', o);
+        if (!o) return false;
+        o.click();
+        return true;
+      }, doStep7);
     }
 
-    // Step 7: 选择不规则
+    // Step 7: 外包装形状
     function doStep7() {
-      step(7, '正在选择不规则...', '已选择不规则', function () {
-        var o = document.querySelector('.ant-select-item-option[title="不规则"]');
-        log(7, '不规则选项', o);
-        if (!o) return false;
-        o.click();
-        return true;
-      }, doStep8);
-    }
-
-    // Step 8: 外包装类型
-    function doStep8() {
-      log(8, '正在打开外包装类型...');
-      updateProgress(8, '正在打开外包装类型...', 'loading');
-      waitForAntSelect('外包装类型', function (sel) {
-        log(8, '外包装类型下拉框', sel);
-        if (!sel) { updateProgress(8, '未找到外包装类型', 'err'); finishWork(); return; }
+      log(7, '正在打开外包装形状...');
+      updateProgress(7, '正在打开外包装形状...', 'loading');
+      waitForAntSelect('外包装形状', function (sel) {
+        log(7, '外包装形状下拉框', sel);
+        if (!sel) { updateProgress(7, '未找到外包装形状', 'err'); finishWork(); return; }
         sel.scrollIntoView({ block: 'center' });
         setTimeout(function () {
           forceOpenAntSelect(sel);
-          log(8, '✅ 已打开外包装类型');
-          updateProgress(8, '已打开外包装类型', 'ok');
-          setTimeout(doStep9, 800);
+          log(7, '✅ 已打开外包装形状');
+          updateProgress(7, '已打开外包装形状', 'ok');
+          setTimeout(doStep8, 800);
         }, 300);
       });
     }
 
-    // Step 9: 选择软包装+硬物
-    function doStep9() {
-      step(9, '正在选择软包装+硬物...', '已选择软包装+硬物', function () {
-        var o = document.querySelector('.ant-select-item-option[title="软包装+硬物"]');
-        log(9, '软包装+硬物选项', o);
+    // Step 8: 选择不规则
+    function doStep8() {
+      step(8, '正在选择不规则...', '已选择不规则', function () {
+        var o = document.querySelector('.ant-select-item-option[title="不规则"]');
+        log(8, '不规则选项', o);
         if (!o) return false;
         o.click();
         return true;
-      }, doStep10);
+      }, doStep9);
     }
 
-    // Step 10: 悬浮选择图片
+    // Step 9: 外包装类型
+    function doStep9() {
+      log(9, '正在打开外包装类型...');
+      updateProgress(9, '正在打开外包装类型...', 'loading');
+      waitForAntSelect('外包装类型', function (sel) {
+        log(9, '外包装类型下拉框', sel);
+        if (!sel) { updateProgress(9, '未找到外包装类型', 'err'); finishWork(); return; }
+        sel.scrollIntoView({ block: 'center' });
+        setTimeout(function () {
+          forceOpenAntSelect(sel);
+          log(9, '✅ 已打开外包装类型');
+          updateProgress(9, '已打开外包装类型', 'ok');
+          setTimeout(doStep10, 800);
+        }, 300);
+      });
+    }
+
+    // Step 10: 选择软包装+硬物
     function doStep10() {
-      step(10, '正在触发选择图片...', '已悬浮选择图片', function () {
-        var btn = document.querySelector('#packageInfo .header button');
-        log(10, '选择图片按钮', btn);
-        if (!btn || !btn.textContent.includes('选择图片')) return false;
-        hoverElement(btn);
+      step(10, '正在选择软包装+硬物...', '已选择软包装+硬物', function () {
+        var o = document.querySelector('.ant-select-item-option[title="软包装+硬物"]');
+        log(10, '软包装+硬物选项', o);
+        if (!o) return false;
+        o.click();
         return true;
       }, doStep11);
     }
 
-    // Step 11: 引用采集图片
+    // Step 11: 悬浮选择图片
     function doStep11() {
-      step(11, '正在点击引用采集图片...', '已点击引用采集图片', function () {
-        var o = document.querySelector('.ant-dropdown-menu-item[data-menu-id="crawl"]');
-        log(11, '引用采集图片菜单项', o);
-        if (!o) return false;
-        o.click();
+      step(11, '正在触发选择图片...', '已悬浮选择图片', function () {
+        var btn = document.querySelector('#packageInfo .header button');
+        log(11, '选择图片按钮', btn);
+        if (!btn || !btn.textContent.includes('选择图片')) return false;
+        hoverElement(btn);
         return true;
       }, doStep12);
     }
 
-    // Step 12: 勾选第一张图片
+    // Step 12: 引用采集图片
     function doStep12() {
-      step(12, '正在选择采集图片...', '已勾选第一张图片', function () {
-        var modals = document.querySelectorAll('.ant-modal-wrap');
-        var targetModal = null;
-        for (var i = 0; i < modals.length; i++) {
-          var title = modals[i].querySelector('.ant-modal-title');
-          if (title && title.textContent.includes('引用采集图片')) {
-            targetModal = modals[i];
-            break;
-          }
-        }
-        log(12, '引用采集图片弹窗', targetModal);
-        if (!targetModal) return false;
-        var o = targetModal.querySelector('.img-box .ant-checkbox-wrapper .ant-checkbox-input');
-        log(12, '图片复选框', o);
+      step(12, '正在点击引用采集图片...', '已点击引用采集图片', function () {
+        var o = document.querySelector('.ant-dropdown-menu-item[data-menu-id="crawl"]');
+        log(12, '引用采集图片菜单项', o);
         if (!o) return false;
         o.click();
         return true;
       }, doStep13);
     }
 
-    // Step 13: 确认选择
+    // Step 13: 勾选第一张图片
     function doStep13() {
-      step(13, '正在确认选择...', '已确认选择图片', function () {
+      step(13, '正在选择采集图片...', '已勾选第一张图片', function () {
         var modals = document.querySelectorAll('.ant-modal-wrap');
         var targetModal = null;
         for (var i = 0; i < modals.length; i++) {
@@ -425,37 +613,59 @@
             break;
           }
         }
-        log(13, '确认按钮所在弹窗', targetModal);
+        log(13, '引用采集图片弹窗', targetModal);
         if (!targetModal) return false;
-        var o = targetModal.querySelector('.ant-modal-footer button.ant-btn-primary');
-        log(13, '确认按钮', o);
+        var o = targetModal.querySelector('.img-box .ant-checkbox-wrapper .ant-checkbox-input');
+        log(13, '图片复选框', o);
         if (!o) return false;
         o.click();
         return true;
       }, doStep14);
     }
 
-    // Step 14: 悬浮发布按钮
+    // Step 14: 确认选择
     function doStep14() {
-      step(14, '正在触发发布菜单...', '已悬浮发布按钮', function () {
-        var btn = document.querySelector('.footer .btn-box button.btn-green');
-        log(14, '发布按钮', btn);
-        if (!btn || !btn.textContent.includes('发布')) return false;
-        hoverElement(btn);
+      step(14, '正在确认选择...', '已确认选择图片', function () {
+        var modals = document.querySelectorAll('.ant-modal-wrap');
+        var targetModal = null;
+        for (var i = 0; i < modals.length; i++) {
+          var title = modals[i].querySelector('.ant-modal-title');
+          if (title && title.textContent.includes('引用采集图片')) {
+            targetModal = modals[i];
+            break;
+          }
+        }
+        log(14, '确认按钮所在弹窗', targetModal);
+        if (!targetModal) return false;
+        var o = targetModal.querySelector('.ant-modal-footer button.ant-btn-primary');
+        log(14, '确认按钮', o);
+        if (!o) return false;
+        o.click();
         return true;
       }, doStep15);
     }
 
-    // Step 15: 检查标题长度（放到倒数第二步，翻译有充足时间完成）
+    // Step 15: 悬浮发布按钮
     function doStep15() {
-      log(15, '正在检查标题长度...');
-      updateProgress(15, '正在检查标题长度...', 'loading');
+      step(15, '正在触发发布菜单...', '已悬浮发布按钮', function () {
+        var btn = document.querySelector('.footer .btn-box button.btn-green');
+        log(15, '发布按钮', btn);
+        if (!btn || !btn.textContent.includes('发布')) return false;
+        hoverElement(btn);
+        return true;
+      }, doStep16);
+    }
+
+    // Step 16: 检查标题长度
+    function doStep16() {
+      log(16, '正在检查标题长度...');
+      updateProgress(16, '正在检查标题长度...', 'loading');
       var input = document.querySelector('#productProductInfo form .ant-form-item input');
-      log(15, '标题输入框', input);
+      log(16, '标题输入框', input);
       if (!input || !input.value) {
-        log(15, '⚠️ 未找到标题输入框或值为空，跳过截取');
-        updateProgress(15, '标题无需截取', 'ok');
-        doStep16();
+        log(16, '⚠️ 未找到标题输入框或值为空，跳过截取');
+        updateProgress(16, '标题无需截取', 'ok');
+        doStep17();
         return;
       }
 
@@ -468,38 +678,35 @@
       }
 
       var title = input.value;
-      log(15, '标题长度: ' + title.length + ', 限制: ' + limit + ', 标题内容: "' + title.substring(0, 60) + (title.length > 60 ? '...' : '"'));
+      log(16, '标题长度: ' + title.length + ', 限制: ' + limit + ', 标题内容: "' + title.substring(0, 60) + (title.length > 60 ? '...' : '"'));
 
       if (title.length <= limit) {
-        log(15, '✅ 标题长度 ' + title.length + ' ≤ ' + limit + '，无需截取');
-        updateProgress(15, '标题长度 ' + title.length + '，无需截取', 'ok');
-        doStep16();
+        log(16, '✅ 标题长度 ' + title.length + ' ≤ ' + limit + '，无需截取');
+        updateProgress(16, '标题长度 ' + title.length + '，无需截取', 'ok');
+        doStep17();
         return;
       }
 
-      log(15, '标题超限 ' + title.length + ' > ' + limit + '，开始截取...');
-      updateProgress(15, '标题超过' + limit + '，正在截取...', 'loading');
+      log(16, '标题超限 ' + title.length + ' > ' + limit + '，开始截取...');
+      updateProgress(16, '标题超过' + limit + '，正在截取...', 'loading');
       var t = title.substring(0, limit);
       var bps = ['。','，',',','.','!','!','?','?','；',';','、',' ','-','–','—','(',')','[',']','/','\\','&','+'];
       var last = -1;
       for (var i = 0; i < bps.length; i++) { var idx = t.lastIndexOf(bps[i]); if (idx > last) last = idx; }
       if (last > 0) t = t.substring(0, last + 1);
 
-      log(15, '截取后长度: ' + t.length + ', 内容: "' + t.substring(0, 60) + (t.length > 60 ? '...' : '"'));
-      var nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-      nativeSetter.call(input, t);
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      input.dispatchEvent(new Event('change', { bubbles: true }));
-      log(15, '✅ 标题已截取至 ' + t.length + ' 字符');
-      updateProgress(15, '标题已截取至 ' + t.length + ' 字符', 'ok');
-      doStep16();
+      log(16, '截取后长度: ' + t.length + ', 内容: "' + t.substring(0, 60) + (t.length > 60 ? '...' : '"'));
+      setInputValue(input, t);
+      log(16, '✅ 标题已截取至 ' + t.length + ' 字符');
+      updateProgress(16, '标题已截取至 ' + t.length + ' 字符', 'ok');
+      doStep17();
     }
 
-    // Step 16: 立即发布
-    function doStep16() {
-      step(16, '正在点击立即发布...', '全部操作完成！', function () {
+    // Step 17: 立即发布
+    function doStep17() {
+      step(17, '正在点击立即发布...', '全部操作完成！', function () {
         var o = document.querySelector('.ant-dropdown-menu-item[data-menu-id="2"]');
-        log(16, '立即发布菜单项', o);
+        log(17, '立即发布菜单项', o);
         if (!o || !o.textContent.includes('立即发布')) return false;
         o.click();
         return true;
