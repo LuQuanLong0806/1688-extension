@@ -999,11 +999,31 @@ document.getElementById("setShowZip").addEventListener("change",function(){var o
       if (!s) {
         s = document.createElement('style');
         s.id = '__1688_copy_style';
-        s.textContent = '#skuSelection .label-name{overflow:visible!important;display:inline-flex!important;align-items:center!important;gap:2px!important}';
+        s.textContent = '#skuSelection .label-name{overflow:visible!important;display:inline-flex!important;align-items:center!important;gap:2px!important}#productAttributes table td:nth-child(even),#productPackInfo table td{position:relative;overflow:visible!important}';
         document.head.appendChild(s);
       }
       injectCopyIcons(skuEl, '.label-name');
       injectTableCopyIcons(skuEl);
+    }
+    var attrEl = document.getElementById('productAttributes');
+    if (attrEl) {
+      attrEl.querySelectorAll('table td:nth-child(even)').forEach(function (td) {
+        if (td.querySelector('.__1688_copy_icon')) return;
+        var tdRef = td;
+        var icon = _createCopyIcon(function () { return tdRef.textContent.trim(); });
+        icon.style.cssText = 'position:absolute;right:4px;top:50%;transform:translateY(-50%);margin-left:0;display:flex;align-items:center;z-index:1;';
+        td.appendChild(icon);
+      });
+    }
+    var packEl = document.getElementById('productPackInfo');
+    if (packEl) {
+      packEl.querySelectorAll('table td').forEach(function (td) {
+        if (td.querySelector('.__1688_copy_icon')) return;
+        var tdRef = td;
+        var icon = _createCopyIcon(function () { return tdRef.textContent.trim(); });
+        icon.style.cssText = 'position:absolute;right:4px;top:50%;transform:translateY(-50%);margin-left:0;display:flex;align-items:center;z-index:1;';
+        td.appendChild(icon);
+      });
     }
   }
 
