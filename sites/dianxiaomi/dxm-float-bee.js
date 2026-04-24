@@ -2,6 +2,9 @@
   if (window.__dxmFloatBee) return;
   window.__dxmFloatBee = true;
 
+  var Config = window.BeeConfig;
+
+  // ========== SVG ==========
   var beeSVG =
     '<svg viewBox="0 0 80 96" fill="none" xmlns="http://www.w3.org/2000/svg">' +
     '<ellipse cx="22" cy="42" rx="16" ry="22" fill="#B3E5FC" opacity="0.7" stroke="#81D4FA" stroke-width="1.5"/>' +
@@ -32,14 +35,18 @@
     '<path d="M36 88 L40 96 L44 88" fill="#5D4037"/>' +
     '</svg>';
 
+  // ========== Constants ==========
   var isWorkPage = location.pathname === '/web/temu/add' || location.pathname === '/web/temu/edit';
+  var totalSteps = 17;
 
+  // ========== Create DOM ==========
   var wrapper = document.createElement('div');
   wrapper.id = '__dxm_bee';
   wrapper.innerHTML =
     '<div id="__dxm_bee_bubble"><div id="__dxm_bee_bubble_text"></div><div id="__dxm_bee_bubble_arrow"></div></div>' +
     '<div id="__dxm_bee_icon" title="' + (isWorkPage ? '点击开始工作 / 拖动移动' : '小蜜蜂工具') + '">' + beeSVG + '</div>';
 
+  // ========== Styles ==========
   var s = document.createElement('style');
   s.textContent =
     '#__dxm_bee{position:fixed;z-index:2147483647;left:0;top:30%;user-select:none;display:flex;flex-direction:column;align-items:center}' +
@@ -57,42 +64,17 @@
     '#__dxm_bee_bubble_text.loading{color:#FFA000}' +
     '#__dxm_bee_bubble_arrow{width:0;height:0;margin:0 auto;border-left:6px solid transparent;border-right:6px solid transparent;border-top:6px solid #fff}' +
     '#__dxm_bee_progress{height:3px;background:#f0f0f0;border-radius:2px;margin-top:6px;overflow:hidden}' +
-    '#__dxm_bee_progress_bar{height:100%;background:linear-gradient(90deg,#FFCA28,#FFA000);border-radius:2px;transition:width .3s;width:0}' +
-    // --- 设置面板样式 ---
-    '#__dxm_bee_overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:2147483646;align-items:center;justify-content:center}' +
-    '#__dxm_bee_overlay.show{display:flex}' +
-    '#__dxm_bee_settings{background:#fff;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.2);width:500px;max-height:80vh;display:flex;flex-direction:column;font:13px/1.5 "Microsoft YaHei",Arial,sans-serif;color:#333;overflow:hidden}' +
-    '#__dxm_bee_settings_header{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #f0f0f0;background:#FFFDE7}' +
-    '#__dxm_bee_settings_header h3{margin:0;font-size:15px;color:#5D4037}' +
-    '#__dxm_bee_settings_close{width:28px;height:28px;border:none;background:none;font-size:18px;cursor:pointer;color:#999;border-radius:50%;display:flex;align-items:center;justify-content:center}' +
-    '#__dxm_bee_settings_close:hover{background:#f0f0f0;color:#333}' +
-    '#__dxm_bee_settings_toolbar{display:flex;gap:8px;padding:12px 20px;border-bottom:1px solid #f0f0f0}' +
-    '#__dxm_bee_settings_toolbar button{padding:5px 14px;border:1px solid #d9d9d9;border-radius:6px;background:#fff;cursor:pointer;font-size:12px}' +
-    '#__dxm_bee_settings_toolbar button:hover{border-color:#FFA000;color:#E65100}' +
-    '#__dxm_bee_settings_toolbar .btn-primary{background:#FFA000;color:#fff;border-color:#FFA000}' +
-    '#__dxm_bee_settings_toolbar .btn-primary:hover{background:#FF8F00}' +
-    '#__dxm_bee_settings_body{flex:1;overflow-y:auto;padding:0 20px 16px}' +
-    '#__dxm_bee_settings table{width:100%;border-collapse:collapse;margin-top:12px}' +
-    '#__dxm_bee_settings th{text-align:left;padding:8px 6px;color:#666;font-weight:normal;border-bottom:2px solid #FFA000;font-size:12px}' +
-    '#__dxm_bee_settings td{padding:6px;border-bottom:1px solid #f5f5f5}' +
-    '#__dxm_bee_settings td input{width:100%;padding:4px 8px;border:1px solid #d9d9d9;border-radius:4px;font-size:12px;outline:none}' +
-    '#__dxm_bee_settings td input:focus{border-color:#FFA000;box-shadow:0 0 0 2px rgba(255,160,0,.15)}' +
-    '#__dxm_bee_settings .btn-toggle{padding:3px 8px;border:1px solid #d9d9d9;border-radius:4px;background:#fff;cursor:pointer;font-size:11px}' +
-    '#__dxm_bee_settings .btn-toggle.off{color:#999;border-color:#eee}' +
-    '#__dxm_bee_settings .btn-toggle.on{color:#52c41a;border-color:#b7eb8f;background:#f6ffed}' +
-    '#__dxm_bee_settings .btn-del{padding:3px 8px;border:1px solid #ffccc7;border-radius:4px;background:#fff;color:#ff4d4f;cursor:pointer;font-size:11px}' +
-    '#__dxm_bee_settings .btn-del:hover{background:#fff1f0}' +
-    '#__dxm_bee_settings .toast{display:none;position:absolute;top:60px;left:50%;transform:translateX(-50%);background:#52c41a;color:#fff;padding:6px 16px;border-radius:6px;font-size:12px}' +
-    '#__dxm_bee_settings .toast.show{display:block}';
+    '#__dxm_bee_progress_bar{height:100%;background:linear-gradient(90deg,#FFCA28,#FFA000);border-radius:2px;transition:width .3s;width:0}';
 
   document.head.appendChild(s);
   document.body.appendChild(wrapper);
 
+  // ========== State ==========
   var icon = document.getElementById('__dxm_bee_icon');
   var bubbleText = document.getElementById('__dxm_bee_bubble_text');
   var isWorking = false;
-  var totalSteps = 17;
 
+  // ========== Bubble ==========
   function showBubble(text, type) {
     bubbleText.className = type || '';
     bubbleText.innerHTML = text;
@@ -105,10 +87,7 @@
 
   function updateProgress(step, text, type) {
     var pct = Math.round((step / totalSteps) * 100);
-    var bar = '';
-    if (isWorking) {
-      bar = '<div id="__dxm_bee_progress"><div id="__dxm_bee_progress_bar" style="width:' + pct + '%"></div></div>';
-    }
+    var bar = isWorking ? '<div id="__dxm_bee_progress"><div id="__dxm_bee_progress_bar" style="width:' + pct + '%"></div></div>' : '';
     var prefix = type === 'err' ? '❌ ' : type === 'ok' ? '✅ ' : '⏳ ';
     showBubble(prefix + text + '<br><span style="color:#999;font-size:10px">' + step + '/' + totalSteps + '</span>' + bar, type);
   }
@@ -119,146 +98,7 @@
     console.log.apply(console, args);
   }
 
-  // --- Filter config ---
-  var FILTER_KEY = '__dxm_bee_filters';
-
-  function getDefaultFilters() {
-    return [
-      { from: '黄金', to: '金色调', enabled: true },
-      { from: '金子', to: '金色调', enabled: true },
-      { from: '金色', to: '金色调', enabled: true },
-      { from: '天然', to: '合成', enabled: true },
-      { from: '原木', to: '合成', enabled: true },
-      { from: '儿童', to: '', enabled: true },
-      { from: '未成年', to: '', enabled: true },
-      { from: '可爱的', to: '时尚美观的', enabled: true },
-      { from: '可爱', to: '时尚美观', enabled: true }
-    ];
-  }
-
-  function loadFilters() {
-    try {
-      var raw = localStorage.getItem(FILTER_KEY);
-      if (raw) return JSON.parse(raw);
-    } catch (e) {}
-    var defaults = getDefaultFilters();
-    saveFilters(defaults);
-    return defaults;
-  }
-
-  function saveFilters(data) {
-    localStorage.setItem(FILTER_KEY, JSON.stringify(data));
-  }
-
-  // --- Settings panel ---
-  var overlay = document.createElement('div');
-  overlay.id = '__dxm_bee_overlay';
-  overlay.innerHTML =
-    '<div id="__dxm_bee_settings" style="position:relative">' +
-    '<div class="toast" id="__dxm_bee_settings_toast">已保存</div>' +
-    '<div id="__dxm_bee_settings_header">' +
-      '<h3>文字过滤设置</h3>' +
-      '<button id="__dxm_bee_settings_close">✕</button>' +
-    '</div>' +
-    '<div id="__dxm_bee_settings_toolbar">' +
-      '<button class="btn-primary" id="__dxm_bee_settings_add">新增</button>' +
-      '<button class="btn-primary" id="__dxm_bee_settings_save">保存</button>' +
-    '</div>' +
-    '<div id="__dxm_bee_settings_body">' +
-      '<table><thead><tr><th>被过滤文字</th><th>填充文字</th><th>操作</th></tr></thead>' +
-      '<tbody id="__dxm_bee_settings_tbody"></tbody></table>' +
-    '</div></div>';
-  document.body.appendChild(overlay);
-
-  var settingsEl = document.getElementById('__dxm_bee_settings');
-  var tbody = document.getElementById('__dxm_bee_settings_tbody');
-  var toastEl = document.getElementById('__dxm_bee_settings_toast');
-
-  function renderFilterRow(f) {
-    var tr = document.createElement('tr');
-    var toggleClass = f.enabled ? 'btn-toggle on' : 'btn-toggle off';
-    var toggleText = f.enabled ? '启用' : '禁用';
-    tr.innerHTML =
-      '<td><input type="text" maxlength="20" class="f-from" value="' + (f.from || '') + '"></td>' +
-      '<td><input type="text" maxlength="20" class="f-to" value="' + (f.to || '') + '"></td>' +
-      '<td><button class="' + toggleClass + '">' + toggleText + '</button> <button class="btn-del">删除</button></td>';
-    return tr;
-  }
-
-  function renderSettings() {
-    tbody.innerHTML = '';
-    var filters = loadFilters();
-    for (var i = 0; i < filters.length; i++) {
-      tbody.appendChild(renderFilterRow(filters[i]));
-    }
-  }
-
-  function openSettings() {
-    renderSettings();
-    overlay.classList.add('show');
-  }
-
-  function closeSettings() {
-    overlay.classList.remove('show');
-  }
-
-  overlay.addEventListener('click', function (e) {
-    if (e.target === overlay) closeSettings();
-  });
-  document.getElementById('__dxm_bee_settings_close').addEventListener('click', closeSettings);
-
-  document.getElementById('__dxm_bee_settings_add').addEventListener('click', function () {
-    tbody.appendChild(renderFilterRow({ from: '', to: '', enabled: true }));
-  });
-
-  document.getElementById('__dxm_bee_settings_save').addEventListener('click', function () {
-    var rows = tbody.querySelectorAll('tr');
-    var data = [];
-    for (var i = 0; i < rows.length; i++) {
-      var fromInput = rows[i].querySelector('.f-from');
-      var toInput = rows[i].querySelector('.f-to');
-      var toggleBtn = rows[i].querySelector('.btn-toggle');
-      if (!fromInput) continue;
-      var from = fromInput.value.trim();
-      if (!from) continue;
-      data.push({
-        from: from,
-        to: toInput ? toInput.value : '',
-        enabled: toggleBtn ? toggleBtn.classList.contains('on') : true
-      });
-    }
-    saveFilters(data);
-    toastEl.classList.add('show');
-    setTimeout(function () { toastEl.classList.remove('show'); }, 1500);
-    console.log('%c[小蜜蜂] 过滤配置已保存', 'color:#52c41a;font-weight:bold', data);
-  });
-
-  tbody.addEventListener('click', function (e) {
-    if (e.target.classList.contains('btn-toggle')) {
-      if (e.target.classList.contains('on')) {
-        e.target.classList.remove('on');
-        e.target.classList.add('off');
-        e.target.textContent = '禁用';
-      } else {
-        e.target.classList.remove('off');
-        e.target.classList.add('on');
-        e.target.textContent = '启用';
-      }
-    }
-    if (e.target.classList.contains('btn-del')) {
-      var tr = e.target.closest('tr');
-      if (tr) tr.remove();
-    }
-  });
-
-  // Right-click opens settings
-  icon.addEventListener('contextmenu', function (e) {
-    e.preventDefault();
-    e.stopPropagation();
-    openSettings();
-  });
-
-  // --- Drag ---
+  // ========== Drag ==========
   var dragging = false;
   var dragMoved = false;
   var startX, startY, origX, origY;
@@ -315,7 +155,7 @@
     }
   });
 
-  // --- Helpers ---
+  // ========== DOM Helpers ==========
   function hoverElement(el) {
     el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
     el.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
@@ -378,14 +218,7 @@
     })();
   }
 
-  function setInputValue(input, val) {
-    var nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-    nativeSetter.call(input, val);
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-  }
-
-  // --- Step chain ---
+  // ========== Step Chain ==========
   function step(stepNum, loadingText, okText, action, nextFn) {
     log(stepNum, loadingText);
     updateProgress(stepNum, loadingText, 'loading');
@@ -401,7 +234,14 @@
     if (nextFn) setTimeout(nextFn, 800);
   }
 
-  // --- Auto fill ---
+  function finishWork() {
+    isWorking = false;
+    wrapper.classList.remove('flying');
+    console.log('%c[小蜜蜂] ===== 工作结束 =====', 'color:#52c41a;font-weight:bold;font-size:14px');
+    setTimeout(hideBubble, 3000);
+  }
+
+  // ========== Auto Fill Steps ==========
   if (isWorkPage) {
     icon.addEventListener('click', function () {
       if (dragMoved || isWorking) return;
@@ -444,19 +284,18 @@
       }
       var title = input.value;
       log(3, '原标题: "' + title + '"');
-      var filters = loadFilters().filter(function (f) { return f.enabled && f.from; });
+      var filters = Config.loadFilters().filter(function (f) { return f.enabled && f.from; });
       var changed = false;
       for (var i = 0; i < filters.length; i++) {
         var f = filters[i];
         if (title.indexOf(f.from) === -1) continue;
-        var before = title;
         title = title.split(f.from).join(f.to);
         log(3, '命中规则: "' + f.from + '" → "' + f.to + '"');
         changed = true;
       }
       if (changed) {
         log(3, '过滤后: "' + title + '"');
-        setInputValue(input, title);
+        Config.setInputValue(input, title);
         log(3, '✅ 标题已过滤');
         updateProgress(3, '标题已过滤', 'ok');
       } else {
@@ -696,14 +535,20 @@
       if (last > 0) t = t.substring(0, last + 1);
 
       log(16, '截取后长度: ' + t.length + ', 内容: "' + t.substring(0, 60) + (t.length > 60 ? '...' : '"'));
-      setInputValue(input, t);
+      Config.setInputValue(input, t);
       log(16, '✅ 标题已截取至 ' + t.length + ' 字符');
       updateProgress(16, '标题已截取至 ' + t.length + ' 字符', 'ok');
       doStep17();
     }
 
-    // Step 17: 立即发布
+    // Step 17: 立即发布（根据自动发布配置决定是否执行）
     function doStep17() {
+      if (!Config.loadAutoPublish()) {
+        log(17, '⏭️ 自动发布已关闭，跳过发布步骤');
+        updateProgress(17, '自动发布已关闭，跳过', 'ok');
+        finishWork();
+        return;
+      }
       step(17, '正在点击立即发布...', '全部操作完成！', function () {
         var o = document.querySelector('.ant-dropdown-menu-item[data-menu-id="2"]');
         log(17, '立即发布菜单项', o);
@@ -713,12 +558,5 @@
       }, null);
       finishWork();
     }
-  }
-
-  function finishWork() {
-    isWorking = false;
-    wrapper.classList.remove('flying');
-    console.log('%c[小蜜蜂] ===== 工作结束 =====', 'color:#52c41a;font-weight:bold;font-size:14px');
-    setTimeout(hideBubble, 3000);
   }
 })();

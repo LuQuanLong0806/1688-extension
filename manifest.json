@@ -25,7 +25,7 @@
         "*://www.dianxiaomi.com/web/temu/add*",
         "*://www.dianxiaomi.com/web/temu/edit*"
       ],
-      "js": ["sites/dianxiaomi/dxm-float-bee.js"]
+      "js": ["sites/dianxiaomi/dxm-config.js", "sites/dianxiaomi/dxm-float-bee.js", "sites/dianxiaomi/dxm-config-ui.js"]
     }
   ]
 }
