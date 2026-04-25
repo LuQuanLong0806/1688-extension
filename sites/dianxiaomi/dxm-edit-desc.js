@@ -102,9 +102,9 @@
           }
           editLog('确认清空');
           confirmBtn.click();
-          setTimeout(callback, 500);
+          setTimeout(callback, 300);
         });
-      }, 500);
+      }, 300);
     });
   }
 
@@ -154,7 +154,7 @@
         if (clearSteps.length === 0) {
           console.log('%c[小蜜蜂] 无需清空模块，直接传图', 'color:#FF9800;font-weight:bold');
           C.showBubble('无需清空，直接传图', 'loading');
-          setTimeout(function () { doBatchUpload(trigger); }, 300);
+          setTimeout(function () { doBatchUpload(trigger); }, 200);
         } else {
           console.log('%c[小蜜蜂] 需清空: ' + clearSteps.join(', '), 'color:#2196F3;font-weight:bold');
           runClearChain(trigger, clearSteps, 0);
@@ -210,7 +210,7 @@
           if (ddTrigger !== selectBtn) {
             C.hoverElement(selectBtn);
           }
-        }, 500);
+        }, 300);
 
         if (C.loadUseWebImage()) {
           doWebImageUpload();
@@ -260,7 +260,7 @@
         C.showBubble('✅ 编辑描述完成', 'ok');
         setTimeout(C.hideBubble, 2000);
       }, 800);
-    }, 400);
+    }, 250);
   }
 
   // ========== Product carousel upload (original logic) ==========
@@ -343,8 +343,8 @@
             }
             selectBtn2.click();
             doFinishUpload();
-          }, 400);
-        }, 400);
+          }, 250);
+        }, 250);
       }
     });
   }
@@ -427,7 +427,7 @@
           }
           addBtn.click();
           doFinishUpload();
-        }, 400);
+        }, 250);
       }
     });
   }
