@@ -6,6 +6,7 @@
   var STORE_KEY = '__dxm_bee_stores';
   var SELECTED_STORE_KEY = '__dxm_bee_selected_store';
   var WEB_IMAGE_KEY = '__dxm_bee_use_web_image';
+  var FILTER_ENABLED_KEY = '__dxm_bee_filter_enabled';
 
   function getDefaultFilters() {
     return [
@@ -75,6 +76,15 @@
     localStorage.setItem(WEB_IMAGE_KEY, val ? 'true' : 'false');
   }
 
+  function loadFilterEnabled() {
+    var val = localStorage.getItem(FILTER_ENABLED_KEY);
+    return val !== 'false';
+  }
+
+  function saveFilterEnabled(val) {
+    localStorage.setItem(FILTER_ENABLED_KEY, val ? 'true' : 'false');
+  }
+
 
   function setInputValue(input, val) {
     var proto = input.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
@@ -100,6 +110,8 @@
     saveSelectedStore: saveSelectedStore,
     loadUseWebImage: loadUseWebImage,
     saveUseWebImage: saveUseWebImage,
+    loadFilterEnabled: loadFilterEnabled,
+    saveFilterEnabled: saveFilterEnabled,
     setInputValue: setInputValue
   };
 })();

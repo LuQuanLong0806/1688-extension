@@ -669,27 +669,16 @@
       }, doStep16);
     }
 
-    // Step 16: 悬浮发布按钮
+    // Step 16: 检查标题长度
     function doStep16() {
-      step(16, '正在触发发布菜单...', '已悬浮发布按钮', function () {
-        var btn = document.querySelector('.footer .btn-box button.btn-green');
-        log(16, '发布按钮', btn);
-        if (!btn || !btn.textContent.includes('发布')) return false;
-        hoverElement(btn);
-        return true;
-      }, doStep17);
-    }
-
-    // Step 17: 检查标题长度
-    function doStep17() {
-      log(17, '正在检查标题长度...');
-      updateProgress(17, '正在检查标题长度...', 'loading');
+      log(16, '正在检查标题长度...');
+      updateProgress(16, '正在检查标题长度...', 'loading');
       var input = document.querySelector('#productProductInfo form .ant-form-item input');
-      log(17, '标题输入框', input);
+      log(16, '标题输入框', input);
       if (!input || !input.value) {
-        log(17, '⚠️ 未找到标题输入框或值为空，跳过截取');
-        updateProgress(17, '标题无需截取', 'ok');
-        doStep18();
+        log(16, '⚠️ 未找到标题输入框或值为空，跳过截取');
+        updateProgress(16, '标题无需截取', 'ok');
+        doStep17();
         return;
       }
 
@@ -702,39 +691,50 @@
       }
 
       var title = input.value;
-      log(17, '标题长度: ' + title.length + ', 限制: ' + limit + ', 标题内容: "' + title.substring(0, 60) + (title.length > 60 ? '...' : '"'));
+      log(16, '标题长度: ' + title.length + ', 限制: ' + limit + ', 标题内容: "' + title.substring(0, 60) + (title.length > 60 ? '...' : '"'));
 
       if (title.length <= limit) {
-        log(17, '✅ 标题长度 ' + title.length + ' ≤ ' + limit + '，无需截取');
-        updateProgress(17, '标题长度 ' + title.length + '，无需截取', 'ok');
-        doStep18();
+        log(16, '✅ 标题长度 ' + title.length + ' ≤ ' + limit + '，无需截取');
+        updateProgress(16, '标题长度 ' + title.length + '，无需截取', 'ok');
+        doStep17();
         return;
       }
 
-      log(17, '标题超限 ' + title.length + ' > ' + limit + '，开始截取...');
-      updateProgress(17, '标题超过' + limit + '，正在截取...', 'loading');
+      log(16, '标题超限 ' + title.length + ' > ' + limit + '，开始截取...');
+      updateProgress(16, '标题超过' + limit + '，正在截取...', 'loading');
       var t = title.substring(0, limit);
       var bps = ['。','，',',','.','!','!','?','?','；',';','、',' ','-','–','—','(',')','[',']','/','\\','&','+'];
       var last = -1;
       for (var i = 0; i < bps.length; i++) { var idx = t.lastIndexOf(bps[i]); if (idx > last) last = idx; }
       if (last > 0) t = t.substring(0, last + 1);
 
-      log(17, '截取后长度: ' + t.length + ', 内容: "' + t.substring(0, 60) + (t.length > 60 ? '...' : '"'));
+      log(16, '截取后长度: ' + t.length + ', 内容: "' + t.substring(0, 60) + (t.length > 60 ? '...' : '"'));
       Config.setInputValue(input, t);
-      log(17, '✅ 标题已截取至 ' + t.length + ' 字符');
-      updateProgress(17, '标题已截取至 ' + t.length + ' 字符', 'ok');
-      doStep18();
+      log(16, '✅ 标题已截取至 ' + t.length + ' 字符');
+      updateProgress(16, '标题已截取至 ' + t.length + ' 字符', 'ok');
+      doStep17();
     }
 
-    // Step 18: 立即发布（根据自动发布配置决定是否执行）
-    function doStep18() {
+    // Step 17: 悬浮发布按钮（根据自动发布配置决定是否执行）
+    function doStep17() {
       if (!Config.loadAutoPublish()) {
-        log(18, '⏭️ 自动发布已关闭，跳过发布步骤');
-        updateProgress(18, '自动发布已关闭，跳过', 'ok');
+        log(17, '⏭️ 自动发布已关闭，跳过发布步骤');
+        updateProgress(17, '自动发布已关闭，跳过', 'ok');
         window.scrollTo({ top: 0, behavior: 'smooth' });
         finishWork();
         return;
       }
+      step(17, '正在触发发布菜单...', '已悬浮发布按钮', function () {
+        var btn = document.querySelector('.footer .btn-box button.btn-green');
+        log(17, '发布按钮', btn);
+        if (!btn || !btn.textContent.includes('发布')) return false;
+        hoverElement(btn);
+        return true;
+      }, doStep18);
+    }
+
+    // Step 18: 立即发布
+    function doStep18() {
       step(18, '正在点击立即发布...', '全部操作完成！', function () {
         var o = document.querySelector('.ant-dropdown-menu-item[data-menu-id="2"]');
         log(18, '立即发布菜单项', o);
