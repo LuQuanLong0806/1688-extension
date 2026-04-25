@@ -252,7 +252,7 @@
     }
     log(stepNum, '✅ ' + okText);
     updateProgress(stepNum, okText, 'ok');
-    if (nextFn) setTimeout(nextFn, 400);
+    if (nextFn) setTimeout(nextFn, 300);
   }
 
   function finishWork() {
@@ -406,7 +406,7 @@
         log(1, '✅ 已选择店铺: ' + configStore + '（跳过分类步骤）');
         updateProgress(1, '已选择店铺: ' + configStore, 'ok');
         // 店铺变更后分类会清空，跳过 Step 2(分类按钮) 和 Step 3(确认弹窗)
-        setTimeout(doStep4, 400);
+        setTimeout(doStep4, 300);
       });
     }
 
@@ -447,7 +447,7 @@
       if (!input || !input.value) {
         log(4, '⚠️ 未找到标题输入框或值为空，跳过过滤');
         updateProgress(4, '标题为空，跳过过滤', 'ok');
-        setTimeout(doStep5, 400);
+        setTimeout(doStep5, 300);
         return;
       }
       var title = input.value;
@@ -470,7 +470,7 @@
         log(4, '✅ 标题无违规字样');
         updateProgress(4, '标题无违规字样', 'ok');
       }
-      setTimeout(doStep5, 400);
+      setTimeout(doStep5, 300);
     }
 
     // Step 5: 悬浮「一键翻译」，点击「中文→英文」
@@ -499,7 +499,7 @@
           unhoverElement(translateBtn);
           log(5, '✅ 已点击中文→英文');
           updateProgress(5, '已点击中文→英文', 'ok');
-          setTimeout(doStep6, 600);
+          setTimeout(doStep6, 400);
           return;
         }
         if (Date.now() - start > 3000) {
@@ -512,7 +512,7 @@
               unhoverElement(translateBtn);
               log(5, '✅ 已点击中文→英文');
               updateProgress(5, '已点击中文→英文', 'ok');
-              setTimeout(doStep6, 600);
+              setTimeout(doStep6, 400);
               return;
             }
             if (Date.now() - start2 > 3000) {
@@ -542,7 +542,7 @@
         forceOpenAntSelect(sel);
         log(6, '✅ 已打开省份下拉框');
         updateProgress(6, '已打开省份下拉框', 'ok');
-        setTimeout(doStep7, 600);
+        setTimeout(doStep7, 400);
       });
     }
 
@@ -569,7 +569,7 @@
           forceOpenAntSelect(sel);
           log(8, '✅ 已打开外包装形状');
           updateProgress(8, '已打开外包装形状', 'ok');
-          setTimeout(doStep9, 600);
+          setTimeout(doStep9, 400);
         }, 300);
       });
     }
@@ -597,7 +597,7 @@
           forceOpenAntSelect(sel);
           log(10, '✅ 已打开外包装类型');
           updateProgress(10, '已打开外包装类型', 'ok');
-          setTimeout(doStep11, 600);
+          setTimeout(doStep11, 400);
         }, 300);
       });
     }
