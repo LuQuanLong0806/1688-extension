@@ -77,9 +77,11 @@
   menu.id = '__dxm_bee_menu';
   var autoPublishOn = Config.loadAutoPublish();
   var currentStore = Config.loadSelectedStore();
+  var useWebImage = Config.loadUseWebImage();
   menu.innerHTML =
     '<div class="menu-item" id="__dxm_bee_menu_filter"><span class="menu-label">📝 文字过滤配置</span><span class="menu-arrow">▸</span></div>' +
     '<div class="menu-item" id="__dxm_bee_menu_store"><span class="menu-label">🏪 选择店铺</span><span class="menu-value" id="__dxm_bee_menu_store_name">' + (currentStore || '未选择') + '</span><span class="menu-arrow">▸</span></div>' +
+    '<div class="menu-item"><span class="menu-label">🌐 网络图片</span><div class="switch ' + (useWebImage ? 'on' : '') + '" id="__dxm_bee_menu_webimg_switch"></div></div>' +
     '<div class="menu-item"><span class="menu-label">🚀 自动发布</span><div class="switch ' + (autoPublishOn ? 'on' : '') + '" id="__dxm_bee_menu_publish_switch"></div></div>';
   document.body.appendChild(menu);
 
@@ -120,6 +122,14 @@
     this.classList.toggle('on', on);
     Config.saveAutoPublish(on);
     console.log('%c[小蜜蜂] 自动发布: ' + (on ? '开启' : '关闭'), 'color:#FFA000;font-weight:bold');
+  });
+
+  var webimgSwitch = document.getElementById('__dxm_bee_menu_webimg_switch');
+  webimgSwitch.addEventListener('click', function () {
+    var on = !this.classList.contains('on');
+    this.classList.toggle('on', on);
+    Config.saveUseWebImage(on);
+    console.log('%c[小蜜蜂] 网络图片: ' + (on ? '开启' : '关闭'), 'color:#FFA000;font-weight:bold');
   });
 
   // ========== Store Popup ==========

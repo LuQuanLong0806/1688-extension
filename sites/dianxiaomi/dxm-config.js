@@ -5,6 +5,7 @@
   var AUTO_PUBLISH_KEY = '__dxm_bee_auto_publish';
   var STORE_KEY = '__dxm_bee_stores';
   var SELECTED_STORE_KEY = '__dxm_bee_selected_store';
+  var WEB_IMAGE_KEY = '__dxm_bee_use_web_image';
 
   function getDefaultFilters() {
     return [
@@ -66,8 +67,18 @@
     localStorage.setItem(SELECTED_STORE_KEY, val);
   }
 
+  function loadUseWebImage() {
+    return localStorage.getItem(WEB_IMAGE_KEY) === 'true';
+  }
+
+  function saveUseWebImage(val) {
+    localStorage.setItem(WEB_IMAGE_KEY, val ? 'true' : 'false');
+  }
+
+
   function setInputValue(input, val) {
-    var nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+    var proto = input.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+    var nativeSetter = Object.getOwnPropertyDescriptor(proto, 'value').set;
     nativeSetter.call(input, val);
     input.dispatchEvent(new Event('input', { bubbles: true }));
     input.dispatchEvent(new Event('change', { bubbles: true }));
@@ -87,6 +98,8 @@
     saveStores: saveStores,
     loadSelectedStore: loadSelectedStore,
     saveSelectedStore: saveSelectedStore,
+    loadUseWebImage: loadUseWebImage,
+    saveUseWebImage: saveUseWebImage,
     setInputValue: setInputValue
   };
 })();
