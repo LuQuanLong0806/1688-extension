@@ -79,9 +79,11 @@
   var currentStore = Config.loadSelectedStore();
   var useWebImage = Config.loadUseWebImage();
   var filterEnabled = Config.loadFilterEnabled();
+  var autoCategory = Config.loadAutoCategory();
   menu.innerHTML =
     '<div class="menu-item" id="__dxm_bee_menu_filter"><span class="menu-label" id="__dxm_bee_menu_filter_text">📝 文字过滤配置</span><div class="switch ' + (filterEnabled ? 'on' : '') + '" id="__dxm_bee_menu_filter_switch"></div></div>' +
     '<div class="menu-item" id="__dxm_bee_menu_store"><span class="menu-label">🏪 选择店铺</span><span class="menu-value" id="__dxm_bee_menu_store_name">' + (currentStore || '未选择') + '</span><span class="menu-arrow">▸</span></div>' +
+    '<div class="menu-item"><span class="menu-label">📂 自动点击分类</span><div class="switch ' + (autoCategory ? 'on' : '') + '" id="__dxm_bee_menu_category_switch"></div></div>' +
     '<div class="menu-item"><span class="menu-label">🌐 网络图片</span><div class="switch ' + (useWebImage ? 'on' : '') + '" id="__dxm_bee_menu_webimg_switch"></div></div>' +
     '<div class="menu-item"><span class="menu-label">🚀 自动发布</span><div class="switch ' + (autoPublishOn ? 'on' : '') + '" id="__dxm_bee_menu_publish_switch"></div></div>';
   document.body.appendChild(menu);
@@ -125,6 +127,15 @@
     this.classList.toggle('on', on);
     Config.saveFilterEnabled(on);
     console.log('%c[小蜜蜂] 文字过滤: ' + (on ? '开启' : '关闭'), 'color:#FFA000;font-weight:bold');
+  });
+
+  var categorySwitch = document.getElementById('__dxm_bee_menu_category_switch');
+  categorySwitch.addEventListener('click', function (e) {
+    e.stopPropagation();
+    var on = !this.classList.contains('on');
+    this.classList.toggle('on', on);
+    Config.saveAutoCategory(on);
+    console.log('%c[小蜜蜂] 自动点击分类: ' + (on ? '开启' : '关闭'), 'color:#FFA000;font-weight:bold');
   });
 
   publishSwitch.addEventListener('click', function () {

@@ -196,7 +196,7 @@
   function waitForProvinceSelect(cb) {
     var start = Date.now();
     (function check() {
-      var all = document.querySelectorAll('#productProductInfo .ant-select-selector');
+      var all = document.querySelectorAll('#productProductInfo .ant-select-selector'); // #productProductInfo: 产品信息区域内所有 Select 组件(省份等)
       for (var i = 0; i < all.length; i++) {
         var ph = all[i].querySelector('.ant-select-selection-placeholder');
         var item = all[i].querySelector('.ant-select-selection-item');
@@ -224,7 +224,7 @@
   function waitForAntSelect(labelText, cb) {
     var start = Date.now();
     (function check() {
-      var labels = document.querySelectorAll('#packageInfo .ant-form-item-label label');
+      var labels = document.querySelectorAll('#packageInfo .ant-form-item-label label'); // #packageInfo: 包裹信息区域; 通过 label 文字定位对应的 Select(外包装形状/类型)
       for (var i = 0; i < labels.length; i++) {
         if (labels[i].textContent.includes(labelText)) {
           var formItem = labels[i].closest('.ant-form-item');
@@ -252,7 +252,7 @@
     }
     log(stepNum, '✅ ' + okText);
     updateProgress(stepNum, okText, 'ok');
-    if (nextFn) setTimeout(nextFn, 600);
+    if (nextFn) setTimeout(nextFn, 400);
   }
 
   function finishWork() {
@@ -284,7 +284,7 @@
     function doTranslateOnly() {
       console.log('%c[小蜜蜂] 一键翻译', 'color:#FFCA28;font-weight:bold;font-size:14px');
       showBubble('⏳ 正在触发一键翻译...', 'loading');
-      var translateBtn = document.querySelector('#app .product-add-layout .header .btn-box button.translation-btn');
+      var translateBtn = document.querySelector('#app .product-add-layout .header .btn-box button.translation-btn'); // 页面顶部操作栏的“一键翻译”按钮(悬浮展开翻译下拉)
       if (!translateBtn) {
         console.log('%c[小蜜蜂] ❌ 未找到翻译按钮', 'color:#ff4444;font-weight:bold');
         showBubble('❌ 未找到翻译按钮', 'err');
@@ -293,7 +293,7 @@
       }
 
       function findTranslateMenuItem() {
-        var items = document.querySelectorAll('.ant-dropdown:not(.ant-dropdown-hidden) li.menu-item');
+        var items = document.querySelectorAll('.ant-dropdown:not(.ant-dropdown-hidden) li.menu-item'); // 当前可见的 Dropdown 菜单项(翻译选项: 中文→英文)
         for (var i = 0; i < items.length; i++) {
           var t = items[i].textContent || '';
           if (t.indexOf('中文') !== -1 && t.indexOf('英文') !== -1) return items[i];
@@ -347,7 +347,7 @@
       log(1, '正在检查店铺名称...');
       updateProgress(1, '正在检查店铺名称...', 'loading');
 
-      var labels = document.querySelectorAll('#productBasicInfo .ant-form-item-label label');
+      var labels = document.querySelectorAll('#productBasicInfo .ant-form-item-label label'); // #productBasicInfo: 产品基本信息区域; .ant-form-item-label label: 表单项标签(店铺名称等)
       var storeFormItem = null;
       for (var i = 0; i < labels.length; i++) {
         if (labels[i].textContent.includes('店铺名称')) {
@@ -364,7 +364,7 @@
         return;
       }
 
-      var selectionItem = storeFormItem.querySelector('.ant-select-selection-item');
+      var selectionItem = storeFormItem.querySelector('.ant-select-selection-item'); // .ant-select-selection-item: Select组件当前已选中的值显示元素
       var currentStore = selectionItem ? (selectionItem.getAttribute('title') || selectionItem.textContent.trim()) : '';
       log(1, '当前店铺: "' + currentStore + '"');
 
@@ -388,13 +388,13 @@
       log(1, '店铺为空，正在选择: ' + configStore);
       updateProgress(1, '正在选择店铺 ' + configStore + '...', 'loading');
 
-      var storeSelector = storeFormItem.querySelector('.ant-select-selector');
+      var storeSelector = storeFormItem.querySelector('.ant-select-selector'); // .ant-select-selector: Select组件的触发区域(点击开下拉)
       log(1, '店铺下拉框', storeSelector);
-      var searchInput = storeFormItem.querySelector('.ant-select-selection-search-input');
+      var searchInput = storeFormItem.querySelector('.ant-select-selection-search-input'); // .ant-select-selection-search-input: Select可搜索时的输入框
       if (searchInput) searchInput.focus();
       forceOpenAntSelect(storeSelector);
 
-      waitForElement('.ant-select-item-option[title="' + configStore + '"]', 3000, function (opt) {
+      waitForElement('.ant-select-item-option[title="' + configStore + '"]', 3000, function (opt) { // .ant-select-item-option[title=...]: 下拉菜单中匹配店铺名称的选项
         log(1, '店铺选项', opt);
         if (!opt) {
           log(1, '❌ 未找到店铺选项: ' + configStore);
@@ -406,14 +406,20 @@
         log(1, '✅ 已选择店铺: ' + configStore + '（跳过分类步骤）');
         updateProgress(1, '已选择店铺: ' + configStore, 'ok');
         // 店铺变更后分类会清空，跳过 Step 2(分类按钮) 和 Step 3(确认弹窗)
-        setTimeout(doStep4, 600);
+        setTimeout(doStep4, 400);
       });
     }
 
     // Step 2: 点击「确认分类」按钮
     function doStep2() {
+      if (!Config.loadAutoCategory()) {
+        log(2, '⏭️ 自动点击分类已关闭，跳过');
+        updateProgress(2, '跳过分类步骤', 'ok');
+        doStep4();
+        return;
+      }
       step(2, '正在点击分类按钮...', '已点击分类按钮', function () {
-        var btn = document.querySelector('#productBasicInfo .category-item .ant-form-item-control button');
+        var btn = document.querySelector('#productBasicInfo .category-item .ant-form-item-control button'); // #productBasicInfo .category-item: 产品基本信息中的分类区域; button: 确认分类按钮
         log(2, '分类按钮', btn);
         if (!btn) return false;
         btn.click();
@@ -422,7 +428,7 @@
 
       // Step 3: 点击弹窗「确认」按钮
       step(3, '正在点击确认按钮...', '分类确认完成！', function () {
-        var btn = document.querySelector('.ant-modal-wrap:not([style*="display: none"]) .ant-modal-content .ant-modal-footer button.ant-btn-primary');
+        var btn = document.querySelector('.ant-modal-wrap:not([style*="display: none"]) .ant-modal-content .ant-modal-footer button.ant-btn-primary'); // 可见的模态弹窗底部的主按钮(确认分类弹窗)
         log(3, '弹窗确认按钮', btn);
         if (!btn) return false;
         btn.click();
@@ -436,12 +442,12 @@
     function doStep4() {
       log(4, '正在过滤标题违规字样...');
       updateProgress(4, '正在过滤标题...', 'loading');
-      var input = document.querySelector('#productProductInfo form .ant-form-item input');
+      var input = document.querySelector('#productProductInfo form .ant-form-item input'); // #productProductInfo: 产品信息区域; 第一个 input 即为标题输入框
       log(4, '标题输入框', input);
       if (!input || !input.value) {
         log(4, '⚠️ 未找到标题输入框或值为空，跳过过滤');
         updateProgress(4, '标题为空，跳过过滤', 'ok');
-        setTimeout(doStep5, 600);
+        setTimeout(doStep5, 400);
         return;
       }
       var title = input.value;
@@ -464,7 +470,7 @@
         log(4, '✅ 标题无违规字样');
         updateProgress(4, '标题无违规字样', 'ok');
       }
-      setTimeout(doStep5, 600);
+      setTimeout(doStep5, 400);
     }
 
     // Step 5: 悬浮「一键翻译」，点击「中文→英文」
@@ -493,7 +499,7 @@
           unhoverElement(translateBtn);
           log(5, '✅ 已点击中文→英文');
           updateProgress(5, '已点击中文→英文', 'ok');
-          setTimeout(doStep6, 1000);
+          setTimeout(doStep6, 600);
           return;
         }
         if (Date.now() - start > 3000) {
@@ -506,7 +512,7 @@
               unhoverElement(translateBtn);
               log(5, '✅ 已点击中文→英文');
               updateProgress(5, '已点击中文→英文', 'ok');
-              setTimeout(doStep6, 1000);
+              setTimeout(doStep6, 600);
               return;
             }
             if (Date.now() - start2 > 3000) {
@@ -610,7 +616,7 @@
     // Step 12: 悬浮选择图片
     function doStep12() {
       step(12, '正在触发选择图片...', '已悬浮选择图片', function () {
-        var btn = document.querySelector('#packageInfo .header button');
+        var btn = document.querySelector('#packageInfo .header button'); // #packageInfo .header: 包裹信息区域顶部; button: “选择图片”按钮
         log(12, '选择图片按钮', btn);
         if (!btn || !btn.textContent.includes('选择图片')) return false;
         hoverElement(btn);
@@ -621,7 +627,7 @@
     // Step 13: 引用采集图片
     function doStep13() {
       step(13, '正在点击引用采集图片...', '已点击引用采集图片', function () {
-        var o = document.querySelector('.ant-dropdown-menu-item[data-menu-id="crawl"]');
+        var o = document.querySelector('.ant-dropdown-menu-item[data-menu-id="crawl"]'); // 发布按钮下拉菜单中的“引用采集图片”选项
         log(13, '引用采集图片菜单项', o);
         if (!o) return false;
         o.click();
@@ -643,7 +649,7 @@
         }
         log(14, '引用采集图片弹窗', targetModal);
         if (!targetModal) return false;
-        var o = targetModal.querySelector('.img-box .ant-checkbox-wrapper .ant-checkbox-input');
+        var o = targetModal.querySelector('.img-box .ant-checkbox-wrapper .ant-checkbox-input'); // 引用采集图片弹窗内的图片复选框
         log(14, '图片复选框', o);
         if (!o) return false;
         o.click();
@@ -665,7 +671,7 @@
         }
         log(15, '确认按钮所在弹窗', targetModal);
         if (!targetModal) return false;
-        var o = targetModal.querySelector('.ant-modal-footer button.ant-btn-primary');
+        var o = targetModal.querySelector('.ant-modal-footer button.ant-btn-primary'); // 引用采集图片弹窗底部的“确认”主按钮
         log(15, '确认按钮', o);
         if (!o) return false;
         o.click();
@@ -686,7 +692,7 @@
         return;
       }
 
-      var container = input.closest('.inputContainer');
+      var container = input.closest('.inputContainer'); // .inputContainer: 标题输入框的外层容器
       var limitEl = container ? container.querySelector('.color-gray') : null;
       var limit = 200;
       if (limitEl) {
@@ -729,7 +735,7 @@
         return;
       }
       step(17, '正在触发发布菜单...', '已悬浮发布按钮', function () {
-        var btn = document.querySelector('.footer .btn-box button.btn-green');
+        var btn = document.querySelector('.footer .btn-box button.btn-green'); // 页面底部操作栏的绿色“发布”按钮(悬浮展开发布下拉)
         log(17, '发布按钮', btn);
         if (!btn || !btn.textContent.includes('发布')) return false;
         hoverElement(btn);
@@ -740,7 +746,7 @@
     // Step 18: 立即发布
     function doStep18() {
       step(18, '正在点击立即发布...', '全部操作完成！', function () {
-        var o = document.querySelector('.ant-dropdown-menu-item[data-menu-id="2"]');
+        var o = document.querySelector('.ant-dropdown-menu-item[data-menu-id="2"]'); // 发布下拉菜单中的“立即发布”选项
         log(18, '立即发布菜单项', o);
         if (!o || !o.textContent.includes('立即发布')) return false;
         o.click();
