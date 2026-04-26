@@ -132,8 +132,8 @@
   function snapToEdge() {
     var rect = wrapper.getBoundingClientRect();
     var topY = parseInt(wrapper.style.top) || 0;
-    var nearLeft = rect.left < 100;
-    var nearRight = window.innerWidth - rect.right < 100;
+    var nearLeft = rect.left < 30;
+    var nearRight = window.innerWidth - rect.right < 30;
     if (nearLeft || nearRight) {
       wrapper.style.transition = 'left .25s ease, right .25s ease';
       if (nearLeft) { wrapper.style.left = '0'; wrapper.style.right = 'auto'; }
