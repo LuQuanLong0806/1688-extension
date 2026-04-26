@@ -10,6 +10,8 @@
   var AUTO_CATEGORY_KEY = '__dxm_bee_auto_category';
   var PROVINCE_KEY = '__dxm_bee_province';
   var AUTO_TRANSLATE_KEY = '__dxm_bee_auto_translate';
+  var SKU_FILTER_KEY = '__dxm_bee_sku_filters';
+  var SKU_FILTER_ENABLED_KEY = '__dxm_bee_sku_filter_enabled';
 
   function getDefaultFilters() {
     return [
@@ -121,6 +123,27 @@
     localStorage.setItem(AUTO_TRANSLATE_KEY, val ? 'true' : 'false');
   }
 
+  function loadSkuFilters() {
+    try {
+      var raw = localStorage.getItem(SKU_FILTER_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch (e) {}
+    return [];
+  }
+
+  function saveSkuFilters(data) {
+    localStorage.setItem(SKU_FILTER_KEY, JSON.stringify(data));
+  }
+
+  function loadSkuFilterEnabled() {
+    var val = localStorage.getItem(SKU_FILTER_ENABLED_KEY);
+    return val !== 'false';
+  }
+
+  function saveSkuFilterEnabled(val) {
+    localStorage.setItem(SKU_FILTER_ENABLED_KEY, val ? 'true' : 'false');
+  }
+
 
   function setInputValue(input, val) {
     var proto = input.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
@@ -168,6 +191,10 @@
     saveProvince: saveProvince,
     loadAutoTranslate: loadAutoTranslate,
     saveAutoTranslate: saveAutoTranslate,
+    loadSkuFilters: loadSkuFilters,
+    saveSkuFilters: saveSkuFilters,
+    loadSkuFilterEnabled: loadSkuFilterEnabled,
+    saveSkuFilterEnabled: saveSkuFilterEnabled,
     setInputValue: setInputValue,
     findVisibleModal: findVisibleModal
   };

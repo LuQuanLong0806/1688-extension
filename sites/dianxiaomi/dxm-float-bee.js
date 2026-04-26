@@ -50,6 +50,7 @@
     '<div id="__dxm_bee_translate" title="一键翻译">译</div>' +
     '<div id="__dxm_bee_edit" title="一键编辑描述">编</div>' +
     '<div id="__dxm_bee_paste" title="一键粘贴图片URL">粘</div>' +
+    '<div id="__dxm_bee_sku" title="一键SKU过滤">S</div>' +
     '<div id="__dxm_bee_delete" title="一键清空产品轮播图">删</div>';
 
   // ========== Styles ==========
@@ -57,7 +58,7 @@
   s.textContent =
     '#__dxm_bee{position:fixed;z-index:2147483647;left:0;top:45%;user-select:none;display:flex;flex-direction:column;align-items:center}' +
     '#__dxm_bee *{margin:0;padding:0;box-sizing:border-box}' +
-    '#__dxm_bee_icon{width:56px;height:56px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .2s}' +
+    '#__dxm_bee_icon{width:56px;height:56px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .2s;overflow:visible}' +
     '#__dxm_bee_icon:hover{transform:scale(1.1)}' +
     '#__dxm_bee_icon svg{width:100%;height:auto;filter:drop-shadow(0 2px 6px rgba(255,202,40,.4))}' +
     '#__dxm_bee.flying #__dxm_bee_icon{animation:__dxm_fly 1s ease-in-out infinite}' +
@@ -78,6 +79,8 @@
     '#__dxm_bee_edit:hover{transform:scale(1.12);box-shadow:0 4px 12px rgba(67,160,71,.5)}' +
     '#__dxm_bee_paste{margin-top:2px;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#AB47BC,#8E24AA);color:#fff;font:bold 19px/1 "楷体","KaiTi","STKaiti",serif;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(142,36,170,.35);transition:transform .2s,box-shadow .2s;user-select:none;text-shadow:0 1px 2px rgba(0,0,0,.15)}' +
     '#__dxm_bee_paste:hover{transform:scale(1.12);box-shadow:0 4px 12px rgba(142,36,170,.5)}' +
+    '#__dxm_bee_sku{margin-top:2px;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#26C6DA,#00838F);color:#fff;font:bold 15px/1 "Microsoft YaHei",Arial,sans-serif;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(0,131,143,.35);transition:transform .2s,box-shadow .2s;user-select:none;text-shadow:0 1px 2px rgba(0,0,0,.15)}' +
+    '#__dxm_bee_sku:hover{transform:scale(1.12);box-shadow:0 4px 12px rgba(0,131,143,.5)}' +
     '#__dxm_bee_delete{margin-top:2px;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#EF5350,#C62828);color:#fff;font:bold 19px/1 "楷体","KaiTi","STKaiti",serif;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(198,40,40,.35);transition:transform .2s,box-shadow .2s;user-select:none;text-shadow:0 1px 2px rgba(0,0,0,.15)}' +
     '#__dxm_bee_delete:hover{transform:scale(1.12);box-shadow:0 4px 12px rgba(198,40,40,.5)}';
 
@@ -549,7 +552,9 @@
         var bs = document.createElement('style');
         bs.id = '__dxm_bee_title_bubble_style';
         bs.textContent =
-          '#__dxm_bee_title_bubble{position:absolute;z-index:2147483640;left:50%;transform:translateX(-50%);background:#fff;border-radius:10px;padding:10px 14px;box-shadow:0 6px 20px rgba(100,149,237,.22),0 2px 6px rgba(100,149,237,.1);border:1.5px solid #b8d4f0;font:12px/1.6 "Microsoft YaHei",Arial,sans-serif;white-space:normal;word-break:break-all;pointer-events:none}';
+          '#__dxm_bee_title_bubble{position:absolute;z-index:2147483640;left:50%;transform:translateX(-50%);background:#fff;border-radius:10px;padding:10px 14px;box-shadow:0 6px 20px rgba(100,149,237,.22),0 2px 6px rgba(100,149,237,.1);border:1.5px solid #b8d4f0;font:12px/1.6 "Microsoft YaHei",Arial,sans-serif;white-space:normal;word-break:break-all;pointer-events:none}' +
+          '#__dxm_bee_title_bubble::after{content:"";position:absolute;bottom:-8px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-top:8px solid #b8d4f0}' +
+          '#__dxm_bee_title_bubble::before{content:"";position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-top:7px solid #fff}';
         document.head.appendChild(bs);
       }
 
@@ -558,7 +563,7 @@
         formItem.style.position = 'relative';
         bubble.style.bottom = '100%';
         bubble.style.maxWidth = Math.round(window.innerWidth * 0.6) + 'px';
-        bubble.style.marginBottom = '8px';
+        bubble.style.marginBottom = '16px';
         formItem.appendChild(bubble);
       }
     }

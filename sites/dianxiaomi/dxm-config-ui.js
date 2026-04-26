@@ -84,11 +84,13 @@
   var currentStore = Config.loadSelectedStore();
   var useWebImage = Config.loadUseWebImage();
   var filterEnabled = Config.loadFilterEnabled();
+  var skuFilterEnabled = Config.loadSkuFilterEnabled();
   var autoCategory = Config.loadAutoCategory();
   var province = Config.loadProvince();
   var autoTranslate = Config.loadAutoTranslate();
   menu.innerHTML =
-    '<div class="menu-item clickable" id="__dxm_bee_menu_filter"><span class="menu-label clickable" id="__dxm_bee_menu_filter_text">📝 文字过滤</span><div class="switch ' + (filterEnabled ? 'on' : '') + '" id="__dxm_bee_menu_filter_switch"></div><div class="menu-desc">点击文字打开配置弹窗，开启后自动过滤文字</div></div>' +
+    '<div class="menu-item clickable" id="__dxm_bee_menu_filter"><span class="menu-label clickable" id="__dxm_bee_menu_filter_text">📝 标题过滤</span><div class="switch ' + (filterEnabled ? 'on' : '') + '" id="__dxm_bee_menu_filter_switch"></div><div class="menu-desc">点击文字打开配置弹窗，开启后自动过滤标题违规文字</div></div>' +
+    '<div class="menu-item clickable" id="__dxm_bee_menu_sku_filter"><span class="menu-label clickable" id="__dxm_bee_menu_sku_filter_text">🏷️ SKU 过滤</span><div class="switch ' + (skuFilterEnabled ? 'on' : '') + '" id="__dxm_bee_menu_sku_filter_switch"></div><div class="menu-desc">点击文字打开配置弹窗，开启后自动过滤SKU违规文字</div></div>' +
     '<div class="menu-item clickable" id="__dxm_bee_menu_store"><span class="menu-label">🏪 选择店铺</span><span class="menu-value" id="__dxm_bee_menu_store_name">' + (currentStore || '未选择') + '</span><span class="menu-arrow">▸</span><div class="menu-desc">选择工作流自动填写的店铺名称</div></div>' +
     '<div class="menu-item"><span class="menu-label">📂 自动点击分类</span><div class="switch ' + (autoCategory ? 'on' : '') + '" id="__dxm_bee_menu_category_switch"></div><div class="menu-desc">开启后工作流自动点击确认分类按钮</div></div>' +
     '<div class="menu-item"><span class="menu-label">🔊 自动翻译</span><div class="switch ' + (autoTranslate ? 'on' : '') + '" id="__dxm_bee_menu_translate_switch"></div><div class="menu-desc">开启后工作流自动触发一键翻译</div></div>' +
@@ -126,7 +128,7 @@
 
   document.getElementById('__dxm_bee_menu_filter_text').addEventListener('click', function () {
     hideMenu();
-    openSettings();
+    openFilterSettings('title');
   });
 
   var filterSwitch = document.getElementById('__dxm_bee_menu_filter_switch');
@@ -135,7 +137,21 @@
     var on = !this.classList.contains('on');
     this.classList.toggle('on', on);
     Config.saveFilterEnabled(on);
-    console.log('%c[小蜜蜂] 文字过滤: ' + (on ? '开启' : '关闭'), 'color:#FFA000;font-weight:bold');
+    console.log('%c[小蜜蜂] 标题过滤: ' + (on ? '开启' : '关闭'), 'color:#FFA000;font-weight:bold');
+  });
+
+  document.getElementById('__dxm_bee_menu_sku_filter_text').addEventListener('click', function () {
+    hideMenu();
+    openFilterSettings('sku');
+  });
+
+  var skuFilterSwitch = document.getElementById('__dxm_bee_menu_sku_filter_switch');
+  skuFilterSwitch.addEventListener('click', function (e) {
+    e.stopPropagation();
+    var on = !this.classList.contains('on');
+    this.classList.toggle('on', on);
+    Config.saveSkuFilterEnabled(on);
+    console.log('%c[小蜜蜂] SKU 过滤: ' + (on ? '开启' : '关闭'), 'color:#FFA000;font-weight:bold');
   });
 
   var categorySwitch = document.getElementById('__dxm_bee_menu_category_switch');
@@ -296,14 +312,15 @@
     if (e.key === 'Enter') addStore();
   });
 
-  // ========== Filter Settings Panel ==========
+  // ========== Filter Settings Panel (shared for title & SKU) ==========
+  var currentFilterType = '';
   var overlay = document.createElement('div');
   overlay.id = '__dxm_bee_overlay';
   overlay.innerHTML =
     '<div id="__dxm_bee_settings">' +
     '<div class="toast" id="__dxm_bee_settings_toast">已保存</div>' +
     '<div id="__dxm_bee_settings_header">' +
-      '<h3>文字过滤配置</h3>' +
+      '<h3 id="__dxm_bee_settings_title">过滤配置</h3>' +
       '<button id="__dxm_bee_settings_close">✕</button>' +
     '</div>' +
     '<div id="__dxm_bee_settings_toolbar">' +
@@ -318,6 +335,7 @@
 
   var tbody = document.getElementById('__dxm_bee_settings_tbody');
   var toastEl = document.getElementById('__dxm_bee_settings_toast');
+  var settingsTitle = document.getElementById('__dxm_bee_settings_title');
 
   function renderFilterRow(f) {
     var tr = document.createElement('tr');
@@ -330,16 +348,27 @@
     return tr;
   }
 
-  function renderSettings() {
+  function getFilterData() {
+    return currentFilterType === 'sku' ? Config.loadSkuFilters() : Config.loadFilters();
+  }
+
+  function saveFilterData(data) {
+    if (currentFilterType === 'sku') Config.saveSkuFilters(data);
+    else Config.saveFilters(data);
+  }
+
+  function renderFilterSettings() {
     tbody.innerHTML = '';
-    var filters = Config.loadFilters();
+    var filters = getFilterData();
     for (var i = 0; i < filters.length; i++) {
       tbody.appendChild(renderFilterRow(filters[i]));
     }
   }
 
-  function openSettings() {
-    renderSettings();
+  function openFilterSettings(type) {
+    currentFilterType = type;
+    settingsTitle.textContent = type === 'sku' ? 'SKU 过滤配置' : '标题过滤配置';
+    renderFilterSettings();
     overlay.classList.add('show');
   }
 
@@ -374,10 +403,10 @@
         enabled: toggleBtn ? toggleBtn.classList.contains('on') : true
       });
     }
-    Config.saveFilters(data);
+    saveFilterData(data);
     toastEl.classList.add('show');
     setTimeout(function () { toastEl.classList.remove('show'); }, 1500);
-    console.log('%c[小蜜蜂] 过滤配置已保存', 'color:#52c41a;font-weight:bold', data);
+    console.log('%c[小蜜蜂] ' + (currentFilterType === 'sku' ? 'SKU' : '标题') + '过滤配置已保存', 'color:#52c41a;font-weight:bold', data);
   });
 
   tbody.addEventListener('click', function (e) {
