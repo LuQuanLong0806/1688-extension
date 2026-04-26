@@ -103,6 +103,20 @@
     input.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
+  function findVisibleModal(titleText) {
+    var titles = document.querySelectorAll('.ant-modal-title');
+    for (var t = 0; t < titles.length; t++) {
+      if ((titles[t].textContent || '').indexOf(titleText) !== -1) {
+        var wrap = titles[t];
+        while (wrap && !wrap.classList.contains('ant-modal-wrap')) { wrap = wrap.parentElement; }
+        if (wrap && wrap.style.display !== 'none') {
+          return wrap;
+        }
+      }
+    }
+    return null;
+  }
+
   window.BeeConfig = {
     FILTER_KEY: FILTER_KEY,
     AUTO_PUBLISH_KEY: AUTO_PUBLISH_KEY,
@@ -123,6 +137,7 @@
     saveFilterEnabled: saveFilterEnabled,
     loadAutoCategory: loadAutoCategory,
     saveAutoCategory: saveAutoCategory,
-    setInputValue: setInputValue
+    setInputValue: setInputValue,
+    findVisibleModal: findVisibleModal
   };
 })();

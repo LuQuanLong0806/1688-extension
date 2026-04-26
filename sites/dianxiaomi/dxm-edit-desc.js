@@ -225,15 +225,7 @@
   function doFinishUpload() {
     setTimeout(function () {
       editLog('确认批量传图');
-      var batchModal = null;
-      var titles2 = document.querySelectorAll('.ant-modal-title');
-      for (var bt = 0; bt < titles2.length; bt++) {
-        if ((titles2[bt].textContent || '').indexOf('批量传图') !== -1) {
-          var bEl = titles2[bt];
-          while (bEl && !bEl.classList.contains('ant-modal-wrap')) { bEl = bEl.parentElement; } // 通过标题文字找到批量传图弹窗的 .ant-modal-wrap 容器
-          if (bEl) { batchModal = bEl; break; }
-        }
-      }
+      var batchModal = C.findVisibleModal('批量传图'); // 通过标题文字+可见性双重判断定位批量传图弹窗
       if (!batchModal) {
         C.showBubble('❌ 未找到批量传图弹窗', 'err');
         setTimeout(C.hideBubble, 2000);
@@ -277,12 +269,10 @@
       (function () {
         var start = Date.now();
         (function check() {
-          var titles = document.querySelectorAll('.ant-modal-title');
-          for (var t = 0; t < titles.length; t++) {
-            if ((titles[t].textContent || '').indexOf('引用产品图片') !== -1) { // 轮询等待“引用产品图片”弹窗出现
-              onImageModalReady();
-              return;
-            }
+          var modal = C.findVisibleModal('引用产品图片'); // 通过标题文字+可见性双重判断定位弹窗
+          if (modal) {
+            onImageModalReady(modal);
+            return;
           }
           if (Date.now() - start > 5000) {
             C.showBubble('❌ 未找到引用产品图片弹窗', 'err');
@@ -293,17 +283,8 @@
         })();
       })();
 
-      function onImageModalReady() {
+      function onImageModalReady(imgModal) {
         editLog('全选产品图片');
-        var imgModal = null;
-        var titles = document.querySelectorAll('.ant-modal-title');
-        for (var t = 0; t < titles.length; t++) {
-          if ((titles[t].textContent || '').indexOf('引用产品图片') !== -1) {
-            var el = titles[t];
-            while (el && !el.classList.contains('ant-modal-wrap')) { el = el.parentElement; }
-            if (el) { imgModal = el; break; }
-          }
-        }
         if (!imgModal) {
           C.showBubble('❌ 未找到引用产品图片弹窗', 'err');
           setTimeout(C.hideBubble, 2000);
@@ -363,12 +344,10 @@
       (function () {
         var start = Date.now();
         (function check() {
-          var titles = document.querySelectorAll('.ant-modal-title');
-          for (var t = 0; t < titles.length; t++) {
-            if ((titles[t].textContent || '').indexOf('从网络地址') !== -1) { // 轮询等待“从网络地址(URL)选择图片”弹窗出现
-              onWebImageModalReady();
-              return;
-            }
+          var modal = C.findVisibleModal('从网络地址'); // 通过标题文字+可见性双重判断定位弹窗
+          if (modal) {
+            onWebImageModalReady(modal);
+            return;
           }
           if (Date.now() - start > 5000) {
             C.showBubble('❌ 未找到网络图片弹窗', 'err');
@@ -379,17 +358,8 @@
         })();
       })();
 
-      function onWebImageModalReady() {
+      function onWebImageModalReady(webModal) {
         editLog('填入图片地址');
-        var webModal = null;
-        var titles = document.querySelectorAll('.ant-modal-title');
-        for (var t = 0; t < titles.length; t++) {
-          if ((titles[t].textContent || '').indexOf('从网络地址') !== -1) {
-            var el = titles[t];
-            while (el && !el.classList.contains('ant-modal-wrap')) { el = el.parentElement; }
-            if (el) { webModal = el; break; }
-          }
-        }
         if (!webModal) {
           C.showBubble('❌ 未找到网络图片弹窗', 'err');
           setTimeout(C.hideBubble, 2000);
