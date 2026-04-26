@@ -120,13 +120,16 @@
 
   function snapToEdge() {
     var rect = wrapper.getBoundingClientRect();
-    var nearLeft = rect.left + rect.width / 2 < window.innerWidth / 2;
     var topY = parseInt(wrapper.style.top) || 0;
-    wrapper.style.transition = 'left .25s ease, right .25s ease';
-    if (nearLeft) { wrapper.style.left = '0'; wrapper.style.right = 'auto'; }
-    else { wrapper.style.left = 'auto'; wrapper.style.right = '0'; }
-    wrapper.style.top = topY + 'px';
-    setTimeout(function () { wrapper.style.transition = ''; }, 260);
+    var nearLeft = rect.left < 100;
+    var nearRight = window.innerWidth - rect.right < 100;
+    if (nearLeft || nearRight) {
+      wrapper.style.transition = 'left .25s ease, right .25s ease';
+      if (nearLeft) { wrapper.style.left = '0'; wrapper.style.right = 'auto'; }
+      else { wrapper.style.left = 'auto'; wrapper.style.right = '0'; }
+      wrapper.style.top = topY + 'px';
+      setTimeout(function () { wrapper.style.transition = ''; }, 260);
+    }
   }
 
   icon.addEventListener('mousedown', function (e) {

@@ -65,21 +65,24 @@
 
   function snapToEdge() {
     var rect = panel.getBoundingClientRect();
-    var nearLeft = rect.left < window.innerWidth / 2;
     var topY = parseInt(panel.style.top) || 0;
-    panel.style.transition = 'left .25s ease, right .25s ease';
-    if (nearLeft) {
-      panel.style.left = '0';
-      panel.style.right = 'auto';
-    } else {
-      panel.style.left = 'auto';
-      panel.style.right = '0';
+    var nearLeft = rect.left < 100;
+    var nearRight = window.innerWidth - rect.right < 100;
+    if (nearLeft || nearRight) {
+      panel.style.transition = 'left .25s ease, right .25s ease';
+      if (nearLeft) {
+        panel.style.left = '0';
+        panel.style.right = 'auto';
+      } else {
+        panel.style.left = 'auto';
+        panel.style.right = '0';
+      }
+      panel.style.top = topY + 'px';
+      panel.style.transform = 'none';
+      setTimeout(function () {
+        panel.style.transition = '';
+      }, 260);
     }
-    panel.style.top = topY + 'px';
-    panel.style.transform = 'none';
-    setTimeout(function () {
-      panel.style.transition = '';
-    }, 260);
   }
 
   toggle.addEventListener('mousedown', function (e) {
