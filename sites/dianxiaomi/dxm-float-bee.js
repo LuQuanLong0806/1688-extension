@@ -7,12 +7,12 @@
   // ========== SVG ==========
   var beeSVG =
     '<svg viewBox="0 0 80 96" fill="none" xmlns="http://www.w3.org/2000/svg">' +
-    '<ellipse cx="22" cy="42" rx="17" ry="20" fill="#B3E5FC" opacity="0.7" stroke="#81D4FA" stroke-width="1.5"/>' +
-    '<ellipse cx="58" cy="42" rx="17" ry="20" fill="#B3E5FC" opacity="0.7" stroke="#81D4FA" stroke-width="1.5"/>' +
-    '<ellipse cx="22" cy="58" rx="14" ry="16" fill="#B3E5FC" opacity="0.7" stroke="#81D4FA" stroke-width="1.5"/>' +
-    '<ellipse cx="58" cy="58" rx="14" ry="16" fill="#B3E5FC" opacity="0.7" stroke="#81D4FA" stroke-width="1.5"/>' +
-    '<ellipse cx="22" cy="37" rx="8" ry="10" fill="#E1F5FE" opacity="0.5"/>' +
-    '<ellipse cx="58" cy="37" rx="8" ry="10" fill="#E1F5FE" opacity="0.5"/>' +
+    '<ellipse cx="22" cy="38" rx="17" ry="20" fill="#B3E5FC" opacity="0.7" stroke="#81D4FA" stroke-width="1.5"/>' +
+    '<ellipse cx="58" cy="38" rx="17" ry="20" fill="#B3E5FC" opacity="0.7" stroke="#81D4FA" stroke-width="1.5"/>' +
+    '<ellipse cx="22" cy="54" rx="14" ry="16" fill="#B3E5FC" opacity="0.7" stroke="#81D4FA" stroke-width="1.5"/>' +
+    '<ellipse cx="58" cy="54" rx="14" ry="16" fill="#B3E5FC" opacity="0.7" stroke="#81D4FA" stroke-width="1.5"/>' +
+    '<ellipse cx="22" cy="33" rx="8" ry="10" fill="#E1F5FE" opacity="0.5"/>' +
+    '<ellipse cx="58" cy="33" rx="8" ry="10" fill="#E1F5FE" opacity="0.5"/>' +
     '<ellipse cx="40" cy="60" rx="24" ry="28" fill="#FFCA28"/>' +
     '<path d="M18 52 Q40 48 62 52" stroke="#5D4037" stroke-width="4" fill="none" stroke-linecap="round"/>' +
     '<path d="M16 62 Q40 58 64 62" stroke="#5D4037" stroke-width="4" fill="none" stroke-linecap="round"/>' +
