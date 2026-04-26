@@ -322,6 +322,37 @@
 
     function doTranslateOnly() {
       console.log('%c[小蜜蜂] 一键翻译', 'color:#FFCA28;font-weight:bold;font-size:14px');
+
+      // 先展示标题气泡
+      var input = document.querySelector('#productProductInfo form .ant-form-item input');
+      if (input && input.value) {
+        var title = input.value;
+        var filterEnabled = Config.loadFilterEnabled();
+        var filters = Config.loadFilters().filter(function (f) { return f.enabled && f.from; });
+
+        if (filterEnabled) {
+          var changed = false;
+          var filtered = title;
+          var hits = [];
+          for (var i = 0; i < filters.length; i++) {
+            if (filtered.indexOf(filters[i].from) === -1) continue;
+            filtered = filtered.split(filters[i].from).join(filters[i].to);
+            hits.push(filters[i].from);
+            changed = true;
+          }
+          if (changed) {
+            Config.setInputValue(input, filtered);
+          }
+          showTitleBubble(title, changed ? filtered : null, changed ? hits : [], input);
+        } else {
+          var forbidden = [];
+          for (var j = 0; j < filters.length; j++) {
+            if (title.indexOf(filters[j].from) !== -1) forbidden.push(filters[j].from);
+          }
+          showTitleBubble(title, null, forbidden, input);
+        }
+      }
+
       showBubble('⏳ 正在触发一键翻译...', 'loading');
       var translateBtn = document.querySelector('#app .product-add-layout .header .btn-box button.translation-btn'); // 页面顶部操作栏的“一键翻译”按钮(悬浮展开翻译下拉)
       if (!translateBtn) {
