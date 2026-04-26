@@ -9,6 +9,7 @@
   var FILTER_ENABLED_KEY = '__dxm_bee_filter_enabled';
   var AUTO_CATEGORY_KEY = '__dxm_bee_auto_category';
   var PROVINCE_KEY = '__dxm_bee_province';
+  var AUTO_TRANSLATE_KEY = '__dxm_bee_auto_translate';
 
   function getDefaultFilters() {
     return [
@@ -111,6 +112,15 @@
     localStorage.setItem(PROVINCE_KEY, val);
   }
 
+  function loadAutoTranslate() {
+    var val = localStorage.getItem(AUTO_TRANSLATE_KEY);
+    return val !== 'false';
+  }
+
+  function saveAutoTranslate(val) {
+    localStorage.setItem(AUTO_TRANSLATE_KEY, val ? 'true' : 'false');
+  }
+
 
   function setInputValue(input, val) {
     var proto = input.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
@@ -156,6 +166,8 @@
     saveAutoCategory: saveAutoCategory,
     loadProvince: loadProvince,
     saveProvince: saveProvince,
+    loadAutoTranslate: loadAutoTranslate,
+    saveAutoTranslate: saveAutoTranslate,
     setInputValue: setInputValue,
     findVisibleModal: findVisibleModal
   };

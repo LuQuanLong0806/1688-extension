@@ -488,29 +488,94 @@
       }
       var title = input.value;
       log(4, '原标题: "' + title + '"');
+      var filterEnabled = Config.loadFilterEnabled();
       var filters = Config.loadFilters().filter(function (f) { return f.enabled && f.from; });
-      var changed = false;
-      for (var i = 0; i < filters.length; i++) {
-        var f = filters[i];
-        if (title.indexOf(f.from) === -1) continue;
-        title = title.split(f.from).join(f.to);
-        log(4, '命中规则: "' + f.from + '" → "' + f.to + '"');
-        changed = true;
-      }
-      if (changed) {
-        log(4, '过滤后: "' + title + '"');
-        Config.setInputValue(input, title);
-        log(4, '✅ 标题已过滤');
-        updateProgress(4, '标题已过滤', 'ok');
+
+      if (filterEnabled) {
+        var changed = false;
+        var filtered = title;
+        var hits = [];
+        for (var i = 0; i < filters.length; i++) {
+          var f = filters[i];
+          if (filtered.indexOf(f.from) === -1) continue;
+          filtered = filtered.split(f.from).join(f.to);
+          hits.push(f.from);
+          changed = true;
+        }
+        if (changed) {
+          log(4, '过滤后: "' + filtered + '"');
+          Config.setInputValue(input, filtered);
+          log(4, '✅ 标题已过滤');
+          updateProgress(4, '标题已过滤', 'ok');
+        } else {
+          log(4, '✅ 标题无违规字样');
+          updateProgress(4, '标题无违规字样', 'ok');
+        }
+        showTitleBubble(title, changed ? filtered : null, changed ? hits : [], input);
       } else {
-        log(4, '✅ 标题无违规字样');
-        updateProgress(4, '标题无违规字样', 'ok');
+        var forbidden = [];
+        for (var j = 0; j < filters.length; j++) {
+          if (title.indexOf(filters[j].from) !== -1) forbidden.push(filters[j].from);
+        }
+        showTitleBubble(title, null, forbidden, input);
+        if (forbidden.length) {
+          log(4, '⚠️ 文字过滤已关闭，存在违禁字符: ' + forbidden.join(', '));
+          updateProgress(4, '存在违禁字符（过滤已关闭）', 'ok');
+        } else {
+          log(4, '✅ 标题无违规字样');
+          updateProgress(4, '标题无违规字样', 'ok');
+        }
       }
       setTimeout(doStep5, 200);
     }
 
+    // 标题气泡：显示在产品标题上方
+    function showTitleBubble(original, filtered, hits, inputEl) {
+      var old = document.getElementById('__dxm_bee_title_bubble');
+      if (old) old.remove();
+
+      var bubble = document.createElement('div');
+      bubble.id = '__dxm_bee_title_bubble';
+
+      var html = '<div style="margin-bottom:4px;color:#666">原标题：' + escHtml(original) + '</div>';
+      if (filtered !== null) {
+        html += '<div style="color:#52c41a">过滤后标题：' + escHtml(filtered) + '</div>';
+      } else if (hits && hits.length) {
+        html += '<div style="color:#ff4d4f">存在违禁字符：' + escHtml(hits.join('、')) + '</div>';
+      }
+      bubble.innerHTML = html;
+
+      if (!document.getElementById('__dxm_bee_title_bubble_style')) {
+        var bs = document.createElement('style');
+        bs.id = '__dxm_bee_title_bubble_style';
+        bs.textContent =
+          '#__dxm_bee_title_bubble{position:absolute;z-index:2147483640;background:#fff;border-radius:10px;padding:10px 14px;box-shadow:0 4px 16px rgba(0,0,0,.15);border:1px solid #f0f0f0;font:12px/1.6 "Microsoft YaHei",Arial,sans-serif;white-space:normal;word-break:break-all;pointer-events:none}';
+        document.head.appendChild(bs);
+      }
+
+      var formItem = inputEl && inputEl.closest('.ant-form-item');
+      if (formItem) {
+        formItem.style.position = 'relative';
+        bubble.style.bottom = '100%';
+        bubble.style.left = '0';
+        bubble.style.maxWidth = Math.round(window.innerWidth * 0.6) + 'px';
+        bubble.style.marginBottom = '8px';
+        formItem.appendChild(bubble);
+      }
+    }
+
+    function escHtml(str) {
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
     // Step 5: 悬浮「一键翻译」，点击「中文→英文」
     function doStep5() {
+      if (!Config.loadAutoTranslate()) {
+        log(5, '⏭️ 自动翻译已关闭，跳过');
+        updateProgress(5, '自动翻译已关闭，跳过', 'ok');
+        doStep6();
+        return;
+      }
       log(5, '正在触发一键翻译...');
       updateProgress(5, '正在触发一键翻译...', 'loading');
       var translateBtn = document.querySelector('#app .product-add-layout .header .btn-box button.translation-btn');
