@@ -8,6 +8,7 @@
   var WEB_IMAGE_KEY = '__dxm_bee_use_web_image';
   var FILTER_ENABLED_KEY = '__dxm_bee_filter_enabled';
   var AUTO_CATEGORY_KEY = '__dxm_bee_auto_category';
+  var PROVINCE_KEY = '__dxm_bee_province';
 
   function getDefaultFilters() {
     return [
@@ -94,6 +95,22 @@
     localStorage.setItem(AUTO_CATEGORY_KEY, val ? 'true' : 'false');
   }
 
+  function isValidProvince(val) {
+    if (!val) return false;
+    return /省$|市$|自治区$|特别行政区$/.test(val);
+  }
+
+  function loadProvince() {
+    var val = localStorage.getItem(PROVINCE_KEY);
+    return isValidProvince(val) ? val : '广东省';
+  }
+
+  function saveProvince(val) {
+    val = (val || '').trim();
+    if (!isValidProvince(val)) val = '广东省';
+    localStorage.setItem(PROVINCE_KEY, val);
+  }
+
 
   function setInputValue(input, val) {
     var proto = input.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
@@ -137,6 +154,8 @@
     saveFilterEnabled: saveFilterEnabled,
     loadAutoCategory: loadAutoCategory,
     saveAutoCategory: saveAutoCategory,
+    loadProvince: loadProvince,
+    saveProvince: saveProvince,
     setInputValue: setInputValue,
     findVisibleModal: findVisibleModal
   };

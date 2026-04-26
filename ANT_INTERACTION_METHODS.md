@@ -327,7 +327,7 @@ function waitForProvinceSelect(cb) {
 |--------|------|---------|
 | `#packageInfo .ant-form-item-label label` | 包裹信息表单标签 | 蜜蜂 Step 8/10: 查找"外包装形状/类型" |
 | label → `.closest('.ant-form-item')` → `.ant-select-selector` | 对应的 Select 组件 | 蜜蜂 Step 8/10: 打开下拉 |
-| `.ant-select-item-option[title="福建省"]` | 省份下拉"福建省"选项 | 蜜蜂 Step 7 |
+| `.ant-select-item-option[title="省份名"]` | 省份下拉选项（动态读取配置） | 蜜蜂 Step 7 |
 | `.ant-select-item-option[title="不规则"]` | 外包装形状"不规则"选项 | 蜜蜂 Step 9 |
 | `.ant-select-item-option[title="软包装+硬物"]` | 外包装类型"软包装+硬物"选项 | 蜜蜂 Step 11 |
 | `#packageInfo .header button` (文字含"选择图片") | 包裹信息"选择图片"按钮 | 蜜蜂 Step 13: 悬浮触发下拉; 粘字 Step 6: 打开外包装选择图片 |
@@ -425,6 +425,7 @@ Dropdown 菜单项统一通过 `waitForVisibleLi(文字片段)` 查找：
 | `__dxm_bee_selected_store` | 字符串 | `''` | 当前选中的店铺名称 |
 | `__dxm_bee_use_web_image` | `'true'`/`'false'` | `'false'` | 编字流程是否使用网络图片 |
 | `__dxm_bee_auto_category` | `'true'`/`'false'` | `'false'` | 是否自动点击分类（控制 Step 2/3） |
+| `__dxm_bee_province` | 字符串 | `'广东省'` | 省份选择（校验必须以省/市/自治区/特别行政区结尾） |
 
 ### 5.2 BeeConfig API
 
@@ -437,6 +438,7 @@ Dropdown 菜单项统一通过 `waitForVisibleLi(文字片段)` 查找：
 | `loadSelectedStore()` / `saveSelectedStore(val)` | 当前店铺 |
 | `loadUseWebImage()` / `saveUseWebImage(val)` | 网络图片开关 |
 | `loadAutoCategory()` / `saveAutoCategory(val)` | 自动分类开关 |
+| `loadProvince()` / `saveProvince(val)` | 省份选择（带校验，不合法回退默认值） |
 | `setInputValue(input, val)` | 设置 Vue 受控 Input/Textarea 值 |
 | `findVisibleModal(titleText)` | 双重判断定位弹窗（返回 `.ant-modal-wrap`） |
 | `hoverElement(el)` / `unhoverElement(el)` | 悬浮触发/取消 Dropdown |
@@ -449,6 +451,7 @@ Dropdown 菜单项统一通过 `waitForVisibleLi(文字片段)` 查找：
 - 📝 文字过滤配置 — 点击文字打开配置面板，点击 switch 切换开关
 - 🏪 选择店铺 — 打开店铺管理弹窗（添加/删除/选择）
 - 📂 自动点击分类 — switch 开关，默认关闭
+- 📍 省份选择 — 输入框，防抖 500ms 自动保存，为空或格式不合法自动回退默认值 `广东省`
 - 🌐 网络图片 — switch 开关，控制编字流程图片来源
 - 🚀 自动发布 — switch 开关，控制蜜蜂 Step 17/18
 
@@ -494,7 +497,7 @@ Dropdown 菜单项统一通过 `waitForVisibleLi(文字片段)` 查找：
 | 4 | 过滤标题违规词 | `#productProductInfo form .ant-form-item input` | 使用 `setInputValue` |
 | 5 | 一键翻译 | `button.translation-btn` → `li.menu-item` | 悬浮触发下拉 |
 | 6 | 打开省份下拉 | `waitForProvinceSelect` | 通过"产地"标签定位 `.productOrigin` 第2个 Select |
-| 7 | 选择福建省 | `.ant-select-item-option[title="福建省"]` | |
+| 7 | 选择配置省份 | `.ant-select-item-option[title="省份名"]` | 读取 `Config.loadProvince()`，未找到则报错 |
 | 8 | 打开外包装形状 | `waitForAntSelect('外包装形状')` | 通过 label 文字定位 Select |
 | 9 | 选择不规则 | `.ant-select-item-option[title="不规则"]` | |
 | 10 | 打开外包装类型 | `waitForAntSelect('外包装类型')` | |

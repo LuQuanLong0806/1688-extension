@@ -21,6 +21,8 @@
     // --- Menu value & arrow ---
     '#__dxm_bee_menu .menu-value{font-size:12px;color:#999;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
     '#__dxm_bee_menu .menu-arrow{font-size:14px;color:#999;margin-left:4px}' +
+    '#__dxm_bee_menu .menu-input{width:80px;padding:3px 8px;border:1px solid #e0e0e0;border-radius:5px;font-size:12px;outline:none;text-align:right;transition:border-color .2s}' +
+    '#__dxm_bee_menu .menu-input:focus{border-color:#FFA000;box-shadow:0 0 0 2px rgba(255,160,0,.12)}' +
     // --- Store popup ---
     '#__dxm_bee_store_overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:2147483647;align-items:center;justify-content:center}' +
     '#__dxm_bee_store_overlay.show{display:flex}' +
@@ -80,10 +82,12 @@
   var useWebImage = Config.loadUseWebImage();
   var filterEnabled = Config.loadFilterEnabled();
   var autoCategory = Config.loadAutoCategory();
+  var province = Config.loadProvince();
   menu.innerHTML =
     '<div class="menu-item" id="__dxm_bee_menu_filter"><span class="menu-label" id="__dxm_bee_menu_filter_text">📝 文字过滤配置</span><div class="switch ' + (filterEnabled ? 'on' : '') + '" id="__dxm_bee_menu_filter_switch"></div></div>' +
     '<div class="menu-item" id="__dxm_bee_menu_store"><span class="menu-label">🏪 选择店铺</span><span class="menu-value" id="__dxm_bee_menu_store_name">' + (currentStore || '未选择') + '</span><span class="menu-arrow">▸</span></div>' +
     '<div class="menu-item"><span class="menu-label">📂 自动点击分类</span><div class="switch ' + (autoCategory ? 'on' : '') + '" id="__dxm_bee_menu_category_switch"></div></div>' +
+    '<div class="menu-item"><span class="menu-label">📍 省份选择</span><input type="text" class="menu-input" id="__dxm_bee_menu_province_input" value="' + province + '" maxlength="10" placeholder="广东省"></div>' +
     '<div class="menu-item"><span class="menu-label">🌐 网络图片</span><div class="switch ' + (useWebImage ? 'on' : '') + '" id="__dxm_bee_menu_webimg_switch"></div></div>' +
     '<div class="menu-item"><span class="menu-label">🚀 自动发布</span><div class="switch ' + (autoPublishOn ? 'on' : '') + '" id="__dxm_bee_menu_publish_switch"></div></div>';
   document.body.appendChild(menu);
@@ -151,6 +155,26 @@
     this.classList.toggle('on', on);
     Config.saveUseWebImage(on);
     console.log('%c[小蜜蜂] 网络图片: ' + (on ? '开启' : '关闭'), 'color:#FFA000;font-weight:bold');
+  });
+
+  var provinceInput = document.getElementById('__dxm_bee_menu_province_input');
+  var provinceTimer = null;
+  provinceInput.addEventListener('input', function () {
+    var self = this;
+    clearTimeout(provinceTimer);
+    provinceTimer = setTimeout(function () {
+      var val = self.value.trim();
+      if (!val) { val = '广东省'; self.value = val; }
+      Config.saveProvince(val);
+      console.log('%c[小蜜蜂] 省份已保存: ' + val, 'color:#FFA000;font-weight:bold');
+    }, 500);
+  });
+  provinceInput.addEventListener('blur', function () {
+    var val = this.value.trim();
+    if (!val) { val = '广东省'; this.value = val; Config.saveProvince(val); }
+  });
+  provinceInput.addEventListener('click', function (e) {
+    e.stopPropagation();
   });
 
   // ========== Store Popup ==========

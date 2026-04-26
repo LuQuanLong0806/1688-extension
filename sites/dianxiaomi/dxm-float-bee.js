@@ -582,11 +582,12 @@
       });
     }
 
-    // Step 7: 选择福建省
+    // Step 7: 选择配置的省份
     function doStep7() {
-      step(7, '正在选择福建省...', '已选择福建省', function () {
-        var o = document.querySelector('.ant-select-item-option[title="福建省"]');
-        log(7, '福建省选项', o);
+      var province = Config.loadProvince();
+      step(7, '正在选择' + province + '...', '已选择' + province, function () {
+        var o = document.querySelector('.ant-select-item-option[title="' + province + '"]');
+        log(7, province + '选项', o);
         if (!o) return false;
         o.click();
         return true;
