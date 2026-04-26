@@ -39,7 +39,7 @@
 
   // ========== Constants ==========
   var isWorkPage = location.pathname === '/web/temu/add' || location.pathname === '/web/temu/edit' || location.pathname === '/web/temu/quoteEdit';
-  var totalSteps = 18;
+  var totalSteps = 19;
 
   // ========== Create DOM ==========
   var wrapper = document.createElement('div');
@@ -691,21 +691,73 @@
         if (!o) return false;
         o.click();
         return true;
-      }, doStep8);
+      }, doStepDelVideo);
     }
 
-    // Step 8: 外包装形状
+    // Step 8: 删除产品视频
+    function doStepDelVideo() {
+      log(8, '正在检查产品视频...');
+      updateProgress(8, '正在检查产品视频...', 'loading');
+
+      var labels = document.querySelectorAll('#productProductInfo .ant-form-item-label label');
+      var videoLabel = null;
+      for (var vi = 0; vi < labels.length; vi++) {
+        if ((labels[vi].textContent || '').indexOf('产品视频') !== -1) {
+          videoLabel = labels[vi];
+          break;
+        }
+      }
+
+      if (!videoLabel) {
+        log(8, '⚠️ 未找到产品视频区域，跳过');
+        updateProgress(8, '无产品视频，跳过', 'ok');
+        setTimeout(doStep8, 150);
+        return;
+      }
+
+      var videoFormItem = videoLabel.closest('.ant-form-item');
+      deleteNextVideo(videoFormItem, 0);
+    }
+
+    function deleteNextVideo(formItem, count) {
+      var delLinks = formItem.querySelectorAll('.video-operate-box a.link');
+      var delBtn = null;
+      for (var d = 0; d < delLinks.length; d++) {
+        if ((delLinks[d].textContent || '').indexOf('删除') !== -1) {
+          delBtn = delLinks[d];
+          break;
+        }
+      }
+      if (!delBtn) {
+        if (count > 0) {
+          log(8, '✅ 已删除 ' + count + ' 个产品视频');
+          updateProgress(8, '已删除 ' + count + ' 个产品视频', 'ok');
+        } else {
+          log(8, '✅ 无产品视频，跳过');
+          updateProgress(8, '无产品视频，跳过', 'ok');
+        }
+        setTimeout(doStep8, 150);
+        return;
+      }
+      count++;
+      log(8, '正在删除产品视频 ' + count + '...');
+      updateProgress(8, '正在删除产品视频 ' + count + '...', 'loading');
+      delBtn.click();
+      setTimeout(function () { deleteNextVideo(formItem, count); }, 100);
+    }
+
+    // Step 9: 外包装形状
     function doStep8() {
-      log(8, '正在打开外包装形状...');
-      updateProgress(8, '正在打开外包装形状...', 'loading');
+      log(9, '正在打开外包装形状...');
+      updateProgress(9, '正在打开外包装形状...', 'loading');
       waitForAntSelect('外包装形状', function (sel) {
-        log(8, '外包装形状下拉框', sel);
-        if (!sel) { updateProgress(8, '未找到外包装形状', 'err'); finishWork(); return; }
+        log(9, '外包装形状下拉框', sel);
+        if (!sel) { updateProgress(9, '未找到外包装形状', 'err'); finishWork(); return; }
         sel.scrollIntoView({ block: 'center' });
         setTimeout(function () {
           forceOpenAntSelect(sel);
-          log(8, '✅ 已打开外包装形状');
-          updateProgress(8, '已打开外包装形状', 'ok');
+          log(9, '✅ 已打开外包装形状');
+          updateProgress(9, '已打开外包装形状', 'ok');
           setTimeout(doStep9, 150);
         }, 300);
       });
@@ -713,9 +765,9 @@
 
     // Step 9: 选择不规则
     function doStep9() {
-      step(9, '正在选择不规则...', '已选择不规则', function () {
+      step(10, '正在选择不规则...', '已选择不规则', function () {
         var o = document.querySelector('.ant-select-item-option[title="不规则"]');
-        log(9, '不规则选项', o);
+        log(10, '不规则选项', o);
         if (!o) return false;
         o.click();
         return true;
@@ -724,16 +776,16 @@
 
     // Step 10: 外包装类型
     function doStep10() {
-      log(10, '正在打开外包装类型...');
-      updateProgress(10, '正在打开外包装类型...', 'loading');
+      log(11, '正在打开外包装类型...');
+      updateProgress(11, '正在打开外包装类型...', 'loading');
       waitForAntSelect('外包装类型', function (sel) {
-        log(10, '外包装类型下拉框', sel);
-        if (!sel) { updateProgress(10, '未找到外包装类型', 'err'); finishWork(); return; }
+        log(11, '外包装类型下拉框', sel);
+        if (!sel) { updateProgress(11, '未找到外包装类型', 'err'); finishWork(); return; }
         sel.scrollIntoView({ block: 'center' });
         setTimeout(function () {
           forceOpenAntSelect(sel);
-          log(10, '✅ 已打开外包装类型');
-          updateProgress(10, '已打开外包装类型', 'ok');
+          log(11, '✅ 已打开外包装类型');
+          updateProgress(11, '已打开外包装类型', 'ok');
           setTimeout(doStep11, 150);
         }, 300);
       });
@@ -741,9 +793,9 @@
 
     // Step 11: 选择软包装+硬物
     function doStep11() {
-      step(11, '正在选择软包装+硬物...', '已选择软包装+硬物', function () {
+      step(12, '正在选择软包装+硬物...', '已选择软包装+硬物', function () {
         var o = document.querySelector('.ant-select-item-option[title="软包装+硬物"]');
-        log(11, '软包装+硬物选项', o);
+        log(12, '软包装+硬物选项', o);
         if (!o) return false;
         o.click();
         return true;
@@ -752,30 +804,30 @@
 
     // Step 12: 获取产品轮播图首图 + 打开外包装选择图片
     function doStep12() {
-      log(12, '正在获取产品首图...');
-      updateProgress(12, '正在获取产品首图...', 'loading');
+      log(13, '正在获取产品首图...');
+      updateProgress(13, '正在获取产品首图...', 'loading');
 
       var firstImg = document.querySelector('#productProductInfo .mainImage .img-list .img-item img.img-css'); // 产品轮播图列表中的第一张图片
       if (!firstImg || !firstImg.src) {
-        log(12, '⚠️ 未找到产品轮播图图片，跳过外包装');
-        updateProgress(12, '无产品图片，跳过外包装', 'ok');
+        log(13, '⚠️ 未找到产品轮播图图片，跳过外包装');
+        updateProgress(13, '无产品图片，跳过外包装', 'ok');
         doStep16();
         return;
       }
 
       var imgUrl = firstImg.src;
-      log(12, '✅ 产品首图: ' + imgUrl.substring(0, 60));
-      updateProgress(12, '已获取产品首图', 'ok');
+      log(13, '✅ 产品首图: ' + imgUrl.substring(0, 60));
+      updateProgress(13, '已获取产品首图', 'ok');
 
       // Step 13: 打开外包装选择图片下拉
       setTimeout(function () {
-        log(13, '正在打开外包装选择图片...');
-        updateProgress(13, '正在打开外包装选择图片...', 'loading');
+        log(14, '正在打开外包装选择图片...');
+        updateProgress(14, '正在打开外包装选择图片...', 'loading');
 
         var pkgBtn = document.querySelector('#packageInfo .header button'); // #packageInfo .header button: 包裹信息区域顶部的”选择图片”按钮
         if (!pkgBtn || (pkgBtn.textContent || '').indexOf('选择图片') === -1) {
-          log(13, '❌ 未找到外包装选择图片按钮');
-          updateProgress(13, '未找到选择图片按钮', 'err');
+          log(14, '❌ 未找到外包装选择图片按钮');
+          updateProgress(14, '未找到选择图片按钮', 'err');
           finishWork();
           return;
         }
@@ -783,17 +835,17 @@
 
         waitForVisibleLi('网络图片', 3000, function (webImgItem) { // 外包装选择图片下拉菜单中的”网络图片”菜单项
           if (!webImgItem) {
-            log(13, '❌ 未找到网络图片选项');
-            updateProgress(13, '未找到网络图片选项', 'err');
+            log(14, '❌ 未找到网络图片选项');
+            updateProgress(14, '未找到网络图片选项', 'err');
             finishWork();
             return;
           }
-          log(13, '✅ 已打开选择图片菜单');
-          updateProgress(13, '已打开选择图片菜单', 'ok');
+          log(14, '✅ 已打开选择图片菜单');
+          updateProgress(14, '已打开选择图片菜单', 'ok');
 
           // Step 14: 点击网络图片，填入URL
-          log(14, '正在更新外包装图片...');
-          updateProgress(14, '正在更新外包装图片...', 'loading');
+          log(15, '正在更新外包装图片...');
+          updateProgress(15, '正在更新外包装图片...', 'loading');
           webImgItem.click();
 
           var start = Date.now();
@@ -804,8 +856,8 @@
               return;
             }
             if (Date.now() - start > 5000) {
-              log(14, '❌ 未找到网络图片弹窗');
-              updateProgress(14, '未找到网络图片弹窗', 'err');
+              log(15, '❌ 未找到网络图片弹窗');
+              updateProgress(15, '未找到网络图片弹窗', 'err');
               finishWork();
               return;
             }
@@ -819,8 +871,8 @@
     function fillPackageImage(modal, imgUrl) {
       var textarea = modal.querySelector('textarea.ant-input'); // 网络图片弹窗中的图片 URL 输入框
       if (!textarea) {
-        log(14, '❌ 未找到输入框');
-        updateProgress(14, '未找到输入框', 'err');
+        log(15, '❌ 未找到输入框');
+        updateProgress(15, '未找到输入框', 'err');
         finishWork();
         return;
       }
@@ -828,32 +880,32 @@
 
       setTimeout(function () {
         // Step 15: 点击添加
-        log(15, '正在确认外包装图片...');
-        updateProgress(15, '正在确认外包装图片...', 'loading');
+        log(16, '正在确认外包装图片...');
+        updateProgress(16, '正在确认外包装图片...', 'loading');
 
         var addBtn = modal.querySelector('.ant-modal-footer .ant-btn-primary'); // 网络图片弹窗底部的”添加”按钮
         if (!addBtn) {
-          log(15, '❌ 未找到添加按钮');
-          updateProgress(15, '未找到添加按钮', 'err');
+          log(16, '❌ 未找到添加按钮');
+          updateProgress(16, '未找到添加按钮', 'err');
           finishWork();
           return;
         }
         addBtn.click();
-        log(15, '✅ 外包装图片已更新');
-        updateProgress(15, '外包装图片已更新', 'ok');
+        log(16, '✅ 外包装图片已更新');
+        updateProgress(16, '外包装图片已更新', 'ok');
         setTimeout(doStep16, 150);
       }, 180);
     }
 
     // Step 16: 检查标题长度
     function doStep16() {
-      log(16, '正在检查标题长度...');
-      updateProgress(16, '正在检查标题长度...', 'loading');
+      log(17, '正在检查标题长度...');
+      updateProgress(17, '正在检查标题长度...', 'loading');
       var input = document.querySelector('#productProductInfo form .ant-form-item input');
-      log(16, '标题输入框', input);
+      log(17, '标题输入框', input);
       if (!input || !input.value) {
-        log(16, '⚠️ 未找到标题输入框或值为空，跳过截取');
-        updateProgress(16, '标题无需截取', 'ok');
+        log(17, '⚠️ 未找到标题输入框或值为空，跳过截取');
+        updateProgress(17, '标题无需截取', 'ok');
         doStep17();
         return;
       }
@@ -867,42 +919,42 @@
       }
 
       var title = input.value;
-      log(16, '标题长度: ' + title.length + ', 限制: ' + limit + ', 标题内容: "' + title.substring(0, 60) + (title.length > 60 ? '...' : '"'));
+      log(17, '标题长度: ' + title.length + ', 限制: ' + limit + ', 标题内容: "' + title.substring(0, 60) + (title.length > 60 ? '...' : '"'));
 
       if (title.length <= limit) {
-        log(16, '✅ 标题长度 ' + title.length + ' ≤ ' + limit + '，无需截取');
-        updateProgress(16, '标题长度 ' + title.length + '，无需截取', 'ok');
+        log(17, '✅ 标题长度 ' + title.length + ' ≤ ' + limit + '，无需截取');
+        updateProgress(17, '标题长度 ' + title.length + '，无需截取', 'ok');
         doStep17();
         return;
       }
 
-      log(16, '标题超限 ' + title.length + ' > ' + limit + '，开始截取...');
-      updateProgress(16, '标题超过' + limit + '，正在截取...', 'loading');
+      log(17, '标题超限 ' + title.length + ' > ' + limit + '，开始截取...');
+      updateProgress(17, '标题超过' + limit + '，正在截取...', 'loading');
       var t = title.substring(0, limit);
       var bps = ['。','，',',','.','!','!','?','?','；',';','、',' ','-','–','—','(',')','[',']','/','\\','&','+'];
       var last = -1;
       for (var i = 0; i < bps.length; i++) { var idx = t.lastIndexOf(bps[i]); if (idx > last) last = idx; }
       if (last > 0) t = t.substring(0, last + 1);
 
-      log(16, '截取后长度: ' + t.length + ', 内容: "' + t.substring(0, 60) + (t.length > 60 ? '...' : '"'));
+      log(17, '截取后长度: ' + t.length + ', 内容: "' + t.substring(0, 60) + (t.length > 60 ? '...' : '"'));
       Config.setInputValue(input, t);
-      log(16, '✅ 标题已截取至 ' + t.length + ' 字符');
-      updateProgress(16, '标题已截取至 ' + t.length + ' 字符', 'ok');
+      log(17, '✅ 标题已截取至 ' + t.length + ' 字符');
+      updateProgress(17, '标题已截取至 ' + t.length + ' 字符', 'ok');
       doStep17();
     }
 
     // Step 17: 悬浮发布按钮（根据自动发布配置决定是否执行）
     function doStep17() {
       if (!Config.loadAutoPublish()) {
-        log(17, '⏭️ 自动发布已关闭，跳过发布步骤');
-        updateProgress(17, '自动发布已关闭，跳过', 'ok');
+        log(18, '⏭️ 自动发布已关闭，跳过发布步骤');
+        updateProgress(18, '自动发布已关闭，跳过', 'ok');
         window.scrollTo({ top: 0, behavior: 'smooth' });
         finishWork();
         return;
       }
       step(17, '正在触发发布菜单...', '已悬浮发布按钮', function () {
         var btn = document.querySelector('.footer .btn-box button.btn-green'); // 页面底部操作栏的绿色“发布”按钮(悬浮展开发布下拉)
-        log(17, '发布按钮', btn);
+        log(18, '发布按钮', btn);
         if (!btn || !btn.textContent.includes('发布')) return false;
         hoverElement(btn);
         return true;
@@ -911,9 +963,9 @@
 
     // Step 18: 立即发布
     function doStep18() {
-      step(18, '正在点击立即发布...', '全部操作完成！', function () {
+      step(19, '正在点击立即发布...', '全部操作完成！', function () {
         var o = document.querySelector('.ant-dropdown-menu-item[data-menu-id="2"]'); // 发布下拉菜单中的“立即发布”选项
-        log(18, '立即发布菜单项', o);
+        log(19, '立即发布菜单项', o);
         if (!o || !o.textContent.includes('立即发布')) return false;
         o.click();
         return true;
