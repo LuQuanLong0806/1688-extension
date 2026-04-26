@@ -549,7 +549,7 @@
         var bs = document.createElement('style');
         bs.id = '__dxm_bee_title_bubble_style';
         bs.textContent =
-          '#__dxm_bee_title_bubble{position:absolute;z-index:2147483640;background:#fff;border-radius:10px;padding:10px 14px;box-shadow:0 4px 16px rgba(0,0,0,.15);border:1px solid #f0f0f0;font:12px/1.6 "Microsoft YaHei",Arial,sans-serif;white-space:normal;word-break:break-all;pointer-events:none}';
+          '#__dxm_bee_title_bubble{position:absolute;z-index:2147483640;left:50%;transform:translateX(-50%);background:#fff;border-radius:10px;padding:10px 14px;box-shadow:0 4px 16px rgba(100,149,237,.2),0 2px 6px rgba(100,149,237,.1);border:1px solid #d6e4ff;font:12px/1.6 "Microsoft YaHei",Arial,sans-serif;white-space:normal;word-break:break-all;pointer-events:none}';
         document.head.appendChild(bs);
       }
 
@@ -557,7 +557,6 @@
       if (formItem) {
         formItem.style.position = 'relative';
         bubble.style.bottom = '100%';
-        bubble.style.left = '0';
         bubble.style.maxWidth = Math.round(window.innerWidth * 0.6) + 'px';
         bubble.style.marginBottom = '8px';
         formItem.appendChild(bubble);
