@@ -109,7 +109,7 @@
       if ((titles[t].textContent || '').indexOf(titleText) !== -1) {
         var wrap = titles[t];
         while (wrap && !wrap.classList.contains('ant-modal-wrap')) { wrap = wrap.parentElement; }
-        if (wrap && wrap.style.display !== 'none') {
+        if (wrap && getComputedStyle(wrap).display !== 'none') {
           return wrap;
         }
       }
