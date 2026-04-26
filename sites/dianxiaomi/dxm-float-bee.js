@@ -7,10 +7,12 @@
   // ========== SVG ==========
   var beeSVG =
     '<svg viewBox="0 0 80 96" fill="none" xmlns="http://www.w3.org/2000/svg">' +
-    '<ellipse cx="22" cy="42" rx="16" ry="22" fill="#B3E5FC" opacity="0.7" stroke="#81D4FA" stroke-width="1.5"/>' +
-    '<ellipse cx="58" cy="42" rx="16" ry="22" fill="#B3E5FC" opacity="0.7" stroke="#81D4FA" stroke-width="1.5"/>' +
-    '<ellipse cx="22" cy="38" rx="8" ry="10" fill="#E1F5FE" opacity="0.5"/>' +
-    '<ellipse cx="58" cy="38" rx="8" ry="10" fill="#E1F5FE" opacity="0.5"/>' +
+    '<ellipse cx="22" cy="34" rx="15" ry="18" fill="#B3E5FC" opacity="0.7" stroke="#81D4FA" stroke-width="1.5"/>' +
+    '<ellipse cx="58" cy="34" rx="15" ry="18" fill="#B3E5FC" opacity="0.7" stroke="#81D4FA" stroke-width="1.5"/>' +
+    '<ellipse cx="22" cy="50" rx="12" ry="14" fill="#B3E5FC" opacity="0.7" stroke="#81D4FA" stroke-width="1.5"/>' +
+    '<ellipse cx="58" cy="50" rx="12" ry="14" fill="#B3E5FC" opacity="0.7" stroke="#81D4FA" stroke-width="1.5"/>' +
+    '<ellipse cx="22" cy="30" rx="7" ry="9" fill="#E1F5FE" opacity="0.5"/>' +
+    '<ellipse cx="58" cy="30" rx="7" ry="9" fill="#E1F5FE" opacity="0.5"/>' +
     '<ellipse cx="40" cy="60" rx="24" ry="28" fill="#FFCA28"/>' +
     '<path d="M18 52 Q40 48 62 52" stroke="#5D4037" stroke-width="4" fill="none" stroke-linecap="round"/>' +
     '<path d="M16 62 Q40 58 64 62" stroke="#5D4037" stroke-width="4" fill="none" stroke-linecap="round"/>' +
@@ -248,6 +250,26 @@
     })();
   }
 
+  // ========== Dropdown menu item helpers ==========
+  function findVisibleLi(textFragment) {
+    var allLi = document.querySelectorAll('li');
+    for (var i = 0; i < allLi.length; i++) {
+      if (allLi[i].offsetParent === null) continue;
+      if ((allLi[i].textContent || '').indexOf(textFragment) !== -1) return allLi[i];
+    }
+    return null;
+  }
+
+  function waitForVisibleLi(textFragment, timeout, cb) {
+    var start = Date.now();
+    (function check() {
+      var el = findVisibleLi(textFragment);
+      if (el) return cb(el);
+      if (Date.now() - start > timeout) return cb(null);
+      requestAnimationFrame(check);
+    })();
+  }
+
   // ========== Step Chain ==========
   function step(stepNum, loadingText, okText, action, nextFn) {
     log(stepNum, loadingText);
@@ -261,7 +283,7 @@
     }
     log(stepNum, '✅ ' + okText);
     updateProgress(stepNum, okText, 'ok');
-    if (nextFn) setTimeout(nextFn, 200);
+    if (nextFn) setTimeout(nextFn, 150);
   }
 
   function finishWork() {
@@ -415,7 +437,7 @@
         log(1, '✅ 已选择店铺: ' + configStore + '（跳过分类步骤）');
         updateProgress(1, '已选择店铺: ' + configStore, 'ok');
         // 店铺变更后分类会清空，跳过 Step 2(分类按钮) 和 Step 3(确认弹窗)
-        setTimeout(doStep4, 200);
+        setTimeout(doStep4, 150);
       });
     }
 
@@ -456,7 +478,7 @@
       if (!input || !input.value) {
         log(4, '⚠️ 未找到标题输入框或值为空，跳过过滤');
         updateProgress(4, '标题为空，跳过过滤', 'ok');
-        setTimeout(doStep5, 200);
+        setTimeout(doStep5, 150);
         return;
       }
       var title = input.value;
@@ -521,7 +543,7 @@
               unhoverElement(translateBtn);
               log(5, '✅ 已点击中文→英文');
               updateProgress(5, '已点击中文→英文', 'ok');
-              setTimeout(doStep6, 300);
+              setTimeout(doStep6, 200);
               return;
             }
             if (Date.now() - start2 > 3000) {
@@ -551,7 +573,7 @@
         forceOpenAntSelect(sel);
         log(6, '✅ 已打开省份下拉框');
         updateProgress(6, '已打开省份下拉框', 'ok');
-        setTimeout(doStep7, 300);
+        setTimeout(doStep7, 200);
       });
     }
 
@@ -578,7 +600,7 @@
           forceOpenAntSelect(sel);
           log(8, '✅ 已打开外包装形状');
           updateProgress(8, '已打开外包装形状', 'ok');
-          setTimeout(doStep9, 300);
+          setTimeout(doStep9, 150);
         }, 300);
       });
     }
@@ -606,7 +628,7 @@
           forceOpenAntSelect(sel);
           log(10, '✅ 已打开外包装类型');
           updateProgress(10, '已打开外包装类型', 'ok');
-          setTimeout(doStep11, 300);
+          setTimeout(doStep11, 150);
         }, 300);
       });
     }
@@ -622,70 +644,99 @@
       }, doStep12);
     }
 
-    // Step 12: 悬浮选择图片
+    // Step 12: 获取产品轮播图首图 + 打开外包装选择图片
     function doStep12() {
-      step(12, '正在触发选择图片...', '已悬浮选择图片', function () {
-        var btn = document.querySelector('#packageInfo .header button'); // #packageInfo .header: 包裹信息区域顶部; button: “选择图片”按钮
-        log(12, '选择图片按钮', btn);
-        if (!btn || !btn.textContent.includes('选择图片')) return false;
-        hoverElement(btn);
-        return true;
-      }, doStep13);
-    }
+      log(12, '正在获取产品首图...');
+      updateProgress(12, '正在获取产品首图...', 'loading');
 
-    // Step 13: 引用采集图片
-    function doStep13() {
-      step(13, '正在点击引用采集图片...', '已点击引用采集图片', function () {
-        var o = document.querySelector('.ant-dropdown-menu-item[data-menu-id="crawl"]'); // 发布按钮下拉菜单中的“引用采集图片”选项
-        log(13, '引用采集图片菜单项', o);
-        if (!o) return false;
-        o.click();
-        return true;
-      }, doStep14);
-    }
+      var firstImg = document.querySelector('#productProductInfo .mainImage .img-list .img-item img.img-css'); // 产品轮播图列表中的第一张图片
+      if (!firstImg || !firstImg.src) {
+        log(12, '⚠️ 未找到产品轮播图图片，跳过外包装');
+        updateProgress(12, '无产品图片，跳过外包装', 'ok');
+        doStep16();
+        return;
+      }
 
-    // Step 14: 勾选第一张图片
-    function doStep14() {
-      step(14, '正在选择采集图片...', '已勾选第一张图片', function () {
-        var modals = document.querySelectorAll('.ant-modal-wrap');
-        var targetModal = null;
-        for (var i = 0; i < modals.length; i++) {
-          var title = modals[i].querySelector('.ant-modal-title');
-          if (title && title.textContent.includes('引用采集图片')) {
-            targetModal = modals[i];
-            break;
-          }
+      var imgUrl = firstImg.src;
+      log(12, '✅ 产品首图: ' + imgUrl.substring(0, 60));
+      updateProgress(12, '已获取产品首图', 'ok');
+
+      // Step 13: 打开外包装选择图片下拉
+      setTimeout(function () {
+        log(13, '正在打开外包装选择图片...');
+        updateProgress(13, '正在打开外包装选择图片...', 'loading');
+
+        var pkgBtn = document.querySelector('#packageInfo .header button'); // #packageInfo .header button: 包裹信息区域顶部的”选择图片”按钮
+        if (!pkgBtn || (pkgBtn.textContent || '').indexOf('选择图片') === -1) {
+          log(13, '❌ 未找到外包装选择图片按钮');
+          updateProgress(13, '未找到选择图片按钮', 'err');
+          finishWork();
+          return;
         }
-        log(14, '引用采集图片弹窗', targetModal);
-        if (!targetModal) return false;
-        var o = targetModal.querySelector('.img-box .ant-checkbox-wrapper .ant-checkbox-input'); // 引用采集图片弹窗内的图片复选框
-        log(14, '图片复选框', o);
-        if (!o) return false;
-        o.click();
-        return true;
-      }, doStep15);
+        hoverElement(pkgBtn);
+
+        waitForVisibleLi('网络图片', 3000, function (webImgItem) { // 外包装选择图片下拉菜单中的”网络图片”菜单项
+          if (!webImgItem) {
+            log(13, '❌ 未找到网络图片选项');
+            updateProgress(13, '未找到网络图片选项', 'err');
+            finishWork();
+            return;
+          }
+          log(13, '✅ 已打开选择图片菜单');
+          updateProgress(13, '已打开选择图片菜单', 'ok');
+
+          // Step 14: 点击网络图片，填入URL
+          log(14, '正在更新外包装图片...');
+          updateProgress(14, '正在更新外包装图片...', 'loading');
+          webImgItem.click();
+
+          var start = Date.now();
+          (function checkModal() {
+            var modal = Config.findVisibleModal('从网络地址'); // 通过标题文字+可见性双重判断定位弹窗
+            if (modal) {
+              fillPackageImage(modal, imgUrl);
+              return;
+            }
+            if (Date.now() - start > 5000) {
+              log(14, '❌ 未找到网络图片弹窗');
+              updateProgress(14, '未找到网络图片弹窗', 'err');
+              finishWork();
+              return;
+            }
+            requestAnimationFrame(checkModal);
+          })();
+        });
+      }, 150);
     }
 
-    // Step 15: 确认选择
-    function doStep15() {
-      step(15, '正在确认选择...', '已确认选择图片', function () {
-        var modals = document.querySelectorAll('.ant-modal-wrap');
-        var targetModal = null;
-        for (var i = 0; i < modals.length; i++) {
-          var title = modals[i].querySelector('.ant-modal-title');
-          if (title && title.textContent.includes('引用采集图片')) {
-            targetModal = modals[i];
-            break;
-          }
+    // Step 14 helper: 填入URL
+    function fillPackageImage(modal, imgUrl) {
+      var textarea = modal.querySelector('textarea.ant-input'); // 网络图片弹窗中的图片 URL 输入框
+      if (!textarea) {
+        log(14, '❌ 未找到输入框');
+        updateProgress(14, '未找到输入框', 'err');
+        finishWork();
+        return;
+      }
+      Config.setInputValue(textarea, imgUrl);
+
+      setTimeout(function () {
+        // Step 15: 点击添加
+        log(15, '正在确认外包装图片...');
+        updateProgress(15, '正在确认外包装图片...', 'loading');
+
+        var addBtn = modal.querySelector('.ant-modal-footer .ant-btn-primary'); // 网络图片弹窗底部的”添加”按钮
+        if (!addBtn) {
+          log(15, '❌ 未找到添加按钮');
+          updateProgress(15, '未找到添加按钮', 'err');
+          finishWork();
+          return;
         }
-        log(15, '确认按钮所在弹窗', targetModal);
-        if (!targetModal) return false;
-        var o = targetModal.querySelector('.ant-modal-footer button.ant-btn-primary'); // 引用采集图片弹窗底部的“确认”主按钮
-        log(15, '确认按钮', o);
-        if (!o) return false;
-        o.click();
-        return true;
-      }, doStep16);
+        addBtn.click();
+        log(15, '✅ 外包装图片已更新');
+        updateProgress(15, '外包装图片已更新', 'ok');
+        setTimeout(doStep16, 150);
+      }, 180);
     }
 
     // Step 16: 检查标题长度
