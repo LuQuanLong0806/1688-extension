@@ -19,27 +19,6 @@
     });
   }
 
-  // ========== Helper: find visible li ==========
-  function findVisibleLi(textFragment) {
-    var allLi = document.querySelectorAll('li');
-    for (var i = 0; i < allLi.length; i++) {
-      if (allLi[i].offsetParent === null) continue;
-      if ((allLi[i].textContent || '').indexOf(textFragment) !== -1) return allLi[i];
-    }
-    return null;
-  }
-
-  // ========== Helper: poll for visible li ==========
-  function waitForVisibleLi(textFragment, timeout, cb) {
-    var start = Date.now();
-    (function check() {
-      var el = findVisibleLi(textFragment);
-      if (el) return cb(el);
-      if (Date.now() - start > timeout) return cb(null);
-      requestAnimationFrame(check);
-    })();
-  }
-
   // ========== Step log ==========
   var pasteStep = 0;
   var pasteTotal = 8;
@@ -99,7 +78,7 @@
 
       C.hoverElement(selectBtn);
 
-      waitForVisibleLi('网络图片', 3000, function (webImgItem) { // 选择图片下拉菜单中的"网络图片"菜单项
+      C.waitForVisibleLi('网络图片', 3000, function (webImgItem) { // 选择图片下拉菜单中的"网络图片"菜单项
         if (!webImgItem) {
           C.showBubble('❌ 未找到网络图片选项', 'err');
           setTimeout(C.hideBubble, 2000);
@@ -208,7 +187,7 @@
     }
     C.hoverElement(pkgBtn);
 
-    waitForVisibleLi('网络图片', 3000, function (webImgItem) { // 外包装选择图片下拉菜单中的"网络图片"菜单项
+    C.waitForVisibleLi('网络图片', 3000, function (webImgItem) { // 外包装选择图片下拉菜单中的"网络图片"菜单项
       if (!webImgItem) {
         C.showBubble('❌ 未找到网络图片选项', 'err');
         setTimeout(C.hideBubble, 2000);

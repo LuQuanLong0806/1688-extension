@@ -10,16 +10,6 @@
     doEditDesc();
   });
 
-  // ========== Helper: find visible li ==========
-  function findVisibleLi(textFragment) {
-    var allLi = document.querySelectorAll('li');
-    for (var i = 0; i < allLi.length; i++) {
-      if (allLi[i].offsetParent === null) continue;
-      if ((allLi[i].textContent || '').indexOf(textFragment) !== -1) return allLi[i];
-    }
-    return null;
-  }
-
   // ========== Helper: hover with coords ==========
   function hoverWithCoords(el) {
     var rect = el.getBoundingClientRect();
@@ -33,17 +23,6 @@
     el.dispatchEvent(new MouseEvent('mouseover', mOpts));
     el.dispatchEvent(new MouseEvent('mouseenter', { bubbles: false, clientX: cx, clientY: cy }));
     el.dispatchEvent(new MouseEvent('mousemove', mOpts));
-  }
-
-  // ========== Helper: poll for visible li ==========
-  function waitForVisibleLi(textFragment, timeout, cb) {
-    var start = Date.now();
-    (function check() {
-      var el = findVisibleLi(textFragment);
-      if (el) return cb(el);
-      if (Date.now() - start > timeout) return cb(null);
-      requestAnimationFrame(check);
-    })();
   }
 
   // ========== Step log ==========
@@ -74,7 +53,7 @@
     editLog('展开批量操作菜单');
     C.hoverElement(trigger);
 
-    waitForVisibleLi('清空描述', 3000, function (clearDescItem) { // 批量操作下拉中的“清空描述”菜单项(悬浮展开子菜单)
+    C.waitForVisibleLi('清空描述', 3000, function (clearDescItem) { // 批量操作下拉中的“清空描述”菜单项(悬浮展开子菜单)
       if (!clearDescItem) {
         C.showBubble('❌ 未找到清空描述', 'err');
         setTimeout(C.hideBubble, 2000);
@@ -84,7 +63,7 @@
       hoverWithCoords(clearDescItem);
 
       setTimeout(function () {
-        var item = findVisibleLi(moduleName);
+        var item = C.findVisibleLi(moduleName);
         if (!item) {
           C.showBubble('❌ 未找到' + moduleName, 'err');
           setTimeout(C.hideBubble, 2000);
@@ -169,7 +148,7 @@
     editLog('展开批量操作菜单');
     C.hoverElement(trigger);
 
-    waitForVisibleLi('批量传图', 3000, function (batchImgItem) { // 批量操作下拉中的“批量传图”菜单项
+    C.waitForVisibleLi('批量传图', 3000, function (batchImgItem) { // 批量操作下拉中的“批量传图”菜单项
       if (!batchImgItem) {
         C.showBubble('❌ 未找到批量传图', 'err');
         setTimeout(C.hideBubble, 2000);
@@ -258,7 +237,7 @@
 
   // ========== Product carousel upload (original logic) ==========
   function doProductCarouselUpload() {
-    waitForVisibleLi('引用产品轮播图', 5000, function (carouselItem) { // 选择图片下拉中的“引用产品轮播图”菜单项
+    C.waitForVisibleLi('引用产品轮播图', 5000, function (carouselItem) { // 选择图片下拉中的“引用产品轮播图”菜单项
       if (!carouselItem) {
         C.showBubble('❌ 未找到引用产品轮播图', 'err');
         setTimeout(C.hideBubble, 2000);
@@ -333,7 +312,7 @@
 
   // ========== Web image upload (network URLs) ==========
   function doWebImageUpload() {
-    waitForVisibleLi('网络上传', 5000, function (webUploadItem) { // 选择图片下拉中的“网络上传”菜单项
+    C.waitForVisibleLi('网络上传', 5000, function (webUploadItem) { // 选择图片下拉中的“网络上传”菜单项
       if (!webUploadItem) {
         C.showBubble('❌ 未找到网络上传', 'err');
         setTimeout(C.hideBubble, 2000);

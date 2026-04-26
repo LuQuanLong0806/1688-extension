@@ -198,6 +198,25 @@
     input.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
+  function findVisibleLi(textFragment) {
+    var allLi = document.querySelectorAll('li');
+    for (var i = 0; i < allLi.length; i++) {
+      if (allLi[i].offsetParent === null) continue;
+      if ((allLi[i].textContent || '').indexOf(textFragment) !== -1) return allLi[i];
+    }
+    return null;
+  }
+
+  function waitForVisibleLi(textFragment, timeout, cb) {
+    var start = Date.now();
+    (function check() {
+      var el = findVisibleLi(textFragment);
+      if (el) return cb(el);
+      if (Date.now() - start > timeout) return cb(null);
+      requestAnimationFrame(check);
+    })();
+  }
+
   function findVisibleModal(titleText) {
     var titles = document.querySelectorAll('.ant-modal-title');
     for (var t = 0; t < titles.length; t++) {
@@ -246,6 +265,8 @@
     loadDelVideo: loadDelVideo,
     saveDelVideo: saveDelVideo,
     setInputValue: setInputValue,
-    findVisibleModal: findVisibleModal
+    findVisibleModal: findVisibleModal,
+    findVisibleLi: findVisibleLi,
+    waitForVisibleLi: waitForVisibleLi
   };
 })();

@@ -258,26 +258,6 @@
     })();
   }
 
-  // ========== Dropdown menu item helpers ==========
-  function findVisibleLi(textFragment) {
-    var allLi = document.querySelectorAll('li');
-    for (var i = 0; i < allLi.length; i++) {
-      if (allLi[i].offsetParent === null) continue;
-      if ((allLi[i].textContent || '').indexOf(textFragment) !== -1) return allLi[i];
-    }
-    return null;
-  }
-
-  function waitForVisibleLi(textFragment, timeout, cb) {
-    var start = Date.now();
-    (function check() {
-      var el = findVisibleLi(textFragment);
-      if (el) return cb(el);
-      if (Date.now() - start > timeout) return cb(null);
-      requestAnimationFrame(check);
-    })();
-  }
-
   // ========== Step Chain ==========
   function step(stepNum, loadingText, okText, action, nextFn) {
     log(stepNum, loadingText);
@@ -320,41 +300,56 @@
       });
     }
 
+    function watchTitleChange(input) {
+      var before = input.value;
+      var timer = setInterval(function () {
+        if (input.value !== before) {
+          input.setAttribute('data-bee-translated-title', input.value);
+          clearInterval(timer);
+        }
+      }, 300);
+      setTimeout(function () { clearInterval(timer); }, 15000);
+    }
+
+    // 标题是否无实质变化（考虑自动截断）
+    function isTitleUnchanged(current, stored) {
+      if (!stored) return false;
+      if (current === stored) return true;
+      // 自动截断：current 更短且是 stored 的前缀
+      return stored.length > current.length && stored.indexOf(current) === 0;
+    }
+
     function doTranslateOnly() {
       console.log('%c[小蜜蜂] 一键翻译', 'color:#FFCA28;font-weight:bold;font-size:14px');
 
       // 先展示标题气泡
       var input = document.querySelector('#productProductInfo form .ant-form-item input');
       if (input && input.value) {
-        var title = input.value;
-        var filterEnabled = Config.loadFilterEnabled();
-        var filters = Config.loadFilters().filter(function (f) { return f.enabled && f.from; });
+        var currentTitle = input.value;
+        var snapshot = input.getAttribute('data-bee-title-snapshot');
+        var translated = input.getAttribute('data-bee-translated-title');
 
-        if (filterEnabled) {
-          var changed = false;
-          var filtered = title;
-          var hits = [];
-          for (var i = 0; i < filters.length; i++) {
-            if (filtered.indexOf(filters[i].from) === -1) continue;
-            filtered = filtered.split(filters[i].from).join(filters[i].to);
-            hits.push(filters[i].from);
-            changed = true;
+        if (!isTitleUnchanged(currentTitle, snapshot) && !isTitleUnchanged(currentTitle, translated)) {
+          // 标题有实质变化（或首次），过滤并更新气泡
+          var filterEnabled = Config.loadFilterEnabled();
+          var filters = Config.loadFilters().filter(function (f) { return f.enabled && f.from; });
+
+          if (filterEnabled) {
+            var filtered = currentTitle;
+            for (var i = 0; i < filters.length; i++) {
+              if (filtered.indexOf(filters[i].from) === -1) continue;
+              filtered = filtered.split(filters[i].from).join(filters[i].to);
+            }
+            if (filtered !== currentTitle) Config.setInputValue(input, filtered);
           }
-          if (changed) {
-            Config.setInputValue(input, filtered);
-          }
-          showTitleBubble(title, changed ? filtered : null, changed ? hits : [], input);
-        } else {
-          var forbidden = [];
-          for (var j = 0; j < filters.length; j++) {
-            if (title.indexOf(filters[j].from) !== -1) forbidden.push(filters[j].from);
-          }
-          showTitleBubble(title, null, forbidden, input);
+
+          showTitleBubble(currentTitle, null, null, input);
+          input.setAttribute('data-bee-title-snapshot', input.value);
         }
       }
 
       showBubble('⏳ 正在触发一键翻译...', 'loading');
-      var translateBtn = document.querySelector('#app .product-add-layout .header .btn-box button.translation-btn'); // 页面顶部操作栏的“一键翻译”按钮(悬浮展开翻译下拉)
+      var translateBtn = document.querySelector('#app .product-add-layout .header .btn-box button.translation-btn'); // 页面顶部操作栏的”一键翻译”按钮(悬浮展开翻译下拉)
       if (!translateBtn) {
         console.log('%c[小蜜蜂] ❌ 未找到翻译按钮', 'color:#ff4444;font-weight:bold');
         showBubble('❌ 未找到翻译按钮', 'err');
@@ -371,6 +366,10 @@
         return null;
       }
 
+      function onTranslateClicked() {
+        if (input) watchTitleChange(input);
+      }
+
       hoverElement(translateBtn);
 
       var start = Date.now();
@@ -379,6 +378,7 @@
         if (item) {
           item.click();
           unhoverElement(translateBtn);
+          onTranslateClicked();
           console.log('%c[小蜜蜂] ✅ 翻译完成', 'color:#52c41a;font-weight:bold');
           showBubble('✅ 翻译完成', 'ok');
           setTimeout(hideBubble, 2000);
@@ -392,6 +392,7 @@
             if (item2) {
               item2.click();
               unhoverElement(translateBtn);
+              onTranslateClicked();
               console.log('%c[小蜜蜂] ✅ 翻译完成', 'color:#52c41a;font-weight:bold');
               showBubble('✅ 翻译完成', 'ok');
               setTimeout(hideBubble, 2000);
@@ -546,12 +547,14 @@
           updateProgress(4, '标题无违规字样', 'ok');
         }
         showTitleBubble(title, changed ? filtered : null, changed ? hits : [], input);
+        input.setAttribute('data-bee-title-snapshot', input.value);
       } else {
         var forbidden = [];
         for (var j = 0; j < filters.length; j++) {
           if (title.indexOf(filters[j].from) !== -1) forbidden.push(filters[j].from);
         }
         showTitleBubble(title, null, forbidden, input);
+        input.setAttribute('data-bee-title-snapshot', input.value);
         if (forbidden.length) {
           log(4, '⚠️ 文字过滤已关闭，存在违禁字符: ' + forbidden.join(', '));
           updateProgress(4, '存在违禁字符（过滤已关闭）', 'ok');
@@ -635,6 +638,8 @@
           unhoverElement(translateBtn);
           log(5, '✅ 已点击中文→英文');
           updateProgress(5, '已点击中文→英文', 'ok');
+          var input5 = document.querySelector('#productProductInfo form .ant-form-item input');
+          if (input5) watchTitleChange(input5);
           setTimeout(doStep6, 300);
           return;
         }
@@ -648,6 +653,8 @@
               unhoverElement(translateBtn);
               log(5, '✅ 已点击中文→英文');
               updateProgress(5, '已点击中文→英文', 'ok');
+              var input5b = document.querySelector('#productProductInfo form .ant-form-item input');
+              if (input5b) watchTitleChange(input5b);
               setTimeout(doStep6, 200);
               return;
             }
@@ -865,7 +872,7 @@
         }
         hoverElement(pkgBtn);
 
-        waitForVisibleLi('网络图片', 3000, function (webImgItem) { // 外包装选择图片下拉菜单中的”网络图片”菜单项
+        Config.waitForVisibleLi('网络图片', 3000, function (webImgItem) { // 外包装选择图片下拉菜单中的”网络图片”菜单项
           if (!webImgItem) {
             log(14, '❌ 未找到网络图片选项');
             updateProgress(14, '未找到网络图片选项', 'err');
