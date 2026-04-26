@@ -7,12 +7,12 @@
   // ========== SVG ==========
   var beeSVG =
     '<svg viewBox="0 0 80 96" fill="none" xmlns="http://www.w3.org/2000/svg">' +
-    '<ellipse cx="22" cy="34" rx="15" ry="18" fill="#B3E5FC" opacity="0.7" stroke="#81D4FA" stroke-width="1.5"/>' +
-    '<ellipse cx="58" cy="34" rx="15" ry="18" fill="#B3E5FC" opacity="0.7" stroke="#81D4FA" stroke-width="1.5"/>' +
-    '<ellipse cx="22" cy="50" rx="12" ry="14" fill="#B3E5FC" opacity="0.7" stroke="#81D4FA" stroke-width="1.5"/>' +
-    '<ellipse cx="58" cy="50" rx="12" ry="14" fill="#B3E5FC" opacity="0.7" stroke="#81D4FA" stroke-width="1.5"/>' +
-    '<ellipse cx="22" cy="30" rx="7" ry="9" fill="#E1F5FE" opacity="0.5"/>' +
-    '<ellipse cx="58" cy="30" rx="7" ry="9" fill="#E1F5FE" opacity="0.5"/>' +
+    '<ellipse cx="22" cy="42" rx="17" ry="20" fill="#B3E5FC" opacity="0.7" stroke="#81D4FA" stroke-width="1.5"/>' +
+    '<ellipse cx="58" cy="42" rx="17" ry="20" fill="#B3E5FC" opacity="0.7" stroke="#81D4FA" stroke-width="1.5"/>' +
+    '<ellipse cx="22" cy="58" rx="14" ry="16" fill="#B3E5FC" opacity="0.7" stroke="#81D4FA" stroke-width="1.5"/>' +
+    '<ellipse cx="58" cy="58" rx="14" ry="16" fill="#B3E5FC" opacity="0.7" stroke="#81D4FA" stroke-width="1.5"/>' +
+    '<ellipse cx="22" cy="37" rx="8" ry="10" fill="#E1F5FE" opacity="0.5"/>' +
+    '<ellipse cx="58" cy="37" rx="8" ry="10" fill="#E1F5FE" opacity="0.5"/>' +
     '<ellipse cx="40" cy="60" rx="24" ry="28" fill="#FFCA28"/>' +
     '<path d="M18 52 Q40 48 62 52" stroke="#5D4037" stroke-width="4" fill="none" stroke-linecap="round"/>' +
     '<path d="M16 62 Q40 58 64 62" stroke="#5D4037" stroke-width="4" fill="none" stroke-linecap="round"/>' +
@@ -48,9 +48,9 @@
     '<div id="__dxm_bee_bubble"></div>' +
     '<div id="__dxm_bee_icon" title="' + (isWorkPage ? '点击开始工作 / 拖动移动' : '小蜜蜂工具') + '">' + beeSVG + '</div>' +
     '<div id="__dxm_bee_translate" title="一键翻译">译</div>' +
-    '<div id="__dxm_bee_edit" title="一键编辑描述">编</div>' +
     '<div id="__dxm_bee_paste" title="一键粘贴图片URL">粘</div>' +
     '<div id="__dxm_bee_sku" title="一键SKU过滤">SKU</div>' +
+    '<div id="__dxm_bee_edit" title="一键编辑描述">编</div>' +
     '<div id="__dxm_bee_delete" title="一键清空产品轮播图">删</div>';
 
   // ========== Styles ==========

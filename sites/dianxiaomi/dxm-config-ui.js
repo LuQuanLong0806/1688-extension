@@ -383,9 +383,12 @@
     var tr = document.createElement('tr');
     var toggleClass = f.enabled ? 'btn-toggle on' : 'btn-toggle off';
     var toggleText = f.enabled ? '启用' : '禁用';
+    var isSku = currentFilterType === 'sku';
+    var fromPlaceholder = isSku ? '如：(' : '如：黄金';
+    var toPlaceholder = isSku ? '默认空格' : '如：金色调';
     tr.innerHTML =
-      '<td><input type="text" maxlength="20" class="f-from" value="' + (f.from || '') + '"></td>' +
-      '<td><input type="text" maxlength="20" class="f-to" value="' + (f.to || '') + '"></td>' +
+      '<td><input type="text" maxlength="20" class="f-from" value="' + (f.from || '') + '" placeholder="' + fromPlaceholder + '"></td>' +
+      '<td><input type="text" maxlength="20" class="f-to" value="' + (f.to || '') + '" placeholder="' + toPlaceholder + '"></td>' +
       '<td><button class="' + toggleClass + '">' + toggleText + '</button> <button class="btn-del">删除</button></td>';
     return tr;
   }
@@ -424,7 +427,8 @@
   document.getElementById('__dxm_bee_settings_close').addEventListener('click', closeSettings);
 
   document.getElementById('__dxm_bee_settings_add').addEventListener('click', function () {
-    tbody.appendChild(renderFilterRow({ from: '', to: '', enabled: true }));
+    var defaultTo = currentFilterType === 'sku' ? ' ' : '';
+    tbody.appendChild(renderFilterRow({ from: '', to: defaultTo, enabled: true }));
     var body = document.getElementById('__dxm_bee_settings_body');
     body.scrollTop = body.scrollHeight;
   });
