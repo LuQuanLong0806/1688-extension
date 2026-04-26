@@ -33,7 +33,7 @@
 
   // ========== Step log ==========
   var pasteStep = 0;
-  var pasteTotal = 4;
+  var pasteTotal = 8;
   function pasteLog(msg) {
     pasteStep++;
     var tag = '[小蜜蜂-粘] ' + pasteStep + '/' + pasteTotal + ' ' + msg;
@@ -56,7 +56,7 @@
       }
       console.log('%c[小蜜蜂-粘] 剪贴板内容: ' + clipText.substring(0, 100), 'color:#AB47BC;font-weight:bold');
 
-      // Step 2: 打开选择图片下拉菜单
+      // Step 2: 打开产品轮播图-选择图片下拉菜单
       pasteLog('打开选择图片菜单');
 
       var labels = document.querySelectorAll('#productProductInfo .ant-form-item-label label'); // #productProductInfo: 产品信息区域; 通过 label 文字定位"产品轮播图"表单项
@@ -103,9 +103,12 @@
 
         var start = Date.now();
         (function checkModal() {
-          var modal = C.findVisibleModal('从网络地址'); // 通过标题文字+可见性双重判断定位"从网络地址(URL)选择图片"弹窗
+          var modal = C.findVisibleModal('从网络地址'); // 通过标题文字+可见性双重判断定位弹窗
           if (modal) {
-            onModalReady(modal, clipText);
+            fillAndAdd(modal, clipText, function () {
+              // 产品轮播图添加完成，继续更新外包装图片
+              setTimeout(updatePackageImage, 500);
+            });
             return;
           }
           if (Date.now() - start > 5000) {
@@ -123,8 +126,8 @@
     });
   }
 
-  // ========== Modal ready: fill textarea + click add ==========
-  function onModalReady(modal, clipText) {
+  // ========== Fill textarea + click add (shared) ==========
+  function fillAndAdd(modal, urlText, callback) {
     pasteLog('填入图片地址');
 
     var textarea = modal.querySelector('textarea.ant-input'); // 网络图片弹窗中的图片 URL 输入框
@@ -134,7 +137,7 @@
       return;
     }
 
-    C.setInputValue(textarea, clipText);
+    C.setInputValue(textarea, urlText);
 
     setTimeout(function () {
       pasteLog('添加图片');
@@ -145,8 +148,87 @@
         return;
       }
       addBtn.click();
-      console.log('%c[小蜜蜂-粘] ✅ 图片已添加', 'color:#AB47BC;font-weight:bold;font-size:14px');
-      C.showBubble('✅ 图片已添加', 'ok');
+      if (callback) callback();
+    }, 250);
+  }
+
+  // ========== Update package image ==========
+  function updatePackageImage() {
+    // Step 5: 获取产品轮播图第一张图片地址
+    pasteLog('获取产品轮播图首图');
+
+    var firstImg = document.querySelector('#productProductInfo .mainImage .img-list .img-item img.img-css'); // 产品轮播图列表中的第一张图片
+    if (!firstImg || !firstImg.src) {
+      C.showBubble('❌ 未找到产品轮播图图片', 'err');
+      setTimeout(C.hideBubble, 2000);
+      return;
+    }
+    var imgUrl = firstImg.src;
+    console.log('%c[小蜜蜂-粘] 外包装图片URL: ' + imgUrl, 'color:#AB47BC;font-weight:bold');
+
+    // Step 6: 打开外包装选择图片下拉菜单
+    pasteLog('打开外包装选择图片');
+
+    var pkgBtn = document.querySelector('#packageInfo .header button'); // #packageInfo .header button: 包裹信息区域顶部的"选择图片"按钮
+    if (!pkgBtn || (pkgBtn.textContent || '').indexOf('选择图片') === -1) {
+      C.showBubble('❌ 未找到外包装选择图片按钮', 'err');
+      setTimeout(C.hideBubble, 2000);
+      return;
+    }
+    C.hoverElement(pkgBtn);
+
+    waitForVisibleLi('网络图片', 3000, function (webImgItem) { // 外包装选择图片下拉菜单中的"网络图片"菜单项
+      if (!webImgItem) {
+        C.showBubble('❌ 未找到网络图片选项', 'err');
+        setTimeout(C.hideBubble, 2000);
+        return;
+      }
+
+      // Step 7: 点击网络图片，等待弹窗
+      pasteLog('点击外包装网络图片');
+      webImgItem.click();
+
+      var start = Date.now();
+      (function checkModal() {
+        var modal = C.findVisibleModal('从网络地址'); // 通过标题文字+可见性双重判断定位弹窗
+        if (modal) {
+          fillPackageModal(modal, imgUrl);
+          return;
+        }
+        if (Date.now() - start > 5000) {
+          C.showBubble('❌ 未找到网络图片弹窗', 'err');
+          setTimeout(C.hideBubble, 2000);
+          return;
+        }
+        requestAnimationFrame(checkModal);
+      })();
+    });
+  }
+
+  // ========== Fill package image modal + finish ==========
+  function fillPackageModal(modal, imgUrl) {
+    pasteLog('填入外包装图片地址');
+
+    var textarea = modal.querySelector('textarea.ant-input'); // 网络图片弹窗中的图片 URL 输入框
+    if (!textarea) {
+      C.showBubble('❌ 未找到输入框', 'err');
+      setTimeout(C.hideBubble, 2000);
+      return;
+    }
+
+    C.setInputValue(textarea, imgUrl);
+
+    setTimeout(function () {
+      pasteLog('更新外包装图片');
+      var addBtn = modal.querySelector('.ant-modal-footer .ant-btn-primary'); // 网络图片弹窗底部的"添加"按钮
+      if (!addBtn) {
+        C.showBubble('❌ 未找到添加按钮', 'err');
+        setTimeout(C.hideBubble, 2000);
+        return;
+      }
+      addBtn.click();
+      console.log('%c[小蜜蜂-粘] ✅ 全部完成', 'color:#AB47BC;font-weight:bold;font-size:14px');
+      C.showBubble('✅ 产品轮播图+外包装已更新', 'ok');
       setTimeout(C.hideBubble, 2000);
     }, 250);
   }
