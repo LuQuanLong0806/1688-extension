@@ -370,7 +370,7 @@
       '<button class="btn-primary" id="__dxm_bee_settings_save">保存</button>' +
     '</div>' +
     '<div id="__dxm_bee_settings_body">' +
-      '<table><thead><tr><th style="width:35%">被过滤文字</th><th style="width:35%">填充文字</th><th>操作</th></tr></thead>' +
+      '<table><thead><tr><th style="width:35%">被过滤文字</th><th style="width:35%">填充文字 <span style="font-weight:400;color:#bbb">（默认空格）</span></th><th>操作</th></tr></thead>' +
       '<tbody id="__dxm_bee_settings_tbody"></tbody></table>' +
     '</div></div>';
   document.body.appendChild(overlay);
