@@ -47,7 +47,8 @@
     '<div id="__dxm_bee_icon" title="' + (isWorkPage ? '点击开始工作 / 拖动移动' : '小蜜蜂工具') + '">' + beeSVG + '</div>' +
     '<div id="__dxm_bee_translate" title="一键翻译">译</div>' +
     '<div id="__dxm_bee_edit" title="一键编辑描述">编</div>' +
-    '<div id="__dxm_bee_paste" title="一键粘贴图片URL">粘</div>';
+    '<div id="__dxm_bee_paste" title="一键粘贴图片URL">粘</div>' +
+    '<div id="__dxm_bee_delete" title="一键清空产品轮播图">删</div>';
 
   // ========== Styles ==========
   var s = document.createElement('style');
@@ -74,7 +75,9 @@
     '#__dxm_bee_edit{margin-top:2px;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#66BB6A,#43A047);color:#fff;font:bold 19px/1 "楷体","KaiTi","STKaiti",serif;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(67,160,71,.35);transition:transform .2s,box-shadow .2s;user-select:none;text-shadow:0 1px 2px rgba(0,0,0,.15)}' +
     '#__dxm_bee_edit:hover{transform:scale(1.12);box-shadow:0 4px 12px rgba(67,160,71,.5)}' +
     '#__dxm_bee_paste{margin-top:2px;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#AB47BC,#8E24AA);color:#fff;font:bold 19px/1 "楷体","KaiTi","STKaiti",serif;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(142,36,170,.35);transition:transform .2s,box-shadow .2s;user-select:none;text-shadow:0 1px 2px rgba(0,0,0,.15)}' +
-    '#__dxm_bee_paste:hover{transform:scale(1.12);box-shadow:0 4px 12px rgba(142,36,170,.5)}';
+    '#__dxm_bee_paste:hover{transform:scale(1.12);box-shadow:0 4px 12px rgba(142,36,170,.5)}' +
+    '#__dxm_bee_delete{margin-top:2px;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#EF5350,#C62828);color:#fff;font:bold 19px/1 "楷体","KaiTi","STKaiti",serif;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(198,40,40,.35);transition:transform .2s,box-shadow .2s;user-select:none;text-shadow:0 1px 2px rgba(0,0,0,.15)}' +
+    '#__dxm_bee_delete:hover{transform:scale(1.12);box-shadow:0 4px 12px rgba(198,40,40,.5)}';
 
   document.head.appendChild(s);
   document.body.appendChild(wrapper);

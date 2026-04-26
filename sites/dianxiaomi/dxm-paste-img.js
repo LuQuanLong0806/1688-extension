@@ -4,11 +4,20 @@
 
   var C = window.BeeConfig;
   var pasteEl = document.getElementById('__dxm_bee_paste');
-  if (!pasteEl) return;
+  var deleteEl = document.getElementById('__dxm_bee_delete');
+  if (!pasteEl && !deleteEl) return;
 
-  pasteEl.addEventListener('click', function () {
-    doPasteImg();
-  });
+  if (pasteEl) {
+    pasteEl.addEventListener('click', function () {
+      doPasteImg();
+    });
+  }
+
+  if (deleteEl) {
+    deleteEl.addEventListener('click', function () {
+      doDeleteImages();
+    });
+  }
 
   // ========== Helper: find visible li ==========
   function findVisibleLi(textFragment) {
@@ -231,5 +240,35 @@
       C.showBubble('✅ 产品轮播图+外包装已更新', 'ok');
       setTimeout(C.hideBubble, 2000);
     }, 250);
+  }
+
+  // ========== Delete workflow ==========
+  function doDeleteImages() {
+    console.log('%c[小蜜蜂-删] 一键清空产品轮播图 开始', 'color:#C62828;font-weight:bold;font-size:14px');
+
+    var imgItems = document.querySelectorAll('#productProductInfo .mainImage .img-list .img-item'); // 产品轮播图列表中的所有图片容器
+    var total = imgItems.length;
+    if (total === 0) {
+      C.showBubble('无需清空，没有图片', 'ok');
+      setTimeout(C.hideBubble, 2000);
+      return;
+    }
+
+    var deleted = 0;
+    function deleteNext() {
+      var btn = document.querySelector('#productProductInfo .mainImage .img-list .img-item a.icon_delete'); // 每个图片容器内的删除按钮
+      if (!btn) {
+        console.log('%c[小蜜蜂-删] ✅ 已清空 ' + deleted + ' 张图片', 'color:#C62828;font-weight:bold;font-size:14px');
+        C.showBubble('✅ 已清空 ' + deleted + ' 张图片', 'ok');
+        setTimeout(C.hideBubble, 2000);
+        return;
+      }
+      deleted++;
+      console.log('%c[小蜜蜂-删] 删除 ' + deleted + '/' + total, 'color:#C62828;font-weight:bold');
+      C.showBubble('⏳ 删除 ' + deleted + '/' + total, 'loading');
+      btn.click();
+      setTimeout(deleteNext, 50);
+    }
+    deleteNext();
   }
 })();
