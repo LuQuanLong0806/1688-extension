@@ -12,6 +12,7 @@
   var AUTO_TRANSLATE_KEY = '__dxm_bee_auto_translate';
   var SKU_FILTER_KEY = '__dxm_bee_sku_filters';
   var SKU_FILTER_ENABLED_KEY = '__dxm_bee_sku_filter_enabled';
+  var AUTO_SKU_NO_KEY = '__dxm_bee_auto_sku_no';
 
   function getDefaultFilters() {
     return [
@@ -169,6 +170,15 @@
     localStorage.setItem(SKU_FILTER_ENABLED_KEY, val ? 'true' : 'false');
   }
 
+  function loadAutoSkuNo() {
+    var val = localStorage.getItem(AUTO_SKU_NO_KEY);
+    return val !== 'false';
+  }
+
+  function saveAutoSkuNo(val) {
+    localStorage.setItem(AUTO_SKU_NO_KEY, val ? 'true' : 'false');
+  }
+
 
   function setInputValue(input, val) {
     var proto = input.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
@@ -221,6 +231,8 @@
     saveSkuFilters: saveSkuFilters,
     loadSkuFilterEnabled: loadSkuFilterEnabled,
     saveSkuFilterEnabled: saveSkuFilterEnabled,
+    loadAutoSkuNo: loadAutoSkuNo,
+    saveAutoSkuNo: saveAutoSkuNo,
     setInputValue: setInputValue,
     findVisibleModal: findVisibleModal
   };

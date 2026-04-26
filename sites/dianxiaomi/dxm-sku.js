@@ -66,7 +66,11 @@
         C.showBubble(msg, 'ok');
         filterDone = true;
         filterSuccess = true;
-        setTimeout(doAutoSkuNo, 300);
+        if (C.loadAutoSkuNo()) {
+          setTimeout(doAutoSkuNo, 300);
+        } else {
+          setTimeout(C.hideBubble, 2000);
+        }
         return;
       }
 
@@ -146,8 +150,15 @@
       return;
     }
 
-    var link = skuNoTh.querySelector('span.link');
-    if (!link || (link.textContent || '').indexOf('高级') === -1) {
+    var links = skuNoTh.querySelectorAll('span.link');
+    var link = null;
+    for (var j = 0; j < links.length; j++) {
+      if ((links[j].textContent || '').indexOf('高级') !== -1) {
+        link = links[j];
+        break;
+      }
+    }
+    if (!link) {
       C.showBubble('❌ 未找到高级链接', 'err');
       setTimeout(C.hideBubble, 2000);
       return;

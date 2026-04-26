@@ -88,9 +88,11 @@
   var autoCategory = Config.loadAutoCategory();
   var province = Config.loadProvince();
   var autoTranslate = Config.loadAutoTranslate();
+  var autoSkuNo = Config.loadAutoSkuNo();
   menu.innerHTML =
     '<div class="menu-item clickable" id="__dxm_bee_menu_filter"><span class="menu-label clickable" id="__dxm_bee_menu_filter_text">📝 标题过滤</span><div class="switch ' + (filterEnabled ? 'on' : '') + '" id="__dxm_bee_menu_filter_switch"></div><div class="menu-desc">点击文字打开配置弹窗，开启后自动过滤标题违规文字</div></div>' +
     '<div class="menu-item clickable" id="__dxm_bee_menu_sku_filter"><span class="menu-label clickable" id="__dxm_bee_menu_sku_filter_text">🏷️ SKU变种属性过滤</span><div class="switch ' + (skuFilterEnabled ? 'on' : '') + '" id="__dxm_bee_menu_sku_filter_switch"></div><div class="menu-desc">点击文字打开配置弹窗，开启后自动过滤SKU变种属性违规文字</div></div>' +
+    '<div class="menu-item"><span class="menu-label">🔢 自动SKU高级</span><div class="switch ' + (autoSkuNo ? 'on' : '') + '" id="__dxm_bee_menu_sku_no_switch"></div><div class="menu-desc">开启后SKU工作流自动执行高级SKU货号生成</div></div>' +
     '<div class="menu-item clickable" id="__dxm_bee_menu_store"><span class="menu-label">🏪 选择店铺</span><span class="menu-value" id="__dxm_bee_menu_store_name">' + (currentStore || '未选择') + '</span><span class="menu-arrow">▸</span><div class="menu-desc">选择工作流自动填写的店铺名称</div></div>' +
     '<div class="menu-item"><span class="menu-label">📂 自动点击分类</span><div class="switch ' + (autoCategory ? 'on' : '') + '" id="__dxm_bee_menu_category_switch"></div><div class="menu-desc">开启后工作流自动点击确认分类按钮</div></div>' +
     '<div class="menu-item"><span class="menu-label">🔊 自动翻译</span><div class="switch ' + (autoTranslate ? 'on' : '') + '" id="__dxm_bee_menu_translate_switch"></div><div class="menu-desc">开启后工作流自动触发一键翻译</div></div>' +
@@ -152,6 +154,15 @@
     this.classList.toggle('on', on);
     Config.saveSkuFilterEnabled(on);
     console.log('%c[小蜜蜂] SKU 过滤: ' + (on ? '开启' : '关闭'), 'color:#FFA000;font-weight:bold');
+  });
+
+  var skuNoSwitch = document.getElementById('__dxm_bee_menu_sku_no_switch');
+  skuNoSwitch.addEventListener('click', function (e) {
+    e.stopPropagation();
+    var on = !this.classList.contains('on');
+    this.classList.toggle('on', on);
+    Config.saveAutoSkuNo(on);
+    console.log('%c[小蜜蜂] 自动SKU高级: ' + (on ? '开启' : '关闭'), 'color:#FFA000;font-weight:bold');
   });
 
   var categorySwitch = document.getElementById('__dxm_bee_menu_category_switch');
