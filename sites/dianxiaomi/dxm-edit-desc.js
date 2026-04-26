@@ -141,7 +141,8 @@
         return;
       }
 
-      C.waitForElement('.smt-new-editor .smt-desc-content', 5000, function () { // .smt-desc-content: 编辑器中已有的描述内容模块(文字/图片)
+      // 短暂等待编辑器内容渲染后直接检测，不等待特定元素（避免无内容时等5秒超时）
+      setTimeout(function () {
         var hasText = editorHasText();
         var hasImage = editorHasImage();
         console.log('%c[小蜜蜂] 内容检测: 文字=' + hasText + ', 图片=' + hasImage, 'color:#2196F3;font-weight:bold');
@@ -159,7 +160,7 @@
           console.log('%c[小蜜蜂] 需清空: ' + clearSteps.join(', '), 'color:#2196F3;font-weight:bold');
           runClearChain(trigger, clearSteps, 0);
         }
-      });
+      }, 500);
     });
   }
 
