@@ -175,6 +175,28 @@
     var imgUrl = firstImg.src;
     console.log('%c[小蜜蜂-粘] 外包装图片URL: ' + imgUrl, 'color:#AB47BC;font-weight:bold');
 
+    // 先检查外包装是否已有图片，有则先删除
+    var pkgImgs = document.querySelectorAll('#packageInfo .img-list .img-item a.icon_delete');
+    if (pkgImgs.length > 0) {
+      pasteLog('清空外包装旧图片');
+      var delIdx = 0;
+      (function deleteNext() {
+        var btn = document.querySelector('#packageInfo .img-list .img-item a.icon_delete');
+        if (!btn) {
+          openPkgSelect(imgUrl);
+          return;
+        }
+        delIdx++;
+        btn.click();
+        setTimeout(deleteNext, 50);
+      })();
+      return;
+    }
+
+    openPkgSelect(imgUrl);
+  }
+
+  function openPkgSelect(imgUrl) {
     // Step 6: 打开外包装选择图片下拉菜单
     pasteLog('打开外包装选择图片');
 
