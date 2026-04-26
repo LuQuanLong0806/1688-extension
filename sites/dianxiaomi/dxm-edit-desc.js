@@ -404,8 +404,8 @@
         }
         // Scrape checked image URLs from product page (max 5)
         var urls = [];
-        var imgItems = document.querySelectorAll('#productProductInfo .mainImage .img-list .img-item.checked'); // #productProductInfo .mainImage: 产品信息中的主图区域; .img-item.checked: 已勾选的产品图片
-        for (var ii = 0; ii < imgItems.length && urls.length < 5; ii++) {
+        var imgItems = document.querySelectorAll('#productProductInfo .mainImage .img-list .img-item'); // #productProductInfo .mainImage: 产品信息中的主图区域; .img-item: 产品图片(不区分是否勾选，取前5张)
+        for (var ii = 0; ii < imgItems.length && urls.length < 8; ii++) {
           var img = imgItems[ii].querySelector('img.img-css'); // 产品图片元素, src 即为图片 URL
           if (img && img.src) urls.push(img.src);
         }
