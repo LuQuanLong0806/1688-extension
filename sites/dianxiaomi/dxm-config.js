@@ -123,12 +123,37 @@
     localStorage.setItem(AUTO_TRANSLATE_KEY, val ? 'true' : 'false');
   }
 
+  function getDefaultSkuFilters() {
+    return [
+      { from: '(', to: ' ', enabled: true },
+      { from: ')', to: ' ', enabled: true },
+      { from: '（', to: ' ', enabled: true },
+      { from: '）', to: ' ', enabled: true },
+      { from: '[', to: ' ', enabled: true },
+      { from: ']', to: ' ', enabled: true },
+      { from: '【', to: ' ', enabled: true },
+      { from: '】', to: ' ', enabled: true },
+      { from: '{', to: ' ', enabled: true },
+      { from: '}', to: ' ', enabled: true },
+      { from: ',', to: ' ', enabled: true },
+      { from: '，', to: ' ', enabled: true },
+      { from: '.', to: ' ', enabled: true },
+      { from: '。', to: ' ', enabled: true },
+      { from: ';', to: ' ', enabled: true },
+      { from: '；', to: ' ', enabled: true },
+      { from: '?', to: ' ', enabled: true },
+      { from: '？', to: ' ', enabled: true }
+    ];
+  }
+
   function loadSkuFilters() {
     try {
       var raw = localStorage.getItem(SKU_FILTER_KEY);
       if (raw) return JSON.parse(raw);
     } catch (e) {}
-    return [];
+    var defaults = getDefaultSkuFilters();
+    saveSkuFilters(defaults);
+    return defaults;
   }
 
   function saveSkuFilters(data) {
@@ -191,6 +216,7 @@
     saveProvince: saveProvince,
     loadAutoTranslate: loadAutoTranslate,
     saveAutoTranslate: saveAutoTranslate,
+    getDefaultSkuFilters: getDefaultSkuFilters,
     loadSkuFilters: loadSkuFilters,
     saveSkuFilters: saveSkuFilters,
     loadSkuFilterEnabled: loadSkuFilterEnabled,

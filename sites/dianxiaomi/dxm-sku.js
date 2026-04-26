@@ -6,7 +6,12 @@
   var skuEl = document.getElementById('__dxm_bee_sku');
   if (!skuEl) return;
 
+  var filterDone = false;
+  var filterSuccess = false;
+
   skuEl.addEventListener('click', function () {
+    filterDone = false;
+    filterSuccess = false;
     doSkuFilter();
   });
 
@@ -59,7 +64,9 @@
         var msg = changed > 0 ? '✅ 已过滤 ' + changed + '/' + total + ' 个SKU属性' : '✅ SKU属性无需过滤';
         console.log('%c[小蜜蜂-SKU] ' + msg, 'color:#00838F;font-weight:bold;font-size:14px');
         C.showBubble(msg, 'ok');
-        setTimeout(C.hideBubble, 2000);
+        filterDone = true;
+        filterSuccess = true;
+        setTimeout(doAutoSkuNo, 300);
         return;
       }
 
@@ -113,4 +120,62 @@
 
     processNext();
   }
+
+  // ========== 高级SKU货号 ==========
+  function doAutoSkuNo() {
+    console.log('%c[小蜜蜂-SKU] 自动高级SKU货号 开始', 'color:#00838F;font-weight:bold;font-size:14px');
+
+    var table = document.querySelector('#skuDataInfo table');
+    if (!table) {
+      C.showBubble('❌ 未找到SKU表格', 'err');
+      setTimeout(C.hideBubble, 2000);
+      return;
+    }
+
+    var ths = table.querySelectorAll('th');
+    var skuNoTh = null;
+    for (var i = 0; i < ths.length; i++) {
+      if ((ths[i].textContent || '').indexOf('SKU货号') !== -1) {
+        skuNoTh = ths[i];
+        break;
+      }
+    }
+    if (!skuNoTh) {
+      C.showBubble('❌ 未找到SKU货号列', 'err');
+      setTimeout(C.hideBubble, 2000);
+      return;
+    }
+
+    var link = skuNoTh.querySelector('span.link');
+    if (!link || (link.textContent || '').indexOf('高级') === -1) {
+      C.showBubble('❌ 未找到高级链接', 'err');
+      setTimeout(C.hideBubble, 2000);
+      return;
+    }
+
+    C.showBubble('⏳ 打开高级SKU货号...', 'loading');
+    link.click();
+
+    setTimeout(function () {
+      var modal = C.findVisibleModal('SKU高级生成规则');
+      if (!modal) {
+        C.showBubble('❌ 未找到SKU高级生成规则弹窗', 'err');
+        setTimeout(C.hideBubble, 2000);
+        return;
+      }
+
+      var genBtn = modal.querySelector('.ant-modal-footer .ant-btn-primary');
+      if (!genBtn) {
+        C.showBubble('❌ 未找到生成按钮', 'err');
+        setTimeout(C.hideBubble, 2000);
+        return;
+      }
+
+      genBtn.click();
+      console.log('%c[小蜜蜂-SKU] 已点击生成', 'color:#00838F;font-weight:bold');
+      C.showBubble('✅ 高级SKU货号已生成', 'ok');
+      setTimeout(C.hideBubble, 2000);
+    }, 200);
+  }
+
 })();
