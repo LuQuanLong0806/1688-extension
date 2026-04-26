@@ -549,7 +549,7 @@
         var bs = document.createElement('style');
         bs.id = '__dxm_bee_title_bubble_style';
         bs.textContent =
-          '#__dxm_bee_title_bubble{position:absolute;z-index:2147483640;left:50%;transform:translateX(-50%);background:#fff;border-radius:10px;padding:10px 14px;box-shadow:0 4px 16px rgba(100,149,237,.2),0 2px 6px rgba(100,149,237,.1);border:1px solid #d6e4ff;font:12px/1.6 "Microsoft YaHei",Arial,sans-serif;white-space:normal;word-break:break-all;pointer-events:none}';
+          '#__dxm_bee_title_bubble{position:absolute;z-index:2147483640;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#f0f5ff,#e8f0fe);border-radius:10px;padding:10px 14px;box-shadow:0 4px 16px rgba(100,149,237,.18),0 1px 4px rgba(100,149,237,.08);border:1px solid #c5d9f8;font:12px/1.6 "Microsoft YaHei",Arial,sans-serif;white-space:normal;word-break:break-all;pointer-events:none}';
         document.head.appendChild(bs);
       }
 
