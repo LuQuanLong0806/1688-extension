@@ -13,6 +13,7 @@
   var SKU_FILTER_KEY = '__dxm_bee_sku_filters';
   var SKU_FILTER_ENABLED_KEY = '__dxm_bee_sku_filter_enabled';
   var AUTO_SKU_NO_KEY = '__dxm_bee_auto_sku_no';
+  var DEL_VIDEO_KEY = '__dxm_bee_del_video';
 
   function getDefaultFilters() {
     return [
@@ -179,6 +180,15 @@
     localStorage.setItem(AUTO_SKU_NO_KEY, val ? 'true' : 'false');
   }
 
+  function loadDelVideo() {
+    var val = localStorage.getItem(DEL_VIDEO_KEY);
+    return val !== 'false';
+  }
+
+  function saveDelVideo(val) {
+    localStorage.setItem(DEL_VIDEO_KEY, val ? 'true' : 'false');
+  }
+
 
   function setInputValue(input, val) {
     var proto = input.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
@@ -233,6 +243,8 @@
     saveSkuFilterEnabled: saveSkuFilterEnabled,
     loadAutoSkuNo: loadAutoSkuNo,
     saveAutoSkuNo: saveAutoSkuNo,
+    loadDelVideo: loadDelVideo,
+    saveDelVideo: saveDelVideo,
     setInputValue: setInputValue,
     findVisibleModal: findVisibleModal
   };

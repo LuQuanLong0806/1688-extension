@@ -301,56 +301,85 @@ function waitForProvinceSelect(cb) {
 
 | 选择器 | 含义 | 使用场景 |
 |--------|------|---------|
-| `#productProductInfo form .ant-form-item input` | 标题输入框（表单第一个 input） | 蜜蜂 Step 4/16: 过滤标题/检查长度 |
+| `#productProductInfo form .ant-form-item input` | 标题输入框（表单第一个 input） | 蜜蜂 Step 4/17: 过滤标题/检查长度 |
 | input → `.closest('.inputContainer')` | 标题输入框外层容器 | 获取字数限制元素 |
-| 容器 → `.color-gray` | 标题字数限制提示（如 `/200`） | 蜜蜂 Step 16: 获取字数上限 |
+| 容器 → `.color-gray` | 标题字数限制提示（如 `/200`） | 蜜蜂 Step 17: 获取字数上限 |
 | `#productProductInfo .ant-form-item-label label` (文字含"产品轮播图") | 产品轮播图 label | 粘字/删字: 定位轮播图区域 |
 | label → `.closest('.ant-form-item')` | 轮播图所在表单行 | 获取轮播图容器 |
 | 容器 → `.img-module .header button` (文字含"选择图片") | 选择图片下拉按钮 | 粘字: 打开选择图片下拉 |
 | `#productProductInfo .mainImage .img-list .img-item` | 产品轮播图列表项（不区分勾选） | 编字: 获取图片 URL（最多8张）; 删字: 统计图片总数 |
 | `.img-item img.img-css` | 产品图片元素，`src` 即为图片 URL | 编字: 读取图片地址; 粘字: 获取首图更新外包装 |
 | `.img-item a.icon_delete` | 图片删除按钮（每个图片容器内） | 删字: 点击删除单张图片 |
+| `#productProductInfo .ant-form-item-label label` (文字含"产品视频") | 产品视频表单标签 | 蜜蜂 Step 8: 删除产品视频 |
+| label → `.closest('.ant-form-item')` | 视频所在表单行 | 获取视频表单项容器 |
+| 容器 → `.video-operate-img` | 视频可见容器（`offsetParent !== null` 表示有视频） | 蜜蜂 Step 8: 判断是否有视频 |
+| 容器 → `.video-operate-img-box` | 视频缩略图+操作区域 | 蜜蜂 Step 8 |
+| 容器 → `.video-operate-box a.link` (文字含"删除") | 视频删除按钮 | 蜜蜂 Step 8: 点击删除视频 |
 | `#productProductInfo .ant-form-item-label label` (文字含"产地") | 产地表单标签 | 蜜蜂 Step 6: 定位省份下拉 |
 | label → `.closest('.ant-form-item')` → `.productOrigin` | 产地 Select 容器（含国家+省份两个下拉） | 蜜蜂 Step 6 |
 | 容器 → `.ant-select-selector` (第2个) | 省份下拉框 | 蜜蜂 Step 6: 打开省份下拉 |
 
-### 3.3 翻译区域
+### 3.3 SKU 变种属性区域 `#skuAttrsInfo`
+
+| 选择器 | 含义 | 使用场景 |
+|--------|------|---------|
+| `#skuAttrsInfo form` | SKU变种属性表单 | SKU Step 1: 过滤变种属性 |
+| 表单 → `.options-module` | 每个属性名下的选项列表容器 | SKU Step 1: 遍历所有属性 |
+| 容器 → `label` | 单个 SKU 变种属性选项（如颜色值、数量值） | SKU Step 1: 检查/替换文本 |
+| label → `.theme-value-text` | SKU 属性值的显示文本（`title` 属性或 `textContent`） | SKU Step 1: 读取当前文本 |
+| label → `.btn-edit` | 编辑图标按钮 | SKU Step 1: 点击进入编辑模式 |
+| label → `.edit-inp` | 编辑输入框（点击编辑后出现） | SKU Step 1: 设置新值 |
+| label → `.btn-save` | 保存图标按钮 | SKU Step 1: 保存修改 |
+
+### 3.4 SKU 货号表格 `#skuDataInfo`
+
+| 选择器 | 含义 | 使用场景 |
+|--------|------|---------|
+| `#skuDataInfo table` | SKU 数据表格 | SKU Step 2: 高级SKU货号 |
+| 表格 → `th` (文字含"SKU货号") | SKU货号列头 | SKU Step 2: 定位高级链接 |
+| 列头 → `span.link` (文字含"高级") | 高级SKU货号链接（注意：需遍历所有 span.link 跳过"一键生成"） | SKU Step 2: 点击打开高级生成 |
+| `findVisibleModal('SKU高级生成规则')` | SKU高级生成规则弹窗 | SKU Step 2: 定位弹窗 |
+| 弹窗 → `.ant-modal-footer .ant-btn-primary` | "生成"按钮 | SKU Step 2: 点击生成 |
+
+### 3.5 翻译区域
 
 | 选择器 | 含义 | 使用场景 |
 |--------|------|---------|
 | `#app .product-add-layout .header .btn-box button.translation-btn` | 页面顶部"一键翻译"按钮 | 蜜蜂 Step 5/译按钮: 悬浮触发翻译下拉 |
 | `.ant-dropdown:not(.ant-dropdown-hidden) li.menu-item` (文字含"中文"+"英文") | 翻译下拉菜单项"中文→英文" | 蜜蜂 Step 5: 点击翻译菜单项 |
 
-### 3.4 包裹信息区域 `#packageInfo`
+### 3.6 包裹信息区域 `#packageInfo`
 
 | 选择器 | 含义 | 使用场景 |
 |--------|------|---------|
-| `#packageInfo .ant-form-item-label label` | 包裹信息表单标签 | 蜜蜂 Step 8/10: 查找"外包装形状/类型" |
-| label → `.closest('.ant-form-item')` → `.ant-select-selector` | 对应的 Select 组件 | 蜜蜂 Step 8/10: 打开下拉 |
+| `#packageInfo .ant-form-item-label label` | 包裹信息表单标签 | 蜜蜂 Step 9/11: 查找"外包装形状/类型" |
+| label → `.closest('.ant-form-item')` → `.ant-select-selector` | 对应的 Select 组件 | 蜜蜂 Step 9/11: 打开下拉 |
 | `.ant-select-item-option[title="省份名"]` | 省份下拉选项（动态读取配置） | 蜜蜂 Step 7 |
-| `.ant-select-item-option[title="不规则"]` | 外包装形状"不规则"选项 | 蜜蜂 Step 9 |
-| `.ant-select-item-option[title="软包装+硬物"]` | 外包装类型"软包装+硬物"选项 | 蜜蜂 Step 11 |
-| `#packageInfo .header button` (文字含"选择图片") | 包裹信息"选择图片"按钮 | 蜜蜂 Step 13: 悬浮触发下拉; 粘字 Step 6: 打开外包装选择图片 |
+| `.ant-select-item-option[title="不规则"]` | 外包装形状"不规则"选项 | 蜜蜂 Step 10 |
+| `.ant-select-item-option[title="软包装+硬物"]` | 外包装类型"软包装+硬物"选项 | 蜜蜂 Step 12 |
+| `#packageInfo .header button` (文字含"选择图片") | 包裹信息"选择图片"按钮 | 蜜蜂 Step 14: 悬浮触发下拉; 粘字: 打开外包装选择图片 |
+| `#packageInfo .img-list .img-item` | 外包装图片列表项 | 粘字: 删除旧外包装图片 |
+| `#packageInfo .img-list .img-item a.icon_delete` | 外包装图片删除按钮 | 粘字: 清空旧图片 |
 
-### 3.5 外包装图片更新（网络图片路径）
-
-| 选择器 | 含义 | 使用场景 |
-|--------|------|---------|
-| `#productProductInfo .mainImage .img-list .img-item img.img-css` | 产品轮播图列表第一张图片 | 蜜蜂 Step 12: 获取首图 URL |
-| `#packageInfo .header button` (文字含"选择图片") | 外包装选择图片按钮 | 蜜蜂 Step 13: 悬浮触发下拉 |
-| `waitForVisibleLi('网络图片')` | 外包装下拉"网络图片"菜单项 | 蜜蜂 Step 13: 点击打开网络图片 |
-| `findVisibleModal('从网络地址')` | 网络图片弹窗 `.ant-modal-wrap` 容器 | 蜜蜂 Step 14: 定位弹窗 |
-| 容器 → `textarea.ant-input` | 图片 URL 输入框 | 蜜蜂 Step 14: 填入首图 URL |
-| 容器 → `.ant-modal-footer .ant-btn-primary` | 弹窗底部"添加"按钮 | 蜜蜂 Step 15: 确认更新外包装 |
-
-### 3.6 发布区域
+### 3.7 外包装图片更新（网络图片路径）
 
 | 选择器 | 含义 | 使用场景 |
 |--------|------|---------|
-| `.footer .btn-box button.btn-green` (文字含"发布") | 页面底部绿色"发布"按钮 | 蜜蜂 Step 17: 悬浮触发发布下拉 |
-| `.ant-dropdown-menu-item[data-menu-id="2"]` (文字含"立即发布") | 发布下拉"立即发布"选项 | 蜜蜂 Step 18 |
+| `#productProductInfo .mainImage .img-list .img-item img.img-css` | 产品轮播图列表第一张图片 | 蜜蜂 Step 13: 获取首图 URL |
+| `#packageInfo .header button` (文字含"选择图片") | 外包装选择图片按钮 | 蜜蜂 Step 14: 悬浮触发下拉 |
+| `waitForVisibleLi('网络图片')` | 外包装下拉"网络图片"菜单项 | 蜜蜂 Step 14: 点击打开网络图片 |
+| `findVisibleModal('从网络地址')` | 网络图片弹窗 `.ant-modal-wrap` 容器 | 蜜蜂 Step 15: 定位弹窗 |
+| 容器 → `textarea.ant-input` | 图片 URL 输入框 | 蜜蜂 Step 15: 填入首图 URL |
+| 容器 → `.ant-modal-footer .ant-btn-primary` | 弹窗底部"添加"按钮 | 蜜蜂 Step 16: 确认更新外包装 |
 
-### 3.7 TEMU 产品描述编辑器 `.smt-new-editor`
+### 3.8 发布区域
+
+| 选择器 | 含义 | 使用场景 |
+|--------|------|---------|
+| `.footer .btn-box button.btn-green` (文字含"发布") | 页面底部绿色"发布"按钮 | 蜜蜂 Step 18: 悬浮触发发布下拉 |
+| `.ant-dropdown-menu-item[data-menu-id="2"]` (文字含"立即发布") | 发布下拉"立即发布"选项 | 蜜蜂 Step 19 |
+
+### 3.9 TEMU 产品描述编辑器 `.smt-new-editor`
 
 | 选择器 | 含义 | 使用场景 |
 |--------|------|---------|
@@ -364,7 +393,7 @@ function waitForProvinceSelect(cb) {
 | `.batch-smt-image button` (文字含"选择图片") | 批量传图弹窗内"选择图片"按钮 | 编字: 找到选择图片入口 |
 | button → 向上查找 `.ant-dropdown-trigger` 祖先 | "选择图片"下拉触发器 | 编字: 展开选择图片菜单 |
 
-### 3.8 网络图片弹窗（多场景共用）
+### 3.10 网络图片弹窗（多场景共用）
 
 | 选择器 | 含义 | 使用场景 |
 |--------|------|---------|
@@ -375,7 +404,7 @@ function waitForProvinceSelect(cb) {
 **弹窗标题**: "从网络地址(URL)选择图片"
 **触发方式**: 通过"选择图片"下拉菜单中的"网络图片"/"网络上传"菜单项打开
 
-### 3.9 引用产品图片弹窗
+### 3.11 引用产品图片弹窗
 
 | 选择器 | 含义 | 使用场景 |
 |--------|------|---------|
@@ -384,7 +413,7 @@ function waitForProvinceSelect(cb) {
 | 容器 → `.ant-checkbox` | Checkbox 状态元素（`.ant-checkbox-checked` 表示已勾选） | 编字: 检查是否已勾选 |
 | 容器 → `.ant-modal-footer .ant-btn-primary` | 弹窗底部"确认"按钮 | 编字: 确认选择 |
 
-### 3.10 批量传图弹窗
+### 3.12 批量传图弹窗
 
 | 选择器 | 含义 | 使用场景 |
 |--------|------|---------|
@@ -406,9 +435,9 @@ Dropdown 菜单项统一通过 `waitForVisibleLi(文字片段)` 查找：
 | 引用产品轮播图 | 选择图片菜单（编辑器内） | 编字(轮播图路径) |
 | 网络上传 | 选择图片菜单（编辑器内） | 编字(网络图片路径) |
 | 网络图片 | 产品轮播图-选择图片下拉 | 粘字 Step 3: 添加轮播图 |
-| 网络图片 | 外包装-选择图片下拉 | 粘字 Step 7 / 蜜蜂 Step 13: 更新外包装 |
+| 网络图片 | 外包装-选择图片下拉 | 粘字 / 蜜蜂 Step 14: 更新外包装 |
 | 中文→英文 (`li.menu-item`) | 一键翻译下拉 | 蜜蜂 Step 5 / 译按钮 |
-| 立即发布 (`data-menu-id="2"`) | 发布下拉 | 蜜蜂 Step 18 |
+| 立即发布 (`data-menu-id="2"`) | 发布下拉 | 蜜蜂 Step 19 |
 
 ---
 
@@ -418,9 +447,13 @@ Dropdown 菜单项统一通过 `waitForVisibleLi(文字片段)` 查找：
 
 | 键名 | 类型 | 默认值 | 含义 |
 |------|------|--------|------|
-| `__dxm_bee_filters` | JSON 数组 | 12 条默认规则 | 文字过滤规则列表 |
-| `__dxm_bee_filter_enabled` | `'true'`/`'false'` | `'true'` | 文字过滤是否启用 |
-| `__dxm_bee_auto_publish` | `'true'`/`'false'` | `'true'` | 是否自动发布（控制 Step 17/18） |
+| `__dxm_bee_filters` | JSON 数组 | 12 条默认规则 | 标题过滤规则列表 |
+| `__dxm_bee_filter_enabled` | `'true'`/`'false'` | `'true'` | 标题过滤是否启用 |
+| `__dxm_bee_sku_filters` | JSON 数组 | 18 条默认规则（括号/标点→空格） | SKU变种属性过滤规则列表 |
+| `__dxm_bee_sku_filter_enabled` | `'true'`/`'false'` | `'true'` | SKU变种属性过滤是否启用 |
+| `__dxm_bee_auto_sku_no` | `'true'`/`'false'` | `'true'` | 是否自动执行高级SKU货号生成 |
+| `__dxm_bee_del_video` | `'true'`/`'false'` | `'true'` | 是否自动删除产品视频 |
+| `__dxm_bee_auto_publish` | `'true'`/`'false'` | `'true'` | 是否自动发布（控制 Step 18/19） |
 | `__dxm_bee_stores` | JSON 数组 | `[]` | 店铺名称列表 |
 | `__dxm_bee_selected_store` | 字符串 | `''` | 当前选中的店铺名称 |
 | `__dxm_bee_use_web_image` | `'true'`/`'false'` | `'false'` | 编字流程是否使用网络图片 |
@@ -432,8 +465,12 @@ Dropdown 菜单项统一通过 `waitForVisibleLi(文字片段)` 查找：
 
 | 方法 | 说明 |
 |------|------|
-| `loadFilters()` / `saveFilters(data)` | 加载/保存过滤规则 |
-| `loadFilterEnabled()` / `saveFilterEnabled(val)` | 过滤开关 |
+| `loadFilters()` / `saveFilters(data)` | 加载/保存标题过滤规则 |
+| `loadFilterEnabled()` / `saveFilterEnabled(val)` | 标题过滤开关 |
+| `loadSkuFilters()` / `saveSkuFilters(data)` | 加载/保存SKU变种属性过滤规则 |
+| `loadSkuFilterEnabled()` / `saveSkuFilterEnabled(val)` | SKU变种属性过滤开关 |
+| `loadAutoSkuNo()` / `saveAutoSkuNo(val)` | 自动SKU高级开关 |
+| `loadDelVideo()` / `saveDelVideo(val)` | 删除产品视频开关 |
 | `loadAutoPublish()` / `saveAutoPublish(val)` | 自动发布开关 |
 | `loadStores()` / `saveStores(data)` | 店铺列表 |
 | `loadSelectedStore()` / `saveSelectedStore(val)` | 当前店铺 |
@@ -450,13 +487,18 @@ Dropdown 菜单项统一通过 `waitForVisibleLi(文字片段)` 查找：
 ### 5.3 配置 UI 入口
 
 右键小蜜蜂图标弹出菜单，包含：
-- 📝 文字过滤 — 点击文字打开配置面板（鼠标变手指），点击 switch 切换开关
+- 📝 标题过滤 — 点击文字打开配置面板，点击 switch 切换开关
+- 🏷️ SKU变种属性过滤 — 点击文字打开配置面板，点击 switch 切换开关
+- 🔢 自动SKU高级 — switch 开关，默认开启，控制SKU工作流自动执行高级SKU货号
 - 🏪 选择店铺 — 点击打开店铺管理弹窗（添加/删除/选择）
 - 📂 自动点击分类 — switch 开关，默认关闭
+- 🎬 删除产品视频 — switch 开关，默认开启，控制蜜蜂 Step 8
 - 🔊 自动翻译 — switch 开关，默认开启，控制蜜蜂 Step 5 翻译步骤
 - 📍 省份选择 — 输入框，防抖 500ms 自动保存，为空或格式不合法自动回退默认值 `广东省`
 - 🌐 网络图片 — switch 开关，控制编字流程图片来源
-- 🚀 自动发布 — switch 开关，控制蜜蜂 Step 17/18
+- 🚀 自动发布 — switch 开关，控制蜜蜂 Step 18/19
+
+**菜单定位**: 自动检测空间，右侧不够显示在左侧，下方不够向上弹出。
 
 ---
 
@@ -471,49 +513,69 @@ Dropdown 菜单项统一通过 `waitForVisibleLi(文字片段)` 查找：
 ├── #__dxm_bee_translate     译 (34×34, 橙黄色圆形按钮)
 ├── #__dxm_bee_edit          编 (34×34, 绿色圆形按钮)
 ├── #__dxm_bee_paste         粘 (34×34, 紫色圆形按钮)
+├── #__dxm_bee_sku           S  (34×34, 青蓝色圆形按钮)
 └── #__dxm_bee_delete        删 (34×34, 红色圆形按钮)
 ```
 
 **气泡定位**: `position: absolute; bottom: 100%` 在图标上方显示。通过 `.at-right` class 判断图标在屏幕左/右侧，调整气泡左右对齐避免超出屏幕。
+
+**标题气泡**: 工作流 Step 4 时在标题输入框上方显示气泡框，展示原标题/过滤后标题/违禁字符。白色背景 + 蓝色边框阴影 + 底部小箭头指向标题。工作结束后气泡持续显示。
 
 **拖动逻辑**: mousedown → mousemove(>4px 判定为拖动) → mouseup。拖动后如果在左右边距 <100px 范围内，自动吸附到屏幕边缘。
 
 **按钮功能**:
 | 按钮 | 颜色 | 功能 | 文件 |
 |------|------|------|------|
-| 译 | 橙黄 `#FFCA28→#FFA000` | 一键翻译（独立功能） | dxm-float-bee.js |
+| 译 | 橙黄 `#FFCA28→#FFA000` | 一键翻译（含标题气泡+翻译） | dxm-float-bee.js |
 | 编 | 绿 `#66BB6A→#43A047` | 一键编辑描述 | dxm-edit-desc.js |
-| 粘 | 紫 `#AB47BC→#8E24AA` | 粘贴图片URL + 更新外包装 | dxm-paste-img.js |
+| 粘 | 紫 `#AB47BC→#8E24AA` | 粘贴图片URL + 清空旧外包装 + 更新外包装 | dxm-paste-img.js |
+| S  | 青 `#26C6DA→#00838F` | SKU变种属性过滤 + 高级SKU货号 | dxm-sku.js |
 | 删 | 红 `#EF5350→#C62828` | 清空产品轮播图 | dxm-paste-img.js |
 
 ---
 
 ## 七、工作流程概览
 
-### 7.1 点击小蜜蜂 — 自动填表 (18步)
+### 7.1 点击小蜜蜂 — 自动填表 (19步)
 
 | 步骤 | 操作 | 关键选择器 | 备注 |
 |------|------|-----------|------|
 | 1 | 检查/选择店铺 | `#productBasicInfo .ant-form-item-label label` | 店铺变更后跳过 Step 2/3 |
 | 2 | 点击分类按钮 | `#productBasicInfo .category-item button` | 可配置跳过 |
 | 3 | 确认分类弹窗 | `.ant-modal-footer button.ant-btn-primary` | |
-| 4 | 过滤标题违规词 | `#productProductInfo form .ant-form-item input` | 使用 `setInputValue`；在标题上方显示气泡窗（原标题/过滤后标题或违禁字符） |
-| 5 | 一键翻译 | `button.translation-btn` → `li.menu-item` | 可配置跳过（`loadAutoTranslate()`）；悬浮触发下拉 |
+| 4 | 过滤标题违规词 | `#productProductInfo form .ant-form-item input` | 使用 `setInputValue`；在标题上方显示气泡窗 |
+| 5 | 一键翻译 | `button.translation-btn` → `li.menu-item` | 可配置跳过；悬浮触发下拉 |
 | 6 | 打开省份下拉 | `waitForProvinceSelect` | 通过"产地"标签定位 `.productOrigin` 第2个 Select |
-| 7 | 选择配置省份 | `.ant-select-item-option[title="省份名"]` | 读取 `Config.loadProvince()`，未找到则报错 |
-| 8 | 打开外包装形状 | `waitForAntSelect('外包装形状')` | 通过 label 文字定位 Select |
-| 9 | 选择不规则 | `.ant-select-item-option[title="不规则"]` | |
-| 10 | 打开外包装类型 | `waitForAntSelect('外包装类型')` | |
-| 11 | 选择软包装+硬物 | `.ant-select-item-option[title="软包装+硬物"]` | |
-| 12 | 获取产品轮播图首图URL | `#productProductInfo .mainImage .img-list .img-item img.img-css` | 无图则跳到 Step 16 |
-| 13 | 悬浮外包装选择图片 | `#packageInfo .header button` → `waitForVisibleLi('网络图片')` | `hoverElement` 触发 |
-| 14 | 点击网络图片 → 填入URL | `findVisibleModal('从网络地址')` → `textarea.ant-input` | 用 `setInputValue` 填入首图URL |
-| 15 | 确认更新外包装 | 容器 → `.ant-modal-footer .ant-btn-primary` | |
-| 16 | 检查标题长度 | `.inputContainer .color-gray` | 超限则智能截取 |
-| 17 | 悬浮发布按钮 | `.footer button.btn-green` | 可配置跳过 |
-| 18 | 立即发布 | `.ant-dropdown-menu-item[data-menu-id="2"]` | |
+| 7 | 选择配置省份 | `.ant-select-item-option[title="省份名"]` | 读取 `Config.loadProvince()` |
+| 8 | 删除产品视频 | `.video-operate-img` → `.video-operate-box a.link` (删除) | 可配置跳过；仅删除可见视频 |
+| 9 | 打开外包装形状 | `waitForAntSelect('外包装形状')` | 通过 label 文字定位 Select |
+| 10 | 选择不规则 | `.ant-select-item-option[title="不规则"]` | |
+| 11 | 打开外包装类型 | `waitForAntSelect('外包装类型')` | |
+| 12 | 选择软包装+硬物 | `.ant-select-item-option[title="软包装+硬物"]` | |
+| 13 | 获取产品轮播图首图URL | `#productProductInfo .mainImage .img-list .img-item img.img-css` | 无图则跳到 Step 17 |
+| 14 | 悬浮外包装选择图片 | `#packageInfo .header button` → `waitForVisibleLi('网络图片')` | `hoverElement` 触发 |
+| 15 | 点击网络图片 → 填入URL | `findVisibleModal('从网络地址')` → `textarea.ant-input` | 用 `setInputValue` 填入首图URL |
+| 16 | 确认更新外包装 | 容器 → `.ant-modal-footer .ant-btn-primary` | |
+| 17 | 检查标题长度 | `.inputContainer .color-gray` | 超限则智能截取 |
+| 18 | 悬浮发布按钮 | `.footer button.btn-green` | 可配置跳过 |
+| 19 | 立即发布 | `.ant-dropdown-menu-item[data-menu-id="2"]` | |
 
-### 7.2 点击"编" — 一键编辑描述
+### 7.2 点击"S" — SKU变种属性过滤 + 高级SKU货号
+
+| 步骤 | 操作 | 关键选择器 | 备注 |
+|------|------|-----------|------|
+| 1a | 检查开关/规则 | `Config.loadSkuFilterEnabled()` / `Config.loadSkuFilters()` | 未开启或无规则则跳过 |
+| 1b | 遍历所有 SKU 属性 | `#skuAttrsInfo form` → `.options-module` → `label` | 逐个检查 `.theme-value-text` 文本 |
+| 1c | 匹配过滤规则并替换 | `.btn-edit` → `.edit-inp` → `.btn-save` | 点击编辑→设值→保存，每步间隔 65ms |
+| 2a | 检查自动SKU高级开关 | `Config.loadAutoSkuNo()` | 关闭则跳过 |
+| 2b | 点击"高级"链接 | `#skuDataInfo table th` → `span.link` (文字"高级") | 需遍历跳过"一键生成"链接 |
+| 2c | 等待弹窗 → 点击"生成" | `findVisibleModal('SKU高级生成规则')` → `.ant-btn-primary` | |
+
+### 7.3 点击"译" — 一键翻译
+
+**流程**: 先读取标题并展示标题气泡（执行过滤+显示气泡），然后触发翻译。
+
+### 7.4 点击"编" — 一键编辑描述
 
 **条件分支**: 根据 `BeeConfig.loadUseWebImage()` 决定图片来源
 
@@ -527,20 +589,21 @@ Dropdown 菜单项统一通过 `waitForVisibleLi(文字片段)` 查找：
    - **引用产品轮播图**（`useWebImage=false`）: 全选 → 确认
 6. 确认批量传图 → 保存描述
 
-### 7.3 点击"粘" — 粘贴图片URL + 更新外包装 (8步)
+### 7.5 点击"粘" — 粘贴图片URL + 更新外包装
 
 | 步骤 | 操作 | 关键选择器 |
 |------|------|-----------|
-| 1/8 | 读取剪贴板 | `navigator.clipboard.readText()` |
-| 2/8 | 打开产品轮播图-选择图片下拉 | `#productProductInfo .mainImage .img-module .header button` → hover |
-| 3/8 | 点击"网络图片"等待弹窗 | `waitForVisibleLi('网络图片')` → `findVisibleModal('从网络地址')` |
-| 4/8 | 填入URL + 添加图片 | 弹窗内 `textarea.ant-input` → `.ant-modal-footer .ant-btn-primary` |
-| 5/8 | 获取产品轮播图首图URL | `#productProductInfo .mainImage .img-list .img-item img.img-css` → `.src` |
-| 6/8 | 打开外包装-选择图片下拉 | `#packageInfo .header button` → hover |
-| 7/8 | 点击"网络图片"等待弹窗 | `waitForVisibleLi('网络图片')` → `findVisibleModal('从网络地址')` |
-| 8/8 | 填入首图URL + 更新外包装 | 弹窗内 `textarea.ant-input` → `.ant-modal-footer .ant-btn-primary` |
+| 1 | 读取剪贴板 | `navigator.clipboard.readText()` |
+| 2 | 打开产品轮播图-选择图片下拉 | `#productProductInfo .mainImage .img-module .header button` → hover |
+| 3 | 点击"网络图片"等待弹窗 | `waitForVisibleLi('网络图片')` → `findVisibleModal('从网络地址')` |
+| 4 | 填入URL + 添加图片 | 弹窗内 `textarea.ant-input` → `.ant-modal-footer .ant-btn-primary` |
+| 5 | 获取产品轮播图首图URL | `#productProductInfo .mainImage .img-list .img-item img.img-css` → `.src` |
+| 6a | 检查外包装是否有旧图片 | `#packageInfo .img-list .img-item a.icon_delete` | 有则逐个删除 |
+| 6b | 打开外包装-选择图片下拉 | `#packageInfo .header button` → hover |
+| 7 | 点击"网络图片"等待弹窗 | `waitForVisibleLi('网络图片')` → `findVisibleModal('从网络地址')` |
+| 8 | 填入首图URL + 更新外包装 | 弹窗内 `textarea.ant-input` → `.ant-modal-footer .ant-btn-primary` |
 
-### 7.4 点击"删" — 清空产品轮播图
+### 7.6 点击"删" — 清空产品轮播图
 
 **流程**:
 1. 查找所有图片容器 `#productProductInfo .mainImage .img-list .img-item`，统计总数
@@ -581,6 +644,12 @@ textarea 不能用 `HTMLInputElement.prototype` 的 setter。`setInputValue` 已
 ### Q: 编辑器内容检测后白等 5 秒？
 不要用 `waitForElement('.smt-desc-content')` 等待内容元素——清空后该元素不存在会等超时。应改为 `setTimeout(500)` 后直接检测。
 
+### Q: SKU货号列有多个 span.link？
+"一键生成"和"高级"都是 `span.link`。需遍历找到文字含"高级"的那个。
+
+### Q: 粘字工作流外包装图片重复？
+粘字流程在添加外包装图片前会先检查并删除已有图片（`#packageInfo .img-list .img-item a.icon_delete`）。
+
 ---
 
 ## 九、方法文件位置
@@ -597,7 +666,7 @@ textarea 不能用 `HTMLInputElement.prototype` 的 setter。`setInputValue` 已
 | `findVisibleModal` | dxm-config.js | `BeeConfig.findVisibleModal` |
 | 所有配置 load/save | dxm-config.js | `BeeConfig.loadXxx` / `BeeConfig.saveXxx` |
 | `hoverWithCoords` | dxm-edit-desc.js | 内部函数 |
-| `findVisibleLi` / `waitForVisibleLi` | dxm-edit-desc.js / dxm-paste-img.js | 各自内部函数 |
+| `findVisibleLi` / `waitForVisibleLi` | dxm-edit-desc.js / dxm-paste-img.js / dxm-sku.js | 各自内部函数 |
 
 ---
 
@@ -605,10 +674,11 @@ textarea 不能用 `HTMLInputElement.prototype` 的 setter。`setInputValue` 已
 
 ```
 dxm-config.js       → 配置系统（最先加载，其他文件依赖 BeeConfig）
-dxm-float-bee.js    → 蜜蜂图标 + 拖动 + 气泡 + 18步工作流 + 译按钮
+dxm-float-bee.js    → 蜜蜂图标 + 拖动 + 气泡 + 19步工作流 + 译按钮
 dxm-config-ui.js    → 右键菜单 + 店铺管理 + 过滤配置面板
 dxm-edit-desc.js    → 编字工作流
 dxm-paste-img.js    → 粘字工作流 + 删字工作流
+dxm-sku.js          → SKU变种属性过滤 + 高级SKU货号
 ```
 
 **适用页面**:

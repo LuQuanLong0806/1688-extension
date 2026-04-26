@@ -8,14 +8,14 @@
   var s = document.createElement('style');
   s.textContent =
     // --- Context menu ---
-    '#__dxm_bee_menu{display:none;position:fixed;z-index:2147483646;background:#fff;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.18);padding:6px 0;min-width:200px;font:13px/1.5 "Microsoft YaHei",Arial,sans-serif;color:#333}' +
+    '#__dxm_bee_menu{display:none;position:fixed;z-index:2147483646;background:#fff;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.18);padding:4px 0;font:12px/1.4 "Microsoft YaHei",Arial,sans-serif;color:#333;max-width:280px}' +
     '#__dxm_bee_menu.show{display:block}' +
-    '#__dxm_bee_menu .menu-item{display:flex;align-items:center;justify-content:space-between;padding:10px 18px;transition:background .15s;flex-wrap:wrap}' +
+    '#__dxm_bee_menu .menu-item{display:flex;align-items:center;justify-content:space-between;padding:6px 12px;transition:background .15s;flex-wrap:wrap}' +
     '#__dxm_bee_menu .menu-item:hover{background:#FFF8E1}' +
-    '#__dxm_bee_menu .menu-label{display:flex;align-items:center;gap:8px}' +
+    '#__dxm_bee_menu .menu-label{display:flex;align-items:center;gap:6px;font-size:12px}' +
     '#__dxm_bee_menu .menu-item.clickable{cursor:pointer}' +
     '#__dxm_bee_menu .menu-label.clickable{cursor:pointer}' +
-    '#__dxm_bee_menu .menu-desc{width:100%;font-size:11px;color:#aaa;padding-left:0;margin-top:2px;pointer-events:none}' +
+    '#__dxm_bee_menu .menu-desc{width:100%;font-size:10px;color:#aaa;padding-left:0;margin-top:1px;pointer-events:none;line-height:1.3}' +
     // --- Switch ---
     '#__dxm_bee_menu .switch{position:relative;width:36px;height:20px;background:#ccc;border-radius:10px;cursor:pointer;transition:background .25s;flex-shrink:0}' +
     '#__dxm_bee_menu .switch.on{background:#FFA000}' +
@@ -89,12 +89,14 @@
   var province = Config.loadProvince();
   var autoTranslate = Config.loadAutoTranslate();
   var autoSkuNo = Config.loadAutoSkuNo();
+  var delVideo = Config.loadDelVideo();
   menu.innerHTML =
     '<div class="menu-item clickable" id="__dxm_bee_menu_filter"><span class="menu-label clickable" id="__dxm_bee_menu_filter_text">📝 标题过滤</span><div class="switch ' + (filterEnabled ? 'on' : '') + '" id="__dxm_bee_menu_filter_switch"></div><div class="menu-desc">点击文字打开配置弹窗，开启后自动过滤标题违规文字</div></div>' +
     '<div class="menu-item clickable" id="__dxm_bee_menu_sku_filter"><span class="menu-label clickable" id="__dxm_bee_menu_sku_filter_text">🏷️ SKU变种属性过滤</span><div class="switch ' + (skuFilterEnabled ? 'on' : '') + '" id="__dxm_bee_menu_sku_filter_switch"></div><div class="menu-desc">点击文字打开配置弹窗，开启后自动过滤SKU变种属性违规文字</div></div>' +
     '<div class="menu-item"><span class="menu-label">🔢 自动SKU高级</span><div class="switch ' + (autoSkuNo ? 'on' : '') + '" id="__dxm_bee_menu_sku_no_switch"></div><div class="menu-desc">开启后SKU工作流自动执行高级SKU货号生成</div></div>' +
     '<div class="menu-item clickable" id="__dxm_bee_menu_store"><span class="menu-label">🏪 选择店铺</span><span class="menu-value" id="__dxm_bee_menu_store_name">' + (currentStore || '未选择') + '</span><span class="menu-arrow">▸</span><div class="menu-desc">选择工作流自动填写的店铺名称</div></div>' +
     '<div class="menu-item"><span class="menu-label">📂 自动点击分类</span><div class="switch ' + (autoCategory ? 'on' : '') + '" id="__dxm_bee_menu_category_switch"></div><div class="menu-desc">开启后工作流自动点击确认分类按钮</div></div>' +
+    '<div class="menu-item"><span class="menu-label">🎬 删除产品视频</span><div class="switch ' + (delVideo ? 'on' : '') + '" id="__dxm_bee_menu_del_video_switch"></div><div class="menu-desc">开启后工作流自动删除产品视频</div></div>' +
     '<div class="menu-item"><span class="menu-label">🔊 自动翻译</span><div class="switch ' + (autoTranslate ? 'on' : '') + '" id="__dxm_bee_menu_translate_switch"></div><div class="menu-desc">开启后工作流自动触发一键翻译</div></div>' +
     '<div class="menu-item"><span class="menu-label">📍 省份选择</span><input type="text" class="menu-input" id="__dxm_bee_menu_province_input" value="' + province + '" maxlength="10" placeholder="广东省"><div class="menu-desc">工作流填写的省份，须以省/市/自治区结尾</div></div>' +
     '<div class="menu-item"><span class="menu-label">🌐 网络图片</span><div class="switch ' + (useWebImage ? 'on' : '') + '" id="__dxm_bee_menu_webimg_switch"></div><div class="menu-desc">编字流程使用网络图片URL上传</div></div>' +
@@ -105,9 +107,29 @@
   var menuStoreName = document.getElementById('__dxm_bee_menu_store_name');
 
   function showMenu(x, y) {
-    menu.style.left = Math.min(x, window.innerWidth - 220) + 'px';
-    menu.style.top = Math.min(y, window.innerHeight - 100) + 'px';
+    // 先在屏幕外显示以测量实际尺寸
+    menu.style.left = '-9999px';
+    menu.style.top = '-9999px';
+    menu.style.right = 'auto';
     menu.classList.add('show');
+
+    var mw = menu.offsetWidth;
+    var mh = menu.offsetHeight;
+    var vh = window.innerHeight;
+    var vw = window.innerWidth;
+    var gap = 8;
+
+    // 水平方向：右侧放不下则显示在左侧
+    var left = x + mw > vw - gap ? x - mw : x;
+    if (left < gap) left = gap;
+
+    // 垂直方向：优先在点击位置居中，确保不超出屏幕
+    var top = y - mh / 2;
+    if (top < gap) top = gap;
+    if (top + mh > vh - gap) top = vh - mh - gap;
+
+    menu.style.left = left + 'px';
+    menu.style.top = top + 'px';
   }
 
   function hideMenu() {
@@ -172,6 +194,15 @@
     this.classList.toggle('on', on);
     Config.saveAutoCategory(on);
     console.log('%c[小蜜蜂] 自动点击分类: ' + (on ? '开启' : '关闭'), 'color:#FFA000;font-weight:bold');
+  });
+
+  var delVideoSwitch = document.getElementById('__dxm_bee_menu_del_video_switch');
+  delVideoSwitch.addEventListener('click', function (e) {
+    e.stopPropagation();
+    var on = !this.classList.contains('on');
+    this.classList.toggle('on', on);
+    Config.saveDelVideo(on);
+    console.log('%c[小蜜蜂] 删除产品视频: ' + (on ? '开启' : '关闭'), 'color:#FFA000;font-weight:bold');
   });
 
   var translateSwitch = document.getElementById('__dxm_bee_menu_translate_switch');

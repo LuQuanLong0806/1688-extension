@@ -696,6 +696,13 @@
 
     // Step 8: 删除产品视频
     function doStepDelVideo() {
+      if (!Config.loadDelVideo()) {
+        log(8, '⏭️ 删除产品视频已关闭，跳过');
+        updateProgress(8, '删除视频已关闭，跳过', 'ok');
+        setTimeout(doStep8, 150);
+        return;
+      }
+
       log(8, '正在检查产品视频...');
       updateProgress(8, '正在检查产品视频...', 'loading');
 
@@ -720,15 +727,17 @@
     }
 
     function deleteNextVideo(formItem, count) {
-      var delLinks = formItem.querySelectorAll('.video-operate-box a.link');
-      var delBtn = null;
-      for (var d = 0; d < delLinks.length; d++) {
-        if ((delLinks[d].textContent || '').indexOf('删除') !== -1) {
-          delBtn = delLinks[d];
+      // 只查找可见的视频容器（隐藏的跳过）
+      var videoImgs = formItem.querySelectorAll('.video-operate-img');
+      var visibleBox = null;
+      for (var v = 0; v < videoImgs.length; v++) {
+        if (videoImgs[v].offsetParent !== null && videoImgs[v].querySelector('.video-operate-img-box')) {
+          visibleBox = videoImgs[v];
           break;
         }
       }
-      if (!delBtn) {
+
+      if (!visibleBox) {
         if (count > 0) {
           log(8, '✅ 已删除 ' + count + ' 个产品视频');
           updateProgress(8, '已删除 ' + count + ' 个产品视频', 'ok');
@@ -739,11 +748,34 @@
         setTimeout(doStep8, 150);
         return;
       }
+
+      var delLinks = visibleBox.querySelectorAll('.video-operate-box a.link');
+      var delBtn = null;
+      for (var d = 0; d < delLinks.length; d++) {
+        if ((delLinks[d].textContent || '').indexOf('删除') !== -1) {
+          delBtn = delLinks[d];
+          break;
+        }
+      }
+
+      if (!delBtn) {
+        log(8, '✅ 无可删除的视频');
+        updateProgress(8, '无产品视频，跳过', 'ok');
+        setTimeout(doStep8, 150);
+        return;
+      }
+
       count++;
       log(8, '正在删除产品视频 ' + count + '...');
       updateProgress(8, '正在删除产品视频 ' + count + '...', 'loading');
       delBtn.click();
-      setTimeout(function () { deleteNextVideo(formItem, count); }, 100);
+
+      // 点击删除后检查是否有确认弹窗
+      setTimeout(function () {
+        var confirmBtn = document.querySelector('.ant-popconfirm-buttons .ant-btn-primary');
+        if (confirmBtn) confirmBtn.click();
+        setTimeout(function () { deleteNextVideo(formItem, count); }, 200);
+      }, 150);
     }
 
     // Step 9: 外包装形状
