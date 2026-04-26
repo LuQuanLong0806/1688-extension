@@ -207,12 +207,17 @@
   function waitForProvinceSelect(cb) {
     var start = Date.now();
     (function check() {
-      var all = document.querySelectorAll('#productProductInfo .ant-select-selector'); // #productProductInfo: 产品信息区域内所有 Select 组件(省份等)
-      for (var i = 0; i < all.length; i++) {
-        var ph = all[i].querySelector('.ant-select-selection-placeholder');
-        var item = all[i].querySelector('.ant-select-selection-item');
-        if ((ph && ph.textContent.includes('请选择省份')) || (item && item.textContent.includes('省'))) {
-          return cb(all[i]);
+      var labels = document.querySelectorAll('#productProductInfo .ant-form-item-label label'); // #productProductInfo: 产品信息区域; 通过 label "产地" 定位省份下拉
+      for (var i = 0; i < labels.length; i++) {
+        if (labels[i].textContent.includes('产地')) {
+          var formItem = labels[i].closest('.ant-form-item');
+          if (formItem) {
+            var origin = formItem.querySelector('.productOrigin'); // .productOrigin: 产地表单项内的 Select 容器(国家+省份两个下拉)
+            if (origin) {
+              var selects = origin.querySelectorAll('.ant-select-selector');
+              if (selects.length >= 2) return cb(selects[1]); // 第二个 .ant-select-selector 即为省份下拉
+            }
+          }
         }
       }
       if (Date.now() - start > 5000) return cb(null);

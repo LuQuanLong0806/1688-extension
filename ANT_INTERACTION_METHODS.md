@@ -254,12 +254,17 @@ function waitForAntSelect(labelText, cb) {
 function waitForProvinceSelect(cb) {
   var start = Date.now();
   (function check() {
-    var all = document.querySelectorAll('#productProductInfo .ant-select-selector');
-    for (var i = 0; i < all.length; i++) {
-      var ph = all[i].querySelector('.ant-select-selection-placeholder');
-      var item = all[i].querySelector('.ant-select-selection-item');
-      if ((ph && ph.textContent.includes('请选择省份')) || (item && item.textContent.includes('省'))) {
-        return cb(all[i]);
+    var labels = document.querySelectorAll('#productProductInfo .ant-form-item-label label');
+    for (var i = 0; i < labels.length; i++) {
+      if (labels[i].textContent.includes('产地')) {
+        var formItem = labels[i].closest('.ant-form-item');
+        if (formItem) {
+          var origin = formItem.querySelector('.productOrigin');
+          if (origin) {
+            var selects = origin.querySelectorAll('.ant-select-selector');
+            if (selects.length >= 2) return cb(selects[1]); // 第二个即省份下拉
+          }
+        }
       }
     }
     if (Date.now() - start > 5000) return cb(null);
@@ -268,8 +273,9 @@ function waitForProvinceSelect(cb) {
 }
 ```
 
-**原理**: 遍历产品信息区域所有 Select，通过 placeholder 或已选项文字判断是否为省份选择器。
-**适用**: Step 6 定位省份下拉框（无固定 label）。
+**原理**: 通过"产地"标签定位 `.productOrigin` 容器，取其中第二个 `.ant-select-selector`（第一个是国家，第二个是省份）。
+**为什么不用文字匹配**: 直辖市（北京市、上海市）不含"省"字，自治区（内蒙古自治区）不含"省"字，已选省份时无法通过文字匹配。改用固定位置定位更可靠。
+**适用**: Step 6 定位省份下拉框。
 **文件位置**: `dxm-float-bee.js` 内部函数
 
 ---
@@ -304,7 +310,9 @@ function waitForProvinceSelect(cb) {
 | `#productProductInfo .mainImage .img-list .img-item` | 产品轮播图列表项（不区分勾选） | 编字: 获取图片 URL（最多8张）; 删字: 统计图片总数 |
 | `.img-item img.img-css` | 产品图片元素，`src` 即为图片 URL | 编字: 读取图片地址; 粘字: 获取首图更新外包装 |
 | `.img-item a.icon_delete` | 图片删除按钮（每个图片容器内） | 删字: 点击删除单张图片 |
-| `#productProductInfo .ant-select-selector` | 产品信息区域内所有 Select（省份等） | 蜜蜂 Step 6: 打开省份下拉 |
+| `#productProductInfo .ant-form-item-label label` (文字含"产地") | 产地表单标签 | 蜜蜂 Step 6: 定位省份下拉 |
+| label → `.closest('.ant-form-item')` → `.productOrigin` | 产地 Select 容器（含国家+省份两个下拉） | 蜜蜂 Step 6 |
+| 容器 → `.ant-select-selector` (第2个) | 省份下拉框 | 蜜蜂 Step 6: 打开省份下拉 |
 
 ### 3.3 翻译区域
 
@@ -322,16 +330,18 @@ function waitForProvinceSelect(cb) {
 | `.ant-select-item-option[title="福建省"]` | 省份下拉"福建省"选项 | 蜜蜂 Step 7 |
 | `.ant-select-item-option[title="不规则"]` | 外包装形状"不规则"选项 | 蜜蜂 Step 9 |
 | `.ant-select-item-option[title="软包装+硬物"]` | 外包装类型"软包装+硬物"选项 | 蜜蜂 Step 11 |
-| `#packageInfo .header button` (文字含"选择图片") | 包裹信息"选择图片"按钮 | 蜜蜂 Step 12: 悬浮触发下拉; 粘字 Step 6: 打开外包装选择图片 |
-| `.ant-dropdown-menu-item[data-menu-id="crawl"]` | 下拉菜单"引用采集图片"选项 | 蜜蜂 Step 13 |
+| `#packageInfo .header button` (文字含"选择图片") | 包裹信息"选择图片"按钮 | 蜜蜂 Step 13: 悬浮触发下拉; 粘字 Step 6: 打开外包装选择图片 |
 
-### 3.5 引用采集图片弹窗
+### 3.5 外包装图片更新（网络图片路径）
 
 | 选择器 | 含义 | 使用场景 |
 |--------|------|---------|
-| `findVisibleModal('引用采集图片')` | 弹窗 `.ant-modal-wrap` 容器 | 蜜蜂 Step 14/15: 定位弹窗 |
-| 容器 → `.img-box .ant-checkbox-wrapper .ant-checkbox-input` | 图片复选框 | 蜜蜂 Step 14: 勾选图片 |
-| 容器 → `.ant-modal-footer button.ant-btn-primary` | 弹窗底部确认按钮 | 蜜蜂 Step 15: 确认选择 |
+| `#productProductInfo .mainImage .img-list .img-item img.img-css` | 产品轮播图列表第一张图片 | 蜜蜂 Step 12: 获取首图 URL |
+| `#packageInfo .header button` (文字含"选择图片") | 外包装选择图片按钮 | 蜜蜂 Step 13: 悬浮触发下拉 |
+| `waitForVisibleLi('网络图片')` | 外包装下拉"网络图片"菜单项 | 蜜蜂 Step 13: 点击打开网络图片 |
+| `findVisibleModal('从网络地址')` | 网络图片弹窗 `.ant-modal-wrap` 容器 | 蜜蜂 Step 14: 定位弹窗 |
+| 容器 → `textarea.ant-input` | 图片 URL 输入框 | 蜜蜂 Step 14: 填入首图 URL |
+| 容器 → `.ant-modal-footer .ant-btn-primary` | 弹窗底部"添加"按钮 | 蜜蜂 Step 15: 确认更新外包装 |
 
 ### 3.6 发布区域
 
@@ -396,8 +406,7 @@ Dropdown 菜单项统一通过 `waitForVisibleLi(文字片段)` 查找：
 | 引用产品轮播图 | 选择图片菜单（编辑器内） | 编字(轮播图路径) |
 | 网络上传 | 选择图片菜单（编辑器内） | 编字(网络图片路径) |
 | 网络图片 | 产品轮播图-选择图片下拉 | 粘字 Step 3: 添加轮播图 |
-| 网络图片 | 外包装-选择图片下拉 | 粘字 Step 7: 更新外包装 |
-| 引用采集图片 (`data-menu-id="crawl"`) | 外包装-选择图片下拉 | 蜜蜂 Step 13 |
+| 网络图片 | 外包装-选择图片下拉 | 粘字 Step 7 / 蜜蜂 Step 13: 更新外包装 |
 | 中文→英文 (`li.menu-item`) | 一键翻译下拉 | 蜜蜂 Step 5 / 译按钮 |
 | 立即发布 (`data-menu-id="2"`) | 发布下拉 | 蜜蜂 Step 18 |
 
@@ -484,16 +493,16 @@ Dropdown 菜单项统一通过 `waitForVisibleLi(文字片段)` 查找：
 | 3 | 确认分类弹窗 | `.ant-modal-footer button.ant-btn-primary` | |
 | 4 | 过滤标题违规词 | `#productProductInfo form .ant-form-item input` | 使用 `setInputValue` |
 | 5 | 一键翻译 | `button.translation-btn` → `li.menu-item` | 悬浮触发下拉 |
-| 6 | 打开省份下拉 | `waitForProvinceSelect` | 通过 placeholder/已选值定位 |
+| 6 | 打开省份下拉 | `waitForProvinceSelect` | 通过"产地"标签定位 `.productOrigin` 第2个 Select |
 | 7 | 选择福建省 | `.ant-select-item-option[title="福建省"]` | |
 | 8 | 打开外包装形状 | `waitForAntSelect('外包装形状')` | 通过 label 文字定位 Select |
 | 9 | 选择不规则 | `.ant-select-item-option[title="不规则"]` | |
 | 10 | 打开外包装类型 | `waitForAntSelect('外包装类型')` | |
 | 11 | 选择软包装+硬物 | `.ant-select-item-option[title="软包装+硬物"]` | |
-| 12 | 悬浮选择图片 | `#packageInfo .header button` | `hoverElement` 触发 |
-| 13 | 引用采集图片 | `.ant-dropdown-menu-item[data-menu-id="crawl"]` | |
-| 14 | 勾选第一张图片 | `findVisibleModal` → `.ant-checkbox-input` | |
-| 15 | 确认选择 | 容器 → `.ant-modal-footer .ant-btn-primary` | |
+| 12 | 获取产品轮播图首图URL | `#productProductInfo .mainImage .img-list .img-item img.img-css` | 无图则跳到 Step 16 |
+| 13 | 悬浮外包装选择图片 | `#packageInfo .header button` → `waitForVisibleLi('网络图片')` | `hoverElement` 触发 |
+| 14 | 点击网络图片 → 填入URL | `findVisibleModal('从网络地址')` → `textarea.ant-input` | 用 `setInputValue` 填入首图URL |
+| 15 | 确认更新外包装 | 容器 → `.ant-modal-footer .ant-btn-primary` | |
 | 16 | 检查标题长度 | `.inputContainer .color-gray` | 超限则智能截取 |
 | 17 | 悬浮发布按钮 | `.footer button.btn-green` | 可配置跳过 |
 | 18 | 立即发布 | `.ant-dropdown-menu-item[data-menu-id="2"]` | |
