@@ -10,6 +10,8 @@
   var filterSuccess = false;
 
   skuEl.addEventListener('click', function () {
+    var skuSection = document.querySelector('#skuAttrsInfo');
+    if (skuSection) skuSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
     filterDone = false;
     filterSuccess = false;
     doSkuFilter();

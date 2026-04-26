@@ -296,6 +296,8 @@
     if (translateEl) {
       translateEl.addEventListener('click', function () {
         if (isWorking) return;
+        var titleInput = document.querySelector('#productProductInfo form .ant-form-item input');
+        if (titleInput) titleInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
         doTranslateOnly();
       });
     }

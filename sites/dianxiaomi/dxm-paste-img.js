@@ -9,12 +9,16 @@
 
   if (pasteEl) {
     pasteEl.addEventListener('click', function () {
+      var mainImg = document.querySelector('#productProductInfo .mainImage');
+      if (mainImg) mainImg.scrollIntoView({ behavior: 'smooth', block: 'center' });
       doPasteImg();
     });
   }
 
   if (deleteEl) {
     deleteEl.addEventListener('click', function () {
+      var mainImg = document.querySelector('#productProductInfo .mainImage');
+      if (mainImg) mainImg.scrollIntoView({ behavior: 'smooth', block: 'center' });
       doDeleteImages();
     });
   }

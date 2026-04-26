@@ -7,6 +7,8 @@
   if (!editEl) return;
 
   editEl.addEventListener('click', function () {
+    var descSection = document.querySelector('#describeInfo');
+    if (descSection) descSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
     doEditDesc();
   });
 
