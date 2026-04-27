@@ -248,32 +248,145 @@
   }
 
   // ========== Delete workflow ==========
-  function doDeleteImages() {
-    console.log('%c[小蜜蜂-删] 一键清空产品轮播图 开始', 'color:#C62828;font-weight:bold;font-size:14px');
+  var delStep = 0;
+  var delTotal = 3;
+  function delLog(msg) {
+    delStep++;
+    console.log('%c[小蜜蜂-删] ' + delStep + '/' + delTotal + ' ' + msg, 'color:#C62828;font-weight:bold');
+    C.showBubble(delStep + '/' + delTotal + ' ' + msg, 'loading');
+  }
 
-    var imgItems = document.querySelectorAll('#productProductInfo .mainImage .img-list .img-item'); // 产品轮播图列表中的所有图片容器
+  function doDeleteImages() {
+    delStep = 0;
+    console.log('%c[小蜜蜂-删] 一键清空 开始', 'color:#C62828;font-weight:bold;font-size:14px');
+    deleteMainImages();
+  }
+
+  // Step 1: 清空产品轮播图
+  function deleteMainImages() {
+    delLog('清空产品轮播图...');
+    var imgItems = document.querySelectorAll('#productProductInfo .mainImage .img-list .img-item');
     var total = imgItems.length;
     if (total === 0) {
-      C.showBubble('无需清空，没有图片', 'ok');
-      setTimeout(C.hideBubble, 2000);
+      console.log('%c[小蜜蜂-删] 产品轮播图无图片，跳过', 'color:#C62828;font-weight:bold');
+      deleteProductVideos();
       return;
     }
 
     var deleted = 0;
     function deleteNext() {
-      var btn = document.querySelector('#productProductInfo .mainImage .img-list .img-item a.icon_delete'); // 每个图片容器内的删除按钮
+      var btn = document.querySelector('#productProductInfo .mainImage .img-list .img-item a.icon_delete');
       if (!btn) {
-        console.log('%c[小蜜蜂-删] ✅ 已清空 ' + deleted + ' 张图片', 'color:#C62828;font-weight:bold;font-size:14px');
-        C.showBubble('✅ 已清空 ' + deleted + ' 张图片', 'ok');
-        setTimeout(C.hideBubble, 2000);
+        console.log('%c[小蜜蜂-删] ✅ 已清空 ' + deleted + ' 张轮播图', 'color:#C62828;font-weight:bold');
+        deleteProductVideos();
         return;
       }
       deleted++;
-      console.log('%c[小蜜蜂-删] 删除 ' + deleted + '/' + total, 'color:#C62828;font-weight:bold');
-      C.showBubble('⏳ 删除 ' + deleted + '/' + total, 'loading');
+      C.showBubble('1/' + delTotal + ' ⏳ 删除轮播图 ' + deleted + '/' + total, 'loading');
       btn.click();
       setTimeout(deleteNext, 50);
     }
     deleteNext();
+  }
+
+  // Step 2: 删除产品视频
+  function deleteProductVideos() {
+    delLog('检查产品视频...');
+
+    var labels = document.querySelectorAll('#productProductInfo .ant-form-item-label label');
+    var videoLabel = null;
+    for (var vi = 0; vi < labels.length; vi++) {
+      if ((labels[vi].textContent || '').indexOf('产品视频') !== -1) {
+        videoLabel = labels[vi];
+        break;
+      }
+    }
+
+    if (!videoLabel) {
+      console.log('%c[小蜜蜂-删] 无产品视频区域，跳过', 'color:#C62828;font-weight:bold');
+      deletePackageImages();
+      return;
+    }
+
+    var videoFormItem = videoLabel.closest('.ant-form-item');
+    deleteNextVideo(videoFormItem, 0);
+  }
+
+  function deleteNextVideo(formItem, count) {
+    var videoImgs = formItem.querySelectorAll('.video-operate-img');
+    var visibleBox = null;
+    for (var v = 0; v < videoImgs.length; v++) {
+      if (videoImgs[v].offsetParent !== null && videoImgs[v].querySelector('.video-operate-img-box')) {
+        visibleBox = videoImgs[v];
+        break;
+      }
+    }
+
+    if (!visibleBox) {
+      if (count > 0) {
+        console.log('%c[小蜜蜂-删] ✅ 已删除 ' + count + ' 个产品视频', 'color:#C62828;font-weight:bold');
+      } else {
+        console.log('%c[小蜜蜂-删] 无产品视频，跳过', 'color:#C62828;font-weight:bold');
+      }
+      deletePackageImages();
+      return;
+    }
+
+    var delLinks = visibleBox.querySelectorAll('.video-operate-box a.link');
+    var delBtn = null;
+    for (var d = 0; d < delLinks.length; d++) {
+      if ((delLinks[d].textContent || '').indexOf('删除') !== -1) {
+        delBtn = delLinks[d];
+        break;
+      }
+    }
+
+    if (!delBtn) {
+      deletePackageImages();
+      return;
+    }
+
+    count++;
+    C.showBubble('2/' + delTotal + ' ⏳ 删除产品视频 ' + count, 'loading');
+    delBtn.click();
+
+    setTimeout(function () {
+      var confirmBtn = document.querySelector('.ant-popconfirm-buttons .ant-btn-primary');
+      if (confirmBtn) confirmBtn.click();
+      setTimeout(function () { deleteNextVideo(formItem, count); }, 200);
+    }, 150);
+  }
+
+  // Step 3: 删除外包装图片
+  function deletePackageImages() {
+    delLog('清空外包装图片...');
+    var pkgImgs = document.querySelectorAll('#packageInfo .img-list .img-item a.icon_delete');
+    if (pkgImgs.length === 0) {
+      console.log('%c[小蜜蜂-删] 外包装无图片，跳过', 'color:#C62828;font-weight:bold');
+      finishDelete();
+      return;
+    }
+
+    var deleted = 0;
+    var total = pkgImgs.length;
+    function deleteNext() {
+      var btn = document.querySelector('#packageInfo .img-list .img-item a.icon_delete');
+      if (!btn) {
+        console.log('%c[小蜜蜂-删] ✅ 已清空 ' + deleted + ' 张外包装图片', 'color:#C62828;font-weight:bold');
+        finishDelete();
+        return;
+      }
+      deleted++;
+      C.showBubble('3/' + delTotal + ' ⏳ 删除外包装 ' + deleted + '/' + total, 'loading');
+      btn.click();
+      setTimeout(deleteNext, 50);
+    }
+    deleteNext();
+  }
+
+  function finishDelete() {
+    console.log('%c[小蜜蜂-删] ✅ 全部清空完成', 'color:#C62828;font-weight:bold;font-size:14px');
+    C.showBubble('✅ 轮播图+视频+外包装已清空', 'ok');
+    setTimeout(C.hideBubble, 2000);
   }
 })();

@@ -50,7 +50,7 @@
     '<div id="__dxm_bee_translate" title="一键翻译">译</div>' +
     '<div id="__dxm_bee_paste" title="一键粘贴图片URL">粘</div>' +
     '<div id="__dxm_bee_sku" title="一键SKU过滤">SKU</div>' +
-    '<div id="__dxm_bee_edit" title="一键编辑描述">编</div>' +
+    '<div id="__dxm_bee_edit" title="一键编辑描述">描</div>' +
     '<div id="__dxm_bee_delete" title="一键清空产品轮播图">删</div>';
 
   // ========== Styles ==========
