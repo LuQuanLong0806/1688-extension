@@ -67,7 +67,7 @@
     '#__dxm_bee_icon{width:56px;height:56px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .2s;overflow:visible;position:relative;z-index:2}' +
     '#__dxm_bee_icon:hover{transform:scale(1.1)}' +
     '#__dxm_bee_btns{display:flex;flex-direction:column;align-items:center;position:relative;z-index:1}' +
-    '.__dxm_bee_line{width:1px;height:5px;background:linear-gradient(to bottom,rgba(0,0,0,.12),rgba(0,0,0,.06));border-radius:1px}' +
+    '.__dxm_bee_line{width:1px;height:5px;background:linear-gradient(to bottom,rgba(0,0,0,.12),rgba(0,0,0,.06));border-radius:1px;margin-top:3px}' +
     '#__dxm_bee_icon svg{width:100%;height:auto;filter:drop-shadow(0 2px 6px rgba(255,202,40,.4))}' +
     '#__dxm_bee.flying #__dxm_bee_icon{animation:__dxm_fly 1s ease-in-out infinite}' +
     '@keyframes __dxm_fly{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-8px) rotate(3deg)}}' +
@@ -81,16 +81,16 @@
     '#__dxm_bee_bubble.loading{color:#FFA000}' +
     '#__dxm_bee_bar{height:3px;background:#f0f0f0;border-radius:2px;margin-top:6px;overflow:hidden}' +
     '#__dxm_bee_bar_fill{height:100%;width:0;background:linear-gradient(90deg,#FFCA28,#FFA000);border-radius:2px;transition:width .3s}' +
-    '#__dxm_bee_translate{margin-top:4px;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#FFCA28,#FFA000);color:#fff;font:bold 12px/1 "楷体","KaiTi","STKaiti",serif;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(255,160,0,.35);transition:transform .2s,box-shadow .2s;user-select:none;text-shadow:0 1px 2px rgba(0,0,0,.15)}' +
-    '#__dxm_bee_translate:hover{transform:scale(1.12);box-shadow:0 4px 12px rgba(255,160,0,.5)}' +
-    '#__dxm_bee_edit{margin-top:4px;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#66BB6A,#43A047);color:#fff;font:bold 12px/1 "楷体","KaiTi","STKaiti",serif;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(67,160,71,.35);transition:transform .2s,box-shadow .2s;user-select:none;text-shadow:0 1px 2px rgba(0,0,0,.15)}' +
-    '#__dxm_bee_edit:hover{transform:scale(1.12);box-shadow:0 4px 12px rgba(67,160,71,.5)}' +
-    '#__dxm_bee_paste{margin-top:4px;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#AB47BC,#8E24AA);color:#fff;font:bold 12px/1 "楷体","KaiTi","STKaiti",serif;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(142,36,170,.35);transition:transform .2s,box-shadow .2s;user-select:none;text-shadow:0 1px 2px rgba(0,0,0,.15)}' +
-    '#__dxm_bee_paste:hover{transform:scale(1.12);box-shadow:0 4px 12px rgba(142,36,170,.5)}' +
-    '#__dxm_bee_sku{margin-top:4px;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#26C6DA,#00838F);color:#fff;font-size:10px;font-weight:bold;letter-spacing:.5px;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(0,131,143,.35);transition:transform .2s,box-shadow .2s;user-select:none;text-shadow:0 1px 2px rgba(0,0,0,.15)}' +
-    '#__dxm_bee_sku:hover{transform:scale(1.12);box-shadow:0 4px 12px rgba(0,131,143,.5)}' +
-    '#__dxm_bee_delete{margin-top:4px;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#EF5350,#C62828);color:#fff;font:bold 12px/1 "楷体","KaiTi","STKaiti",serif;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(198,40,40,.35);transition:transform .2s,box-shadow .2s;user-select:none;text-shadow:0 1px 2px rgba(0,0,0,.15)}' +
-    '#__dxm_bee_delete:hover{transform:scale(1.12);box-shadow:0 4px 12px rgba(198,40,40,.5)}';
+    '#__dxm_bee_translate{margin-top:3px;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#FFCA28,#FFA000);color:#fff;font:bold 12px/1 "楷体","KaiTi","STKaiti",serif;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(255,160,0,.35);transition:box-shadow .2s;user-select:none;text-shadow:0 1px 2px rgba(0,0,0,.15)}' +
+    '#__dxm_bee_translate:hover{transform:scale(1.15)!important;box-shadow:0 4px 12px rgba(255,160,0,.5)}' +
+    '#__dxm_bee_edit{margin-top:3px;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#66BB6A,#43A047);color:#fff;font:bold 12px/1 "楷体","KaiTi","STKaiti",serif;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(67,160,71,.35);transition:box-shadow .2s;user-select:none;text-shadow:0 1px 2px rgba(0,0,0,.15)}' +
+    '#__dxm_bee_edit:hover{transform:scale(1.15)!important;box-shadow:0 4px 12px rgba(67,160,71,.5)}' +
+    '#__dxm_bee_paste{margin-top:3px;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#AB47BC,#8E24AA);color:#fff;font:bold 12px/1 "楷体","KaiTi","STKaiti",serif;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(142,36,170,.35);transition:box-shadow .2s;user-select:none;text-shadow:0 1px 2px rgba(0,0,0,.15)}' +
+    '#__dxm_bee_paste:hover{transform:scale(1.15)!important;box-shadow:0 4px 12px rgba(142,36,170,.5)}' +
+    '#__dxm_bee_sku{margin-top:3px;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#26C6DA,#00838F);color:#fff;font-size:10px;font-weight:bold;letter-spacing:.5px;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(0,131,143,.35);transition:box-shadow .2s;user-select:none;text-shadow:0 1px 2px rgba(0,0,0,.15)}' +
+    '#__dxm_bee_sku:hover{transform:scale(1.15)!important;box-shadow:0 4px 12px rgba(0,131,143,.5)}' +
+    '#__dxm_bee_delete{margin-top:3px;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#EF5350,#C62828);color:#fff;font:bold 12px/1 "楷体","KaiTi","STKaiti",serif;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(198,40,40,.35);transition:box-shadow .2s;user-select:none;text-shadow:0 1px 2px rgba(0,0,0,.15)}' +
+    '#__dxm_bee_delete:hover{transform:scale(1.15)!important;box-shadow:0 4px 12px rgba(198,40,40,.5)}';
 
   document.head.appendChild(s);
   document.body.appendChild(wrapper);
@@ -174,6 +174,16 @@
     swingDecayT = now;
 
     var buttons = getSwingButtons();
+
+    if (swingMode !== 'drag') {
+      // 非 drag 模式下跳过 hover 的按钮
+      for (var h = buttons.length - 1; h >= 0; h--) {
+        if (buttons[h].matches(':hover')) {
+          buttons[h].style.transform = 'scale(1.15)';
+          buttons.splice(h, 1);
+        }
+      }
+    }
 
     if (swingMode === 'drag') {
       for (var i = 0; i < buttons.length; i++) {
