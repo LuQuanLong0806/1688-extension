@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>商品采集管理</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>商品采集管理</h1>
+    </header>
+
+    <div class="toolbar">
+      <div class="search-bar">
+        <input type="text" id="keyword" placeholder="搜索标题..." />
+        <select id="statusFilter">
+          <option value="all">全部状态</option>
+          <option value="0">未使用</option>
+          <option value="1">已使用</option>
+        </select>
+        <button id="searchBtn">搜索</button>
+      </div>
+      <div class="actions">
+        <button id="batchDeleteBtn" class="btn-danger" disabled>批量删除</button>
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th class="col-check"><input type="checkbox" id="selectAll" /></th>
+          <th class="col-id">ID</th>
+          <th class="col-title">标题</th>
+          <th class="col-attrs">属性</th>
+          <th class="col-sku">SKU数</th>
+          <th class="col-status">状态</th>
+          <th class="col-time">创建时间</th>
+          <th class="col-actions">操作</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+
+    <div class="pagination">
+      <button id="prevBtn">上一页</button>
+      <span id="pageInfo"></span>
+      <button id="nextBtn">下一页</button>
+    </div>
+  </div>
+
+  <!-- 详情弹窗 -->
+  <div class="modal-overlay" id="detailModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="modalTitle">商品详情</h2>
+        <button class="modal-close" id="modalClose">&times;</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-footer">
+        <button id="copyUrlBtn">复制回填URL</button>
+        <button id="toggleStatusBtn">标记已用</button>
+        <button id="modalCloseBtn">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -533,12 +533,12 @@ Dropdown 菜单项统一通过 `waitForVisibleLi(文字片段)` 查找：
 #__dxm_bee (fixed 定位, 可拖动)
 ├── #__dxm_bee_bubble        气泡通知 (absolute, bottom:100%)
 ├── #__dxm_bee_icon          蜜蜂 SVG 图标 (56×56, 可拖动/可点击)
-├── #__dxm_bee_translate     译 (34×34, 橙黄色圆形按钮)
-├── #__dxm_bee_edit          编 (34×34, 绿色圆形按钮)
-├── #__dxm_bee_paste         粘 (34×34, 紫色圆形按钮)
-├── #__dxm_bee_sku           S  (34×34, 青蓝色圆形按钮)
-├── #__dxm_bee_delete        删 (34×34, 红色圆形按钮)
-└── #__dxm_bee_sku_table     填表 (34×34, 深蓝色圆形按钮)
+├── #__dxm_bee_translate     翻译 (34×34, 橙黄色圆形按钮)
+├── #__dxm_bee_paste         贴图 (34×34, 紫色圆形按钮)
+├── #__dxm_bee_sku_table     填表 (34×34, 深蓝色圆形按钮)
+├── #__dxm_bee_sku           SKU (34×34, 青蓝色圆形按钮)
+├── #__dxm_bee_edit          描述 (34×34, 绿色圆形按钮)
+└── #__dxm_bee_delete        删图 (34×34, 红色圆形按钮)
 ```
 
 **气泡定位**: `position: absolute; bottom: 100%` 在图标上方显示。通过 `.at-right` class 判断图标在屏幕左/右侧，调整气泡左右对齐避免超出屏幕。
@@ -550,12 +550,12 @@ Dropdown 菜单项统一通过 `waitForVisibleLi(文字片段)` 查找：
 **按钮功能**:
 | 按钮 | 颜色 | 功能 | 文件 |
 |------|------|------|------|
-| 译 | 橙黄 `#FFCA28→#FFA000` | 一键翻译（含标题气泡+翻译） | dxm-float-bee.js |
-| 编 | 绿 `#66BB6A→#43A047` | 一键编辑描述 | dxm-edit-desc.js |
-| 粘 | 紫 `#AB47BC→#8E24AA` | 粘贴图片URL + 清空旧外包装 + 更新外包装 | dxm-paste-img.js |
-| S  | 青 `#26C6DA→#00838F` | SKU变种属性过滤 + 高级SKU货号 | dxm-sku.js |
-| 删 | 红 `#EF5350→#C62828` | 清空产品轮播图+视频+外包装 | dxm-paste-img.js |
-| 填表 | 深蓝 `#5C6BC0→#283593` | SKU表格自动填充（预览图+货号+价格+尺寸+重量） | dxm-sku-table.js |
+| 翻译 | 橙黄 `#FFCA28→#FFA000` | 一键翻译（含标题气泡+翻译） | dxm-float-bee.js |
+| 贴图 | 紫 `#AB47BC→#8E24AA` | 粘贴图片URL + 清空旧外包装 + 更新外包装 | dxm-paste-img.js |
+| 填表 | 深蓝 `#5C6BC0→#283593` | 取消变种属性 + 添加属性值 + SKU表格自动填充 | dxm-sku-table.js |
+| SKU | 青 `#26C6DA→#00838F` | SKU变种属性过滤 + 数字单位补全 + 高级SKU货号 | dxm-sku.js |
+| 描述 | 绿 `#66BB6A→#43A047` | 一键编辑描述 | dxm-edit-desc.js |
+| 删图 | 红 `#EF5350→#C62828` | 清空产品轮播图+视频+外包装 | dxm-paste-img.js |
 
 ---
 
@@ -638,32 +638,50 @@ Dropdown 菜单项统一通过 `waitForVisibleLi(文字片段)` 查找：
 
 **策略**: 每次重新 `querySelector` 而非缓存元素引用，避免 DOM 变更后引用失效。
 
-### 7.7 点击"填表" — SKU表格自动填充
+### 7.7 点击"填表" — SKU变种属性编辑 + 表格自动填充
 
 **数据结构**:
 ```javascript
 {
-  image: 'https://...',     // 预览图URL（可选）
-  sku: 'SKU-001',          // SKU货号（可选）
-  price: '35.69',          // 申报价格（可选）
-  dimensions: [10, 8, 5],  // 尺寸（可选，自动从大到小排序填入长/宽/高）
-  weight: '15'             // 重量（可选）
+  attrs: ['light green', 'dark green', 'red'],  // 变种属性值列表（可选）
+  rows: [
+    {
+      image: 'https://...',     // 预览图URL（可选）
+      sku: 'SKU-001',          // SKU货号（可选）
+      price: '35.69',          // 申报价格（可选）
+      dimensions: [10, 8, 5],  // 尺寸（可选，自动从大到小排序填入长/宽/高）
+      weight: '15'             // 重量（可选）
+    }
+  ]
 }
 ```
 
-**逐行处理流程**（每行 `table tbody tr`）:
+**Step 1: 取消所有变种属性勾选**（`#skuAttrsInfo form .options-module label.d-checkbox input[checked]`）
+
+逐个点击已勾选的 checkbox 取消勾选，间隔 50ms。
+
+**Step 2: 添加新的变种属性值**（`#skuAttrsInfo form .theme-value-add`）
+
+| 操作 | 关键选择器 | 备注 |
+|------|-----------|------|
+| 定位第一个属性添加框 | `form .theme-value-add` | 第一个 `.mb-24` 下的添加区域 |
+| 聚焦输入框 | `.theme-value-add input[type="text"]` | maxlength=35 |
+| 输入属性值 | `setInputValue(input, val)` | |
+| 点击添加按钮 | `.theme-value-add button`（非 disabled 时） | 等待 80ms 后点击，每个值间隔 100ms |
+
+**Step 3: 逐行填充 SKU 表格**（每行 `#skuDataInfo table tbody tr`）:
 
 | 步骤 | 操作 | 关键选择器 | 备注 |
 |------|------|-----------|------|
-| 1 | 预览图 - 判断有图/无图 | `tr .sku-image-box` 存在则有图 | 区分触发方式 |
-| 1a | 有图: hover 触发下拉 | `hoverElement(tr .sku-image-box)` | 标准 Ant Dropdown |
-| 1b | 无图: hoverWithCoords 触发下拉 | `hoverWithCoords(tr td.min-w-70 .img-box)` | 需带坐标 PointerEvent |
-| 2 | 等待下拉菜单 → 点击"网络图片" | `.ant-dropdown` 可见 → `li[data-menu-id="net"]` | 通过 `getComputedStyle` 检查可见性 |
-| 3 | 等待弹窗 → 填入URL → 点击添加 | `findVisibleModal('从网络地址')` → `textarea.ant-input` → `.ant-btn-primary` | |
-| 4 | 填写SKU货号 | `tr input[name="variationSku"]` → `focus()` → `setInputValue` → `blur()` | 已有值则跳过 |
-| 5 | 填写申报价格 | `tr input[name="price"]` → `focus()` → `setInputValue` → `blur()` | 已有值则跳过 |
-| 6 | 填写尺寸（从大到小） | `dimensions.sort(降序)` → `skuLength`/`skuWidth`/`skuHeight` | 已有值则跳过 |
-| 7 | 填写重量 | `tr input[name="weight"]` → `focus()` → `setInputValue` → `blur()` | 已有值则跳过 |
+| 3a | 预览图 - 判断有图/无图 | `tr .sku-image-box` 存在则有图 | 区分触发方式 |
+| 3a-1 | 有图: hover 触发下拉 | `hoverElement(tr .sku-image-box)` | 标准 Ant Dropdown |
+| 3a-2 | 无图: hoverWithCoords 触发下拉 | `hoverWithCoords(tr td.min-w-70 .img-box)` | 需带坐标 PointerEvent |
+| 3b | 等待下拉菜单 → 点击"网络图片" | `.ant-dropdown` 可见 → `li[data-menu-id="net"]` | 通过 `getComputedStyle` 检查可见性 |
+| 3c | 等待弹窗 → 填入URL → 点击添加 | `findVisibleModal('从网络地址')` → `textarea.ant-input` → `.ant-btn-primary` | |
+| 3d | 填写SKU货号 | `tr input[name="variationSku"]` → `focus()` → `setInputValue` → `blur()` | 已有值则跳过 |
+| 3e | 填写申报价格 | `tr input[name="price"]` → `focus()` → `setInputValue` → `blur()` | 已有值则跳过 |
+| 3f | 填写尺寸（从大到小） | `dimensions.sort(降序)` → `skuLength`/`skuWidth`/`skuHeight` | 已有值则跳过 |
+| 3g | 填写重量 | `tr input[name="weight"]` → `focus()` → `setInputValue` → `blur()` | 已有值则跳过 |
 
 **关键细节**:
 - 输入框赋值必须 `focus()` → `setInputValue()` → `blur()` 触发 Vue 双向绑定

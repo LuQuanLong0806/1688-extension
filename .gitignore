@@ -2,3 +2,4 @@ node_modules/
 1688-extension/
 dist/
 *.zip
+server/data.db
