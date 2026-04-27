@@ -17,6 +17,17 @@
     doSkuFilter();
   });
 
+  // ========== 数字单位补全 ==========
+  function addUnits(text) {
+    if (/[一-龥]/.test(text)) return { text: text, changed: false };
+    var newText = text.replace(/(^|\s)(\d+)(?!\s*(?:PC|pcs|Pieces?|pieces?|pc|PCS)\b)/gi, function (match, prefix, num) {
+      var n = parseInt(num, 10);
+      if (isNaN(n)) return match;
+      return prefix + num + (n === 1 ? ' PC' : ' PCS');
+    });
+    return { text: newText, changed: newText !== text };
+  }
+
   // ========== Main flow ==========
   function doSkuFilter() {
     console.log('%c[小蜜蜂-SKU] 一键SKU变种属性过滤 开始', 'color:#00838F;font-weight:bold;font-size:14px');
@@ -86,8 +97,10 @@
 
       var text = textEl.getAttribute('title') || textEl.textContent || '';
       var result = C.applyFilters(text, filters);
+      var unitResult = addUnits(result.text);
+      var finalText = unitResult.text;
 
-      if (!result.changed) {
+      if (!result.changed && !unitResult.changed) {
         setTimeout(processNext, 50);
         return;
       }
@@ -102,7 +115,7 @@
         var input = label.querySelector('.edit-inp'); // .edit-inp: 编辑输入框(点击编辑后显示)
         if (!input) { setTimeout(processNext, 50); return; }
 
-        C.setInputValue(input, result.text);
+        C.setInputValue(input, finalText);
 
         setTimeout(function () {
           var saveBtn = label.querySelector('.btn-save'); // .btn-save: 保存图标按钮
@@ -110,7 +123,7 @@
 
           saveBtn.click();
           changed++;
-          console.log('%c[小蜜蜂-SKU] 替换: "' + text + '" → "' + result.text + '"', 'color:#00838F;font-weight:bold');
+          console.log('%c[小蜜蜂-SKU] 替换: "' + text + '" → "' + finalText + '"', 'color:#00838F;font-weight:bold');
 
           setTimeout(processNext, 65);
         }, 65);
