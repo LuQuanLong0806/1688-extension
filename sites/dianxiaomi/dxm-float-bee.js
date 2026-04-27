@@ -472,12 +472,8 @@
           var filters = Config.loadFilters().filter(function (f) { return f.enabled && f.from; });
 
           if (filterEnabled) {
-            var filtered = currentTitle;
-            for (var i = 0; i < filters.length; i++) {
-              if (filtered.indexOf(filters[i].from) === -1) continue;
-              filtered = filtered.split(filters[i].from).join(filters[i].to);
-            }
-            if (filtered !== currentTitle) Config.setInputValue(input, filtered);
+            var result = Config.applyFilters(currentTitle, filters);
+            if (result.changed) Config.setInputValue(input, result.text);
           }
 
           showTitleBubble(currentTitle, null, null, input);
@@ -664,16 +660,10 @@
       var filters = Config.loadFilters().filter(function (f) { return f.enabled && f.from; });
 
       if (filterEnabled) {
-        var changed = false;
-        var filtered = title;
-        var hits = [];
-        for (var i = 0; i < filters.length; i++) {
-          var f = filters[i];
-          if (filtered.indexOf(f.from) === -1) continue;
-          filtered = filtered.split(f.from).join(f.to);
-          hits.push(f.from);
-          changed = true;
-        }
+        var result = Config.applyFilters(title, filters);
+        var filtered = result.text;
+        var hits = result.hits;
+        var changed = result.changed;
         if (changed) {
           log(4, '过滤后: "' + filtered + '"');
           Config.setInputValue(input, filtered);

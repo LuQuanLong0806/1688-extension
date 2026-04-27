@@ -190,6 +190,70 @@
   }
 
 
+  // 分组一次性过滤：同替换目标归为一组，组内按匹配长度降序，最长优先，避免二次替换
+  function applyFilters(text, filters) {
+    // 按 to 分组，同时记录 from→to 映射
+    var groups = {};
+    var fromToMap = {};
+    for (var i = 0; i < filters.length; i++) {
+      var f = filters[i];
+      if (!f.enabled || !f.from) continue;
+      var key = f.to === undefined ? '' : f.to;
+      if (!groups[key]) groups[key] = { to: key, froms: [] };
+      groups[key].froms.push(f.from);
+      fromToMap[f.from] = key;
+    }
+
+    // 在原始文本上标记所有匹配区域 [start, end)
+    var marked = []; // [{ start, end, from }]
+    var hitFroms = [];
+
+    var keys = Object.keys(groups);
+    for (var g = 0; g < keys.length; g++) {
+      var grp = groups[keys[g]];
+      grp.froms.sort(function (a, b) { return b.length - a.length; });
+
+      for (var fi = 0; fi < grp.froms.length; fi++) {
+        var from = grp.froms[fi];
+        var pos = text.indexOf(from);
+        while (pos !== -1) {
+          var overlaps = false;
+          for (var m = 0; m < marked.length; m++) {
+            if (pos < marked[m].end && pos + from.length > marked[m].start) {
+              overlaps = true;
+              break;
+            }
+          }
+          if (!overlaps) {
+            marked.push({ start: pos, end: pos + from.length, from: from });
+            hitFroms.push(from);
+          }
+          pos = text.indexOf(from, pos + 1);
+        }
+      }
+    }
+
+    if (marked.length === 0) return { text: text, hits: [], changed: false };
+
+    marked.sort(function (a, b) { return a.start - b.start; });
+
+    var result = '';
+    var lastEnd = 0;
+    for (var r = 0; r < marked.length; r++) {
+      result += text.substring(lastEnd, marked[r].start) + fromToMap[marked[r].from];
+      lastEnd = marked[r].end;
+    }
+    result += text.substring(lastEnd);
+
+    // 去重 hits
+    var uniqueHits = [];
+    for (var h = 0; h < hitFroms.length; h++) {
+      if (uniqueHits.indexOf(hitFroms[h]) === -1) uniqueHits.push(hitFroms[h]);
+    }
+
+    return { text: result, hits: uniqueHits, changed: result !== text };
+  }
+
   function setInputValue(input, val) {
     var proto = input.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
     var nativeSetter = Object.getOwnPropertyDescriptor(proto, 'value').set;
@@ -265,6 +329,7 @@
     loadDelVideo: loadDelVideo,
     saveDelVideo: saveDelVideo,
     setInputValue: setInputValue,
+    applyFilters: applyFilters,
     findVisibleModal: findVisibleModal,
     findVisibleLi: findVisibleLi,
     waitForVisibleLi: waitForVisibleLi
