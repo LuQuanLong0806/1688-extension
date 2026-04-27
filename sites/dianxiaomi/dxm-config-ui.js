@@ -61,6 +61,7 @@
     '#__dxm_bee_settings_toolbar button:hover{border-color:#FFA000;color:#E65100}' +
     '#__dxm_bee_settings_toolbar .btn-primary{background:#FFA000;color:#fff;border-color:#FFA000}' +
     '#__dxm_bee_settings_toolbar .btn-primary:hover{background:#FF8F00}' +
+    '#__dxm_bee_settings_hint{font-size:11px;color:#aaa;align-self:center;margin-left:auto;white-space:nowrap}' +
     '#__dxm_bee_settings_body{flex:1;overflow-y:auto;padding:0 24px 20px}' +
     '#__dxm_bee_settings table{width:100%;border-collapse:collapse;margin-top:14px}' +
     '#__dxm_bee_settings th{text-align:left;padding:10px 8px;color:#888;font-weight:500;border-bottom:2px solid #FFA000;font-size:12px}' +
@@ -368,6 +369,7 @@
     '<div id="__dxm_bee_settings_toolbar">' +
       '<button class="btn-primary" id="__dxm_bee_settings_add">+ 新增</button>' +
       '<button class="btn-primary" id="__dxm_bee_settings_save">保存</button>' +
+      '<span id="__dxm_bee_settings_hint">用 / 分隔多个关键词，如：黄金/金色/金 → 金色调</span>' +
     '</div>' +
     '<div id="__dxm_bee_settings_body">' +
       '<table><thead><tr><th style="width:35%">被过滤文字</th><th style="width:35%">填充文字 <span style="font-weight:400;color:#bbb">（默认空格）</span></th><th>操作</th></tr></thead>' +

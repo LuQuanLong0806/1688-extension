@@ -85,16 +85,9 @@
       if (!textEl) { setTimeout(processNext, 50); return; }
 
       var text = textEl.getAttribute('title') || textEl.textContent || '';
-      var newText = text;
-      var hit = false;
+      var result = C.applyFilters(text, filters);
 
-      for (var i = 0; i < filters.length; i++) {
-        if (newText.indexOf(filters[i].from) === -1) continue;
-        newText = newText.split(filters[i].from).join(filters[i].to);
-        hit = true;
-      }
-
-      if (!hit || newText === text) {
+      if (!result.changed) {
         setTimeout(processNext, 50);
         return;
       }
@@ -109,7 +102,7 @@
         var input = label.querySelector('.edit-inp'); // .edit-inp: 编辑输入框(点击编辑后显示)
         if (!input) { setTimeout(processNext, 50); return; }
 
-        C.setInputValue(input, newText);
+        C.setInputValue(input, result.text);
 
         setTimeout(function () {
           var saveBtn = label.querySelector('.btn-save'); // .btn-save: 保存图标按钮
@@ -117,7 +110,7 @@
 
           saveBtn.click();
           changed++;
-          console.log('%c[小蜜蜂-SKU] 替换: "' + text + '" → "' + newText + '"', 'color:#00838F;font-weight:bold');
+          console.log('%c[小蜜蜂-SKU] 替换: "' + text + '" → "' + result.text + '"', 'color:#00838F;font-weight:bold');
 
           setTimeout(processNext, 65);
         }, 65);

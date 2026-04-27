@@ -191,6 +191,7 @@
 
 
   // 分组一次性过滤：同替换目标归为一组，组内按匹配长度降序，最长优先，避免二次替换
+  // 支持 / 分隔多个关键词，如 "黄金/金色/金" → 三个独立匹配
   function applyFilters(text, filters) {
     // 按 to 分组，同时记录 from→to 映射
     var groups = {};
@@ -200,8 +201,13 @@
       if (!f.enabled || !f.from) continue;
       var key = f.to === undefined ? '' : f.to;
       if (!groups[key]) groups[key] = { to: key, froms: [] };
-      groups[key].froms.push(f.from);
-      fromToMap[f.from] = key;
+      var parts = f.from.split('/');
+      for (var p = 0; p < parts.length; p++) {
+        var word = parts[p].trim();
+        if (!word) continue;
+        groups[key].froms.push(word);
+        fromToMap[word] = key;
+      }
     }
 
     // 在原始文本上标记所有匹配区域 [start, end)
