@@ -335,11 +335,31 @@ function waitForProvinceSelect(cb) {
 
 | 选择器 | 含义 | 使用场景 |
 |--------|------|---------|
-| `#skuDataInfo table` | SKU 数据表格 | SKU Step 2: 高级SKU货号 |
+| `#skuDataInfo table` | SKU 数据表格 | SKU Step 2 / 填表: 定位表格 |
+| `table tbody tr` | SKU 数据行（class 为 `skuDataTr_0`、`skuDataTr_1`...） | 填表: 逐行填充 |
+| **预览图列** | | |
+| `tr .sku-image-box` | 有预览图时的容器（带 `ant-dropdown-trigger`） | 填表: hover 触发下拉菜单 |
+| `tr td.min-w-70 .img-box` | 无预览图时的"+"占位区域（无 `ant-dropdown-trigger`） | 填表: hoverWithCoords 触发下拉菜单 |
+| **SKU货号列** | | |
+| `tr input[name="variationSku"]` | SKU货号输入框 (maxlength=50) | 填表: 设置SKU货号 |
+| **申报价格列** | | |
+| `tr input[name="price"]` | 申报价格(CNY)输入框 | 填表: 设置价格 |
+| **尺寸列** | | |
+| `tr input[name="skuLength"]` | 尺寸-长 输入框 | 填表: 设置长度（最大值） |
+| `tr input[name="skuWidth"]` | 尺寸-宽 输入框 | 填表: 设置宽度（中间值） |
+| `tr input[name="skuHeight"]` | 尺寸-高 输入框 | 填表: 设置高度（最小值） |
+| **重量列** | | |
+| `tr input[name="weight"]` | 重量(g)输入框 | 填表: 设置重量 |
+| **高级SKU货号** | | |
 | 表格 → `th` (文字含"SKU货号") | SKU货号列头 | SKU Step 2: 定位高级链接 |
 | 列头 → `span.link` (文字含"高级") | 高级SKU货号链接（注意：需遍历所有 span.link 跳过"一键生成"） | SKU Step 2: 点击打开高级生成 |
 | `findVisibleModal('SKU高级生成规则')` | SKU高级生成规则弹窗 | SKU Step 2: 定位弹窗 |
 | 弹窗 → `.ant-modal-footer .ant-btn-primary` | "生成"按钮 | SKU Step 2: 点击生成 |
+
+**预览图下拉菜单差异**:
+- **有图**: `.sku-image-box.ant-dropdown-trigger` → `hoverElement` 触发，下拉菜单含分组（更换图片/图片运用到/图片编辑）
+- **无图**: `td.min-w-70 .img-box` → 需 `hoverWithCoords`（带坐标 PointerEvent）触发，下拉菜单为扁平列表（本地图片/空间图片/网络图片等），带 `myj-image-drop` class
+- 两种菜单均通过 `li[data-menu-id="net"]` 定位"网络图片"选项
 
 ### 3.5 翻译区域
 
@@ -436,6 +456,7 @@ Dropdown 菜单项统一通过 `waitForVisibleLi(文字片段)` 查找：
 | 网络上传 | 选择图片菜单（编辑器内） | 编字(网络图片路径) |
 | 网络图片 | 产品轮播图-选择图片下拉 | 粘字 Step 3: 添加轮播图 |
 | 网络图片 | 外包装-选择图片下拉 | 粘字 / 蜜蜂 Step 14: 更新外包装 |
+| 网络图片 (`data-menu-id="net"`) | SKU预览图下拉（有图/无图两种菜单） | 填表: 选择网络图片添加预览图 |
 | 中文→英文 (`li.menu-item`) | 一键翻译下拉 | 蜜蜂 Step 5 / 译按钮 |
 | 立即发布 (`data-menu-id="2"`) | 发布下拉 | 蜜蜂 Step 19 |
 
@@ -479,10 +500,12 @@ Dropdown 菜单项统一通过 `waitForVisibleLi(文字片段)` 查找：
 | `loadProvince()` / `saveProvince(val)` | 省份选择（带校验，不合法回退默认值） |
 | `loadAutoTranslate()` / `saveAutoTranslate(val)` | 自动翻译开关 |
 | `setInputValue(input, val)` | 设置 Vue 受控 Input/Textarea 值 |
+| `applyFilters(text, filters)` | 分组一次性文本过滤（返回 `{ text, hits, changed }`） |
 | `findVisibleModal(titleText)` | 双重判断定位弹窗（返回 `.ant-modal-wrap`） |
 | `hoverElement(el)` / `unhoverElement(el)` | 悬浮触发/取消 Dropdown |
 | `waitForElement(selector, timeout, cb)` | 等待元素出现 |
 | `showBubble(text, type)` / `hideBubble()` | 气泡通知 |
+| `doSkuTableFill(dataArray)` | SKU表格自动填充（预览图+货号+价格+尺寸+重量） |
 
 ### 5.3 配置 UI 入口
 
@@ -514,7 +537,8 @@ Dropdown 菜单项统一通过 `waitForVisibleLi(文字片段)` 查找：
 ├── #__dxm_bee_edit          编 (34×34, 绿色圆形按钮)
 ├── #__dxm_bee_paste         粘 (34×34, 紫色圆形按钮)
 ├── #__dxm_bee_sku           S  (34×34, 青蓝色圆形按钮)
-└── #__dxm_bee_delete        删 (34×34, 红色圆形按钮)
+├── #__dxm_bee_delete        删 (34×34, 红色圆形按钮)
+└── #__dxm_bee_sku_table     填表 (34×34, 深蓝色圆形按钮)
 ```
 
 **气泡定位**: `position: absolute; bottom: 100%` 在图标上方显示。通过 `.at-right` class 判断图标在屏幕左/右侧，调整气泡左右对齐避免超出屏幕。
@@ -530,7 +554,8 @@ Dropdown 菜单项统一通过 `waitForVisibleLi(文字片段)` 查找：
 | 编 | 绿 `#66BB6A→#43A047` | 一键编辑描述 | dxm-edit-desc.js |
 | 粘 | 紫 `#AB47BC→#8E24AA` | 粘贴图片URL + 清空旧外包装 + 更新外包装 | dxm-paste-img.js |
 | S  | 青 `#26C6DA→#00838F` | SKU变种属性过滤 + 高级SKU货号 | dxm-sku.js |
-| 删 | 红 `#EF5350→#C62828` | 清空产品轮播图 | dxm-paste-img.js |
+| 删 | 红 `#EF5350→#C62828` | 清空产品轮播图+视频+外包装 | dxm-paste-img.js |
+| 填表 | 深蓝 `#5C6BC0→#283593` | SKU表格自动填充（预览图+货号+价格+尺寸+重量） | dxm-sku-table.js |
 
 ---
 
@@ -613,6 +638,39 @@ Dropdown 菜单项统一通过 `waitForVisibleLi(文字片段)` 查找：
 
 **策略**: 每次重新 `querySelector` 而非缓存元素引用，避免 DOM 变更后引用失效。
 
+### 7.7 点击"填表" — SKU表格自动填充
+
+**数据结构**:
+```javascript
+{
+  image: 'https://...',     // 预览图URL（可选）
+  sku: 'SKU-001',          // SKU货号（可选）
+  price: '35.69',          // 申报价格（可选）
+  dimensions: [10, 8, 5],  // 尺寸（可选，自动从大到小排序填入长/宽/高）
+  weight: '15'             // 重量（可选）
+}
+```
+
+**逐行处理流程**（每行 `table tbody tr`）:
+
+| 步骤 | 操作 | 关键选择器 | 备注 |
+|------|------|-----------|------|
+| 1 | 预览图 - 判断有图/无图 | `tr .sku-image-box` 存在则有图 | 区分触发方式 |
+| 1a | 有图: hover 触发下拉 | `hoverElement(tr .sku-image-box)` | 标准 Ant Dropdown |
+| 1b | 无图: hoverWithCoords 触发下拉 | `hoverWithCoords(tr td.min-w-70 .img-box)` | 需带坐标 PointerEvent |
+| 2 | 等待下拉菜单 → 点击"网络图片" | `.ant-dropdown` 可见 → `li[data-menu-id="net"]` | 通过 `getComputedStyle` 检查可见性 |
+| 3 | 等待弹窗 → 填入URL → 点击添加 | `findVisibleModal('从网络地址')` → `textarea.ant-input` → `.ant-btn-primary` | |
+| 4 | 填写SKU货号 | `tr input[name="variationSku"]` → `focus()` → `setInputValue` → `blur()` | 已有值则跳过 |
+| 5 | 填写申报价格 | `tr input[name="price"]` → `focus()` → `setInputValue` → `blur()` | 已有值则跳过 |
+| 6 | 填写尺寸（从大到小） | `dimensions.sort(降序)` → `skuLength`/`skuWidth`/`skuHeight` | 已有值则跳过 |
+| 7 | 填写重量 | `tr input[name="weight"]` → `focus()` → `setInputValue` → `blur()` | 已有值则跳过 |
+
+**关键细节**:
+- 输入框赋值必须 `focus()` → `setInputValue()` → `blur()` 触发 Vue 双向绑定
+- 每个字段赋值前检查 `input.value.trim()` 是否已有值，有值则跳过不覆盖
+- 尺寸三个值需从大到小排序后分别填入 长/宽/高
+- 无预览图的 `.img-box` 不带 `ant-dropdown-trigger`，必须用 `hoverWithCoords`（带坐标 PointerEvent）触发下拉
+
 ---
 
 ## 八、常见问题与解决
@@ -650,6 +708,12 @@ textarea 不能用 `HTMLInputElement.prototype` 的 setter。`setInputValue` 已
 ### Q: 粘字工作流外包装图片重复？
 粘字流程在添加外包装图片前会先检查并删除已有图片（`#packageInfo .img-list .img-item a.icon_delete`）。
 
+### Q: SKU表格无预览图的 hover 不触发下拉？
+无预览图时没有 `.sku-image-box.ant-dropdown-trigger`，事件监听在 `.img-box` 上。必须使用 `hoverWithCoords`（带坐标的 PointerEvent）而非 `hoverElement`，且目标元素为 `td.min-w-70 .img-box`。
+
+### Q: SKU表格输入框赋值后 Vue 没更新？
+表格内的 input 需要先 `focus()` 聚焦，再 `setInputValue()`，最后 `blur()` 失焦，才能正确触发 Vue 双向绑定。直接 `setInputValue` 不够。
+
 ---
 
 ## 九、方法文件位置
@@ -665,8 +729,9 @@ textarea 不能用 `HTMLInputElement.prototype` 的 setter。`setInputValue` 已
 | `setInputValue` | dxm-config.js | `BeeConfig.setInputValue` |
 | `findVisibleModal` | dxm-config.js | `BeeConfig.findVisibleModal` |
 | 所有配置 load/save | dxm-config.js | `BeeConfig.loadXxx` / `BeeConfig.saveXxx` |
-| `hoverWithCoords` | dxm-edit-desc.js | 内部函数 |
+| `hoverWithCoords` | dxm-edit-desc.js / dxm-sku-table.js | 内部函数 |
 | `findVisibleLi` / `waitForVisibleLi` | dxm-edit-desc.js / dxm-paste-img.js / dxm-sku.js | 各自内部函数 |
+| `doSkuTableFill` | dxm-sku-table.js | `BeeConfig.doSkuTableFill` |
 
 ---
 
@@ -674,11 +739,12 @@ textarea 不能用 `HTMLInputElement.prototype` 的 setter。`setInputValue` 已
 
 ```
 dxm-config.js       → 配置系统（最先加载，其他文件依赖 BeeConfig）
-dxm-float-bee.js    → 蜜蜂图标 + 拖动 + 气泡 + 19步工作流 + 译按钮
+dxm-float-bee.js    → 蜜蜂图标 + 拖动 + 气泡 + 19步工作流 + 译按钮 + 填表按钮
 dxm-config-ui.js    → 右键菜单 + 店铺管理 + 过滤配置面板
 dxm-edit-desc.js    → 编字工作流
 dxm-paste-img.js    → 粘字工作流 + 删字工作流
-dxm-sku.js          → SKU变种属性过滤 + 高级SKU货号
+dxm-sku.js          → SKU变种属性过滤 + 数字单位补全 + 高级SKU货号
+dxm-sku-table.js    → SKU表格自动填充（预览图+货号+价格+尺寸+重量）
 ```
 
 **适用页面**:

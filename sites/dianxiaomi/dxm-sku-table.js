@@ -177,11 +177,42 @@
     }
   }
 
+  // ========== 取消所有变种属性勾选 ==========
+  function uncheckAllAttrs(cb) {
+    var form = document.querySelector('#skuAttrsInfo form');
+    if (!form) { cb(); return; }
+
+    var labels = form.querySelectorAll('.options-module label.d-checkbox');
+    var toUncheck = [];
+    for (var i = 0; i < labels.length; i++) {
+      var cb2 = labels[i].querySelector('input[type="checkbox"]');
+      if (cb2 && cb2.checked) toUncheck.push(cb2);
+    }
+
+    if (!toUncheck.length) { cb(); return; }
+
+    console.log('%c[小蜜蜂-SKU表] 取消 ' + toUncheck.length + ' 个变种属性勾选', 'color:#00838F;font-weight:bold');
+    var idx = 0;
+    (function next() {
+      if (idx >= toUncheck.length) {
+        setTimeout(cb, 200);
+        return;
+      }
+      toUncheck[idx].click();
+      idx++;
+      setTimeout(next, 50);
+    })();
+  }
+
   // ========== 主流程 ==========
   function doSkuTableFill(dataArray) {
     if (!dataArray) dataArray = getMockData();
 
     console.log('%c[小蜜蜂-SKU表] SKU表格自动填充 开始', 'color:#00838F;font-weight:bold;font-size:14px');
+
+    // Step 1: 取消所有变种属性勾选
+    tableLog('取消变种属性勾选...');
+    uncheckAllAttrs(function () {
 
     var table = document.querySelector('#skuDataInfo table');
     if (!table) {
@@ -223,6 +254,7 @@
     }
 
     processNext();
+    }); // uncheckAllAttrs callback
   }
 
   // ========== 暴露到 BeeConfig ==========
