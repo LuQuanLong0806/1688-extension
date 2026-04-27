@@ -6,22 +6,32 @@
 
   // ========== 模拟数据（后续替换为实际数据来源） ==========
   function getMockData() {
-    return [
-      {
-        image: 'https://img.cdnfe.com/product/open/967badad67ae4959b9aaebc3b9241f0b-goods.jpeg',
-        sku: 'SKU-LIGHT-GREEN',
-        price: '35.69',
-        dimensions: [2.1, 1.8, 1],
-        weight: '15'
-      },
-      {
-        image: 'https://img.cdnfe.com/product/open/27f44620429148b5a6179cc31d027c90-goods.jpeg',
-        sku: 'SKU-DARK-GREEN',
-        price: '34.66',
-        dimensions: [2.1, 1.8, 1],
-        weight: '15'
-      }
-    ];
+    return {
+      attrs: ['light green', 'dark green', 'red'],
+      rows: [
+        {
+          image: 'https://img.cdnfe.com/product/open/967badad67ae4959b9aaebc3b9241f0b-goods.jpeg',
+          sku: 'SKU-LIGHT-GREEN',
+          price: '35.69',
+          dimensions: [2.1, 1.8, 1],
+          weight: '15'
+        },
+        {
+          image: 'https://img.cdnfe.com/product/open/27f44620429148b5a6179cc31d027c90-goods.jpeg',
+          sku: 'SKU-DARK-GREEN',
+          price: '34.66',
+          dimensions: [2.1, 1.8, 1],
+          weight: '15'
+        },
+        {
+          image: '',
+          sku: 'SKU-RED',
+          price: '30.00',
+          dimensions: [2.1, 1.8, 1],
+          weight: '15'
+        }
+      ]
+    };
   }
 
   // ========== 日志 & 气泡 ==========
@@ -204,9 +214,42 @@
     })();
   }
 
+  // ========== 添加变种属性值 ==========
+  function addAttrValues(values, cb) {
+    var addBox = document.querySelector('#skuAttrsInfo form .theme-value-add');
+    if (!addBox) { cb(); return; }
+
+    var input = addBox.querySelector('input[type="text"]');
+    var addBtn = addBox.querySelector('button');
+    if (!input || !addBtn) { cb(); return; }
+
+    var idx = 0;
+    (function next() {
+      if (idx >= values.length) {
+        console.log('%c[小蜜蜂-SKU表] 已添加 ' + values.length + ' 个属性值', 'color:#00838F;font-weight:bold');
+        setTimeout(cb, 200);
+        return;
+      }
+
+      var val = values[idx];
+      idx++;
+
+      input.focus();
+      C.setInputValue(input, val);
+
+      setTimeout(function () {
+        var btn = addBox.querySelector('button');
+        if (btn && !btn.disabled) btn.click();
+        setTimeout(next, 100);
+      }, 80);
+    })();
+  }
+
   // ========== 主流程 ==========
-  function doSkuTableFill(dataArray) {
-    if (!dataArray) dataArray = getMockData();
+  function doSkuTableFill(data) {
+    if (!data) data = getMockData();
+    var dataArray = data.rows || data;
+    var attrs = data.attrs || [];
 
     console.log('%c[小蜜蜂-SKU表] SKU表格自动填充 开始', 'color:#00838F;font-weight:bold;font-size:14px');
 
@@ -214,6 +257,21 @@
     tableLog('取消变种属性勾选...');
     uncheckAllAttrs(function () {
 
+    // Step 2: 添加新的变种属性值
+    if (attrs.length) {
+      tableLog('添加 ' + attrs.length + ' 个变种属性...');
+      addAttrValues(attrs, function () {
+
+    fillTableRows(dataArray);
+    }); // addAttrValues callback
+    } else {
+      fillTableRows(dataArray);
+    }
+
+    }); // uncheckAllAttrs callback
+  }
+
+  function fillTableRows(dataArray) {
     var table = document.querySelector('#skuDataInfo table');
     if (!table) {
       C.showBubble('❌ 未找到SKU表格', 'err');
@@ -254,7 +312,6 @@
     }
 
     processNext();
-    }); // uncheckAllAttrs callback
   }
 
   // ========== 暴露到 BeeConfig ==========
