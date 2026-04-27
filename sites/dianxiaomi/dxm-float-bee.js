@@ -52,13 +52,13 @@
     '<div class="__dxm_bee_line"></div>' +
     '<div id="__dxm_bee_paste" title="一键粘贴图片URL">贴图</div>' +
     '<div class="__dxm_bee_line"></div>' +
+    '<div id="__dxm_bee_sku_table" title="SKU表格填充">填表</div>' +
+    '<div class="__dxm_bee_line"></div>' +
     '<div id="__dxm_bee_sku" title="一键SKU过滤">SKU</div>' +
     '<div class="__dxm_bee_line"></div>' +
     '<div id="__dxm_bee_edit" title="一键编辑描述">描述</div>' +
     '<div class="__dxm_bee_line"></div>' +
     '<div id="__dxm_bee_delete" title="一键清空图片+视频">删图</div>' +
-    '<div class="__dxm_bee_line"></div>' +
-    '<div id="__dxm_bee_sku_table" title="SKU表格填充">填表</div>' +
     '</div>';
 
   // ========== Styles ==========
