@@ -57,6 +57,8 @@
     '<div id="__dxm_bee_edit" title="一键编辑描述">描述</div>' +
     '<div class="__dxm_bee_line"></div>' +
     '<div id="__dxm_bee_delete" title="一键清空图片+视频">删图</div>' +
+    '<div class="__dxm_bee_line"></div>' +
+    '<div id="__dxm_bee_sku_table" title="SKU表格填充">填表</div>' +
     '</div>';
 
   // ========== Styles ==========
@@ -90,7 +92,9 @@
     '#__dxm_bee_sku{margin-top:3px;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#26C6DA,#00838F);color:#fff;font-size:10px;font-weight:bold;letter-spacing:.5px;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(0,131,143,.35);transition:box-shadow .2s;user-select:none;text-shadow:0 1px 2px rgba(0,0,0,.15)}' +
     '#__dxm_bee_sku:hover{transform:scale(1.15)!important;box-shadow:0 4px 12px rgba(0,131,143,.5)}' +
     '#__dxm_bee_delete{margin-top:3px;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#EF5350,#C62828);color:#fff;font:bold 12px/1 "楷体","KaiTi","STKaiti",serif;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(198,40,40,.35);transition:box-shadow .2s;user-select:none;text-shadow:0 1px 2px rgba(0,0,0,.15)}' +
-    '#__dxm_bee_delete:hover{transform:scale(1.15)!important;box-shadow:0 4px 12px rgba(198,40,40,.5)}';
+    '#__dxm_bee_delete:hover{transform:scale(1.15)!important;box-shadow:0 4px 12px rgba(198,40,40,.5)}' +
+    '#__dxm_bee_sku_table{margin-top:3px;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#5C6BC0,#283593);color:#fff;font:bold 12px/1 "楷体","KaiTi","STKaiti",serif;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(40,53,147,.35);transition:box-shadow .2s;user-select:none;text-shadow:0 1px 2px rgba(0,0,0,.15)}' +
+    '#__dxm_bee_sku_table:hover{transform:scale(1.15)!important;box-shadow:0 4px 12px rgba(40,53,147,.5)}';
 
   document.head.appendChild(s);
   document.body.appendChild(wrapper);
@@ -434,6 +438,16 @@
         var titleInput = document.querySelector('#productProductInfo form .ant-form-item input');
         if (titleInput) titleInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
         doTranslateOnly();
+      });
+    }
+
+    var skuTableEl = document.getElementById('__dxm_bee_sku_table');
+    if (skuTableEl) {
+      skuTableEl.addEventListener('click', function () {
+        if (isWorking) return;
+        var skuSection = document.querySelector('#skuDataInfo');
+        if (skuSection) skuSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        Config.doSkuTableFill();
       });
     }
 

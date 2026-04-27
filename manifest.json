@@ -26,7 +26,7 @@
         "*://www.dianxiaomi.com/web/temu/edit*",
         "*://www.dianxiaomi.com/web/temu/quoteEdit*"
       ],
-      "js": ["sites/dianxiaomi/dxm-config.js", "sites/dianxiaomi/dxm-float-bee.js", "sites/dianxiaomi/dxm-config-ui.js", "sites/dianxiaomi/dxm-edit-desc.js", "sites/dianxiaomi/dxm-paste-img.js", "sites/dianxiaomi/dxm-sku.js"]
+      "js": ["sites/dianxiaomi/dxm-config.js", "sites/dianxiaomi/dxm-float-bee.js", "sites/dianxiaomi/dxm-config-ui.js", "sites/dianxiaomi/dxm-edit-desc.js", "sites/dianxiaomi/dxm-paste-img.js", "sites/dianxiaomi/dxm-sku.js", "sites/dianxiaomi/dxm-sku-table.js"]
     }
   ]
 }
