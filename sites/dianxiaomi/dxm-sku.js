@@ -20,9 +20,10 @@
   // ========== 数字单位补全 ==========
   function addUnits(text) {
     if (/[一-龥]/.test(text)) return { text: text, changed: false };
-    var newText = text.replace(/(^|\s)(\d+)(?!\s*(?:PC|pcs|Pieces?|pieces?|pc|PCS)\b)/gi, function (match, prefix, num) {
+    var newText = text.replace(/(^|\s)(\d+)(?:\s*(PC|pcs|Pieces?|pieces?|pc|PCS)\b)?/gi, function (match, prefix, num, unit) {
       var n = parseInt(num, 10);
       if (isNaN(n)) return match;
+      if (unit) return match; // 已有单位，不重复添加
       return prefix + num + (n === 1 ? ' PC' : ' PCS');
     });
     return { text: newText, changed: newText !== text };
