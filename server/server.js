@@ -178,7 +178,7 @@ app.get('/api/product/categories', (req, res) => {
 
 // 类目偏好 Top20
 app.get('/api/product/category-top', (req, res) => {
-  const rows = getAll('SELECT name, count FROM categories ORDER BY count DESC LIMIT 20');
+  const rows = getAll('SELECT name, count FROM categories ORDER BY count DESC LIMIT 10');
   res.json(rows);
 });
 

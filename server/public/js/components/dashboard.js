@@ -157,7 +157,7 @@ Vue.component('page-dashboard', {
           <div class="chart-card-body" id="chart-trend"></div>\
         </div>\
         <div class="chart-card">\
-          <div class="chart-card-header">偏好分布（类目 Top20）</div>\
+          <div class="chart-card-header">偏好分布（类目 Top10）</div>\
           <div class="chart-card-body" id="chart-status"></div>\
         </div>\
       </div>\
