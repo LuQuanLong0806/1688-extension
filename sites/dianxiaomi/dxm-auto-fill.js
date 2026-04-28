@@ -171,12 +171,13 @@
     waitForElement('#productProductInfo form .ant-form-item input', 5000, function (input) {
       if (!input) { autoError('未找到标题输入框'); cb(); return; }
 
-      // 标题为空时才填入
+      // 标题为空时才填入，有内容则覆盖
       if (!input.value.trim()) {
         setInputValue(input, data.title);
         autoLog('标题已填入');
       } else {
-        autoLog('标题已有内容，跳过');
+        setInputValue(input, data.title);
+        autoLog('标题已更新');
       }
       setTimeout(cb, 200);
     });
@@ -184,6 +185,22 @@
 
   // ========== Step 2: 贴主图 ==========
   function pasteMainImages(urls, cb) {
+    // 先删除已有轮播图
+    var existingImgs = document.querySelectorAll('#productProductInfo .mainImage .img-list .img-item a.icon_delete');
+    if (existingImgs.length > 0) {
+      autoLog('删除已有轮播图...');
+      (function deleteNext() {
+        var btn = document.querySelector('#productProductInfo .mainImage .img-list .img-item a.icon_delete');
+        if (!btn) { setTimeout(function () { doPasteMainImages(urls, cb); }, 300); return; }
+        btn.click();
+        setTimeout(deleteNext, 50);
+      })();
+      return;
+    }
+    doPasteMainImages(urls, cb);
+  }
+
+  function doPasteMainImages(urls, cb) {
     autoLog('打开选择图片菜单...');
 
     var labels = document.querySelectorAll('#productProductInfo .ant-form-item-label label');
