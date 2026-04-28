@@ -16,7 +16,7 @@ Vue.component('page-products', {
   created: function () {
     var vm = this;
     this.columns = [
-      { type: 'selection', width: 80, align: 'center' },
+      { type: 'selection', width: 60, align: 'center' },
       {
         title: '预览',
         width: 100,
@@ -54,14 +54,31 @@ Vue.component('page-products', {
         }
       },
       {
-        title: '类目', width: 150, render: function (h, params) {
+        title: '类目',
+        width: 180,
+        render: function (h, params) {
           var cat = params.row.category;
           var name = cat && (cat.leafCategoryName || cat.categoryPath);
           if (name) {
-            return h('span', {
-              class: 'cell-category',
-              attrs: { title: name }
-            }, name);
+            return h('span', { class: 'cell-category-wrap' }, [
+              h(
+                'span',
+                { class: 'cell-category', attrs: { title: name } },
+                name
+              ),
+              h('Icon', {
+                props: { type: 'md-copy', size: 16 },
+                class: 'cell-copy-icon',
+                nativeOn: {
+                  click: function (e) {
+                    e.stopPropagation();
+                    navigator.clipboard.writeText(name).then(function () {
+                      vm.$Message.success('已复制: ' + name);
+                    });
+                  }
+                }
+              })
+            ]);
           }
           return h('span', { style: { color: '#ccc' } }, '-');
         }

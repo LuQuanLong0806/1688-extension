@@ -85,11 +85,32 @@
     '.__1688_dbtn_cancel{background:#f5f5f5;color:#666;border:1px solid #e0e0e0}' +
     '.__1688_dbtn_cancel:hover{background:#eee}' +
     '.__1688_dbtn_ok{background:linear-gradient(135deg,#43A047,#2E7D32);color:#fff;border:1px solid #2E7D32}' +
-    '.__1688_dbtn_ok:hover{opacity:.9}';
+    '.__1688_dbtn_ok:hover{opacity:.9}' +
+
+    '#__1688_toast{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-80px);' +
+    'background:#fff;padding:12px 24px;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.15);' +
+    'font-size:14px;color:#333;z-index:2147483646;transition:transform .3s ease,opacity .3s ease;' +
+    'opacity:0;pointer-events:none;white-space:nowrap;font-family:"Microsoft YaHei",Arial,sans-serif;' +
+    'display:flex;align-items:center;gap:8px;border-left:4px solid #43A047}' +
+    '#__1688_toast.err{border-left-color:#e53935}' +
+    '#__1688_toast.visible{transform:translateX(-50%) translateY(0);opacity:1}';
 
   document.head.appendChild(s);
   document.body.appendChild(panel);
   document.body.appendChild(dialogEl);
+
+  var toastEl = document.createElement('div');
+  toastEl.id = '__1688_toast';
+  document.body.appendChild(toastEl);
+
+  var toastTimer = null;
+  function showToast(text, type) {
+    clearTimeout(toastTimer);
+    toastEl.className = type === 'err' ? 'err' : '';
+    toastEl.innerHTML = (type === 'err' ? '<span style="color:#e53935">✕</span>' : '<span style="color:#43A047">✓</span>') + ' ' + text;
+    requestAnimationFrame(function () { toastEl.classList.add('visible'); });
+    toastTimer = setTimeout(function () { toastEl.classList.remove('visible'); }, 3500);
+  }
 
   var toggle = document.getElementById('__1688_grab_toggle');
   var bubble = document.getElementById('__1688_grab_bubble');
@@ -334,6 +355,7 @@
               if (err || !res || !res.ok) {
                 _log('保存失败:', err, res);
                 showBubble('❌ 保存失败: ' + (err ? err.message : '服务器错误'), 'err');
+                showToast('采集失败: ' + (err ? err.message : '服务器错误'), 'err');
                 isCollecting = false;
                 signEl.classList.remove('no-swing');
                 setCollectState('', '采集');
@@ -341,6 +363,7 @@
                 _log('保存成功:', res);
                 _log('汇总: ' + imgCount + '张图片 + ' + skuCount + '个SKU + ' + attrCount + '个属性');
                 showBubble('✅ ' + imgCount + '张图片 + ' + skuCount + '个SKU + ' + attrCount + '个属性', 'ok');
+                showToast('采集成功: ' + imgCount + '张图片 + ' + skuCount + '个SKU + ' + attrCount + '个属性');
                 setCollectState('success', '✓ 已采');
               }
               setTimeout(hideBubble, 4000);
