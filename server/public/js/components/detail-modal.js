@@ -16,6 +16,7 @@ Vue.component('detail-modal', {
         this.editable = JSON.parse(JSON.stringify(val));
         // 确保 dimensions 数组至少有 3 个元素（Vue 2 响应式追踪）
         (this.editable.skus || []).forEach(function (s) {
+          if (!s.customName && s.name) s.customName = s.name;
           if (!s.dimensions || !s.dimensions.length) s.dimensions = ['', '', ''];
           while (s.dimensions.length < 3) s.dimensions.push('');
         });
