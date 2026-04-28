@@ -425,6 +425,16 @@ body {
   line-height: 1.5;
 }
 
+.cell-category {
+  display: inline-block;
+  font-size: 12px;
+  color: #888;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
 .status-dot {
   display: inline-flex;
   align-items: center;

@@ -96,6 +96,17 @@
     return attrs;
   }
 
+  function collectCategory() {
+    var html = document.documentElement.innerHTML;
+    var cat = {};
+    var fields = ['catId','leafCategoryId','topCategoryId','postCategoryId','leafCategoryName','categoryPath'];
+    fields.forEach(function (f) {
+      var m = html.match(new RegExp('"?' + f + '"?\\s*:\\s*"?([^",}\\s]+)"?'));
+      if (m) cat[f] = m[1];
+    });
+    return cat;
+  }
+
   // 通过打开 SKU 列表弹窗提取数据（异步）
   function collectSkusAsync(callback) {
     var packInfo = collectPackInfo();
@@ -327,10 +338,12 @@
   function collectProductData(callback) {
     var imgs = collectImages();
     var attrs = collectAttrs();
+    var cat = collectCategory();
     collectSkusAsync(function (skus) {
       callback({
         sourceUrl: location.href,
         title: collectTitle(),
+        category: cat,
         mainImages: imgs.mainImages,
         descImages: imgs.descImages,
         attrs: attrs,

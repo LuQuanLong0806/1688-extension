@@ -64,6 +64,7 @@ Vue.component('detail-modal', {
               <a v-if="detail.source_url" :href="detail.source_url" target="_blank">{{ detail.source_url }}</a>\
               <span v-else>-</span>\
             </span>\
+            <span class="label">类目</span><span class="value">{{ detail.category && (detail.category.leafCategoryName || detail.category.categoryPath) || \'-\' }}</span>\
             <span class="label">标题</span><span class="value">{{ detail.title || \'-\' }}</span>\
             <span class="label">采集时间</span><span class="value">{{ detail.created_at || \'-\' }}</span>\
             <span class="label">状态</span><span class="value">\

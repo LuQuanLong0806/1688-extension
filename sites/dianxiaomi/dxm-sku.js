@@ -20,11 +20,15 @@
   // ========== 数字单位补全 ==========
   function addUnits(text) {
     if (/[一-龥]/.test(text)) return { text: text, changed: false };
-    var newText = text.replace(/(^|\s)(\d+)(?:\s*(PC|pcs|Pieces?|pieces?|pc|PCS)\b)?/gi, function (match, prefix, num, unit) {
-      var n = parseInt(num, 10);
-      if (isNaN(n)) return match;
-      if (unit) return match; // 已有单位，不重复添加
-      return prefix + num + (n === 1 ? ' PC' : ' PCS');
+    var newText = text.replace(/\b(\d+)\b/g, function (match, num, offset, str) {
+      // 小数的一部分：前面是"." (如 "1.2" 中的 "2")
+      if (offset > 0 && str[offset - 1] === '.') return match;
+      // 小数的一部分：后面是"." + 数字 (如 "1.2" 中的 "1")
+      var ai = offset + match.length;
+      if (ai < str.length && str[ai] === '.' && ai + 1 < str.length && /\d/.test(str[ai + 1])) return match;
+      // 已有单位 (cm/mm/inc/inch/pc/pcs/pieces 等)，不重复添加
+      if (/^\s*(cm|mm|inch|in|inc|ft|pc|pcs|pieces?|kg|g|m|ml|l|oz|lb)\b/i.test(str.substring(ai))) return match;
+      return num + ' PCS';
     });
     return { text: newText, changed: newText !== text };
   }

@@ -81,6 +81,8 @@ async function initDb() {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  // 增量添加 category 列（已存在则忽略）
+  try { db.run('ALTER TABLE products ADD COLUMN category TEXT'); } catch (e) {}
   saveDb();
 }
 
@@ -125,13 +127,14 @@ app.get('/api/product/stats', (req, res) => {
 
 // 保存采集数据
 app.post('/api/product', (req, res) => {
-  const { sourceUrl, title, mainImages, descImages, attrs, skus } = req.body;
+  const { sourceUrl, title, category, mainImages, descImages, attrs, skus } = req.body;
   db.run(
-    `INSERT INTO products (source_url, title, main_images, desc_images, attrs, skus)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO products (source_url, title, category, main_images, desc_images, attrs, skus)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [
       sourceUrl || '',
       title || '',
+      JSON.stringify(category || {}),
       JSON.stringify(mainImages || []),
       JSON.stringify(descImages || []),
       JSON.stringify(attrs || []),
@@ -182,7 +185,7 @@ app.get('/api/product', (req, res) => {
 
   const offset = (page - 1) * pageSize;
   const list = getAll(
-    `SELECT id, source_url, title, attrs, skus, status, created_at, updated_at
+    `SELECT id, source_url, title, category, attrs, skus, status, created_at, updated_at
      FROM products ${whereClause}
      ORDER BY id DESC
      LIMIT ? OFFSET ?`,
@@ -191,6 +194,7 @@ app.get('/api/product', (req, res) => {
 
   const parsedList = list.map(row => ({
     ...row,
+    category: row.category ? JSON.parse(row.category) : {},
     attrs: JSON.parse(row.attrs || '[]'),
     skuCount: JSON.parse(row.skus || '[]').length
   }));
@@ -267,6 +271,7 @@ app.post('/api/product/batch-delete', (req, res) => {
 function parseRow(row) {
   return {
     ...row,
+    category: row.category ? JSON.parse(row.category) : {},
     main_images: JSON.parse(row.main_images || '[]'),
     desc_images: JSON.parse(row.desc_images || '[]'),
     attrs: JSON.parse(row.attrs || '[]'),

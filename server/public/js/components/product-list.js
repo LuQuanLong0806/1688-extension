@@ -47,10 +47,23 @@ Vue.component('page-products', {
       {
         title: '标题',
         key: 'title',
-        width: 480,
+        width: 300,
         ellipsis: false,
         render: function (h, params) {
           return h('span', { class: 'title-text' }, params.row.title || '-');
+        }
+      },
+      {
+        title: '类目', width: 150, render: function (h, params) {
+          var cat = params.row.category;
+          var name = cat && (cat.leafCategoryName || cat.categoryPath);
+          if (name) {
+            return h('span', {
+              class: 'cell-category',
+              attrs: { title: name }
+            }, name);
+          }
+          return h('span', { style: { color: '#ccc' } }, '-');
         }
       },
       {
