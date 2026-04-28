@@ -4,6 +4,7 @@
   "version": "1.1",
   "description": "电商辅助工具集 - 支持1688图片抓取、店小蜜TEMU辅助等功能",
   "permissions": ["activeTab", "scripting"],
+  "host_permissions": ["http://localhost:3000/*"],
   "background": {
     "service_worker": "background.js"
   },
@@ -17,7 +18,7 @@
   "content_scripts": [
     {
       "matches": ["*://*.1688.com/*"],
-      "js": ["sites/1688/grab-core.js", "sites/1688/float-btn.js"]
+      "js": ["sites/1688/grab-core.js", "sites/1688/collect-data.js", "sites/1688/float-btn.js"]
     },
     {
       "matches": [

@@ -107,6 +107,18 @@ app.post('/api/product', (req, res) => {
   res.json({ ok: true, id: row.id });
 });
 
+// 检查是否已采集
+app.get('/api/product/check', (req, res) => {
+  const offerId = (req.query.offerId || '').trim();
+  if (!offerId) return res.json({ exists: false });
+  const row = getOne('SELECT id, title, status FROM products WHERE source_url LIKE ? LIMIT 1', ['%' + offerId + '%']);
+  if (row) {
+    res.json({ exists: true, id: row.id, title: row.title, status: row.status });
+  } else {
+    res.json({ exists: false });
+  }
+});
+
 // 获取商品列表（分页 + 搜索 + 状态筛选）
 app.get('/api/product', (req, res) => {
   const page = Math.max(1, parseInt(req.query.page) || 1);
@@ -232,5 +244,8 @@ initDb().then(() => {
     console.log(`  管理页面: http://localhost:${PORT}`);
     console.log(`  API 地址: http://localhost:${PORT}/api/product`);
     console.log(`  数据库: ${DB_FILE}\n`);
+    // 自动打开管理页面
+    var cmd = process.platform === 'win32' ? 'start' : process.platform === 'darwin' ? 'open' : 'xdg-open';
+    require('child_process').exec(cmd + ' http://localhost:' + PORT);
   });
 });
