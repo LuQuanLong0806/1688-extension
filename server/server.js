@@ -97,6 +97,41 @@ async function initDb() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  // 迁移：将已有商品的类目数据补录到 categories 表
+  try {
+    const existingCats = getOne('SELECT COUNT(*) as cnt FROM categories');
+    if (!existingCats || existingCats.cnt === 0) {
+      const products = getAll('SELECT category FROM products');
+      products.forEach(r => {
+        try {
+          const cat = JSON.parse(r.category || '{}');
+          const name = cat.leafCategoryName || cat.categoryPath;
+          if (name) {
+            const existing = getOne('SELECT id FROM categories WHERE name = ?', [name]);
+            if (!existing) {
+              run('INSERT INTO categories (name, cat_id, leaf_category_id, top_category_id, post_category_id, count) VALUES (?, ?, ?, ?, ?, ?)',
+                [name, cat.catId || '', cat.leafCategoryId || '', cat.topCategoryId || '', cat.postCategoryId || '', 0]);
+            }
+          }
+        } catch (e) {}
+      });
+      // 重新统计每个类目的商品数量
+      const allProducts = getAll('SELECT category FROM products');
+      const catCount = {};
+      allProducts.forEach(r => {
+        try {
+          const cat = JSON.parse(r.category || '{}');
+          const name = cat.leafCategoryName || cat.categoryPath;
+          if (name) catCount[name] = (catCount[name] || 0) + 1;
+        } catch (e) {}
+      });
+      for (const [name, count] of Object.entries(catCount)) {
+        run('UPDATE categories SET count = ? WHERE name = ?', [count, name]);
+      }
+    }
+  } catch (e) {}
+
   saveDb();
 }
 

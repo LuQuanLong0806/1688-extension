@@ -146,22 +146,28 @@ Vue.component('page-products', {
         }
       },
       {
-        title: '状态',
-        width: 150,
+        title: '使用状态',
+        width: 120,
         align: 'center',
         render: function (h, params) {
-          var s = params.row.status;
-          return h(
-            'span',
-            { class: 'status-dot ' + (s === 0 ? 'unused' : 'used') },
-            s === 0 ? '未使用' : '已使用'
-          );
+          return h('i-switch', {
+            props: {
+              value: params.row.status === 0,
+              trueColor: '#52c41a',
+              falseColor: '#d9d9d9'
+            },
+            on: {
+              'on-change': function (val) {
+                vm.toggleStatus(params.row);
+              }
+            }
+          });
         }
       },
       { title: '采集时间', key: 'created_at', width: 200 },
       {
         title: '操作',
-        width: 200,
+        width: 240,
         align: 'center',
         className: 'col-actions',
         fixed: 'right',
@@ -171,7 +177,11 @@ Vue.component('page-products', {
             h(
               'Tooltip',
               {
-                props: { content: '查看/编辑', placement: 'top', transfer: true }
+                props: {
+                  content: '查看/编辑',
+                  placement: 'top',
+                  transfer: true
+                }
               },
               [
                 h('Button', {
@@ -194,7 +204,7 @@ Vue.component('page-products', {
                   props: { size: 'small', icon: 'ios-link' },
                   on: {
                     click: function () {
-                      vm.openSource(row.source_url);
+                      vm.openQuoteEdit(row.id);
                     }
                   }
                 })
@@ -210,7 +220,7 @@ Vue.component('page-products', {
                   props: { size: 'small', icon: 'md-open' },
                   on: {
                     click: function () {
-                      vm.openSource(row.source_url);
+                      window.open('https://www.dianxiaomi.com/web/temu/add', '_blank');
                     }
                   }
                 })
@@ -242,9 +252,13 @@ Vue.component('page-products', {
   methods: {
     loadCategories: function () {
       var vm = this;
-      fetch('/api/product/categories').then(function (r) { return r.json(); }).then(function (list) {
-        vm.categoryList = list;
-      });
+      fetch('/api/product/categories')
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (list) {
+          vm.categoryList = list;
+        });
     },
     loadList: function (p) {
       var vm = this;
@@ -255,7 +269,8 @@ Vue.component('page-products', {
         pageSize: vm.pageSize
       });
       if (vm.keyword.trim()) params.set('keyword', vm.keyword.trim());
-      if (vm.statusFilter && vm.statusFilter !== 'all') params.set('status', vm.statusFilter);
+      if (vm.statusFilter && vm.statusFilter !== 'all')
+        params.set('status', vm.statusFilter);
       if (vm.categoryFilter) params.set('category', vm.categoryFilter);
       fetch('/api/product?' + params.toString())
         .then(function (r) {
@@ -270,6 +285,18 @@ Vue.component('page-products', {
           vm.loading = false;
         });
     },
+    toggleStatus: function (row) {
+      var vm = this;
+      var ns = row.status === 0 ? 1 : 0;
+      fetch('/api/product/' + row.id, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: ns })
+      }).then(function () {
+        row.status = ns;
+        vm.$root.loadStats();
+      });
+    },
     onPageChange: function (p) {
       this.loadList(p);
     },
@@ -281,6 +308,9 @@ Vue.component('page-products', {
       this.selectedIds = sel.map(function (i) {
         return i.id;
       });
+    },
+    openQuoteEdit: function (id) {
+      window.open('https://www.dianxiaomi.com/web/temu/quoteEdit?collectId=' + id, '_blank');
     },
     openSource: function (url) {
       if (url) window.open(url, '_blank');

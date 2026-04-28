@@ -7,7 +7,6 @@ Vue.component('detail-modal', {
   data: function () {
     return {
       editable: null,
-      activeImgTab: 'main',
       selectedSkuIndexes: []
     };
   },
@@ -15,10 +14,20 @@ Vue.component('detail-modal', {
     detail: function (val) {
       if (val) {
         this.editable = JSON.parse(JSON.stringify(val));
-        this.activeImgTab = 'main';
-        this.selectedSkuIndexes = (val.skus || [])
+        // 确保 dimensions 数组至少有 3 个元素（Vue 2 响应式追踪）
+        (this.editable.skus || []).forEach(function (s) {
+          if (!s.dimensions || !s.dimensions.length) s.dimensions = ['', '', ''];
+          while (s.dimensions.length < 3) s.dimensions.push('');
+        });
+        // 如果之前保存过勾选状态则回显，否则默认全选
+        var saved = (val.skus || [])
           .map(function (s, i) { return s._selected ? i : -1; })
           .filter(function (i) { return i >= 0; });
+        if (saved.length > 0) {
+          this.selectedSkuIndexes = saved;
+        } else {
+          this.selectedSkuIndexes = (val.skus || []).map(function (_, i) { return i; });
+        }
       }
     }
   },
@@ -42,9 +51,6 @@ Vue.component('detail-modal', {
   },
   methods: {
     close: function () { this.$emit('update:visible', false); },
-
-    // -- 图片 Tab --
-    switchImgTab: function (tab) { this.activeImgTab = tab; },
 
     // -- SKU 勾选 --
     toggleSkuAll: function (checked) {
@@ -93,13 +99,14 @@ Vue.component('detail-modal', {
     saveProduct: function () {
       var vm = this;
       if (!vm.editable) return;
-      // 将勾选状态写入 skus
       var skus = JSON.parse(JSON.stringify(vm.editable.skus || []));
       skus.forEach(function (s, i) {
         s._selected = vm.selectedSkuIndexes.indexOf(i) >= 0;
       });
       var payload = {
         title: vm.editable.title,
+        mainImages: vm.editable.main_images,
+        descImages: vm.editable.desc_images,
         skus: skus,
         status: vm.editable.status
       };
@@ -132,24 +139,31 @@ Vue.component('detail-modal', {
       :title="editable ? (editable.title || (\'商品 #\' + editable.id)) : \'商品详情\'" fullscreen footer-hide>\
       <template v-if="editable">\
         \
-        <!-- 顶部图片区 -->\
-        <div class="detail-section" v-if="(editable.main_images && editable.main_images.length) || skuImages.length">\
-          <div class="detail-img-tabs">\
-            <div class="detail-img-tab" :class="{ active: activeImgTab === \'main\' }"\
-              @click="switchImgTab(\'main\')">主图 ({{ editable.main_images ? editable.main_images.length : 0 }})</div>\
-            <div class="detail-img-tab" :class="{ active: activeImgTab === \'sku\' }"\
-              @click="switchImgTab(\'sku\')">SKU图 ({{ skuImages.length }})</div>\
-          </div>\
-          <div v-if="activeImgTab === \'main\'" class="img-grid">\
+        <!-- 主图 -->\
+        <div class="detail-section" v-if="editable.main_images && editable.main_images.length">\
+          <div class="detail-section-title">主图 ({{ editable.main_images.length }})</div>\
+          <div class="img-grid">\
             <div class="img-item" v-for="(url, i) in editable.main_images" :key="\'m\'+i"\
               @click="openPreview(editable.main_images, i)">\
-              <img :src="url" loading="lazy" />\
+              <img :src="url" loading="lazy"\
+                @mouseenter="onSkuImgEnter(url, $event)"\
+                @mousemove="onSkuImgMove($event)"\
+                @mouseleave="onSkuImgLeave" />\
+              <div class="img-del" @click.stop="editable.main_images.splice(i, 1)">&times;</div>\
             </div>\
           </div>\
-          <div v-else class="img-grid">\
+        </div>\
+        \
+        <!-- SKU图 -->\
+        <div class="detail-section" v-if="skuImages.length">\
+          <div class="detail-section-title">SKU图 ({{ skuImages.length }})</div>\
+          <div class="img-grid">\
             <div class="img-item" v-for="(url, i) in skuImages" :key="\'si\'+i"\
               @click="openPreview(skuImages, i)">\
-              <img :src="url" loading="lazy" />\
+              <img :src="url" loading="lazy"\
+                @mouseenter="onSkuImgEnter(url, $event)"\
+                @mousemove="onSkuImgMove($event)"\
+                @mouseleave="onSkuImgLeave" />\
             </div>\
           </div>\
         </div>\
@@ -164,7 +178,7 @@ Vue.component('detail-modal', {
             </span>\
             <span class="label">类目</span><span class="value">{{ editable.category && (editable.category.leafCategoryName || editable.category.categoryPath) || \'-\' }}</span>\
             <span class="label">标题</span><span class="value">\
-              <i-input v-model="editable.title" size="small" />\
+              <i-input v-model="editable.title" />\
             </span>\
             <span class="label">采集时间</span><span class="value">{{ editable.created_at || \'-\' }}</span>\
             <span class="label">状态</span><span class="value">\
@@ -201,7 +215,7 @@ Vue.component('detail-modal', {
             <table class="sku-table">\
               <thead><tr>\
                 <th class="sku-check-col"><checkbox :value="allSkuSelected" @on-change="toggleSkuAll"></checkbox></th>\
-                <th>图片</th><th>SKU名称</th><th>价格</th><th>长(cm)</th><th>宽(cm)</th><th>高(cm)</th><th>重量</th>\
+                <th>图片</th><th>SKU名称</th><th>自定义名称</th><th>价格</th><th>长(cm)</th><th>宽(cm)</th><th>高(cm)</th><th>重量</th>\
               </tr></thead>\
               <tbody>\
                 <tr v-for="(sku, i) in editable.skus" :key="\'s\'+i" :class="{ \'sku-row-checked\': isSkuChecked(i) }">\
@@ -210,12 +224,13 @@ Vue.component('detail-modal', {
                     @mouseenter="onSkuImgEnter(sku.image, $event)"\
                     @mousemove="onSkuImgMove($event)"\
                     @mouseleave="onSkuImgLeave" /></td>\
-                  <td style="text-align:left;">{{ sku.name || \'-\' }}</td>\
-                  <td><i-input v-model="sku.price" size="small" style="width:80px" /></td>\
-                  <td><i-input v-model="sku.dimensions[0]" size="small" style="width:60px" /></td>\
-                  <td><i-input v-model="sku.dimensions[1]" size="small" style="width:60px" /></td>\
-                  <td><i-input v-model="sku.dimensions[2]" size="small" style="width:60px" /></td>\
-                  <td><i-input v-model="sku.weight" size="small" style="width:70px" /></td>\
+                  <td>{{ sku.name || \'-\' }}</td>\
+                  <td><i-input v-model="sku.customName" :placeholder="sku.name || \'-\'" style="width:200px" /></td>\
+                  <td><i-input v-model="sku.price" type="number" number style="width:110px" /></td>\
+                  <td><i-input v-model="sku.dimensions[0]" type="number" number style="width:90px" /></td>\
+                  <td><i-input v-model="sku.dimensions[1]" type="number" number style="width:90px" /></td>\
+                  <td><i-input v-model="sku.dimensions[2]" type="number" number style="width:90px" /></td>\
+                  <td><i-input v-model="sku.weight" type="number" number style="width:100px" /></td>\
                 </tr>\
               </tbody>\
             </table>\
@@ -225,15 +240,8 @@ Vue.component('detail-modal', {
         \
         <!-- 底部固定操作栏 -->\
         <div class="detail-footer-fixed">\
-          <div style="display:flex;gap:8px;">\
-            <i-button icon="ios-link" @click="copyUrl">复制回填URL</i-button>\
-            <i-button :type="editable.status === 0 ? \'success\' : \'default\'"\
-              :icon="editable.status === 0 ? \'ios-checkmark-circle\' : \'ios-undo\'"\
-              @click="toggleStatus">\
-              {{ editable.status === 0 ? \'标记已用\' : \'标记未用\' }}\
-            </i-button>\
-          </div>\
           <i-button type="primary" icon="md-checkmark" @click="saveProduct">保存</i-button>\
+          <i-button icon="md-close" @click="close">关闭</i-button>\
         </div>\
       </template>\
     </modal>'

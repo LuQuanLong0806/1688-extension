@@ -49,15 +49,18 @@ Vue.component('page-dashboard', {
           chart.setOption({
             tooltip: { trigger: 'axis', backgroundColor: '#fff', borderColor: '#eee', textStyle: { color: '#333' } },
             grid: { top: 20, right: 20, bottom: 30, left: 45 },
-            xAxis: { type: 'category', data: dates, axisLine: { lineStyle: { color: '#e0e0e0' } }, axisLabel: { color: '#999' } },
+            xAxis: { type: 'category', data: dates, axisLine: { lineStyle: { color: '#e0e0e0' } }, axisLabel: { color: '#999' }, boundaryGap: false },
             yAxis: { type: 'value', minInterval: 1, axisLine: { show: false }, splitLine: { lineStyle: { color: '#f5f5f5' } }, axisLabel: { color: '#999' } },
             series: [{
-              type: 'bar', data: counts, barWidth: 20,
-              itemStyle: { borderRadius: [4, 4, 0, 0], color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                { offset: 0, color: '#ff6a00' }, { offset: 1, color: '#ff9a4d' }
+              type: 'line', data: counts, smooth: true, symbol: 'circle', symbolSize: 6,
+              lineStyle: { width: 2, color: '#ff6a00' },
+              itemStyle: { color: '#ff6a00' },
+              areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                { offset: 0, color: 'rgba(255,106,0,0.25)' }, { offset: 1, color: 'rgba(255,106,0,0.02)' }
               ]) }
             }]
           });
+          chart.resize();
         });
     },
     initCategoryChart: function () {
@@ -68,21 +71,34 @@ Vue.component('page-dashboard', {
       this.charts.status = chart;
       fetch('/api/product/category-top').then(function (r) { return r.json(); })
         .then(function (data) {
+          // 按数量从小到大排，echarts Y轴从下到上
+          data.sort(function (a, b) { return a.count - b.count; });
           var names = data.map(function (d) { return d.name; });
           var counts = data.map(function (d) { return d.count; });
+          var maxCount = counts.length ? counts[counts.length - 1] : 1;
+          // 排行榜前三名用不同颜色
+          var colors = data.map(function (d, i) {
+            var rank = data.length - i; // 排名（从高到低）
+            if (rank === 1) return '#ff4500';
+            if (rank === 2) return '#ff6a00';
+            if (rank === 3) return '#ff9a4d';
+            return '#ffcc80';
+          });
           chart.setOption({
             tooltip: { trigger: 'axis', backgroundColor: '#fff', borderColor: '#eee', textStyle: { color: '#333' } },
-            grid: { top: 20, right: 20, bottom: 30, left: 10, containLabel: true },
-            xAxis: { type: 'category', data: names, axisLine: { lineStyle: { color: '#e0e0e0' } }, axisLabel: { color: '#555', fontSize: 12, rotate: names.length > 8 ? 30 : 0 } },
-            yAxis: { type: 'value', minInterval: 1, axisLine: { show: false }, splitLine: { lineStyle: { color: '#f5f5f5' } }, axisLabel: { color: '#999' } },
+            grid: { top: 10, right: 40, bottom: 10, left: 10, containLabel: true },
+            xAxis: { type: 'value', minInterval: 1, axisLine: { show: false }, splitLine: { lineStyle: { color: '#f5f5f5' } }, axisLabel: { color: '#999' } },
+            yAxis: { type: 'category', data: names, axisLine: { lineStyle: { color: '#e0e0e0' } }, axisLabel: { color: '#555', fontSize: 13 } },
             series: [{
-              type: 'bar', data: counts, barWidth: 24,
-              label: { show: true, position: 'top', color: '#555', fontSize: 12 },
-              itemStyle: { borderRadius: [4, 4, 0, 0], color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                { offset: 0, color: '#ff6a00' }, { offset: 1, color: '#ff9a4d' }
-              ]) }
+              type: 'bar', data: counts, barWidth: 18,
+              label: { show: true, position: 'right', color: '#555', fontSize: 13, fontWeight: 'bold' },
+              itemStyle: {
+                borderRadius: [0, 10, 10, 0],
+                color: function (params) { return colors[params.dataIndex]; }
+              }
             }]
           });
+          chart.resize();
         });
     },
     initUsageChart: function () {
