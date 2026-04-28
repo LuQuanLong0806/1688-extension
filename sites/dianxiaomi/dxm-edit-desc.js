@@ -230,11 +230,78 @@
           return;
         }
         saveBtn.click();
-        console.log('%c[小蜜蜂] ✅ 编辑描述完成', 'color:#43A047;font-weight:bold;font-size:14px');
-        C.showBubble('✅ 编辑描述完成', 'ok');
-        setTimeout(C.hideBubble, 2000);
+        // 保存后更新外包装图片
+        setTimeout(updatePkgImage, 1500);
       }, 800);
     }, 250);
+  }
+
+  // ========== Update package image after save ==========
+  function updatePkgImage() {
+    editLog('更新外包装图片...');
+    var firstImg = document.querySelector('#productProductInfo .mainImage .img-list .img-item img.img-css');
+    if (!firstImg || !firstImg.src) {
+      console.log('%c[小蜜蜂] ✅ 编辑描述完成（无轮播图，跳过外包装）', 'color:#43A047;font-weight:bold;font-size:14px');
+      C.showBubble('✅ 编辑描述完成', 'ok');
+      setTimeout(C.hideBubble, 2000);
+      return;
+    }
+    var imgUrl = firstImg.src;
+
+    // 先删除旧外包装图片
+    var pkgImgs = document.querySelectorAll('#packageInfo .img-list .img-item a.icon_delete');
+    if (pkgImgs.length > 0) {
+      (function deleteNext() {
+        var btn = document.querySelector('#packageInfo .img-list .img-item a.icon_delete');
+        if (!btn) { setTimeout(function () { openDescPkgSelect(imgUrl); }, 300); return; }
+        btn.click();
+        setTimeout(deleteNext, 50);
+      })();
+      return;
+    }
+    openDescPkgSelect(imgUrl);
+  }
+
+  function openDescPkgSelect(imgUrl) {
+    var pkgBtn = document.querySelector('#packageInfo .header button');
+    if (!pkgBtn || (pkgBtn.textContent || '').indexOf('选择图片') === -1) {
+      C.showBubble('✅ 编辑描述完成', 'ok');
+      setTimeout(C.hideBubble, 2000);
+      return;
+    }
+    C.hoverElement(pkgBtn);
+
+    C.waitForVisibleLi('网络图片', 3000, function (webImgItem) {
+      if (!webImgItem) {
+        C.showBubble('✅ 编辑描述完成', 'ok');
+        setTimeout(C.hideBubble, 2000);
+        return;
+      }
+      webImgItem.click();
+
+      var start = Date.now();
+      (function checkModal() {
+        var modal = C.findVisibleModal('从网络地址');
+        if (modal) {
+          var textarea = modal.querySelector('textarea.ant-input');
+          if (textarea) C.setInputValue(textarea, imgUrl);
+          setTimeout(function () {
+            var addBtn = modal.querySelector('.ant-modal-footer .ant-btn-primary');
+            if (addBtn) addBtn.click();
+            console.log('%c[小蜜蜂] ✅ 编辑描述+外包装完成', 'color:#43A047;font-weight:bold;font-size:14px');
+            C.showBubble('✅ 编辑描述+外包装完成', 'ok');
+            setTimeout(C.hideBubble, 2000);
+          }, 200);
+          return;
+        }
+        if (Date.now() - start > 5000) {
+          C.showBubble('✅ 编辑描述完成（外包装更新超时）', 'ok');
+          setTimeout(C.hideBubble, 2000);
+          return;
+        }
+        requestAnimationFrame(checkModal);
+      })();
+    });
   }
 
   // ========== Product carousel upload (original logic) ==========

@@ -310,7 +310,7 @@ Vue.component('page-products', {
       });
     },
     openQuoteEdit: function (id) {
-      window.open('https://www.dianxiaomi.com/web/temu/quoteEdit?collectId=' + id, '_blank');
+      window.open('https://www.dianxiaomi.com/web/temu/quoteEdit?id=166827730497622099&collectId=' + id, '_blank');
     },
     openSource: function (url) {
       if (url) window.open(url, '_blank');

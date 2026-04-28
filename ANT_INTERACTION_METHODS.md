@@ -551,10 +551,10 @@ Dropdown 菜单项统一通过 `waitForVisibleLi(文字片段)` 查找：
 | 按钮 | 颜色 | 功能 | 文件 |
 |------|------|------|------|
 | 翻译 | 橙黄 `#FFCA28→#FFA000` | 一键翻译（含标题气泡+翻译） | dxm-float-bee.js |
-| 贴图 | 紫 `#AB47BC→#8E24AA` | 粘贴图片URL + 清空旧外包装 + 更新外包装 | dxm-paste-img.js |
+| 贴图 | 紫 `#AB47BC→#8E24AA` | 粘贴图片URL + 自动选择外包装形状/类型 | dxm-paste-img.js |
 | 填表 | 深蓝 `#5C6BC0→#283593` | 取消变种属性 + 添加属性值 + SKU表格自动填充 | dxm-sku-table.js |
 | SKU | 青 `#26C6DA→#00838F` | SKU变种属性过滤 + 数字单位补全 + 高级SKU货号 | dxm-sku.js |
-| 描述 | 绿 `#66BB6A→#43A047` | 一键编辑描述 | dxm-edit-desc.js |
+| 描述 | 绿 `#66BB6A→#43A047` | 一键编辑描述 + 更新外包装图片 | dxm-edit-desc.js |
 | 删图 | 红 `#EF5350→#C62828` | 清空产品轮播图+视频+外包装 | dxm-paste-img.js |
 
 ---
@@ -613,8 +613,9 @@ Dropdown 菜单项统一通过 `waitForVisibleLi(文字片段)` 查找：
    - **网络上传**（`useWebImage=true`）: 从产品页抓取前 8 张图片 URL → 填入 textarea → 添加
    - **引用产品轮播图**（`useWebImage=false`）: 全选 → 确认
 6. 确认批量传图 → 保存描述
+7. 更新外包装图片（获取轮播图首图 → 删除旧外包装图 → 网络图片弹窗填入 → 添加）
 
-### 7.5 点击"粘" — 粘贴图片URL + 更新外包装
+### 7.5 点击"粘" — 粘贴图片URL + 自动选择外包装形状/类型
 
 | 步骤 | 操作 | 关键选择器 |
 |------|------|-----------|
@@ -622,11 +623,8 @@ Dropdown 菜单项统一通过 `waitForVisibleLi(文字片段)` 查找：
 | 2 | 打开产品轮播图-选择图片下拉 | `#productProductInfo .mainImage .img-module .header button` → hover |
 | 3 | 点击"网络图片"等待弹窗 | `waitForVisibleLi('网络图片')` → `findVisibleModal('从网络地址')` |
 | 4 | 填入URL + 添加图片 | 弹窗内 `textarea.ant-input` → `.ant-modal-footer .ant-btn-primary` |
-| 5 | 获取产品轮播图首图URL | `#productProductInfo .mainImage .img-list .img-item img.img-css` → `.src` |
-| 6a | 检查外包装是否有旧图片 | `#packageInfo .img-list .img-item a.icon_delete` | 有则逐个删除 |
-| 6b | 打开外包装-选择图片下拉 | `#packageInfo .header button` → hover |
-| 7 | 点击"网络图片"等待弹窗 | `waitForVisibleLi('网络图片')` → `findVisibleModal('从网络地址')` |
-| 8 | 填入首图URL + 更新外包装 | 弹窗内 `textarea.ant-input` → `.ant-modal-footer .ant-btn-primary` |
+| 5 | 选择外包装形状（不规则） | `waitForAntSelect('外包装形状')` → `forceOpenAntSelect` → `[title="不规则"]` |
+| 6 | 选择外包装类型（软包装+硬物） | `waitForAntSelect('外包装类型')` → `forceOpenAntSelect` → `[title="软包装+硬物"]` |
 
 ### 7.6 点击"删" — 清空产品轮播图
 
@@ -724,9 +722,511 @@ textarea 不能用 `HTMLInputElement.prototype` 的 setter。`setInputValue` 已
 "一键生成"和"高级"都是 `span.link`。需遍历找到文字含"高级"的那个。
 
 ### Q: 粘字工作流外包装图片重复？
-粘字流程在添加外包装图片前会先检查并删除已有图片（`#packageInfo .img-list .img-item a.icon_delete`）。
+粘图按钮不再更新外包装图片。外包装图片由以下方式自动更新：轮播图变化时 MutationObserver 自动同步（`dxm-float-bee.js`），或点击描述按钮时自动更新。
 
-### Q: SKU表格无预览图的 hover 不触发下拉？
+---
+
+## 十、原子步骤参考（可自由组合）
+
+> 每个步骤都是独立的原子操作，可根据需要自由组合编排。每个步骤包含：目的、前置条件、关键选择器、实现代码。
+
+### 10.1 选择店铺
+
+**目的**: 检查店铺是否已选，未选则自动选择配置的店铺。
+**前置**: 页面已加载，`#productBasicInfo` 可见。
+**配置**: `Config.loadSelectedStore()` 获取目标店铺名。
+
+```javascript
+// 1. 找到店铺标签
+var labels = document.querySelectorAll('#productBasicInfo .ant-form-item-label label');
+var storeFormItem = null;
+for (var i = 0; i < labels.length; i++) {
+  if (labels[i].textContent.includes('店铺名称')) {
+    storeFormItem = labels[i].closest('.ant-form-item');
+    break;
+  }
+}
+
+// 2. 读取当前店铺
+var selectionItem = storeFormItem.querySelector('.ant-select-selection-item');
+var currentStore = selectionItem ? (selectionItem.getAttribute('title') || selectionItem.textContent.trim()) : '';
+
+// 3. 店铺为空时，选择配置的店铺
+if (!currentStore) {
+  var configStore = Config.loadSelectedStore();
+  var storeSelector = storeFormItem.querySelector('.ant-select-selector');
+  var searchInput = storeFormItem.querySelector('.ant-select-selection-search-input');
+  if (searchInput) searchInput.focus();
+  forceOpenAntSelect(storeSelector);
+  // 等待选项出现后点击
+  waitForElement('.ant-select-item-option[title="' + configStore + '"]', 3000, function (opt) {
+    if (opt) opt.click();
+  });
+}
+```
+
+**注意**: 店铺变更后分类会清空，此时应跳过分类步骤（Step 2/3）。
+
+---
+
+### 10.2 点击分类 + 确认弹窗
+
+**目的**: 点击"确认分类"按钮并确认弹窗。
+**前置**: 店铺已选择。
+**配置**: `Config.loadAutoCategory()` 控制是否执行。
+
+```javascript
+// Step A: 点击分类按钮
+var btn = document.querySelector('#productBasicInfo .category-item .ant-form-item-control button');
+if (btn) btn.click();
+
+// Step B: 确认弹窗（等待弹窗出现）
+waitForElement('.ant-modal-wrap:not([style*="display: none"]) .ant-modal-content .ant-modal-footer button.ant-btn-primary', 3000, function (confirmBtn) {
+  if (confirmBtn) confirmBtn.click();
+});
+```
+
+---
+
+### 10.3 过滤标题违规词
+
+**目的**: 检查标题中的违规文字并替换。
+**前置**: 标题输入框有值。
+**配置**: `Config.loadFilterEnabled()` 控制开关，`Config.loadFilters()` 获取规则。
+
+```javascript
+var input = document.querySelector('#productProductInfo form .ant-form-item input');
+var title = input.value;
+
+var filterEnabled = Config.loadFilterEnabled();
+var filters = Config.loadFilters().filter(function (f) { return f.enabled && f.from; });
+
+if (filterEnabled) {
+  var result = Config.applyFilters(title, filters);
+  if (result.changed) {
+    Config.setInputValue(input, result.text);
+    // result.hits 包含被替换的关键词列表
+  }
+}
+```
+
+---
+
+### 10.4 一键翻译（中文→英文）
+
+**目的**: 触发页面的一键翻译功能。
+**前置**: 翻译按钮存在。
+**配置**: `Config.loadAutoTranslate()` 控制是否执行。
+
+```javascript
+var translateBtn = document.querySelector('#app .product-add-layout .header .btn-box button.translation-btn');
+hoverElement(translateBtn);
+
+// 查找"中文→英文"菜单项
+function findTranslateMenuItem() {
+  var items = document.querySelectorAll('.ant-dropdown:not(.ant-dropdown-hidden) li.menu-item');
+  for (var i = 0; i < items.length; i++) {
+    var t = items[i].textContent || '';
+    if (t.indexOf('中文') !== -1 && t.indexOf('英文') !== -1) return items[i];
+  }
+  return null;
+}
+
+// 轮询等待菜单出现
+var start = Date.now();
+(function tryMenu() {
+  var item = findTranslateMenuItem();
+  if (item) { item.click(); unhoverElement(translateBtn); return; }
+  if (Date.now() - start > 3000) {
+    translateBtn.click(); // 备选：直接点击按钮
+    // 再等待一次...
+    return;
+  }
+  requestAnimationFrame(tryMenu);
+})();
+```
+
+---
+
+### 10.5 选择省份
+
+**目的**: 选择配置的省份。
+**前置**: 产地区域已渲染。
+**配置**: `Config.loadProvince()` 获取省份名（如"广东省"）。
+
+```javascript
+// 1. 找到省份下拉（通过"产地"标签 + .productOrigin 第2个 select）
+var labels = document.querySelectorAll('#productProductInfo .ant-form-item-label label');
+var originEl = null;
+for (var i = 0; i < labels.length; i++) {
+  if (labels[i].textContent.includes('产地')) {
+    var formItem = labels[i].closest('.ant-form-item');
+    if (formItem) originEl = formItem.querySelector('.productOrigin');
+    break;
+  }
+}
+var selects = originEl.querySelectorAll('.ant-select-selector');
+var provinceSelect = selects[1]; // 第2个是省份
+
+// 2. 打开下拉
+var input = provinceSelect.querySelector('.ant-select-selection-search-input');
+if (input) input.focus();
+forceOpenAntSelect(provinceSelect);
+
+// 3. 选择省份
+var province = Config.loadProvince();
+waitForElement('.ant-select-item-option[title="' + province + '"]', 3000, function (opt) {
+  if (opt) opt.click();
+});
+```
+
+---
+
+### 10.6 删除产品视频
+
+**目的**: 删除产品信息区域中的所有视频。
+**前置**: 产品信息区域已渲染。
+**配置**: `Config.loadDelVideo()` 控制是否执行。
+
+```javascript
+var labels = document.querySelectorAll('#productProductInfo .ant-form-item-label label');
+var videoLabel = null;
+for (var i = 0; i < labels.length; i++) {
+  if (labels[i].textContent.includes('产品视频')) { videoLabel = labels[i]; break; }
+}
+if (!videoLabel) return; // 无视频区域
+
+var formItem = videoLabel.closest('.ant-form-item');
+
+function deleteNextVideo(count) {
+  var visibleBox = null;
+  var videoImgs = formItem.querySelectorAll('.video-operate-img');
+  for (var v = 0; v < videoImgs.length; v++) {
+    if (videoImgs[v].offsetParent !== null && videoImgs[v].querySelector('.video-operate-img-box')) {
+      visibleBox = videoImgs[v]; break;
+    }
+  }
+  if (!visibleBox) return; // 无更多视频
+
+  var delBtn = null;
+  var links = visibleBox.querySelectorAll('.video-operate-box a.link');
+  for (var d = 0; d < links.length; d++) {
+    if (links[d].textContent.includes('删除')) { delBtn = links[d]; break; }
+  }
+  if (!delBtn) return;
+
+  delBtn.click();
+  setTimeout(function () {
+    var confirmBtn = document.querySelector('.ant-popconfirm-buttons .ant-btn-primary');
+    if (confirmBtn) confirmBtn.click();
+    setTimeout(function () { deleteNextVideo(count + 1); }, 200);
+  }, 150);
+}
+deleteNextVideo(0);
+```
+
+---
+
+### 10.7 选择外包装形状
+
+**目的**: 将外包装形状设为"不规则"。
+**前置**: 包裹信息区域已渲染。
+
+```javascript
+// 1. 通过标签定位 Select
+waitForAntSelect('外包装形状', function (sel) {
+  if (!sel) return;
+
+  // 2. 滚动到可见区域
+  sel.scrollIntoView({ block: 'center' });
+
+  // 3. 打开下拉
+  setTimeout(function () {
+    forceOpenAntSelect(sel);
+
+    // 4. 选择"不规则"
+    waitForElement('.ant-select-item-option[title="不规则"]', 3000, function (opt) {
+      if (opt) opt.click();
+    });
+  }, 300);
+});
+```
+
+**waitForAntSelect 实现**:
+```javascript
+function waitForAntSelect(labelText, cb) {
+  var start = Date.now();
+  (function check() {
+    var labels = document.querySelectorAll('#packageInfo .ant-form-item-label label');
+    for (var i = 0; i < labels.length; i++) {
+      if (labels[i].textContent.indexOf(labelText) !== -1) {
+        var formItem = labels[i].closest('.ant-form-item');
+        if (formItem) {
+          var sel = formItem.querySelector('.ant-select-selector');
+          if (sel) return cb(sel);
+        }
+      }
+    }
+    if (Date.now() - start > 5000) return cb(null);
+    requestAnimationFrame(check);
+  })();
+}
+```
+
+---
+
+### 10.8 选择外包装类型
+
+**目的**: 将外包装类型设为"软包装+硬物"。
+**前置**: 外包装形状已选择（建议先选形状再选类型）。
+
+```javascript
+waitForAntSelect('外包装类型', function (sel) {
+  if (!sel) return;
+  forceOpenAntSelect(sel);
+  waitForElement('.ant-select-item-option[title="软包装+硬物"]', 3000, function (opt) {
+    if (opt) opt.click();
+  });
+});
+```
+
+**与 10.7 组合**: 先选形状 → 等待 300ms → 再选类型。
+
+---
+
+### 10.9 更新外包装图片
+
+**目的**: 用产品轮播图首图更新外包装图片。
+**前置**: 产品轮播图至少有一张图片。
+
+```javascript
+// 1. 获取首图 URL
+var firstImg = document.querySelector('#productProductInfo .mainImage .img-list .img-item img.img-css');
+var imgUrl = firstImg ? firstImg.src : null;
+if (!imgUrl) return;
+
+// 2. 删除旧外包装图片
+var pkgImgs = document.querySelectorAll('#packageInfo .img-list .img-item a.icon_delete');
+if (pkgImgs.length > 0) {
+  (function deleteNext() {
+    var btn = document.querySelector('#packageInfo .img-list .img-item a.icon_delete');
+    if (!btn) { setTimeout(function () { openPkgNetworkImage(imgUrl); }, 300); return; }
+    btn.click();
+    setTimeout(deleteNext, 50);
+  })();
+} else {
+  openPkgNetworkImage(imgUrl);
+}
+
+function openPkgNetworkImage(url) {
+  // 3. 悬浮"选择图片"按钮
+  var pkgBtn = document.querySelector('#packageInfo .header button');
+  if (!pkgBtn || pkgBtn.textContent.indexOf('选择图片') === -1) return;
+  hoverElement(pkgBtn);
+
+  // 4. 点击"网络图片"
+  waitForVisibleLi('网络图片', 3000, function (webImgItem) {
+    if (!webImgItem) return;
+    webImgItem.click();
+
+    // 5. 等待弹窗 → 填入 URL → 点击添加
+    var start = Date.now();
+    (function checkModal() {
+      var modal = findVisibleModal('从网络地址');
+      if (modal) {
+        var textarea = modal.querySelector('textarea.ant-input');
+        if (textarea) setInputValue(textarea, url);
+        setTimeout(function () {
+          var addBtn = modal.querySelector('.ant-modal-footer .ant-btn-primary');
+          if (addBtn) addBtn.click();
+        }, 200);
+        return;
+      }
+      if (Date.now() - start > 5000) return;
+      requestAnimationFrame(checkModal);
+    })();
+  });
+}
+```
+
+---
+
+### 10.10 检查标题长度并截取
+
+**目的**: 检查标题是否超过字数限制，超限则智能截取。
+**前置**: 标题已过滤。
+
+```javascript
+var input = document.querySelector('#productProductInfo form .ant-form-item input');
+var container = input.closest('.inputContainer');
+var limitEl = container ? container.querySelector('.color-gray') : null;
+var limit = 200;
+if (limitEl) {
+  var match = limitEl.textContent.match(/\/\s*(\d+)/);
+  if (match) limit = parseInt(match[1], 10);
+}
+
+if (input.value.length > limit) {
+  var t = input.value.substring(0, limit);
+  // 在标点处截断
+  var bps = ['。','，',',','.','!','!','?','?','；',';','、',' ','-','–','—'];
+  var cutIdx = -1;
+  for (var ci = t.length - 1; ci >= 0; ci--) {
+    if (bps.indexOf(t[ci]) !== -1) { cutIdx = ci; break; }
+  }
+  if (cutIdx > 0) t = t.substring(0, cutIdx);
+  setInputValue(input, t);
+}
+```
+
+---
+
+### 10.11 发布（悬浮 + 立即发布）
+
+**目的**: 点击发布按钮并选择"立即发布"。
+**前置**: 所有步骤完成。
+**配置**: `Config.loadAutoPublish()` 控制是否执行。
+
+```javascript
+// 1. 悬浮发布按钮
+var btn = document.querySelector('.footer .btn-box button.btn-green');
+if (btn && btn.textContent.includes('发布')) hoverElement(btn);
+
+// 2. 点击"立即发布"
+waitForElement('.ant-dropdown-menu-item[data-menu-id="2"]', 3000, function (opt) {
+  if (opt && opt.textContent.includes('立即发布')) opt.click();
+});
+```
+
+---
+
+### 10.12 粘贴图片URL到轮播图
+
+**目的**: 读取剪贴板图片URL，添加到产品轮播图。
+**前置**: 剪贴板有内容。
+
+```javascript
+navigator.clipboard.readText().then(function (clipText) {
+  // 1. 找到轮播图"选择图片"按钮
+  var labels = document.querySelectorAll('#productProductInfo .ant-form-item-label label');
+  var mainImageLabel = null;
+  for (var i = 0; i < labels.length; i++) {
+    if (labels[i].textContent.indexOf('产品轮播图') !== -1) { mainImageLabel = labels[i]; break; }
+  }
+  var formItem = mainImageLabel.closest('.ant-form-item');
+  var selectBtn = null;
+  var btns = formItem.querySelectorAll('.img-module .header button');
+  for (var j = 0; j < btns.length; j++) {
+    if (btns[j].textContent.indexOf('选择图片') !== -1) { selectBtn = btns[j]; break; }
+  }
+
+  // 2. 悬浮 → 点击"网络图片"
+  hoverElement(selectBtn);
+  waitForVisibleLi('网络图片', 3000, function (webImgItem) {
+    webImgItem.click();
+
+    // 3. 等待弹窗 → 填入 URL → 添加
+    var start = Date.now();
+    (function checkModal() {
+      var modal = findVisibleModal('从网络地址');
+      if (modal) {
+        var textarea = modal.querySelector('textarea.ant-input');
+        setInputValue(textarea, clipText);
+        setTimeout(function () {
+          var addBtn = modal.querySelector('.ant-modal-footer .ant-btn-primary');
+          if (addBtn) addBtn.click();
+        }, 250);
+        return;
+      }
+      if (Date.now() - start > 5000) return;
+      requestAnimationFrame(checkModal);
+    })();
+  });
+});
+```
+
+---
+
+### 10.13 编辑描述（批量传图）
+
+**目的**: 打开描述编辑器，清空旧内容，批量传图，保存。
+**前置**: 描述区域可见。
+**配置**: `Config.loadUseWebImage()` 决定网络上传还是引用轮播图。
+
+```javascript
+// 1. 点击"编辑描述"
+var editBtn = document.querySelector('#baiduStatisticsSmtNewEditorEditClickNum > button');
+editBtn.click();
+
+// 2. 等待编辑器加载
+waitForElement('.smt-new-editor .menu-button.ant-dropdown-trigger', 5000, function (trigger) {
+  // 3. 检测并清空旧内容（省略，见 7.4 节）
+
+  // 4. 批量传图
+  hoverElement(trigger);
+  waitForVisibleLi('批量传图', 3000, function (batchImgItem) {
+    batchImgItem.click();
+    // ... 选择图片（网络上传 / 引用轮播图）...
+
+    // 5. 确认 + 保存
+    var batchModal = findVisibleModal('批量传图');
+    batchModal.querySelector('.ant-modal-footer .ant-btn-primary').click();
+    setTimeout(function () {
+      document.querySelector('.smt-new-editor .btn-orange').click();
+    }, 800);
+  });
+});
+```
+
+---
+
+### 10.14 删除轮播图/视频/外包装图
+
+**目的**: 清空指定区域的图片或视频。
+**通用模式**: 每次重查第一个删除按钮，点击，间隔 50ms，直到没有。
+
+```javascript
+// 删除轮播图
+function deleteMainImages() {
+  var btn = document.querySelector('#productProductInfo .mainImage .img-list .img-item a.icon_delete');
+  if (!btn) return;
+  btn.click();
+  setTimeout(deleteMainImages, 50);
+}
+
+// 删除外包装图
+function deletePackageImages() {
+  var btn = document.querySelector('#packageInfo .img-list .img-item a.icon_delete');
+  if (!btn) return;
+  btn.click();
+  setTimeout(deletePackageImages, 50);
+}
+```
+
+---
+
+### 10.15 步骤组合示例
+
+**示例: 粘图按钮 = 粘贴轮播图 + 选形状 + 选类型**
+```
+粘贴图片URL到轮播图 (10.12)
+  → 等待 500ms
+  → 选择外包装形状 (10.7)
+  → 等待 300ms
+  → 选择外包装类型 (10.8)
+```
+
+**示例: 蜜蜂工作流 = 店铺 + 分类 + 过滤 + 翻译 + 省份 + 视频 + 形状 + 类型 + 外包装 + 标题 + 发布**
+```
+选择店铺 (10.1) → 点击分类 (10.2) → 过滤标题 (10.3) → 一键翻译 (10.4)
+→ 选择省份 (10.5) → 删除视频 (10.6) → 选择形状 (10.7) → 选择类型 (10.8)
+→ 更新外包装图 (10.9) → 检查标题长度 (10.10) → 发布 (10.11)
+```
+
+**示例: 描述按钮 = 编辑描述 + 更新外包装**
+```
+编辑描述 (10.13) → 等待 1500ms → 更新外包装图 (10.9)
+```
 无预览图时没有 `.sku-image-box.ant-dropdown-trigger`，事件监听在 `.img-box` 上。必须使用 `hoverWithCoords`（带坐标的 PointerEvent）而非 `hoverElement`，且目标元素为 `td.min-w-70 .img-box`。
 
 ### Q: SKU表格输入框赋值后 Vue 没更新？
