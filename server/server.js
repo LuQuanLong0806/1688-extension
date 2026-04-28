@@ -389,8 +389,24 @@ initDb().then(() => {
     console.log(`  管理页面: http://localhost:${PORT}`);
     console.log(`  API 地址: http://localhost:${PORT}/api/product`);
     console.log(`  数据库: ${DB_FILE}\n`);
-    // 自动打开管理页面
-    var cmd = process.platform === 'win32' ? 'start' : process.platform === 'darwin' ? 'open' : 'xdg-open';
-    require('child_process').exec(cmd + ' http://localhost:' + PORT);
+    // 自动打开管理页面（优先 Chrome）
+    var openUrl = 'http://localhost:' + PORT;
+    var chromeExe = '';
+    if (process.platform === 'win32') {
+      var candidates = [
+        (process.env.ProgramFiles || '') + '\\Google\\Chrome\\Application\\chrome.exe',
+        (process.env['ProgramFiles(x86)'] || '') + '\\Google\\Chrome\\Application\\chrome.exe',
+        (process.env.LOCALAPPDATA || '') + '\\Google\\Chrome\\Application\\chrome.exe'
+      ];
+      for (var ci = 0; ci < candidates.length; ci++) {
+        if (candidates[ci] && fs.existsSync(candidates[ci])) { chromeExe = candidates[ci]; break; }
+      }
+    }
+    if (chromeExe) {
+      require('child_process').exec('"' + chromeExe + '" ' + openUrl);
+    } else {
+      var cmd = process.platform === 'win32' ? 'start' : process.platform === 'darwin' ? 'open' : 'xdg-open';
+      require('child_process').exec(cmd + ' ' + openUrl);
+    }
   });
 });

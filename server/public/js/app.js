@@ -2,7 +2,7 @@
 new Vue({
   el: '#app',
   data: {
-    currentView: 'page-dashboard',
+    currentView: 'page-products',
     sidebarCollapsed: false,
     stats: { total: 0, unused: 0, used: 0, totalCategories: 0 },
     // detail modal
