@@ -5,112 +5,209 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>商品采集管理</title>
   <link rel="stylesheet" href="https://unpkg.com/view-design@4.7.0/dist/styles/iview.css">
-  <style>
-    body { background: #f0f2f5; padding: 20px; }
-    .page-header { margin-bottom: 20px; }
-    .page-header h1 { font-size: 22px; font-weight: 600; }
-    .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-    .search-bar { display: flex; gap: 8px; align-items: center; }
-    .title-text { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: break-all; }
-    .img-grid { display: flex; flex-wrap: wrap; gap: 8px; }
-    .img-grid img { width: 100px; height: 100px; object-fit: cover; border-radius: 4px; border: 1px solid #f0f0f0; cursor: pointer; }
-    .img-grid img:hover { transform: scale(1.5); z-index: 10; position: relative; }
-    .attr-tag { margin-right: 4px; }
-    .detail-section { margin-bottom: 20px; }
-    .detail-section h3 { font-size: 14px; font-weight: 600; margin-bottom: 8px; color: #555; }
-    .detail-section .info-row { display: flex; gap: 8px; margin-bottom: 4px; font-size: 14px; }
-    .detail-section .info-label { color: #999; min-width: 70px; }
-    .detail-section .info-value { color: #333; word-break: break-all; }
-    .sku-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .sku-table th, .sku-table td { padding: 6px 10px; border: 1px solid #e8e8e8; text-align: center; }
-    .sku-table th { background: #fafafa; }
-    .sku-table img { width: 40px; height: 40px; object-fit: cover; border-radius: 2px; }
-  </style>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div id="app">
-    <div class="page-header">
-      <h1>商品采集管理</h1>
-    </div>
-
-    <div class="toolbar">
-      <div class="search-bar">
-        <i-input v-model="keyword" placeholder="搜索标题..." style="width: 220px" @on-enter="loadList(1)">
-          <icon type="ios-search" slot="prefix"></icon>
-        </i-input>
-        <i-select v-model="statusFilter" style="width: 120px" @on-change="loadList(1)">
-          <i-option value="all">全部状态</i-option>
-          <i-option value="0">未使用</i-option>
-          <i-option value="1">已使用</i-option>
-        </i-select>
-        <i-button type="primary" icon="ios-search" @click="loadList(1)">搜索</i-button>
+    <!-- Header -->
+    <header class="page-header">
+      <div class="header-content">
+        <div class="header-icon">
+          <svg viewBox="0 0 24 24"><path d="M19 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2zm-7 3c1.63 0 3.13.79 4 2h-4c-1.66 0-3 1.34-3 3 0 .35.07.69.18 1H7.1A5.02 5.02 0 0112 6zm0 12c-1.63 0-3.13-.79-4-2h4c1.66 0 3-1.34 3-3 0-.35-.07-.69-.18-1h2.08A5.02 5.02 0 0112 18z"/></svg>
+        </div>
+        <div class="header-text">
+          <h1>商品采集管理</h1>
+          <p>1688 商品数据采集与管理</p>
+        </div>
       </div>
-      <i-button type="error" :disabled="selectedIds.length === 0" @click="batchDelete">
-        批量删除{{ selectedIds.length ? ' (' + selectedIds.length + ')' : '' }}
-      </i-button>
+    </header>
+
+    <!-- Stats Cards -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-icon blue">
+          <svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V8a2 2 0 00-2-2zm0 12H4V8h16z"/></svg>
+        </div>
+        <div class="stat-info">
+          <div class="stat-number">{{ stats.total }}</div>
+          <div class="stat-label">总商品</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon green">
+          <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8z"/></svg>
+        </div>
+        <div class="stat-info">
+          <div class="stat-number">{{ stats.unused }}</div>
+          <div class="stat-label">未使用</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon gray">
+          <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+        </div>
+        <div class="stat-info">
+          <div class="stat-number">{{ stats.used }}</div>
+          <div class="stat-label">已使用</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon orange">
+          <svg viewBox="0 0 24 24"><path d="M4 6H2v14a2 2 0 002 2h14v-2H4zm16-4H8a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V4a2 2 0 00-2-2zm0 14H8V4h12zm-6-1h2V5h-4v2h2z"/></svg>
+        </div>
+        <div class="stat-info">
+          <div class="stat-number">{{ stats.totalSkus }}</div>
+          <div class="stat-label">SKU 总数</div>
+        </div>
+      </div>
     </div>
 
-    <i-table :columns="columns" :data="list" :loading="loading" stripe border
-      @on-selection-change="onSelectionChange" style="margin-bottom: 16px;">
-    </i-table>
+    <!-- Main Content -->
+    <div class="main-content">
+      <div class="content-card">
+        <div class="toolbar">
+          <div class="search-bar">
+            <i-input v-model="keyword" placeholder="搜索标题..." style="width: 220px" @on-enter="loadList(1)">
+              <icon type="ios-search" slot="prefix"></icon>
+            </i-input>
+            <i-select v-model="statusFilter" style="width: 120px" @on-change="loadList(1)">
+              <i-option value="all">全部状态</i-option>
+              <i-option value="0">未使用</i-option>
+              <i-option value="1">已使用</i-option>
+            </i-select>
+            <i-button type="primary" icon="ios-search" @click="loadList(1)">搜索</i-button>
+          </div>
+          <i-button type="error" icon="ios-trash" :disabled="selectedIds.length === 0" @click="batchDelete">
+            批量删除{{ selectedIds.length ? ' (' + selectedIds.length + ')' : '' }}
+          </i-button>
+        </div>
 
-    <div style="text-align: center;">
-      <page :total="total" :current="page" :page-size="pageSize" show-total show-elevator
-        @on-change="onPageChange" @on-page-size-change="onPageSizeChange" />
+        <i-table :columns="columns" :data="list" :loading="loading" stripe
+          @on-selection-change="onSelectionChange" style="margin-bottom: 0;">
+        </i-table>
+
+        <div class="pagination-wrap">
+          <page :total="total" :current="page" :page-size="pageSize" show-total show-elevator
+            @on-change="onPageChange" @on-page-size-change="onPageSizeChange" />
+        </div>
+      </div>
     </div>
 
-    <!-- 详情弹窗 -->
-    <modal v-model="showDetail" :title="detail ? (detail.title || ('商品 #' + detail.id)) : '商品详情'" width="800" footer-hide>
+    <!-- Detail Modal -->
+    <modal v-model="showDetail" class="detail-modal"
+      :title="detail ? (detail.title || ('商品 #' + detail.id)) : '商品详情'" width="860" footer-hide>
       <template v-if="detail">
-        <div class="detail-section">
-          <h3>基本信息</h3>
-          <div class="info-row"><span class="info-label">ID</span><span class="info-value">{{ detail.id }}</span></div>
-          <div class="info-row"><span class="info-label">来源</span><span class="info-value">{{ detail.source_url || '-' }}</span></div>
-          <div class="info-row"><span class="info-label">标题</span><span class="info-value">{{ detail.title || '-' }}</span></div>
-        </div>
+        <tabs class="detail-tabs" v-model="detailTab">
+          <!-- 基本信息 -->
+          <tab-pane label="基本信息" name="info">
+            <div class="detail-tab-content">
+              <div class="info-grid">
+                <span class="label">ID</span>
+                <span class="value">{{ detail.id }}</span>
+                <span class="label">来源</span>
+                <span class="value">
+                  <a v-if="detail.source_url" :href="detail.source_url" target="_blank">{{ detail.source_url }}</a>
+                  <span v-else>-</span>
+                </span>
+                <span class="label">标题</span>
+                <span class="value">{{ detail.title || '-' }}</span>
+                <span class="label">采集时间</span>
+                <span class="value">{{ detail.created_at || '-' }}</span>
+                <span class="label">状态</span>
+                <span class="value">
+                  <span :class="'status-dot ' + (detail.status === 0 ? 'unused' : 'used')">
+                    {{ detail.status === 0 ? '未使用' : '已使用' }}
+                  </span>
+                </span>
+              </div>
+            </div>
+          </tab-pane>
 
-        <div class="detail-section" v-if="detail.main_images && detail.main_images.length">
-          <h3>主图 ({{ detail.main_images.length }})</h3>
-          <div class="img-grid">
-            <img v-for="(url, i) in detail.main_images" :key="'main'+i" :src="url" loading="lazy" />
-          </div>
-        </div>
+          <!-- 主图 -->
+          <tab-pane label="主图" name="main" v-if="detail.main_images && detail.main_images.length">
+            <template slot="label">
+              主图 <span style="color:#999;font-size:12px;margin-left:2px">({{ detail.main_images.length }})</span>
+            </template>
+            <div class="detail-tab-content">
+              <div class="img-grid">
+                <div class="img-item" v-for="(url, i) in detail.main_images" :key="'main'+i"
+                  @click="openPreview(detail.main_images, i)">
+                  <img :src="url" loading="lazy" />
+                </div>
+              </div>
+            </div>
+          </tab-pane>
 
-        <div class="detail-section" v-if="detail.desc_images && detail.desc_images.length">
-          <h3>描述图 ({{ detail.desc_images.length }})</h3>
-          <div class="img-grid">
-            <img v-for="(url, i) in detail.desc_images" :key="'desc'+i" :src="url" loading="lazy" />
-          </div>
-        </div>
+          <!-- 描述图 -->
+          <tab-pane label="描述图" name="desc" v-if="detail.desc_images && detail.desc_images.length">
+            <template slot="label">
+              描述图 <span style="color:#999;font-size:12px;margin-left:2px">({{ detail.desc_images.length }})</span>
+            </template>
+            <div class="detail-tab-content">
+              <div class="img-grid">
+                <div class="img-item" v-for="(url, i) in detail.desc_images" :key="'desc'+i"
+                  @click="openPreview(detail.desc_images, i)">
+                  <img :src="url" loading="lazy" />
+                </div>
+              </div>
+            </div>
+          </tab-pane>
 
-        <div class="detail-section" v-if="detail.attrs && detail.attrs.length">
-          <h3>属性</h3>
-          <tag v-for="(a, i) in detail.attrs" :key="'attr'+i" class="attr-tag">{{ a }}</tag>
-        </div>
+          <!-- SKU -->
+          <tab-pane label="SKU" name="sku" v-if="detail.skus && detail.skus.length">
+            <template slot="label">
+              SKU <span style="color:#999;font-size:12px;margin-left:2px">({{ detail.skus.length }})</span>
+            </template>
+            <div class="detail-tab-content">
+              <table class="sku-table">
+                <thead>
+                  <tr><th>预览图</th><th>SKU</th><th>价格</th><th>尺寸(长x宽x高)</th><th>重量</th></tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(sku, i) in detail.skus" :key="'sku'+i">
+                    <td><img v-if="sku.image" :src="sku.image" loading="lazy" /></td>
+                    <td>{{ sku.sku || '-' }}</td>
+                    <td>{{ sku.price || '-' }}</td>
+                    <td>{{ sku.dimensions ? sku.dimensions.join(' x ') : '-' }}</td>
+                    <td>{{ sku.weight != null ? sku.weight : '-' }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </tab-pane>
 
-        <div class="detail-section" v-if="detail.skus && detail.skus.length">
-          <h3>SKU ({{ detail.skus.length }})</h3>
-          <table class="sku-table">
-            <thead><tr><th>预览图</th><th>SKU</th><th>价格</th><th>尺寸(长宽高)</th><th>重量</th></tr></thead>
-            <tbody>
-              <tr v-for="(sku, i) in detail.skus" :key="'sku'+i">
-                <td><img v-if="sku.image" :src="sku.image" loading="lazy" /></td>
-                <td>{{ sku.sku || '-' }}</td>
-                <td>{{ sku.price || '-' }}</td>
-                <td>{{ sku.dimensions ? sku.dimensions.join(' x ') : '-' }}</td>
-                <td>{{ sku.weight != null ? sku.weight : '-' }}</td>
-              </tr>
-            </tbody>
-          </table>
+          <!-- 属性 -->
+          <tab-pane label="属性" name="attrs" v-if="detail.attrs && detail.attrs.length">
+            <template slot="label">
+              属性 <span style="color:#999;font-size:12px;margin-left:2px">({{ detail.attrs.length }})</span>
+            </template>
+            <div class="detail-tab-content">
+              <div class="attr-tags">
+                <span class="attr-tag" v-for="(a, i) in detail.attrs" :key="'attr'+i">{{ a }}</span>
+              </div>
+            </div>
+          </tab-pane>
+        </tabs>
+
+        <div class="detail-footer">
+          <i-button icon="ios-link" @click="copyUrl">复制回填URL</i-button>
+          <i-button :type="detail && detail.status === 0 ? 'success' : 'default'"
+            :icon="detail && detail.status === 0 ? 'ios-checkmark-circle' : 'ios-undo'"
+            @click="toggleStatus">
+            {{ detail && detail.status === 0 ? '标记已用' : '标记未用' }}
+          </i-button>
         </div>
       </template>
-      <div style="text-align: right; margin-top: 16px;">
-        <i-button @click="copyUrl" style="margin-right: 8px;">复制回填URL</i-button>
-        <i-button :type="detail && detail.status === 0 ? 'primary' : 'default'" @click="toggleStatus">
-          {{ detail && detail.status === 0 ? '标记已用' : '标记未用' }}
-        </i-button>
-      </div>
     </modal>
+
+    <!-- Image Preview Overlay -->
+    <div class="img-preview-overlay" v-if="previewVisible" @click.self="closePreview">
+      <button class="img-preview-close" @click="closePreview">&times;</button>
+      <button class="img-preview-nav prev" v-if="previewIndex > 0" @click.stop="previewIndex--">&lsaquo;</button>
+      <img :src="previewImages[previewIndex]" />
+      <button class="img-preview-nav next" v-if="previewIndex < previewImages.length - 1" @click.stop="previewIndex++">&rsaquo;</button>
+      <div class="img-preview-counter">{{ previewIndex + 1 }} / {{ previewImages.length }}</div>
+    </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/vue@2.7.16/dist/vue.min.js"></script>

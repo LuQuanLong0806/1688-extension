@@ -5,11 +5,18 @@
   "description": "商品采集管理服务",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "serve": "node server.js",
+    "dev": "node server.js",
+    "build": "node build.js"
   },
   "dependencies": {
+    "cors": "^2.8.5",
     "express": "^4.18.2",
-    "sql.js": "^1.11.0",
-    "cors": "^2.8.5"
+    "sql.js": "^1.11.0"
+  },
+  "devDependencies": {
+    "html-minifier-terser": "^7.2.0",
+    "terser": "^5.46.2"
   }
 }

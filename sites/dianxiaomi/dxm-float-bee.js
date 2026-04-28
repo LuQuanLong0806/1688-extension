@@ -1132,9 +1132,11 @@
       updateProgress(17, '标题超过' + limit + '，正在截取...', 'loading');
       var t = title.substring(0, limit);
       var bps = ['。','，',',','.','!','!','?','?','；',';','、',' ','-','–','—','(',')','[',']','/','\\','&','+'];
-      var last = -1;
-      for (var i = 0; i < bps.length; i++) { var idx = t.lastIndexOf(bps[i]); if (idx > last) last = idx; }
-      if (last > 0) t = t.substring(0, last + 1);
+      var cutIdx = -1;
+      for (var ci = t.length - 1; ci >= 0; ci--) {
+        if (bps.indexOf(t[ci]) !== -1) { cutIdx = ci; break; }
+      }
+      if (cutIdx > 0) t = t.substring(0, cutIdx);
 
       log(17, '截取后长度: ' + t.length + ', 内容: "' + t.substring(0, 60) + (t.length > 60 ? '...' : '"'));
       Config.setInputValue(input, t);

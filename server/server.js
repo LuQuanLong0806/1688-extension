@@ -86,6 +86,43 @@ async function initDb() {
 
 // ========== API ==========
 
+// 采集趋势（按天统计）
+app.get('/api/product/trend', (req, res) => {
+  const days = Math.min(90, Math.max(1, parseInt(req.query.days) || 7));
+  const rows = getAll(
+    `SELECT DATE(created_at) as date, COUNT(*) as count FROM products WHERE created_at >= DATE('now', '-' || ? || ' days') GROUP BY DATE(created_at) ORDER BY date`,
+    [days]
+  );
+  // 补齐空白天
+  const map = {};
+  rows.forEach(r => { map[r.date] = r.count; });
+  const result = [];
+  const now = new Date();
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    const key = d.toISOString().slice(0, 10);
+    result.push({ date: key, count: map[key] || 0 });
+  }
+  res.json(result);
+});
+
+// 统计概览
+app.get('/api/product/stats', (req, res) => {
+  const row = getOne('SELECT COUNT(*) as total, SUM(CASE WHEN status=0 THEN 1 ELSE 0 END) as unused, SUM(CASE WHEN status=1 THEN 1 ELSE 0 END) as used FROM products');
+  const allSkus = getAll('SELECT skus FROM products');
+  let totalSkus = 0;
+  allSkus.forEach(function (r) {
+    try { totalSkus += JSON.parse(r.skus || '[]').length; } catch (e) {}
+  });
+  res.json({
+    total: row ? row.total : 0,
+    unused: row ? row.unused || 0 : 0,
+    used: row ? row.used || 0 : 0,
+    totalSkus: totalSkus
+  });
+});
+
 // 保存采集数据
 app.post('/api/product', (req, res) => {
   const { sourceUrl, title, mainImages, descImages, attrs, skus } = req.body;

@@ -305,13 +305,12 @@
           updateProgress(4, '标题超过250，正在截取...', 'loading');
           var truncated = title.substring(0, 250);
           var breakPoints = ['。', '，', ',', '.', '！', '？', '；', ';', '、', ' '];
-          var lastBreak = -1;
-          for (var i = 0; i < breakPoints.length; i++) {
-            var idx = truncated.lastIndexOf(breakPoints[i]);
-            if (idx > lastBreak) lastBreak = idx;
+          var cutIdx = -1;
+          for (var ci = truncated.length - 1; ci >= 0; ci--) {
+            if (breakPoints.indexOf(truncated[ci]) !== -1) { cutIdx = ci; break; }
           }
-          if (lastBreak > 0) {
-            truncated = truncated.substring(0, lastBreak + 1);
+          if (cutIdx > 0) {
+            truncated = truncated.substring(0, cutIdx);
           }
 
           titleInput.value = truncated;
@@ -321,4 +320,6 @@
           doSelectProvince();
         }, 4000);
       }
-
+    });
+  }
+})();
