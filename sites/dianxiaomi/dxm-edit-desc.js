@@ -213,7 +213,7 @@
         setTimeout(C.hideBubble, 2000);
         return;
       }
-      var confirmBatchBtn = batchModal.querySelector('.ant-modal-footer .ant-btn-primary'); // 批量传图弹窗底部的“确定”主按钮
+      var confirmBatchBtn = batchModal.querySelector('.ant-modal-footer .ant-btn-primary'); // 批量传图弹窗底部的”确定”主按钮
       if (!confirmBatchBtn) {
         C.showBubble('❌ 未找到批量传图确定按钮', 'err');
         setTimeout(C.hideBubble, 2000);
@@ -223,7 +223,7 @@
 
       setTimeout(function () {
         editLog('保存描述');
-        var saveBtn = document.querySelector('.smt-new-editor .btn-orange'); // 编辑器弹窗右上角的“保存”按钮(橙色)
+        var saveBtn = document.querySelector('.smt-new-editor .btn-orange'); // 编辑器弹窗右上角的”保存”按钮(橙色)
         if (!saveBtn) {
           C.showBubble('❌ 未找到保存按钮', 'err');
           setTimeout(C.hideBubble, 2000);
@@ -231,9 +231,9 @@
         }
         saveBtn.click();
         // 保存后更新外包装图片
-        setTimeout(updatePkgImage, 1500);
-      }, 800);
-    }, 250);
+        setTimeout(updatePkgImage, 200);
+      }, 300);
+    }, 150);
   }
 
   // ========== Update package image after save ==========
