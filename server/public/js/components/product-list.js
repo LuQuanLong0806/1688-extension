@@ -12,6 +12,7 @@ Vue.component('page-products', {
       categoryFilter: '',
       categoryList: [],
       selectedIds: [],
+      quoteProductId: '',
       columns: []
     };
   },
@@ -310,7 +311,8 @@ Vue.component('page-products', {
       });
     },
     openQuoteEdit: function (id) {
-      window.open('https://www.dianxiaomi.com/web/temu/quoteEdit?id=166827730497622099&collectId=' + id, '_blank');
+      var pid = this.quoteProductId || '166827730497622099';
+      window.open('https://www.dianxiaomi.com/web/temu/quoteEdit?id=' + pid + '&collectId=' + id, '_blank');
     },
     openSource: function (url) {
       if (url) window.open(url, '_blank');
@@ -366,7 +368,9 @@ Vue.component('page-products', {
         <i-button type="primary" icon="ios-search" @click="loadList(1)">搜索</i-button>\
       </div>\
       <div class="action-bar">\
-        <div class="action-bar-left">共采集 <strong>{{ total }}</strong> 条数据</div>\
+        <div class="action-bar-left">共采集 <strong>{{ total }}</strong> 条数据\
+          <i-input v-model="quoteProductId" placeholder="请输入店小秘引用产品的id" clearable style="width:260px;margin-left:12px" />\
+        </div>\
         <div class="action-bar-right">\
           <i-button type="error" icon="ios-trash" size="small"\
             :disabled="selectedIds.length === 0"\

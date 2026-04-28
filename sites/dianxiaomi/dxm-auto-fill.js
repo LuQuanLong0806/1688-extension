@@ -24,6 +24,7 @@
 
   function autoFinish(msg) {
     console.log('%c[自动填表] ✅ ' + msg, 'color:#52c41a;font-weight:bold;font-size:14px');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     if (C && C.showBubble) {
       C.showBubble('✅ ' + msg, 'ok');
       setTimeout(C.hideBubble, 3000);
@@ -162,6 +163,7 @@
     // 计算总步骤
     autoTotal = 1; // 填标题
     if (data.main_images && data.main_images.length) autoTotal += 3; // 贴主图（打开菜单+网络图片+填入添加）
+    autoTotal += 1; // 删除产品视频
     if (data.desc_images && data.desc_images.length) autoTotal += 1; // 描述图（仅存储到全局）
     if (data.skus && data.skus.length) autoTotal += 2; // SKU表格填充
     autoTotal += 1; // 外包装图片
@@ -175,26 +177,95 @@
       var allImages = buildCarouselImages(data);
       if (allImages.length) {
         pasteMainImages(allImages, function () {
-          // Step 3: 外包装图片
-          updatePackageImage(data, function () {
-            // Step 4: 描述图（存储到全局，供描述按钮使用）
-            if (data.desc_images && data.desc_images.length) {
-              autoLog('描述图已加载 (' + data.desc_images.length + '张)');
-            }
-            // Step 5: SKU 填充
-            if (data.skus && data.skus.length) {
-              fillSkuTable(data.skus, function () {
-                autoFinish('自动填表完成');
-              });
-            } else {
-              autoFinish('自动填表完成（无SKU数据）');
-            }
+          // Step 2.5: 删除产品视频
+          deleteProductVideos(function () {
+            // Step 3: 外包装图片
+            updatePackageImage(data, function () {
+              // Step 4: 描述图（存储到全局，供描述按钮使用）
+              if (data.desc_images && data.desc_images.length) {
+                autoLog('描述图已加载 (' + data.desc_images.length + '张)');
+              }
+              // Step 5: SKU 填充
+              if (data.skus && data.skus.length) {
+                fillSkuTable(data.skus, function () {
+                  autoFinish('自动填表完成');
+                });
+              } else {
+                autoFinish('自动填表完成（无SKU数据）');
+              }
+            });
           });
         });
       } else {
         autoFinish('自动填表完成（无主图数据）');
       }
     });
+  }
+
+  // ========== Step 2.5: 删除产品视频 ==========
+  function deleteProductVideos(cb) {
+    autoLog('检查产品视频...');
+    var labels = document.querySelectorAll('#productProductInfo .ant-form-item-label label');
+    var videoLabel = null;
+    for (var vi = 0; vi < labels.length; vi++) {
+      if ((labels[vi].textContent || '').indexOf('产品视频') !== -1) {
+        videoLabel = labels[vi];
+        break;
+      }
+    }
+
+    if (!videoLabel) {
+      console.log('%c[自动填表] 无产品视频区域，跳过', 'color:#E65100;font-weight:bold');
+      cb();
+      return;
+    }
+
+    var videoFormItem = videoLabel.closest('.ant-form-item');
+    deleteNextVideo(videoFormItem, 0, cb);
+  }
+
+  function deleteNextVideo(formItem, count, cb) {
+    var videoImgs = formItem.querySelectorAll('.video-operate-img');
+    var visibleBox = null;
+    for (var v = 0; v < videoImgs.length; v++) {
+      if (videoImgs[v].offsetParent !== null && videoImgs[v].querySelector('.video-operate-img-box')) {
+        visibleBox = videoImgs[v];
+        break;
+      }
+    }
+
+    if (!visibleBox) {
+      if (count > 0) {
+        console.log('%c[自动填表] 已删除 ' + count + ' 个产品视频', 'color:#E65100;font-weight:bold');
+      } else {
+        console.log('%c[自动填表] 无产品视频，跳过', 'color:#E65100;font-weight:bold');
+      }
+      cb();
+      return;
+    }
+
+    var delLinks = visibleBox.querySelectorAll('.video-operate-box a.link');
+    var delBtn = null;
+    for (var d = 0; d < delLinks.length; d++) {
+      if ((delLinks[d].textContent || '').indexOf('删除') !== -1) {
+        delBtn = delLinks[d];
+        break;
+      }
+    }
+
+    if (!delBtn) {
+      cb();
+      return;
+    }
+
+    count++;
+    delBtn.click();
+
+    setTimeout(function () {
+      var confirmBtn = document.querySelector('.ant-popconfirm-buttons .ant-btn-primary');
+      if (confirmBtn) confirmBtn.click();
+      setTimeout(function () { deleteNextVideo(formItem, count, cb); }, 200);
+    }, 150);
   }
 
   // ========== Step 1: 填入标题 ==========
@@ -420,6 +491,24 @@
     })();
   }
 
+  // 清洗变种属性值：去特殊符号，返回 { value, changed, reason }
+  function sanitizeAttrValue(raw) {
+    var val = raw;
+    var reasons = [];
+
+    // 去除常见特殊符号（保留中文、英文、数字、空格、括号、横杠、斜杠、小数点）
+    var cleaned = val.replace(/[^一-龥a-zA-Z0-9\s()（）\-\/\\.·]/g, '');
+    if (cleaned !== val) {
+      reasons.push('已过滤特殊符号');
+      val = cleaned;
+    }
+
+    // 去除首尾空白
+    val = val.trim();
+
+    return { value: val, changed: reasons.length > 0, reasons: reasons };
+  }
+
   // 添加变种属性值
   function addAttrValues(values, cb) {
     var addBox = document.querySelector('#skuAttrsInfo form .theme-value-add');
@@ -429,26 +518,51 @@
     var addBtn = addBox.querySelector('button');
     if (!input || !addBtn) { cb(); return; }
 
-    var idx = 0;
-    (function next() {
-      if (idx >= values.length) {
-        autoLog('已添加 ' + values.length + ' 个变种属性');
-        setTimeout(cb, 300);
-        return;
+    // 先清洗所有值，收集变更
+    var cleaned = [];
+    var changeLogs = [];
+    for (var ci = 0; ci < values.length; ci++) {
+      var result = sanitizeAttrValue(values[ci]);
+      cleaned.push(result.value);
+      if (result.changed || result.value !== values[ci]) {
+        changeLogs.push('"' + values[ci] + '" → "' + result.value + '" (' + result.reasons.join(', ') + ')');
       }
+    }
 
-      var val = values[idx];
-      idx++;
-
-      input.focus();
-      setInputValue(input, val);
-
+    // 有变更时在控制台打印并通过气泡提醒
+    if (changeLogs.length > 0) {
+      console.log('%c[自动填表] ⚠️ 属性值被自动修改:\n' + changeLogs.join('\n'), 'color:#FF9800;font-weight:bold');
+      C.showBubble('⚠️ ' + changeLogs.length + '个属性值被自动过滤，请检查', 'warn');
+      // 提醒显示3秒后继续执行
       setTimeout(function () {
-        var btn = addBox.querySelector('button');
-        if (btn && !btn.disabled) btn.click();
-        setTimeout(next, 100);
-      }, 80);
-    })();
+        doAddValues(cleaned);
+      }, 3000);
+    } else {
+      doAddValues(cleaned);
+    }
+
+    function doAddValues(vals) {
+      var idx = 0;
+      (function next() {
+        if (idx >= vals.length) {
+          autoLog('已添加 ' + vals.length + ' 个变种属性');
+          setTimeout(cb, 300);
+          return;
+        }
+
+        var val = vals[idx];
+        idx++;
+
+        input.focus();
+        setInputValue(input, val);
+
+        setTimeout(function () {
+          var btn = addBox.querySelector('button');
+          if (btn && !btn.disabled) btn.click();
+          setTimeout(next, 100);
+        }, 80);
+      })();
+    }
   }
 
   // 填充 SKU 表格行数据

@@ -81,6 +81,7 @@
     '#__dxm_bee_bubble.ok{color:#52c41a}' +
     '#__dxm_bee_bubble.err{color:#ff4444}' +
     '#__dxm_bee_bubble.loading{color:#FFA000}' +
+    '#__dxm_bee_bubble.warn{color:#FF9800;font-weight:bold;background:#FFF8E1;border-color:#FFE082}' +
     '#__dxm_bee_bar{height:3px;background:#f0f0f0;border-radius:2px;margin-top:6px;overflow:hidden}' +
     '#__dxm_bee_bar_fill{height:100%;width:0;background:linear-gradient(90deg,#FFCA28,#FFA000);border-radius:2px;transition:width .3s}' +
     '#__dxm_bee_translate{margin-top:3px;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#FFCA28,#FFA000);color:#fff;font:bold 12px/1 "楷体","KaiTi","STKaiti",serif;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(255,160,0,.35);transition:box-shadow .2s;user-select:none;text-shadow:0 1px 2px rgba(0,0,0,.15)}' +
