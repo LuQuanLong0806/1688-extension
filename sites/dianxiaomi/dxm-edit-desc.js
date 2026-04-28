@@ -238,7 +238,7 @@
 
   // ========== Update package image after save ==========
   function updatePkgImage() {
-    editLog('更新外包装图片...');
+    editLog('检查外包装图片...');
     var firstImg = document.querySelector('#productProductInfo .mainImage .img-list .img-item img.img-css');
     if (!firstImg || !firstImg.src) {
       console.log('%c[小蜜蜂] ✅ 编辑描述完成（无轮播图，跳过外包装）', 'color:#43A047;font-weight:bold;font-size:14px');
@@ -248,9 +248,19 @@
     }
     var imgUrl = firstImg.src;
 
-    // 先删除旧外包装图片
+    // 检查外包装已有图片是否与轮播图首图一致
+    var pkgImg = document.querySelector('#packageInfo .img-list .img-item img');
+    if (pkgImg && pkgImg.src === imgUrl) {
+      console.log('%c[小蜜蜂] ✅ 编辑描述完成（外包装已是最新）', 'color:#43A047;font-weight:bold;font-size:14px');
+      C.showBubble('✅ 编辑描述完成', 'ok');
+      setTimeout(C.hideBubble, 2000);
+      return;
+    }
+
+    // 不一致，先删除旧外包装图片
     var pkgImgs = document.querySelectorAll('#packageInfo .img-list .img-item a.icon_delete');
     if (pkgImgs.length > 0) {
+      editLog('更新外包装图片...');
       (function deleteNext() {
         var btn = document.querySelector('#packageInfo .img-list .img-item a.icon_delete');
         if (!btn) { setTimeout(function () { openDescPkgSelect(imgUrl); }, 300); return; }
@@ -259,6 +269,7 @@
       })();
       return;
     }
+    editLog('更新外包装图片...');
     openDescPkgSelect(imgUrl);
   }
 
