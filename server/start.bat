@@ -32,11 +32,12 @@ if not exist "node_modules" (
     echo.
 )
 
-:: 生成图标（如不存在）
-if not exist "%~dp0icon.ico" call :generateIcon
-
 :: 创建桌面快捷方式（如不存在）
-if not exist "%USERPROFILE%\Desktop\商品采集管理.lnk" call :createShortcut
+if not exist "%USERPROFILE%\Desktop\商品采集管理.lnk" (
+    if exist "%~dp0create-shortcut.ps1" (
+        powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0create-shortcut.ps1"
+    )
+)
 
 echo [启动] 商品采集服务...
 node server.js
@@ -61,34 +62,4 @@ if defined CHROME (
 ) else (
     start "" "%URL%"
 )
-goto :eof
-
-:generateIcon
-echo [图标] 生成桌面图标...
-powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-    "Add-Type -AssemblyName System.Drawing; ^
-     $bmp = New-Object System.Drawing.Bitmap(256,256); ^
-     $g = [System.Drawing.Graphics]::FromImage($bmp); ^
-     $g.Clear([System.Drawing.Color]::FromArgb(255,106,0)); ^
-     $font = New-Object System.Drawing.Font('Arial',160,[System.Drawing.FontStyle]::Bold); ^
-     $sf = New-Object System.Drawing.StringFormat; ^
-     $sf.Alignment='Center'; $sf.LineAlignment='Center'; ^
-     $g.DrawString('G',$font,[System.Drawing.Brushes]::White,(New-Object System.Drawing.RectangleF(0,0,256,256)),$sf); ^
-     $icon=[System.Drawing.Icon]::FromHandle($bmp.GetHicon()); ^
-     $fs=[System.IO.File]::Create('%~dp0icon.ico'); ^
-     $icon.Save($fs); $fs.Close(); ^
-     $g.Dispose(); $bmp.Dispose()"
-goto :eof
-
-:createShortcut
-echo [快捷方式] 创建桌面快捷方式...
-powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-    "$ws=New-Object -ComObject WScript.Shell; ^
-     $sc=$ws.CreateShortcut([Environment]::GetFolderPath('Desktop')+'\商品采集管理.lnk'); ^
-     $sc.TargetPath='%~f0'; ^
-     $sc.WorkingDirectory='%~dp0'; ^
-     $sc.Description='商品采集管理'; ^
-     $ico='%~dp0icon.ico'; ^
-     if(Test-Path $ico){$sc.IconLocation=$ico}; ^
-     $sc.Save()"
 goto :eof
