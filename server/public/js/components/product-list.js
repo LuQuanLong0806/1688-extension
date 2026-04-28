@@ -9,6 +9,8 @@ Vue.component('page-products', {
       pageSize: 20,
       keyword: '',
       statusFilter: 'all',
+      categoryFilter: '',
+      categoryList: [],
       selectedIds: [],
       columns: []
     };
@@ -169,7 +171,7 @@ Vue.component('page-products', {
             h(
               'Tooltip',
               {
-                props: { content: '查看详情', placement: 'top', transfer: true }
+                props: { content: '查看/编辑', placement: 'top', transfer: true }
               },
               [
                 h('Button', {
@@ -235,8 +237,15 @@ Vue.component('page-products', {
   },
   mounted: function () {
     this.loadList(1);
+    this.loadCategories();
   },
   methods: {
+    loadCategories: function () {
+      var vm = this;
+      fetch('/api/product/categories').then(function (r) { return r.json(); }).then(function (list) {
+        vm.categoryList = list;
+      });
+    },
     loadList: function (p) {
       var vm = this;
       if (p) vm.page = p;
@@ -246,7 +255,8 @@ Vue.component('page-products', {
         pageSize: vm.pageSize
       });
       if (vm.keyword.trim()) params.set('keyword', vm.keyword.trim());
-      if (vm.statusFilter !== 'all') params.set('status', vm.statusFilter);
+      if (vm.statusFilter && vm.statusFilter !== 'all') params.set('status', vm.statusFilter);
+      if (vm.categoryFilter) params.set('category', vm.categoryFilter);
       fetch('/api/product?' + params.toString())
         .then(function (r) {
           return r.json();
@@ -312,13 +322,16 @@ Vue.component('page-products', {
     '\
     <div class="list-card">\
       <div class="filter-bar">\
-        <i-input v-model="keyword" placeholder="搜索标题..." style="width:220px" @on-enter="loadList(1)">\
+        <i-input v-model="keyword" placeholder="搜索标题..." clearable style="width:220px" @on-enter="loadList(1)" @on-clear="loadList(1)">\
           <icon type="ios-search" slot="prefix"></icon>\
         </i-input>\
-        <i-select v-model="statusFilter" style="width:120px" @on-change="loadList(1)">\
+        <i-select v-model="statusFilter" clearable placeholder="全部状态" style="width:130px" @on-change="loadList(1)">\
           <i-option value="all">全部状态</i-option>\
           <i-option value="0">未使用</i-option>\
           <i-option value="1">已使用</i-option>\
+        </i-select>\
+        <i-select v-model="categoryFilter" clearable filterable placeholder="全部类目" style="width:150px" @on-change="loadList(1)">\
+          <i-option v-for="c in categoryList" :key="c" :value="c">{{ c }}</i-option>\
         </i-select>\
         <i-button type="primary" icon="ios-search" @click="loadList(1)">搜索</i-button>\
       </div>\
@@ -336,7 +349,8 @@ Vue.component('page-products', {
       <i-table :columns="columns" :data="list" :loading="loading" stripe\
         @on-selection-change="onSelectionChange" style="margin-bottom:0;"></i-table>\
       <div class="pagination-wrap">\
-        <page :total="total" :current="page" :page-size="pageSize" show-total show-elevator\
+        <page :total="total" :current="page" :page-size="pageSize"\
+          :page-size-opts="[10,20,50,100]" show-total show-elevator show-sizer\
           @on-change="onPageChange" @on-page-size-change="onPageSizeChange" />\
       </div>\
     </div>'

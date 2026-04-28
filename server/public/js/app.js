@@ -4,7 +4,7 @@ new Vue({
   data: {
     currentView: 'page-dashboard',
     sidebarCollapsed: false,
-    stats: { total: 0, unused: 0, used: 0, totalSkus: 0 },
+    stats: { total: 0, unused: 0, used: 0, totalCategories: 0 },
     // detail modal
     showDetail: false,
     detailData: null,

@@ -83,6 +83,20 @@ async function initDb() {
   `);
   // 增量添加 category 列（已存在则忽略）
   try { db.run('ALTER TABLE products ADD COLUMN category TEXT'); } catch (e) {}
+
+  // 类目表
+  db.run(`
+    CREATE TABLE IF NOT EXISTS categories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      cat_id TEXT,
+      leaf_category_id TEXT,
+      top_category_id TEXT,
+      post_category_id TEXT,
+      count INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
   saveDb();
 }
 
@@ -112,17 +126,25 @@ app.get('/api/product/trend', (req, res) => {
 // 统计概览
 app.get('/api/product/stats', (req, res) => {
   const row = getOne('SELECT COUNT(*) as total, SUM(CASE WHEN status=0 THEN 1 ELSE 0 END) as unused, SUM(CASE WHEN status=1 THEN 1 ELSE 0 END) as used FROM products');
-  const allSkus = getAll('SELECT skus FROM products');
-  let totalSkus = 0;
-  allSkus.forEach(function (r) {
-    try { totalSkus += JSON.parse(r.skus || '[]').length; } catch (e) {}
-  });
+  const catRow = getOne('SELECT COUNT(*) as cnt FROM categories');
   res.json({
     total: row ? row.total : 0,
     unused: row ? row.unused || 0 : 0,
     used: row ? row.used || 0 : 0,
-    totalSkus: totalSkus
+    totalCategories: catRow ? catRow.cnt : 0
   });
+});
+
+// 获取类目列表
+app.get('/api/product/categories', (req, res) => {
+  const rows = getAll('SELECT name FROM categories ORDER BY name');
+  res.json(rows.map(r => r.name));
+});
+
+// 类目偏好 Top20
+app.get('/api/product/category-top', (req, res) => {
+  const rows = getAll('SELECT name, count FROM categories ORDER BY count DESC LIMIT 20');
+  res.json(rows);
 });
 
 // 保存采集数据
@@ -142,6 +164,20 @@ app.post('/api/product', (req, res) => {
     ]
   );
 
+  // 同步更新类目表
+  if (category) {
+    const catName = category.leafCategoryName || category.categoryPath;
+    if (catName) {
+      const existing = getOne('SELECT id, count FROM categories WHERE name = ?', [catName]);
+      if (existing) {
+        run('UPDATE categories SET count = count + 1 WHERE name = ?', [catName]);
+      } else {
+        run('INSERT INTO categories (name, cat_id, leaf_category_id, top_category_id, post_category_id) VALUES (?, ?, ?, ?, ?)',
+          [catName, category.catId || '', category.leafCategoryId || '', category.topCategoryId || '', category.postCategoryId || '']);
+      }
+    }
+  }
+
   const row = getOne('SELECT last_insert_rowid() as id');
   scheduleSave();
   res.json({ ok: true, id: row.id });
@@ -159,12 +195,13 @@ app.get('/api/product/check', (req, res) => {
   }
 });
 
-// 获取商品列表（分页 + 搜索 + 状态筛选）
+// 获取商品列表（分页 + 搜索 + 状态筛选 + 类目筛选）
 app.get('/api/product', (req, res) => {
   const page = Math.max(1, parseInt(req.query.page) || 1);
   const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize) || 20));
   const keyword = (req.query.keyword || '').trim();
   const status = req.query.status;
+  const category = (req.query.category || '').trim();
 
   let where = [];
   let params = [];
@@ -176,6 +213,10 @@ app.get('/api/product', (req, res) => {
   if (status !== undefined && status !== '' && status !== 'all') {
     where.push('status = ?');
     params.push(parseInt(status));
+  }
+  if (category) {
+    where.push('category LIKE ?');
+    params.push(`%${category}%`);
   }
 
   const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';

@@ -1,7 +1,7 @@
 // 仪表盘页面组件
 Vue.component('page-dashboard', {
   props: {
-    stats: { type: Object, default: function () { return { total: 0, unused: 0, used: 0, totalSkus: 0 }; } }
+    stats: { type: Object, default: function () { return { total: 0, unused: 0, used: 0, totalCategories: 0 }; } }
   },
   data: function () {
     return { recentList: [], charts: {} };
@@ -33,7 +33,7 @@ Vue.component('page-dashboard', {
     },
     initCharts: function () {
       this.initTrendChart();
-      this.initStatusChart();
+      this.initCategoryChart();
       this.initUsageChart();
     },
     initTrendChart: function () {
@@ -60,24 +60,30 @@ Vue.component('page-dashboard', {
           });
         });
     },
-    initStatusChart: function () {
+    initCategoryChart: function () {
       var el = document.getElementById('chart-status');
       if (!el) return;
       if (this.charts.status) this.charts.status.dispose();
       var chart = echarts.init(el);
       this.charts.status = chart;
-      var s = this.stats;
-      chart.setOption({
-        tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
-        legend: { bottom: 10, textStyle: { color: '#999' } },
-        series: [{
-          type: 'pie', radius: ['40%', '65%'], center: ['50%', '42%'], label: { show: false },
-          data: [
-            { value: s.unused, name: '未使用', itemStyle: { color: '#52c41a' } },
-            { value: s.used, name: '已使用', itemStyle: { color: '#d9d9d9' } }
-          ]
-        }]
-      });
+      fetch('/api/product/category-top').then(function (r) { return r.json(); })
+        .then(function (data) {
+          var names = data.map(function (d) { return d.name; });
+          var counts = data.map(function (d) { return d.count; });
+          chart.setOption({
+            tooltip: { trigger: 'axis', backgroundColor: '#fff', borderColor: '#eee', textStyle: { color: '#333' } },
+            grid: { top: 20, right: 20, bottom: 30, left: 10, containLabel: true },
+            xAxis: { type: 'category', data: names, axisLine: { lineStyle: { color: '#e0e0e0' } }, axisLabel: { color: '#555', fontSize: 12, rotate: names.length > 8 ? 30 : 0 } },
+            yAxis: { type: 'value', minInterval: 1, axisLine: { show: false }, splitLine: { lineStyle: { color: '#f5f5f5' } }, axisLabel: { color: '#999' } },
+            series: [{
+              type: 'bar', data: counts, barWidth: 24,
+              label: { show: true, position: 'top', color: '#555', fontSize: 12 },
+              itemStyle: { borderRadius: [4, 4, 0, 0], color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                { offset: 0, color: '#ff6a00' }, { offset: 1, color: '#ff9a4d' }
+              ]) }
+            }]
+          });
+        });
     },
     initUsageChart: function () {
       var el = document.getElementById('chart-usage');
@@ -126,7 +132,7 @@ Vue.component('page-dashboard', {
           <div class="icon-wrap orange">\
             <svg viewBox="0 0 24 24"><path d="M4 6H2v14a2 2 0 002 2h14v-2H4zm16-4H8a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V4a2 2 0 00-2-2zm0 14H8V4h12zm-6-1h2V5h-4v2h2z"/></svg>\
           </div>\
-          <div class="stat-body"><div class="stat-val">{{ stats.totalSkus }}</div><div class="stat-label">SKU 总数</div></div>\
+          <div class="stat-body"><div class="stat-val">{{ stats.totalCategories }}</div><div class="stat-label">类目总数</div></div>\
         </div>\
       </div>\
       <div class="chart-grid">\
@@ -135,7 +141,7 @@ Vue.component('page-dashboard', {
           <div class="chart-card-body" id="chart-trend"></div>\
         </div>\
         <div class="chart-card">\
-          <div class="chart-card-header">状态分布</div>\
+          <div class="chart-card-header">偏好分布（类目 Top20）</div>\
           <div class="chart-card-body" id="chart-status"></div>\
         </div>\
       </div>\
