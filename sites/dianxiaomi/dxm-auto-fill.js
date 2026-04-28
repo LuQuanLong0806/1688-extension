@@ -124,6 +124,39 @@
       });
   }
 
+  // ========== 组合轮播图：主图 + 已选SKU图片，最多10张 ==========
+  function buildCarouselImages(data) {
+    var images = [];
+    var seen = {};
+    var limit = 10;
+
+    // 主图
+    if (data.main_images) {
+      for (var i = 0; i < data.main_images.length && images.length < limit; i++) {
+        var url = data.main_images[i];
+        if (url && !seen[url]) {
+          images.push(url);
+          seen[url] = true;
+        }
+      }
+    }
+
+    // 已选SKU图片
+    if (data.skus) {
+      var selected = data.skus.filter(function (s) { return s._selected !== false; });
+      for (var j = 0; j < selected.length && images.length < limit; j++) {
+        var skuImg = selected[j].image;
+        if (skuImg && !seen[skuImg]) {
+          images.push(skuImg);
+          seen[skuImg] = true;
+        }
+      }
+    }
+
+    console.log('%c[自动填表] 轮播图: ' + images.length + '张 (主图' + (data.main_images || []).length + ' + SKU图' + (images.length - Math.min((data.main_images || []).length, limit)) + ')', 'color:#E65100;font-weight:bold');
+    return images;
+  }
+
   // ========== 自动填表主流程 ==========
   function startAutoFill(data) {
     // 计算总步骤
@@ -138,9 +171,10 @@
 
     // Step 1: 填入标题
     fillTitle(data, function () {
-      // Step 2: 贴主图
-      if (data.main_images && data.main_images.length) {
-        pasteMainImages(data.main_images, function () {
+      // Step 2: 贴主图（主图 + 已选SKU图片，最多10张）
+      var allImages = buildCarouselImages(data);
+      if (allImages.length) {
+        pasteMainImages(allImages, function () {
           // Step 3: 外包装图片
           updatePackageImage(data, function () {
             // Step 4: 描述图（存储到全局，供描述按钮使用）
