@@ -146,28 +146,41 @@
   }
 
   function parseSkuTable(tbody, packInfo) {
+    // 解析表头，建立列名 → 列下标映射
+    var table = tbody.closest('table') || tbody.parentElement;
+    var headerMap = {};
+    var ths = table.querySelectorAll('thead th');
+    ths.forEach(function (th, i) {
+      var titleEl = th.querySelector('.ap-platformSKUs-table-th-title') || th.querySelector('span');
+      var title = titleEl ? titleEl.textContent.trim() : '';
+      if (title) headerMap[title] = i;
+    });
+
+    var colImg = headerMap['SKU图片'] !== undefined ? headerMap['SKU图片'] : 2;
+    var colName = headerMap['SKU名称'] !== undefined ? headerMap['SKU名称'] : 3;
+    var colSkuId = headerMap['SKU ID'] !== undefined ? headerMap['SKU ID'] : 4;
+    var colPrice = headerMap['原价'] !== undefined ? headerMap['原价'] : 5;
+
     var skus = [];
     var rows = tbody.querySelectorAll('tr');
     rows.forEach(function (tr) {
-      var imgEl = tr.querySelector('img.ap-platformSKUs-table-img');
+      var tds = tr.querySelectorAll('td');
+      if (tds.length < 6) return;
+
+      var imgEl = tds[colImg] ? tds[colImg].querySelector('img.ap-platformSKUs-table-img') : null;
       var image = '';
       if (imgEl) {
         image = imgEl.getAttribute('data-src') || imgEl.src || '';
         if (image.indexOf('//') === 0) image = 'https:' + image;
       }
 
-      // 第4列: SKU名称, 第5列: SKU ID, 第6列: 原价
-      var spans = tr.querySelectorAll('td span[title]');
-      var name = spans.length >= 4 ? (spans[3].getAttribute('title') || '') : '';
-      var skuId = spans.length >= 5 ? (spans[4].getAttribute('title') || '') : '';
+      var name = getTdTitle(tds, colName);
+      var skuId = getTdTitle(tds, colSkuId);
       var price = '';
-      if (spans.length >= 6) {
-        var priceText = spans[5].getAttribute('title') || '';
-        var pm = priceText.match(/[\d.]+/);
-        if (pm) price = pm[0];
-      }
+      var priceText = getTdTitle(tds, colPrice);
+      var pm = priceText.match(/[\d.]+/);
+      if (pm) price = pm[0];
 
-      // 按 SKU 名称匹配包装信息
       var pack = matchPackInfo(name, packInfo);
 
       skus.push({
@@ -180,6 +193,12 @@
       });
     });
     return skus;
+  }
+
+  function getTdTitle(tds, col) {
+    if (!tds[col]) return '';
+    var span = tds[col].querySelector('span[title]');
+    return span ? span.getAttribute('title') || '' : tds[col].textContent.trim();
   }
 
   // 按 SKU 名称匹配包装信息（支持模糊匹配）
@@ -217,6 +236,7 @@
   }
 
   // 返回 { name: { dimensions: [], weight: '' }, ... }，按SKU名称索引
+  // 第一列 = SKU名称，其余按表头匹配 长/宽/高/重量
   function collectPackInfo() {
     var packMap = {};
     var defaultInfo = { dimensions: [], weight: '' };
@@ -226,45 +246,37 @@
     var table = packEl.querySelector('table');
     if (!table) return { _default: defaultInfo, map: packMap };
 
-    // 解析表头，建立列索引
+    // 解析表头
     var headers = [];
     table.querySelectorAll('thead th').forEach(function (th) {
-      headers.push(th.textContent.trim());
+      var t = th.querySelector('.ap-platformSKUs-table-th-title');
+      headers.push(t ? t.textContent.trim().replace(/\s+/g, '') : '');
     });
-    // 也兼容没有 thead 的情况，从第一行 th 取
     if (headers.length === 0) {
-      var firstRowThs = table.querySelectorAll('tr:first-child th');
-      firstRowThs.forEach(function (th) { headers.push(th.textContent.trim()); });
-    }
-
-    var colName = -1, colLen = -1, colWid = -1, colHei = -1, colWeight = -1;
-    headers.forEach(function (h, i) {
-      var hl = h.toLowerCase();
-      if (hl.indexOf('颜色') !== -1 || hl.indexOf('规格') !== -1 || hl === '尺寸' || hl === '属性') colName = i;
-      if (hl.indexOf('长') !== -1 && hl.indexOf('cm') !== -1) colLen = i;
-      if (hl.indexOf('宽') !== -1 && hl.indexOf('cm') !== -1) colWid = i;
-      if (hl.indexOf('高') !== -1 && hl.indexOf('cm') !== -1) colHei = i;
-      if (hl.indexOf('重量') !== -1 || hl.indexOf('毛重') !== -1) colWeight = i;
-    });
-
-    // 如果没有独立的 长/宽/高 列，尝试匹配"长×宽×高"合并列
-    var combinedDimCol = -1;
-    if (colLen === -1 || colWid === -1 || colHei === -1) {
-      headers.forEach(function (h, i) {
-        if (h.indexOf('长') !== -1 && h.indexOf('宽') !== -1 && h.indexOf('高') !== -1) combinedDimCol = i;
-        if (h.indexOf('尺寸') !== -1 || h.indexOf('规格') !== -1) {
-          if (colName === -1) colName = i;
-        }
+      table.querySelectorAll('tr:first-child th').forEach(function (th) {
+        headers.push(th.textContent.trim().replace(/\s+/g, ''));
       });
     }
 
+    // 第一列固定为 SKU名称，其余按关键字匹配 长/宽/高/重量
+    var colLen = -1, colWid = -1, colHei = -1, colWeight = -1, combinedDimCol = -1;
+    headers.forEach(function (h, i) {
+      if (i === 0) return; // 跳过第一列（名称）
+      var hl = h.toLowerCase();
+      if (hl.indexOf('长') !== -1 && hl.indexOf('宽') === -1 && hl.indexOf('高') === -1) colLen = i;
+      if (hl.indexOf('宽') !== -1 && hl.indexOf('长') === -1 && hl.indexOf('高') === -1) colWid = i;
+      if (hl.indexOf('高') !== -1 && hl.indexOf('长') === -1 && hl.indexOf('宽') === -1) colHei = i;
+      if (hl.indexOf('长') !== -1 && (hl.indexOf('宽') !== -1 || hl.indexOf('高') !== -1)) combinedDimCol = i;
+      if (hl.indexOf('尺寸') !== -1) combinedDimCol = i;
+      if (hl.indexOf('重量') !== -1 || hl.indexOf('毛重') !== -1) colWeight = i;
+    });
+
     // 遍历数据行
-    var nameCol = colName !== -1 ? colName : 0;
     table.querySelectorAll('tbody tr').forEach(function (tr) {
       var cells = tr.querySelectorAll('td');
       if (cells.length < 2) return;
 
-      var name = getCellText(cells[nameCol]);
+      var name = getCellText(cells[0]); // 第一列 = SKU名称
       if (!name) return;
 
       var info = { dimensions: [], weight: '' };

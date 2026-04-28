@@ -19,19 +19,35 @@ async function build() {
   const serverMin = await minify(serverCode, { compress: true, mangle: false });
   fs.writeFileSync(path.join(DIST, 'server.js'), serverMin.code);
 
-  // 2. 压缩 public/app.js
-  console.log('  压缩 public/app.js...');
-  const appCode = fs.readFileSync(path.join(SRC, 'public', 'app.js'), 'utf8');
-  const appMin = await minify(appCode, { compress: true, mangle: false });
-  fs.mkdirSync(path.join(DIST, 'public'), { recursive: true });
-  fs.writeFileSync(path.join(DIST, 'public', 'app.js'), appMin.code);
+  // 2. 压缩 public/js/app.js + components
+  console.log('  压缩 public/js/...');
+  const jsDir = path.join(SRC, 'public', 'js');
+  const compDir = path.join(jsDir, 'components');
+  fs.mkdirSync(path.join(DIST, 'public', 'js', 'components'), { recursive: true });
+
+  const jsFiles = [
+    { src: path.join(jsDir, 'app.js'), dest: path.join(DIST, 'public', 'js', 'app.js') },
+  ];
+  if (fs.existsSync(compDir)) {
+    fs.readdirSync(compDir).filter(f => f.endsWith('.js')).forEach(f => {
+      jsFiles.push({
+        src: path.join(compDir, f),
+        dest: path.join(DIST, 'public', 'js', 'components', f)
+      });
+    });
+  }
+  for (const f of jsFiles) {
+    const code = fs.readFileSync(f.src, 'utf8');
+    const min = await minify(code, { compress: true, mangle: false });
+    fs.writeFileSync(f.dest, min.code);
+  }
 
   // 3. 压缩 public/index.html（内联 CSS）
   console.log('  压缩 public/index.html...');
-  const css = fs.readFileSync(path.join(SRC, 'public', 'style.css'), 'utf8');
+  const css = fs.readFileSync(path.join(SRC, 'public', 'css', 'app.css'), 'utf8');
   let html = fs.readFileSync(path.join(SRC, 'public', 'index.html'), 'utf8');
   html = html.replace(
-    '<link rel="stylesheet" href="style.css">',
+    '<link rel="stylesheet" href="css/app.css">',
     '<style>' + css + '</style>'
   );
   const htmlMin = await htmlMinify(html, {
@@ -76,12 +92,12 @@ async function build() {
   // 7. 统计
   const origSize =
     getFileSize(path.join(SRC, 'server.js')) +
-    getFileSize(path.join(SRC, 'public', 'app.js')) +
+    getFileSize(path.join(SRC, 'public', 'js', 'app.js')) +
     getFileSize(path.join(SRC, 'public', 'index.html')) +
-    getFileSize(path.join(SRC, 'public', 'style.css'));
+    getFileSize(path.join(SRC, 'public', 'css', 'app.css'));
   const distSize =
     getFileSize(path.join(DIST, 'server.js')) +
-    getFileSize(path.join(DIST, 'public', 'app.js')) +
+    getFileSize(path.join(DIST, 'public', 'js', 'app.js')) +
     getFileSize(path.join(DIST, 'public', 'index.html'));
 
   console.log('\n  ✅ 打包完成！');

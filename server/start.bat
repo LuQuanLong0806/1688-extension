@@ -10,6 +10,14 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
+:: 单实例检测：如果端口已被占用，直接打开浏览器
+netstat -ano 2>nul | findstr ":3000.*LISTENING" >nul 2>nul
+if %errorlevel% equ 0 (
+    echo [提示] 服务已在运行，打开管理页面...
+    start http://localhost:3000
+    exit /b 0
+)
+
 :: 检查依赖
 if not exist "node_modules" (
     echo [安装] 首次运行，正在安装依赖...

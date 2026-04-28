@@ -3,215 +3,89 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>商品采集管理</title>
+  <title>商品采集管理平台</title>
   <link rel="stylesheet" href="https://unpkg.com/view-design@4.7.0/dist/styles/iview.css">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
   <div id="app">
-    <!-- Header -->
-    <header class="page-header">
-      <div class="header-content">
-        <div class="header-icon">
-          <svg viewBox="0 0 24 24"><path d="M19 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2zm-7 3c1.63 0 3.13.79 4 2h-4c-1.66 0-3 1.34-3 3 0 .35.07.69.18 1H7.1A5.02 5.02 0 0112 6zm0 12c-1.63 0-3.13-.79-4-2h4c1.66 0 3-1.34 3-3 0-.35-.07-.69-.18-1h2.08A5.02 5.02 0 0112 18z"/></svg>
-        </div>
-        <div class="header-text">
-          <h1>商品采集管理</h1>
-          <p>1688 商品数据采集与管理</p>
-        </div>
-      </div>
-    </header>
-
-    <!-- Stats Cards -->
-    <div class="stats-row">
-      <div class="stat-card">
-        <div class="stat-icon blue">
-          <svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V8a2 2 0 00-2-2zm0 12H4V8h16z"/></svg>
-        </div>
-        <div class="stat-info">
-          <div class="stat-number">{{ stats.total }}</div>
-          <div class="stat-label">总商品</div>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon green">
-          <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8z"/></svg>
-        </div>
-        <div class="stat-info">
-          <div class="stat-number">{{ stats.unused }}</div>
-          <div class="stat-label">未使用</div>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon gray">
-          <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
-        </div>
-        <div class="stat-info">
-          <div class="stat-number">{{ stats.used }}</div>
-          <div class="stat-label">已使用</div>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon orange">
-          <svg viewBox="0 0 24 24"><path d="M4 6H2v14a2 2 0 002 2h14v-2H4zm16-4H8a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V4a2 2 0 00-2-2zm0 14H8V4h12zm-6-1h2V5h-4v2h2z"/></svg>
-        </div>
-        <div class="stat-info">
-          <div class="stat-number">{{ stats.totalSkus }}</div>
-          <div class="stat-label">SKU 总数</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Main Content -->
-    <div class="main-content">
-      <div class="content-card">
-        <div class="toolbar">
-          <div class="search-bar">
-            <i-input v-model="keyword" placeholder="搜索标题..." style="width: 220px" @on-enter="loadList(1)">
-              <icon type="ios-search" slot="prefix"></icon>
-            </i-input>
-            <i-select v-model="statusFilter" style="width: 120px" @on-change="loadList(1)">
-              <i-option value="all">全部状态</i-option>
-              <i-option value="0">未使用</i-option>
-              <i-option value="1">已使用</i-option>
-            </i-select>
-            <i-button type="primary" icon="ios-search" @click="loadList(1)">搜索</i-button>
+    <div class="admin-layout">
+      <!-- Header -->
+      <header class="admin-header">
+        <div class="header-left">
+          <div class="header-toggle-btn" @click="sidebarCollapsed = !sidebarCollapsed" :title="sidebarCollapsed ? '展开菜单' : '收起菜单'">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round">
+              <line x1="3" y1="6" x2="21" y2="6"/>
+              <line x1="3" y1="12" x2="21" y2="12"/>
+              <line x1="3" y1="18" x2="21" y2="18"/>
+            </svg>
           </div>
-          <i-button type="error" icon="ios-trash" :disabled="selectedIds.length === 0" @click="batchDelete">
-            批量删除{{ selectedIds.length ? ' (' + selectedIds.length + ')' : '' }}
-          </i-button>
+          <div class="header-logo">
+            <svg viewBox="0 0 24 24"><path d="M19 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2zm-7 3c1.63 0 3.13.79 4 2h-4c-1.66 0-3 1.34-3 3 0 .35.07.69.18 1H7.1A5.02 5.02 0 0112 6zm0 12c-1.63 0-3.13-.79-4-2h4c1.66 0 3-1.34 3-3 0-.35-.07-.69-.18-1h2.08A5.02 5.02 0 0112 18z"/></svg>
+          </div>
+          <span class="header-title">商品采集管理平台</span>
+          <span class="header-subtitle">1688 数据采集与管理系统</span>
         </div>
-
-        <i-table :columns="columns" :data="list" :loading="loading" stripe
-          @on-selection-change="onSelectionChange" style="margin-bottom: 0;">
-        </i-table>
-
-        <div class="pagination-wrap">
-          <page :total="total" :current="page" :page-size="pageSize" show-total show-elevator
-            @on-change="onPageChange" @on-page-size-change="onPageSizeChange" />
+        <div class="header-right">
+          <span class="header-badge">已采集 {{ stats.total }} 条</span>
         </div>
+      </header>
+
+      <div class="admin-body">
+        <!-- Sidebar -->
+        <aside class="admin-sidebar" :class="{ collapsed: sidebarCollapsed }">
+          <ul class="sidebar-menu">
+            <li class="menu-group-title">主菜单</li>
+            <li class="menu-item" :class="{ active: currentView === 'page-dashboard' }" @click="switchView('page-dashboard')">
+              <i class="menu-icon">📊</i>
+              <span class="menu-text">仪表盘</span>
+            </li>
+            <li class="menu-item" :class="{ active: currentView === 'page-products' }" @click="switchView('page-products')">
+              <i class="menu-icon">📦</i>
+              <span class="menu-text">商品管理</span>
+            </li>
+          </ul>
+          <div class="sidebar-toggle" @click="sidebarCollapsed = !sidebarCollapsed" :title="sidebarCollapsed ? '展开菜单' : '收起菜单'">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <path v-if="sidebarCollapsed" d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
+              <path v-else d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+            </svg>
+          </div>
+        </aside>
+
+        <!-- Content — dynamic component -->
+        <main class="admin-content">
+          <component :is="currentView" :stats="stats" @switch-view="switchView" @open-detail="openDetail"></component>
+        </main>
       </div>
     </div>
 
     <!-- Detail Modal -->
-    <modal v-model="showDetail" class="detail-modal"
-      :title="detail ? (detail.title || ('商品 #' + detail.id)) : '商品详情'" width="860" footer-hide>
-      <template v-if="detail">
-        <tabs class="detail-tabs" v-model="detailTab">
-          <!-- 基本信息 -->
-          <tab-pane label="基本信息" name="info">
-            <div class="detail-tab-content">
-              <div class="info-grid">
-                <span class="label">ID</span>
-                <span class="value">{{ detail.id }}</span>
-                <span class="label">来源</span>
-                <span class="value">
-                  <a v-if="detail.source_url" :href="detail.source_url" target="_blank">{{ detail.source_url }}</a>
-                  <span v-else>-</span>
-                </span>
-                <span class="label">标题</span>
-                <span class="value">{{ detail.title || '-' }}</span>
-                <span class="label">采集时间</span>
-                <span class="value">{{ detail.created_at || '-' }}</span>
-                <span class="label">状态</span>
-                <span class="value">
-                  <span :class="'status-dot ' + (detail.status === 0 ? 'unused' : 'used')">
-                    {{ detail.status === 0 ? '未使用' : '已使用' }}
-                  </span>
-                </span>
-              </div>
-            </div>
-          </tab-pane>
+    <detail-modal :visible.sync="showDetail" :detail="detailData" @status-changed="onDetailStatusChanged"></detail-modal>
 
-          <!-- 主图 -->
-          <tab-pane label="主图" name="main" v-if="detail.main_images && detail.main_images.length">
-            <template slot="label">
-              主图 <span style="color:#999;font-size:12px;margin-left:2px">({{ detail.main_images.length }})</span>
-            </template>
-            <div class="detail-tab-content">
-              <div class="img-grid">
-                <div class="img-item" v-for="(url, i) in detail.main_images" :key="'main'+i"
-                  @click="openPreview(detail.main_images, i)">
-                  <img :src="url" loading="lazy" />
-                </div>
-              </div>
-            </div>
-          </tab-pane>
+    <!-- Thumb Hover Preview -->
+    <thumb-preview ref="thumbPreview"></thumb-preview>
 
-          <!-- 描述图 -->
-          <tab-pane label="描述图" name="desc" v-if="detail.desc_images && detail.desc_images.length">
-            <template slot="label">
-              描述图 <span style="color:#999;font-size:12px;margin-left:2px">({{ detail.desc_images.length }})</span>
-            </template>
-            <div class="detail-tab-content">
-              <div class="img-grid">
-                <div class="img-item" v-for="(url, i) in detail.desc_images" :key="'desc'+i"
-                  @click="openPreview(detail.desc_images, i)">
-                  <img :src="url" loading="lazy" />
-                </div>
-              </div>
-            </div>
-          </tab-pane>
-
-          <!-- SKU -->
-          <tab-pane label="SKU" name="sku" v-if="detail.skus && detail.skus.length">
-            <template slot="label">
-              SKU <span style="color:#999;font-size:12px;margin-left:2px">({{ detail.skus.length }})</span>
-            </template>
-            <div class="detail-tab-content">
-              <table class="sku-table">
-                <thead>
-                  <tr><th>预览图</th><th>SKU</th><th>价格</th><th>尺寸(长x宽x高)</th><th>重量</th></tr>
-                </thead>
-                <tbody>
-                  <tr v-for="(sku, i) in detail.skus" :key="'sku'+i">
-                    <td><img v-if="sku.image" :src="sku.image" loading="lazy" /></td>
-                    <td>{{ sku.sku || '-' }}</td>
-                    <td>{{ sku.price || '-' }}</td>
-                    <td>{{ sku.dimensions ? sku.dimensions.join(' x ') : '-' }}</td>
-                    <td>{{ sku.weight != null ? sku.weight : '-' }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </tab-pane>
-
-          <!-- 属性 -->
-          <tab-pane label="属性" name="attrs" v-if="detail.attrs && detail.attrs.length">
-            <template slot="label">
-              属性 <span style="color:#999;font-size:12px;margin-left:2px">({{ detail.attrs.length }})</span>
-            </template>
-            <div class="detail-tab-content">
-              <div class="attr-tags">
-                <span class="attr-tag" v-for="(a, i) in detail.attrs" :key="'attr'+i">{{ a }}</span>
-              </div>
-            </div>
-          </tab-pane>
-        </tabs>
-
-        <div class="detail-footer">
-          <i-button icon="ios-link" @click="copyUrl">复制回填URL</i-button>
-          <i-button :type="detail && detail.status === 0 ? 'success' : 'default'"
-            :icon="detail && detail.status === 0 ? 'ios-checkmark-circle' : 'ios-undo'"
-            @click="toggleStatus">
-            {{ detail && detail.status === 0 ? '标记已用' : '标记未用' }}
-          </i-button>
-        </div>
-      </template>
-    </modal>
-
-    <!-- Image Preview Overlay -->
+    <!-- Image Full Preview -->
     <div class="img-preview-overlay" v-if="previewVisible" @click.self="closePreview">
       <button class="img-preview-close" @click="closePreview">&times;</button>
-      <button class="img-preview-nav prev" v-if="previewIndex > 0" @click.stop="previewIndex--">&lsaquo;</button>
-      <img :src="previewImages[previewIndex]" />
-      <button class="img-preview-nav next" v-if="previewIndex < previewImages.length - 1" @click.stop="previewIndex++">&rsaquo;</button>
-      <div class="img-preview-counter">{{ previewIndex + 1 }} / {{ previewImages.length }}</div>
+      <button class="img-preview-nav prev" v-if="previewIdx > 0" @click.stop="previewIdx--">&lsaquo;</button>
+      <img :src="previewList[previewIdx]" />
+      <button class="img-preview-nav next" v-if="previewIdx < previewList.length - 1" @click.stop="previewIdx++">&rsaquo;</button>
+      <div class="img-preview-counter">{{ previewIdx + 1 }} / {{ previewList.length }}</div>
     </div>
   </div>
 
+  <!-- CDN -->
   <script src="https://cdn.jsdelivr.net/npm/vue@2.7.16/dist/vue.min.js"></script>
   <script src="https://unpkg.com/view-design@4.7.0/dist/iview.min.js"></script>
-  <script src="app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+  <!-- Components (must load before app.js) -->
+  <script src="js/components/thumb-preview.js"></script>
+  <script src="js/components/detail-modal.js"></script>
+  <script src="js/components/dashboard.js"></script>
+  <script src="js/components/product-list.js"></script>
+  <!-- Main app -->
+  <script src="js/app.js"></script>
 </body>
 </html>
