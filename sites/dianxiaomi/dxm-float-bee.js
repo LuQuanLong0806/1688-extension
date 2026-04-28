@@ -435,8 +435,6 @@
     if (translateEl) {
       translateEl.addEventListener('click', function () {
         if (isWorking) return;
-        var titleInput = document.querySelector('#productProductInfo form .ant-form-item input');
-        if (titleInput) titleInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
         doTranslateOnly();
       });
     }
@@ -999,52 +997,74 @@
       log(13, '✅ 产品首图: ' + imgUrl.substring(0, 60));
       updateProgress(13, '已获取产品首图', 'ok');
 
-      // Step 13: 打开外包装选择图片下拉
-      setTimeout(function () {
-        log(14, '正在打开外包装选择图片...');
-        updateProgress(14, '正在打开外包装选择图片...', 'loading');
+      // 先删除外包装旧图片
+      var pkgImgs = document.querySelectorAll('#packageInfo .img-list .img-item a.icon_delete');
+      if (pkgImgs.length > 0) {
+        log(14, '清空外包装旧图片...');
+        updateProgress(14, '清空外包装旧图片...', 'loading');
+        var delIdx = 0;
+        (function deleteNext() {
+          var btn = document.querySelector('#packageInfo .img-list .img-item a.icon_delete');
+          if (!btn) {
+            log(14, '✅ 已清空外包装旧图片');
+            updateProgress(14, '已清空外包装旧图片', 'ok');
+            openPkgSelect(imgUrl);
+            return;
+          }
+          delIdx++;
+          btn.click();
+          setTimeout(deleteNext, 50);
+        })();
+        return;
+      }
 
-        var pkgBtn = document.querySelector('#packageInfo .header button'); // #packageInfo .header button: 包裹信息区域顶部的”选择图片”按钮
-        if (!pkgBtn || (pkgBtn.textContent || '').indexOf('选择图片') === -1) {
-          log(14, '❌ 未找到外包装选择图片按钮');
-          updateProgress(14, '未找到选择图片按钮', 'err');
+      openPkgSelect(imgUrl);
+    }
+
+    function openPkgSelect(imgUrl) {
+      log(14, '正在打开外包装选择图片...');
+      updateProgress(14, '正在打开外包装选择图片...', 'loading');
+
+      var pkgBtn = document.querySelector('#packageInfo .header button'); // #packageInfo .header button: 包裹信息区域顶部的”选择图片”按钮
+      if (!pkgBtn || (pkgBtn.textContent || '').indexOf('选择图片') === -1) {
+        log(14, '❌ 未找到外包装选择图片按钮');
+        updateProgress(14, '未找到选择图片按钮', 'err');
+        finishWork();
+        return;
+      }
+      hoverElement(pkgBtn);
+
+      Config.waitForVisibleLi('网络图片', 3000, function (webImgItem) { // 外包装选择图片下拉菜单中的”网络图片”菜单项
+        if (!webImgItem) {
+          log(14, '❌ 未找到网络图片选项');
+          updateProgress(14, '未找到网络图片选项', 'err');
           finishWork();
           return;
         }
-        hoverElement(pkgBtn);
+        log(14, '✅ 已打开选择图片菜单');
+        updateProgress(14, '已打开选择图片菜单', 'ok');
 
-        Config.waitForVisibleLi('网络图片', 3000, function (webImgItem) { // 外包装选择图片下拉菜单中的”网络图片”菜单项
-          if (!webImgItem) {
-            log(14, '❌ 未找到网络图片选项');
-            updateProgress(14, '未找到网络图片选项', 'err');
+        // Step 14: 点击网络图片，填入URL
+        log(15, '正在更新外包装图片...');
+        updateProgress(15, '正在更新外包装图片...', 'loading');
+        webImgItem.click();
+
+        var start = Date.now();
+        (function checkModal() {
+          var modal = Config.findVisibleModal('从网络地址'); // 通过标题文字+可见性双重判断定位弹窗
+          if (modal) {
+            fillPackageImage(modal, imgUrl);
+            return;
+          }
+          if (Date.now() - start > 5000) {
+            log(15, '❌ 未找到网络图片弹窗');
+            updateProgress(15, '未找到网络图片弹窗', 'err');
             finishWork();
             return;
           }
-          log(14, '✅ 已打开选择图片菜单');
-          updateProgress(14, '已打开选择图片菜单', 'ok');
-
-          // Step 14: 点击网络图片，填入URL
-          log(15, '正在更新外包装图片...');
-          updateProgress(15, '正在更新外包装图片...', 'loading');
-          webImgItem.click();
-
-          var start = Date.now();
-          (function checkModal() {
-            var modal = Config.findVisibleModal('从网络地址'); // 通过标题文字+可见性双重判断定位弹窗
-            if (modal) {
-              fillPackageImage(modal, imgUrl);
-              return;
-            }
-            if (Date.now() - start > 5000) {
-              log(15, '❌ 未找到网络图片弹窗');
-              updateProgress(15, '未找到网络图片弹窗', 'err');
-              finishWork();
-              return;
-            }
-            requestAnimationFrame(checkModal);
-          })();
-        });
-      }, 150);
+          requestAnimationFrame(checkModal);
+        })();
+      });
     }
 
     // Step 14 helper: 填入URL

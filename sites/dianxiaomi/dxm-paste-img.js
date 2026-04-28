@@ -166,12 +166,13 @@
       (function deleteNext() {
         var btn = document.querySelector('#packageInfo .img-list .img-item a.icon_delete');
         if (!btn) {
-          openPkgSelect(imgUrl);
+          setTimeout(function () { openPkgSelect(imgUrl); }, 300);
           return;
         }
         delIdx++;
+        C.showBubble('⏳ 删除外包装旧图片 ' + delIdx + '/' + pkgImgs.length, 'loading');
         btn.click();
-        setTimeout(deleteNext, 50);
+        setTimeout(deleteNext, 100);
       })();
       return;
     }
