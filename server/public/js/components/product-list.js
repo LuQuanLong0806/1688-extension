@@ -197,22 +197,6 @@ Vue.component('page-products', {
             h(
               'Tooltip',
               {
-                props: { content: '引用打开', placement: 'top', transfer: true }
-              },
-              [
-                h('Button', {
-                  props: { size: 'small', icon: 'ios-link' },
-                  on: {
-                    click: function () {
-                      vm.openQuoteEdit(row.id);
-                    }
-                  }
-                })
-              ]
-            ),
-            h(
-              'Tooltip',
-              {
                 props: { content: '新建打开', placement: 'top', transfer: true }
               },
               [
@@ -221,6 +205,22 @@ Vue.component('page-products', {
                   on: {
                     click: function () {
                       window.open('https://www.dianxiaomi.com/web/temu/add', '_blank');
+                    }
+                  }
+                })
+              ]
+            ),
+            h(
+              'Tooltip',
+              {
+                props: { content: '引用打开', placement: 'top', transfer: true }
+              },
+              [
+                h('Button', {
+                  props: { size: 'small', icon: 'ios-link' },
+                  on: {
+                    click: function () {
+                      vm.openQuoteEdit(row.id);
                     }
                   }
                 })

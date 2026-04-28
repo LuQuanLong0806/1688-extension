@@ -14,6 +14,46 @@
   var SKU_FILTER_ENABLED_KEY = '__dxm_bee_sku_filter_enabled';
   var AUTO_SKU_NO_KEY = '__dxm_bee_auto_sku_no';
   var DEL_VIDEO_KEY = '__dxm_bee_del_video';
+  var AUTO_FILL_KEY = '__dxm_bee_auto_fill';
+
+  var SERVER_URL_KEY = '1688_server_url';
+
+  // ========== 服务端同步 ==========
+  var pendingSyncs = {};
+  var syncTimer = null;
+
+  function getServerUrl() {
+    return localStorage.getItem(SERVER_URL_KEY) || 'http://localhost:3000';
+  }
+
+  function syncToServer(key, value) {
+    pendingSyncs[key] = String(value);
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(function () {
+      var items = [];
+      for (var k in pendingSyncs) {
+        items.push({ key: k, value: pendingSyncs[k] });
+      }
+      pendingSyncs = {};
+      if (!items.length) return;
+      fetch(getServerUrl() + '/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: items })
+      }).catch(function () {});
+    }, 300);
+  }
+
+  function loadFromServer() {
+    fetch(getServerUrl() + '/api/settings')
+      .then(function (r) { return r.json(); })
+      .then(function (settings) {
+        for (var key in settings) {
+          localStorage.setItem(key, settings[key]);
+        }
+      })
+      .catch(function () {});
+  }
 
   function getDefaultFilters() {
     return [
@@ -43,7 +83,9 @@
   }
 
   function saveFilters(data) {
-    localStorage.setItem(FILTER_KEY, JSON.stringify(data));
+    var json = JSON.stringify(data);
+    localStorage.setItem(FILTER_KEY, json);
+    syncToServer(FILTER_KEY, json);
   }
 
   function loadAutoPublish() {
@@ -52,7 +94,9 @@
   }
 
   function saveAutoPublish(val) {
-    localStorage.setItem(AUTO_PUBLISH_KEY, val ? 'true' : 'false');
+    var v = val ? 'true' : 'false';
+    localStorage.setItem(AUTO_PUBLISH_KEY, v);
+    syncToServer(AUTO_PUBLISH_KEY, v);
   }
 
   function loadStores() {
@@ -64,7 +108,9 @@
   }
 
   function saveStores(data) {
-    localStorage.setItem(STORE_KEY, JSON.stringify(data));
+    var json = JSON.stringify(data);
+    localStorage.setItem(STORE_KEY, json);
+    syncToServer(STORE_KEY, json);
   }
 
   function loadSelectedStore() {
@@ -73,6 +119,7 @@
 
   function saveSelectedStore(val) {
     localStorage.setItem(SELECTED_STORE_KEY, val);
+    syncToServer(SELECTED_STORE_KEY, val);
   }
 
   function loadUseWebImage() {
@@ -80,7 +127,9 @@
   }
 
   function saveUseWebImage(val) {
-    localStorage.setItem(WEB_IMAGE_KEY, val ? 'true' : 'false');
+    var v = val ? 'true' : 'false';
+    localStorage.setItem(WEB_IMAGE_KEY, v);
+    syncToServer(WEB_IMAGE_KEY, v);
   }
 
   function loadFilterEnabled() {
@@ -89,7 +138,9 @@
   }
 
   function saveFilterEnabled(val) {
-    localStorage.setItem(FILTER_ENABLED_KEY, val ? 'true' : 'false');
+    var v = val ? 'true' : 'false';
+    localStorage.setItem(FILTER_ENABLED_KEY, v);
+    syncToServer(FILTER_ENABLED_KEY, v);
   }
 
   function loadAutoCategory() {
@@ -97,7 +148,9 @@
   }
 
   function saveAutoCategory(val) {
-    localStorage.setItem(AUTO_CATEGORY_KEY, val ? 'true' : 'false');
+    var v = val ? 'true' : 'false';
+    localStorage.setItem(AUTO_CATEGORY_KEY, v);
+    syncToServer(AUTO_CATEGORY_KEY, v);
   }
 
   function isValidProvince(val) {
@@ -114,6 +167,7 @@
     val = (val || '').trim();
     if (!isValidProvince(val)) val = '广东省';
     localStorage.setItem(PROVINCE_KEY, val);
+    syncToServer(PROVINCE_KEY, val);
   }
 
   function loadAutoTranslate() {
@@ -122,7 +176,9 @@
   }
 
   function saveAutoTranslate(val) {
-    localStorage.setItem(AUTO_TRANSLATE_KEY, val ? 'true' : 'false');
+    var v = val ? 'true' : 'false';
+    localStorage.setItem(AUTO_TRANSLATE_KEY, v);
+    syncToServer(AUTO_TRANSLATE_KEY, v);
   }
 
   function getDefaultSkuFilters() {
@@ -159,7 +215,9 @@
   }
 
   function saveSkuFilters(data) {
-    localStorage.setItem(SKU_FILTER_KEY, JSON.stringify(data));
+    var json = JSON.stringify(data);
+    localStorage.setItem(SKU_FILTER_KEY, json);
+    syncToServer(SKU_FILTER_KEY, json);
   }
 
   function loadSkuFilterEnabled() {
@@ -168,7 +226,9 @@
   }
 
   function saveSkuFilterEnabled(val) {
-    localStorage.setItem(SKU_FILTER_ENABLED_KEY, val ? 'true' : 'false');
+    var v = val ? 'true' : 'false';
+    localStorage.setItem(SKU_FILTER_ENABLED_KEY, v);
+    syncToServer(SKU_FILTER_ENABLED_KEY, v);
   }
 
   function loadAutoSkuNo() {
@@ -177,7 +237,9 @@
   }
 
   function saveAutoSkuNo(val) {
-    localStorage.setItem(AUTO_SKU_NO_KEY, val ? 'true' : 'false');
+    var v = val ? 'true' : 'false';
+    localStorage.setItem(AUTO_SKU_NO_KEY, v);
+    syncToServer(AUTO_SKU_NO_KEY, v);
   }
 
   function loadDelVideo() {
@@ -186,7 +248,19 @@
   }
 
   function saveDelVideo(val) {
-    localStorage.setItem(DEL_VIDEO_KEY, val ? 'true' : 'false');
+    var v = val ? 'true' : 'false';
+    localStorage.setItem(DEL_VIDEO_KEY, v);
+    syncToServer(DEL_VIDEO_KEY, v);
+  }
+
+  function loadAutoFill() {
+    return localStorage.getItem(AUTO_FILL_KEY) === 'true';
+  }
+
+  function saveAutoFill(val) {
+    var v = val ? 'true' : 'false';
+    localStorage.setItem(AUTO_FILL_KEY, v);
+    syncToServer(AUTO_FILL_KEY, v);
   }
 
 
@@ -334,10 +408,16 @@
     saveAutoSkuNo: saveAutoSkuNo,
     loadDelVideo: loadDelVideo,
     saveDelVideo: saveDelVideo,
+    loadAutoFill: loadAutoFill,
+    saveAutoFill: saveAutoFill,
+    loadFromServer: loadFromServer,
     setInputValue: setInputValue,
     applyFilters: applyFilters,
     findVisibleModal: findVisibleModal,
     findVisibleLi: findVisibleLi,
     waitForVisibleLi: waitForVisibleLi
   };
+
+  // 启动时从服务器同步配置到 localStorage
+  loadFromServer();
 })();

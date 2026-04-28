@@ -84,6 +84,15 @@ async function initDb() {
   // 增量添加 category 列（已存在则忽略）
   try { db.run('ALTER TABLE products ADD COLUMN category TEXT'); } catch (e) {}
 
+  // 配置项表
+  db.run(`
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   // 类目表
   db.run(`
     CREATE TABLE IF NOT EXISTS categories (
@@ -136,6 +145,24 @@ async function initDb() {
 }
 
 // ========== API ==========
+
+// 获取所有配置
+app.get('/api/settings', (req, res) => {
+  const rows = getAll('SELECT key, value FROM settings');
+  const result = {};
+  rows.forEach(r => { result[r.key] = r.value; });
+  res.json(result);
+});
+
+// 批量更新配置
+app.put('/api/settings', (req, res) => {
+  const { items } = req.body;
+  if (!Array.isArray(items) || !items.length) return res.json({ ok: true });
+  for (const item of items) {
+    run('INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)', [item.key, item.value]);
+  }
+  res.json({ ok: true });
+});
 
 // 采集趋势（按天统计）
 app.get('/api/product/trend', (req, res) => {

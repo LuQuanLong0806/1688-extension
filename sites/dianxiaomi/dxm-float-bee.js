@@ -51,9 +51,9 @@
     '<div id="__dxm_bee_translate" title="一键翻译">翻译</div>' +
     '<div class="__dxm_bee_line"></div>' +
     '<div id="__dxm_bee_paste" title="一键粘贴图片URL">贴图</div>' +
-    '<div class="__dxm_bee_line"></div>' +
+    '<div class="__dxm_bee_line" id="__dxm_bee_line_sku_table"></div>' +
     '<div id="__dxm_bee_sku_table" title="SKU表格填充">填表</div>' +
-    '<div class="__dxm_bee_line"></div>' +
+    '<div class="__dxm_bee_line" id="__dxm_bee_line_after_sku_table"></div>' +
     '<div id="__dxm_bee_sku" title="一键SKU过滤">SKU</div>' +
     '<div class="__dxm_bee_line"></div>' +
     '<div id="__dxm_bee_edit" title="一键编辑描述">描述</div>' +
@@ -93,8 +93,10 @@
     '#__dxm_bee_sku:hover{transform:scale(1.15)!important;box-shadow:0 4px 12px rgba(0,131,143,.5)}' +
     '#__dxm_bee_delete{margin-top:3px;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#EF5350,#C62828);color:#fff;font:bold 12px/1 "楷体","KaiTi","STKaiti",serif;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(198,40,40,.35);transition:box-shadow .2s;user-select:none;text-shadow:0 1px 2px rgba(0,0,0,.15)}' +
     '#__dxm_bee_delete:hover{transform:scale(1.15)!important;box-shadow:0 4px 12px rgba(198,40,40,.5)}' +
-    '#__dxm_bee_sku_table{margin-top:3px;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#5C6BC0,#283593);color:#fff;font:bold 12px/1 "楷体","KaiTi","STKaiti",serif;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(40,53,147,.35);transition:box-shadow .2s;user-select:none;text-shadow:0 1px 2px rgba(0,0,0,.15)}' +
-    '#__dxm_bee_sku_table:hover{transform:scale(1.15)!important;box-shadow:0 4px 12px rgba(40,53,147,.5)}';
+    '#__dxm_bee_sku_table{margin-top:3px;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#5C6BC0,#283593);color:#fff;font:bold 12px/1 "楷体","KaiTi","STKaiti",serif;display:none;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(40,53,147,.35);transition:box-shadow .2s;user-select:none;text-shadow:0 1px 2px rgba(0,0,0,.15)}' +
+    '#__dxm_bee_sku_table:hover{transform:scale(1.15)!important;box-shadow:0 4px 12px rgba(40,53,147,.5)}' +
+    '#__dxm_bee_line_sku_table{display:none}' +
+    '#__dxm_bee_line_after_sku_table{display:none}';
 
   document.head.appendChild(s);
   document.body.appendChild(wrapper);
