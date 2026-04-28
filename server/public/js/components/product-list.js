@@ -115,7 +115,7 @@ Vue.component('page-products', {
       },
       {
         title: '状态',
-        width: 120,
+        width: 150,
         align: 'center',
         render: function (h, params) {
           var s = params.row.status;
@@ -126,10 +126,10 @@ Vue.component('page-products', {
           );
         }
       },
-      { title: '采集时间', key: 'created_at', width: 180 },
+      { title: '采集时间', key: 'created_at', width: 200 },
       {
         title: '操作',
-        width: 160,
+        width: 200,
         align: 'center',
         className: 'col-actions',
         fixed: 'right',
