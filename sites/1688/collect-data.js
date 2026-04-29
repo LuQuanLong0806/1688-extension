@@ -56,7 +56,6 @@
         if (!src || src.indexOf('data:') === 0) return;
         if (src.indexOf('//') === 0) src = 'https:' + src;
         src = src.replace(/\?x-oss-process=.*$/i, '');
-        src = src.replace(/\.webp$/i, '');
         if (src.indexOf('alicdn') !== -1 && !isIcon(src) && mainImages.indexOf(src) === -1) {
           mainImages.push(src);
         }
