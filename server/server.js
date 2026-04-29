@@ -94,6 +94,7 @@ async function initDb() {
   try { db.run('ALTER TABLE products ADD COLUMN category TEXT'); } catch (e) {}
   try { db.run('ALTER TABLE products ADD COLUMN detail_images TEXT'); } catch (e) {}
   try { db.run('ALTER TABLE products ADD COLUMN custom_category TEXT'); } catch (e) {}
+  try { db.run('ALTER TABLE products ADD COLUMN dxm_category TEXT DEFAULT \'\''); } catch (e) {}
 
   // 配置项表
   db.run(`
@@ -342,7 +343,7 @@ app.get('/api/product', (req, res) => {
 
   const offset = (page - 1) * pageSize;
   const list = getAll(
-    `SELECT id, source_url, title, category, custom_category, attrs, skus, status, created_at, updated_at
+    `SELECT id, source_url, title, category, custom_category, dxm_category, attrs, skus, status, created_at, updated_at
      FROM products ${whereClause}
      ORDER BY created_at DESC, id DESC
      LIMIT ? OFFSET ?`,
@@ -353,6 +354,7 @@ app.get('/api/product', (req, res) => {
     ...row,
     category: row.category ? JSON.parse(row.category) : {},
     customCategory: row.custom_category || '',
+    dxmCategory: row.dxm_category ? JSON.parse(row.dxm_category) : null,
     attrs: JSON.parse(row.attrs || '[]'),
     skuCount: JSON.parse(row.skus || '[]').length
   }));
@@ -388,13 +390,14 @@ app.put('/api/product/:id', (req, res) => {
     attrs: 'attrs',
     skus: 'skus',
     status: 'status',
-    customCategory: 'custom_category'
+    customCategory: 'custom_category',
+    dxmCategory: 'dxm_category'
   };
 
   for (const [key, col] of Object.entries(allowedFields)) {
     if (req.body[key] !== undefined) {
       let val = req.body[key];
-      if (['main_images', 'desc_images', 'detail_images', 'attrs', 'skus'].includes(col) || Array.isArray(val)) {
+      if (['main_images', 'desc_images', 'detail_images', 'attrs', 'skus', 'dxm_category'].includes(col) || Array.isArray(val)) {
         val = JSON.stringify(val);
       }
       fields.push(`${col} = ?`);
@@ -437,6 +440,15 @@ app.put('/api/product/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+// 回传店小秘类目
+app.post('/api/product/dxm-category', (req, res) => {
+  const { collectId, dxmCategory } = req.body;
+  if (!collectId || !dxmCategory) return res.status(400).json({ error: 'Missing collectId or dxmCategory' });
+  run('UPDATE products SET dxm_category = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+    [JSON.stringify(dxmCategory), parseInt(collectId)]);
+  res.json({ ok: true });
+});
+
 // 删除商品
 app.delete('/api/product/:id', (req, res) => {
   run('DELETE FROM products WHERE id = ?', [parseInt(req.params.id)]);
@@ -459,6 +471,7 @@ function parseRow(row) {
     ...row,
     category: row.category ? JSON.parse(row.category) : {},
     customCategory: row.custom_category || '',
+    dxmCategory: row.dxm_category ? JSON.parse(row.dxm_category) : null,
     main_images: JSON.parse(row.main_images || '[]'),
     desc_images: JSON.parse(row.desc_images || '[]'),
     detail_images: JSON.parse(row.detail_images || '[]'),

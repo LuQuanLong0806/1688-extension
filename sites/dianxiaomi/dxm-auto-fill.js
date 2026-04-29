@@ -163,6 +163,9 @@
     // 计算总步骤
     autoTotal = 1; // 填标题
     if (data.source_url) autoTotal += 1; // 填来源URL
+    // 自动选择类目（只要有可用的类目名就尝试）
+    var catInfo = resolveCategory(data);
+    if (catInfo) autoTotal += 1;
     if (data.main_images && data.main_images.length) autoTotal += 3; // 贴主图（打开菜单+网络图片+填入添加）
     autoTotal += 1; // 删除产品视频
     if (data.desc_images && data.desc_images.length) autoTotal += 1; // 描述图（仅存储到全局）
@@ -177,12 +180,24 @@
       // Step 1.5: 填入来源URL
       if (data.source_url) {
         fillSourceUrl(data.source_url, function () {
+          doCategorySelect(data);
+        });
+      } else {
+        doCategorySelect(data);
+      }
+    });
+
+    function doCategorySelect(data) {
+      // Step 1.6: 自动选择类目
+      var catInfo = resolveCategory(data);
+      if (catInfo) {
+        autoSelectCategory(catInfo, collectId, function () {
           doPasteMainImages(data);
         });
       } else {
         doPasteMainImages(data);
       }
-    });
+    }
 
     function doPasteMainImages(data) {
       // Step 2: 贴主图（主图 + 已选SKU图片，最多10张）
@@ -292,6 +307,203 @@
       autoLog('来源URL已填入');
       setTimeout(cb, 200);
     });
+  }
+
+  // ========== Step 1.6: 自动选择类目 ==========
+
+  // 类目回退优先级：dxmCategory → customCategory → 1688原始类目
+  function resolveCategory(data) {
+    // 1. 优先用已保存的店小秘类目
+    if (data.dxmCategory && data.dxmCategory.leafName) {
+      return data.dxmCategory;
+    }
+    // 2. 用自定义类目
+    if (data.customCategory) {
+      return { path: data.customCategory, leafName: data.customCategory };
+    }
+    // 3. 用1688原始类目
+    var cat = data.category;
+    if (cat) {
+      var name = cat.leafCategoryName || cat.categoryPath || '';
+      if (name) {
+        return { path: name, leafName: name.split('/').pop() || name };
+      }
+    }
+    return null;
+  }
+
+  function autoSelectCategory(catInfo, cId, cb) {
+    var leafName = catInfo.leafName;
+    var path = catInfo.path || '';
+
+    autoLog('选择类目: ' + leafName + '...');
+
+    // 先检查当前类目是否已经正确
+    var catList = document.querySelector('.category-list');
+    if (catList && catList.textContent.trim()) {
+      var currentPath = catList.textContent.trim().replace(/\s*>\s*/g, '/');
+      if (currentPath === path || currentPath.indexOf(leafName) !== -1) {
+        autoLog('类目已正确，跳过');
+        cb();
+        return;
+      }
+    }
+
+    // 方法A: 尝试下拉快选
+    tryQuickSelect(leafName, function (ok) {
+      if (ok) {
+        onCategorySet(catList, cId, function () { cb(); });
+        return;
+      }
+      // 方法B: 弹窗搜索
+      trySearchCategory(catInfo, function (ok2) {
+        if (ok2) {
+          onCategorySet(catList, cId, function () { cb(); });
+          return;
+        }
+        autoLog('自动选择类目失败，请手动选择');
+        cb();
+      });
+    });
+  }
+
+  // 类目设置成功后，读取实际值并回传服务器
+  function onCategorySet(catListEl, cId, done) {
+    setTimeout(function () {
+      var el = document.querySelector('.category-list') || catListEl;
+      if (!el || !cId) { if (done) done(); return; }
+      var text = el.textContent.trim();
+      if (!text) { if (done) done(); return; }
+      var parts = text.split(/\s*>\s*/);
+      var leafName = parts[parts.length - 1];
+      console.log('%c[自动填表] 回传店小秘类目: collectId=' + cId + ', path=' + parts.join('/') + ', leafName=' + leafName, 'color:#AB47BC;font-weight:bold');
+      fetch('http://localhost:3000/api/product/dxm-category', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          collectId: cId,
+          dxmCategory: { path: parts.join('/'), leafName: leafName }
+        })
+      }).then(function () {
+        console.log('%c[自动填表] 店小秘类目已回传: ' + parts.join('/'), 'color:#52c41a;font-weight:bold');
+      }).catch(function () {}).finally(function () {
+        if (done) done();
+      });
+    }, 1000);
+  }
+
+  // 方法A: 下拉快选
+  function tryQuickSelect(leafName, cb) {
+    var selector = document.querySelector('#productBasicInfo .category-item .ant-select-selector');
+    if (!selector) { cb(false); return; }
+
+    forceOpenAntSelect(selector);
+
+    waitForElement('#productBasicInfo .category-item .ant-select-item-option[title="' + leafName + '"]', 2000, function (opt) {
+      if (opt) {
+        opt.click();
+        cb(true);
+      } else {
+        // 关闭下拉
+        selector.click();
+        cb(false);
+      }
+    });
+  }
+
+  // 方法B: 弹窗搜索选择
+  function trySearchCategory(catInfo, cb) {
+    var leafName = catInfo.leafName;
+    var path = catInfo.path || '';
+
+    // 点击"选择分类"按钮
+    var btn = document.querySelector('#productBasicInfo .category-item button.ant-btn-primary');
+    if (!btn) { cb(false); return; }
+    btn.click();
+
+    // 等待弹窗
+    waitForCategoryModal(function (modal) {
+      if (!modal) { cb(false); return; }
+
+      // 找到搜索输入框
+      var searchInput = modal.querySelector('input[name="searchCategory"]');
+      if (!searchInput) { cb(false); return; }
+
+      // 输入叶子类目名搜索
+      searchInput.focus();
+      setInputValue(searchInput, leafName);
+
+      // 点击搜索按钮
+      var searchBtn = modal.querySelector('.ant-input-search-button');
+      if (!searchBtn) { cb(false); return; }
+      searchBtn.click();
+
+      // 等待搜索结果
+      var start = Date.now();
+      (function checkResults() {
+        var results = modal.querySelectorAll('.search-result-item');
+        if (results.length > 0) {
+          // 有结果，匹配
+          var target = null;
+          if (results.length === 1) {
+            target = results[0];
+          } else {
+            // 多条结果，用路径匹配
+            for (var i = 0; i < results.length; i++) {
+              var resultPath = (results[i].textContent || '').replace(/\s+/g, '');
+              if (resultPath.indexOf(path.replace(/\s+/g, '')) !== -1 || resultPath.indexOf(leafName) !== -1) {
+                target = results[i];
+                break;
+              }
+            }
+            if (!target) target = results[0];
+          }
+          target.click();
+
+          // 点击"选择"按钮确认
+          setTimeout(function () {
+            var confirmBtn = modal.querySelector('.ant-modal-footer .ant-btn-primary');
+            if (confirmBtn) confirmBtn.click();
+            cb(true);
+          }, 300);
+          return;
+        }
+        if (Date.now() - start > 3000) {
+          // 搜索超时，关闭弹窗
+          var closeBtn = modal.querySelector('.ant-modal-footer .ant-btn-default');
+          if (closeBtn) closeBtn.click();
+          else {
+            var closeX = modal.querySelector('.ant-modal-close');
+            if (closeX) closeX.click();
+          }
+          cb(false);
+          return;
+        }
+        requestAnimationFrame(checkResults);
+      })();
+    });
+  }
+
+  function waitForCategoryModal(cb) {
+    var start = Date.now();
+    (function check() {
+      var modal = findVisibleModal('选择类目');
+      if (modal) { cb(modal); return; }
+      if (Date.now() - start > 5000) { cb(null); return; }
+      requestAnimationFrame(check);
+    })();
+  }
+
+  function forceOpenAntSelect(selector) {
+    var rect = selector.getBoundingClientRect();
+    var cx = rect.left + rect.width / 2;
+    var cy = rect.top + rect.height / 2;
+    var opts = { bubbles: true, cancelable: true, view: window, clientX: cx, clientY: cy };
+    selector.dispatchEvent(new PointerEvent('pointerdown', opts));
+    selector.dispatchEvent(new MouseEvent('mousedown', opts));
+    selector.dispatchEvent(new PointerEvent('pointerup', opts));
+    selector.dispatchEvent(new MouseEvent('mouseup', opts));
+    selector.dispatchEvent(new MouseEvent('click', opts));
   }
 
   // ========== Step 1: 填入标题 ==========

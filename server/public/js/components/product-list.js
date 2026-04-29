@@ -13,6 +13,7 @@ Vue.component('page-products', {
       categoryList: [],
       selectedIds: [],
       quoteProductId: '',
+      editingCatId: -1,
       columns: [],
       _pollTimer: null
     };
@@ -61,69 +62,103 @@ Vue.component('page-products', {
         title: '类目',
         width: 240,
         render: function (h, params) {
-          var cat = params.row.category;
-          var saved = params.row.customCategory;
-          var name =
-            saved || (cat && (cat.leafCategoryName || cat.categoryPath)) || '';
-          function saveCat() {
-            var newVal = params.row.customCategory || '';
-            if (newVal === name) return;
-            fetch('/api/product/' + params.row.id, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                customCategory: newVal
+          var idx = params.index;
+          var row = vm.list[idx];
+          var cat = row.category;
+          var name = row.customCategory || (cat && (cat.leafCategoryName || cat.categoryPath)) || '';
+          var isEditing = vm.editingCatId === row.id;
+
+          if (!isEditing) {
+            // 显示模式：文字 + 修改icon + 复制icon
+            return h('span', { class: 'cell-category-wrap' }, [
+              h('span', { style: { fontSize: '13px', marginRight: '6px' } }, name || '-'),
+              h('Icon', {
+                props: { type: 'md-create', size: 16 },
+                style: { color: '#bbb', cursor: 'pointer', marginRight: '4px' },
+                attrs: { title: '修改类目' },
+                nativeOn: {
+                  mouseenter: function (e) { e.target.style.color = '#1890ff'; },
+                  mouseleave: function (e) { e.target.style.color = '#bbb'; },
+                  click: function (e) {
+                    e.stopPropagation();
+                    if (!vm.list[idx].customCategory) {
+                      vm.list[idx].customCategory = name;
+                    }
+                    vm.$set(vm, 'editingCatId', row.id);
+                  }
+                }
+              }),
+              h('Icon', {
+                props: { type: 'md-copy', size: 16 },
+                style: { color: '#bbb', cursor: 'pointer' },
+                attrs: { title: '复制类目' },
+                nativeOn: {
+                  mouseenter: function (e) { e.target.style.color = '#1890ff'; },
+                  mouseleave: function (e) { e.target.style.color = '#bbb'; },
+                  click: function (e) {
+                    e.stopPropagation();
+                    if (!name) return;
+                    navigator.clipboard.writeText(name).then(function () {
+                      vm.$Message.success('已复制: ' + name);
+                    });
+                  }
+                }
               })
-            }).then(function () {
-              vm.$Message.success('类目已保存');
-              vm.loadList();
-            });
+            ]);
           }
+
+          // 编辑模式：输入框 + 保存icon
           return h('span', { class: 'cell-category-wrap' }, [
             h('i-input', {
-              props: { value: name, size: 'default', placeholder: '-' },
-              style: { width: '180px' },
+              props: { value: name, size: 'small', placeholder: '-' },
+              style: { width: '150px' },
               on: {
-                'on-input': function (val) {
-                  params.row.customCategory = val;
+                input: function (val) {
+                  vm.list[idx].customCategory = val;
                 }
               }
             }),
             h('Icon', {
-              props: { type: 'md-checkmark-circle', size: 20 },
-              class: 'cell-save-icon',
+              props: { type: 'md-checkmark-circle', size: 18 },
+              style: { color: '#bbb', cursor: 'pointer', marginLeft: '4px', transition: 'color .2s' },
               attrs: { title: '保存类目' },
-              style: {
-                color: '#bbb',
-                cursor: 'pointer',
-                flexShrink: '0',
-                marginLeft: '4px',
-                transition: 'color .2s, transform .15s'
-              },
               nativeOn: {
-                mouseenter: function (e) { e.target.style.color = '#52c41a'; e.target.style.transform = 'scale(1.2)'; },
-                mouseleave: function (e) { e.target.style.color = '#bbb'; e.target.style.transform = 'scale(1)'; },
+                mouseenter: function (e) { e.target.style.color = '#52c41a'; },
+                mouseleave: function (e) { e.target.style.color = '#bbb'; },
                 click: function (e) {
                   e.stopPropagation();
-                  saveCat();
-                }
-              }
-            }),
-            h('Icon', {
-              props: { type: 'md-copy', size: 20 },
-              class: 'cell-copy-icon',
-              nativeOn: {
-                click: function (e) {
-                  e.stopPropagation();
-                  var val = params.row.customCategory || name;
-                  if (!val) return;
-                  navigator.clipboard.writeText(val).then(function () {
-                    vm.$Message.success('已复制: ' + val);
+                  var newVal = vm.list[idx].customCategory || '';
+                  fetch('/api/product/' + row.id, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ customCategory: newVal })
+                  }).then(function () {
+                    vm.$Message.success('类目已保存');
+                    vm.editingCatId = -1;
+                    vm.loadList();
                   });
                 }
               }
             })
           ]);
+        }
+      },
+      {
+        title: '店小秘类目',
+        width: 180,
+        render: function (h, params) {
+          var dxmCat = params.row.dxmCategory;
+          if (!dxmCat || !dxmCat.leafName) return h('span', { style: { color: '#ccc' } }, '-');
+          var path = dxmCat.path || dxmCat.leafName;
+          var short = path.length > 25 ? path.substring(0, 25) + '...' : path;
+          return h(
+            'span',
+            {
+              attrs: { title: path },
+              style: { fontSize: '12px', color: '#ff6a00' }
+            },
+            short
+          );
         }
       },
       {
