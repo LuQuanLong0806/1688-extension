@@ -59,32 +59,71 @@ Vue.component('page-products', {
       },
       {
         title: '类目',
-        width: 180,
+        width: 240,
         render: function (h, params) {
           var cat = params.row.category;
-          var name = cat && (cat.leafCategoryName || cat.categoryPath);
-          if (name) {
-            return h('span', { class: 'cell-category-wrap' }, [
-              h(
-                'span',
-                { class: 'cell-category', attrs: { title: name } },
-                name
-              ),
-              h('Icon', {
-                props: { type: 'md-copy', size: 16 },
-                class: 'cell-copy-icon',
-                nativeOn: {
-                  click: function (e) {
-                    e.stopPropagation();
-                    navigator.clipboard.writeText(name).then(function () {
-                      vm.$Message.success('已复制: ' + name);
-                    });
-                  }
-                }
+          var saved = params.row.customCategory;
+          var name =
+            saved || (cat && (cat.leafCategoryName || cat.categoryPath)) || '';
+          function saveCat() {
+            var newVal = params.row.customCategory || '';
+            if (newVal === name) return;
+            fetch('/api/product/' + params.row.id, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                customCategory: newVal
               })
-            ]);
+            }).then(function () {
+              vm.$Message.success('类目已保存');
+              vm.loadList();
+            });
           }
-          return h('span', { style: { color: '#ccc' } }, '-');
+          return h('span', { class: 'cell-category-wrap' }, [
+            h('i-input', {
+              props: { value: name, size: 'default', placeholder: '-' },
+              style: { width: '180px' },
+              on: {
+                'on-input': function (val) {
+                  params.row.customCategory = val;
+                }
+              }
+            }),
+            h('Icon', {
+              props: { type: 'md-checkmark-circle', size: 20 },
+              class: 'cell-save-icon',
+              attrs: { title: '保存类目' },
+              style: {
+                color: '#bbb',
+                cursor: 'pointer',
+                flexShrink: '0',
+                marginLeft: '4px',
+                transition: 'color .2s, transform .15s'
+              },
+              nativeOn: {
+                mouseenter: function (e) { e.target.style.color = '#52c41a'; e.target.style.transform = 'scale(1.2)'; },
+                mouseleave: function (e) { e.target.style.color = '#bbb'; e.target.style.transform = 'scale(1)'; },
+                click: function (e) {
+                  e.stopPropagation();
+                  saveCat();
+                }
+              }
+            }),
+            h('Icon', {
+              props: { type: 'md-copy', size: 20 },
+              class: 'cell-copy-icon',
+              nativeOn: {
+                click: function (e) {
+                  e.stopPropagation();
+                  var val = params.row.customCategory || name;
+                  if (!val) return;
+                  navigator.clipboard.writeText(val).then(function () {
+                    vm.$Message.success('已复制: ' + val);
+                  });
+                }
+              }
+            })
+          ]);
         }
       },
       {
@@ -206,7 +245,10 @@ Vue.component('page-products', {
                   props: { size: 'small', icon: 'md-open' },
                   on: {
                     click: function () {
-                      window.open('https://www.dianxiaomi.com/web/temu/add', '_blank');
+                      window.open(
+                        'https://www.dianxiaomi.com/web/temu/add',
+                        '_blank'
+                      );
                     }
                   }
                 })
@@ -327,7 +369,13 @@ Vue.component('page-products', {
     },
     openQuoteEdit: function (id) {
       var pid = this.quoteProductId || '166827730497622099';
-      window.open('https://www.dianxiaomi.com/web/temu/quoteEdit?id=' + pid + '&collectId=' + id, '_blank');
+      window.open(
+        'https://www.dianxiaomi.com/web/temu/quoteEdit?id=' +
+          pid +
+          '&collectId=' +
+          id,
+        '_blank'
+      );
     },
     openSource: function (url) {
       if (url) window.open(url, '_blank');

@@ -93,6 +93,7 @@ async function initDb() {
   // 增量添加 category 列（已存在则忽略）
   try { db.run('ALTER TABLE products ADD COLUMN category TEXT'); } catch (e) {}
   try { db.run('ALTER TABLE products ADD COLUMN detail_images TEXT'); } catch (e) {}
+  try { db.run('ALTER TABLE products ADD COLUMN custom_category TEXT'); } catch (e) {}
 
   // 配置项表
   db.run(`
@@ -103,11 +104,12 @@ async function initDb() {
     )
   `);
 
-  // 类目表
+  // 类目表（含自定义名称，作为类目数据字典）
   db.run(`
     CREATE TABLE IF NOT EXISTS categories (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL UNIQUE,
+      custom_name TEXT DEFAULT '',
       cat_id TEXT,
       leaf_category_id TEXT,
       top_category_id TEXT,
@@ -116,6 +118,7 @@ async function initDb() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  try { db.run('ALTER TABLE categories ADD COLUMN custom_name TEXT DEFAULT \'\''); } catch (e) {}
 
   // 迁移：将已有商品的类目数据补录到 categories 表
   try {
@@ -232,13 +235,27 @@ app.get('/api/product/category-top', (req, res) => {
 // 保存采集数据
 app.post('/api/product', (req, res) => {
   const { sourceUrl, title, category, mainImages, descImages, detailImages, attrs, skus } = req.body;
+
+  // 匹配类目字典，获取自定义类目名
+  let customCategory = '';
+  if (category) {
+    const catName = category.leafCategoryName || category.categoryPath;
+    if (catName) {
+      const catRow = getOne('SELECT id, count, custom_name FROM categories WHERE name = ?', [catName]);
+      if (catRow && catRow.custom_name) {
+        customCategory = catRow.custom_name;
+      }
+    }
+  }
+
   db.run(
-    `INSERT INTO products (source_url, title, category, main_images, desc_images, detail_images, attrs, skus)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO products (source_url, title, category, custom_category, main_images, desc_images, detail_images, attrs, skus)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       sourceUrl || '',
       title || '',
       JSON.stringify(category || {}),
+      customCategory,
       JSON.stringify(mainImages || []),
       JSON.stringify(descImages || []),
       JSON.stringify(detailImages || []),
@@ -325,7 +342,7 @@ app.get('/api/product', (req, res) => {
 
   const offset = (page - 1) * pageSize;
   const list = getAll(
-    `SELECT id, source_url, title, category, attrs, skus, status, created_at, updated_at
+    `SELECT id, source_url, title, category, custom_category, attrs, skus, status, created_at, updated_at
      FROM products ${whereClause}
      ORDER BY created_at DESC, id DESC
      LIMIT ? OFFSET ?`,
@@ -335,6 +352,7 @@ app.get('/api/product', (req, res) => {
   const parsedList = list.map(row => ({
     ...row,
     category: row.category ? JSON.parse(row.category) : {},
+    customCategory: row.custom_category || '',
     attrs: JSON.parse(row.attrs || '[]'),
     skuCount: JSON.parse(row.skus || '[]').length
   }));
@@ -369,7 +387,8 @@ app.put('/api/product/:id', (req, res) => {
     detailImages: 'detail_images',
     attrs: 'attrs',
     skus: 'skus',
-    status: 'status'
+    status: 'status',
+    customCategory: 'custom_category'
   };
 
   for (const [key, col] of Object.entries(allowedFields)) {
@@ -389,6 +408,32 @@ app.put('/api/product/:id', (req, res) => {
   params.push(parseInt(req.params.id));
 
   run(`UPDATE products SET ${fields.join(', ')} WHERE id = ?`, params);
+
+  // 修改自定义类目时，批量同步同原类目的所有商品 + 更新类目字典
+  if (req.body.customCategory !== undefined) {
+    const product = getOne('SELECT category FROM products WHERE id = ?', [parseInt(req.params.id)]);
+    if (product && product.category) {
+      try {
+        const cat = JSON.parse(product.category);
+        const catName = cat.leafCategoryName || cat.categoryPath;
+        if (catName) {
+          const newCustomName = req.body.customCategory;
+          // 更新类目字典
+          run('UPDATE categories SET custom_name = ? WHERE name = ?', [newCustomName, catName]);
+          // 如果字典中没有该类目，先插入
+          const existCat = getOne('SELECT id FROM categories WHERE name = ?', [catName]);
+          if (!existCat) {
+            run('INSERT INTO categories (name, custom_name, cat_id, leaf_category_id, top_category_id, post_category_id) VALUES (?, ?, ?, ?, ?, ?)',
+              [catName, newCustomName, cat.catId || '', cat.leafCategoryId || '', cat.topCategoryId || '', cat.postCategoryId || '']);
+          }
+          // 批量更新同原类目的所有商品
+          run("UPDATE products SET custom_category = ?, updated_at = CURRENT_TIMESTAMP WHERE category LIKE ?",
+            [newCustomName, '%"' + catName + '"%']);
+        }
+      } catch (e) {}
+    }
+  }
+
   res.json({ ok: true });
 });
 
@@ -413,6 +458,7 @@ function parseRow(row) {
   return {
     ...row,
     category: row.category ? JSON.parse(row.category) : {},
+    customCategory: row.custom_category || '',
     main_images: JSON.parse(row.main_images || '[]'),
     desc_images: JSON.parse(row.desc_images || '[]'),
     detail_images: JSON.parse(row.detail_images || '[]'),

@@ -15,6 +15,11 @@ Vue.component('detail-modal', {
     detail: function (val) {
       if (val) {
         this.editable = JSON.parse(JSON.stringify(val));
+        // 初始化自定义类目：优先用已保存值，否则用抓取类目值
+        if (!this.editable.customCategory) {
+          var cat = this.editable.category;
+          this.editable.customCategory = cat && (cat.leafCategoryName || cat.categoryPath) || '';
+        }
         // 确保 dimensions 数组至少有 3 个元素（Vue 2 响应式追踪）
         (this.editable.skus || []).forEach(function (s) {
           if (!s.customName && s.name) s.customName = s.name;
@@ -190,6 +195,7 @@ Vue.component('detail-modal', {
       });
       var payload = {
         title: vm.editable.title,
+        customCategory: vm.editable.customCategory,
         mainImages: vm.editable.main_images,
         descImages: vm.editable.desc_images,
         detailImages: detailImages,
@@ -289,9 +295,9 @@ Vue.component('detail-modal', {
               <a v-if="editable.source_url" :href="editable.source_url" target="_blank">{{ editable.source_url }}</a>\
               <span v-else>-</span>\
             </span>\
-            <span class="label">类目</span><span class="value">{{ editable.category && (editable.category.leafCategoryName || editable.category.categoryPath) || \'-\' }}</span>\
+            <span class="label">类目</span><span class="value"><i-input v-model="editable.customCategory" placeholder="自定义类目" style="width:500px" /></span>\
             <span class="label">标题</span><span class="value">\
-              <i-input v-model="editable.title" />\
+              <i-input v-model="editable.title" type="textarea" :rows="2" style="width:500px" />\
             </span>\
             <span class="label">采集时间</span><span class="value">{{ editable.created_at || \'-\' }}</span>\
             <span class="label">状态</span><span class="value">\
