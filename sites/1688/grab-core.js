@@ -1064,4 +1064,22 @@ document.getElementById("setShowZip").addEventListener("change",function(){var o
   setupCopyIcons();
   var _copyIconObserver = new MutationObserver(function () { setupCopyIcons(); });
   _copyIconObserver.observe(document.body, { childList: true, subtree: true });
+
+  // Cross-tab: clear result window selections when notified
+  if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+    chrome.runtime.onMessage.addListener(function (msg) {
+      if (msg.action === 'clearResultSelections') {
+        _resultWindows.forEach(function (w) {
+          try {
+            w.document.querySelectorAll('.ci').forEach(function (c) {
+              c.checked = false;
+              if (c.closest('.card')) c.closest('.card').classList.remove('on');
+            });
+            if (typeof w.updateCount === 'function') w.updateCount();
+            if (typeof w._autoCopyUpdate === 'function') w._autoCopyUpdate();
+          } catch (e) {}
+        });
+      }
+    });
+  }
 })();

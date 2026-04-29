@@ -50,15 +50,17 @@
     '<div id="__dxm_bee_btns">' +
     '<div id="__dxm_bee_translate" title="一键翻译">翻译</div>' +
     '<div class="__dxm_bee_line"></div>' +
+    '<div id="__dxm_bee_delete" title="一键清空图片+视频">删图</div>' +
+    '<div class="__dxm_bee_line"></div>' +
     '<div id="__dxm_bee_paste" title="一键粘贴图片URL">贴图</div>' +
     '<div class="__dxm_bee_line" id="__dxm_bee_line_sku_table"></div>' +
     '<div id="__dxm_bee_sku_table" title="SKU表格填充">填表</div>' +
     '<div class="__dxm_bee_line" id="__dxm_bee_line_after_sku_table"></div>' +
     '<div id="__dxm_bee_sku" title="一键SKU过滤">SKU</div>' +
     '<div class="__dxm_bee_line"></div>' +
-    '<div id="__dxm_bee_edit" title="一键编辑描述">描述</div>' +
+    '<div id="__dxm_bee_package" title="自动设置外包装">包装</div>' +
     '<div class="__dxm_bee_line"></div>' +
-    '<div id="__dxm_bee_delete" title="一键清空图片+视频">删图</div>' +
+    '<div id="__dxm_bee_edit" title="一键编辑描述">描述</div>' +
     '</div>';
 
   // ========== Styles ==========
@@ -98,6 +100,8 @@
     '#__dxm_bee_sku_table:hover{transform:scale(1.15)!important;box-shadow:0 4px 12px rgba(40,53,147,.5)}' +
     '#__dxm_bee_line_sku_table{display:none}' +
     '#__dxm_bee_line_after_sku_table{display:none}' +
+    '#__dxm_bee_package{margin-top:3px;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#8D6E63,#4E342E);color:#fff;font:bold 12px/1 "楷体","KaiTi","STKaiti",serif;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(78,52,46,.35);transition:box-shadow .2s;user-select:none;text-shadow:0 1px 2px rgba(0,0,0,.15)}' +
+    '#__dxm_bee_package:hover{transform:scale(1.15)!important;box-shadow:0 4px 12px rgba(78,52,46,.5)}' +
     // ========== 便签样式 ==========
     '#__dxm_bee_note{position:fixed;z-index:2147483646;font:12px/1.6 "Microsoft YaHei",Arial,sans-serif}' +
     '#__dxm_bee_note_drag{display:flex;align-items:center;justify-content:space-between;cursor:move;padding:4px}' +
@@ -1341,6 +1345,120 @@
         return true;
       }, null);
       finishWork();
+    }
+  }
+
+  // ========== Cross-tab: notify 1688 to clear selections ==========
+  function notifyClearResult() {
+    try { chrome.runtime.sendMessage({ action: 'clearResultSelections' }); } catch (e) {}
+  }
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) notifyClearResult();
+  });
+
+  // ========== 包装按钮 ==========
+  if (isWorkPage) {
+    var pkgEl = document.getElementById('__dxm_bee_package');
+    if (pkgEl) {
+      pkgEl.addEventListener('click', function () {
+        var pkgSection = document.querySelector('#packageInfo');
+        if (pkgSection) pkgSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        doPackage();
+      });
+    }
+
+    function doPackage() {
+      var pkgStep = 0;
+      var pkgTotal = 3;
+      function pkgLog(msg) {
+        pkgStep++;
+        showBubble(pkgStep + '/' + pkgTotal + ' ' + msg, 'loading');
+      }
+
+      pkgLog('选择外包装形状...');
+      waitForAntSelect('外包装形状', function (sel) {
+        if (!sel) { showBubble('❌ 未找到外包装形状', 'err'); setTimeout(hideBubble, 2000); return; }
+        sel.scrollIntoView({ block: 'center' });
+        setTimeout(function () {
+          forceOpenAntSelect(sel);
+          waitForElement('.ant-select-item-option[title="不规则"]', 3000, function (opt) {
+            if (!opt) { showBubble('❌ 未找到不规则选项', 'err'); setTimeout(hideBubble, 2000); return; }
+            opt.click();
+
+            setTimeout(function () {
+              pkgLog('选择外包装类型...');
+              waitForAntSelect('外包装类型', function (sel2) {
+                if (!sel2) { showBubble('❌ 未找到外包装类型', 'err'); setTimeout(hideBubble, 2000); return; }
+                forceOpenAntSelect(sel2);
+                waitForElement('.ant-select-item-option[title="软包装+硬物"]', 3000, function (opt2) {
+                  if (!opt2) { showBubble('❌ 未找到软包装+硬物', 'err'); setTimeout(hideBubble, 2000); return; }
+                  opt2.click();
+
+                  setTimeout(function () {
+                    doUpdatePkgImage(pkgLog, function () {
+                      showBubble('✅ 外包装设置完成', 'ok');
+                      setTimeout(hideBubble, 2000);
+                    });
+                  }, 300);
+                });
+              });
+            }, 300);
+          });
+        }, 300);
+      });
+    }
+
+    function doUpdatePkgImage(pkgLog, cb) {
+      var firstImg = document.querySelector('#productProductInfo .mainImage .img-list .img-item img.img-css');
+      if (!firstImg || !firstImg.src) { pkgLog('无轮播图，跳过外包装图片'); cb(); return; }
+      var imgUrl = firstImg.src;
+
+      var pkgImg = document.querySelector('#packageInfo .img-list .img-item img');
+      if (pkgImg && pkgImg.src === imgUrl) { pkgLog('外包装图片已是最新'); cb(); return; }
+
+      // 删除旧图
+      var pkgImgs = document.querySelectorAll('#packageInfo .img-list .img-item a.icon_delete');
+      if (pkgImgs.length > 0) {
+        pkgLog('更新外包装图片...');
+        (function deleteNext() {
+          var btn = document.querySelector('#packageInfo .img-list .img-item a.icon_delete');
+          if (!btn) { setTimeout(function () { openPkgNetworkImage(imgUrl, cb); }, 300); return; }
+          btn.click();
+          setTimeout(deleteNext, 50);
+        })();
+        return;
+      }
+
+      pkgLog('更新外包装图片...');
+      openPkgNetworkImage(imgUrl, cb);
+    }
+
+    function openPkgNetworkImage(imgUrl, cb) {
+      var pkgBtn = document.querySelector('#packageInfo .header button');
+      if (!pkgBtn || (pkgBtn.textContent || '').indexOf('选择图片') === -1) { cb(); return; }
+      hoverElement(pkgBtn);
+
+      Config.waitForVisibleLi('网络图片', 3000, function (webImgItem) {
+        if (!webImgItem) { cb(); return; }
+        webImgItem.click();
+
+        var start = Date.now();
+        (function checkModal() {
+          var modal = Config.findVisibleModal('从网络地址');
+          if (modal) {
+            var textarea = modal.querySelector('textarea.ant-input');
+            if (textarea) Config.setInputValue(textarea, imgUrl);
+            setTimeout(function () {
+              var addBtn = modal.querySelector('.ant-modal-footer .ant-btn-primary');
+              if (addBtn) addBtn.click();
+              cb();
+            }, 200);
+            return;
+          }
+          if (Date.now() - start > 5000) { cb(); return; }
+          requestAnimationFrame(checkModal);
+        })();
+      });
     }
   }
 })();

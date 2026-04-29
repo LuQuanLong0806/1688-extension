@@ -9,6 +9,7 @@
 
   if (pasteEl) {
     pasteEl.addEventListener('click', function () {
+      try { chrome.runtime.sendMessage({ action: 'clearResultSelections' }); } catch (e) {}
       var mainImg = document.querySelector('#productProductInfo .mainImage');
       if (mainImg) mainImg.scrollIntoView({ behavior: 'smooth', block: 'center' });
       doPasteImg();
@@ -17,6 +18,7 @@
 
   if (deleteEl) {
     deleteEl.addEventListener('click', function () {
+      try { chrome.runtime.sendMessage({ action: 'clearResultSelections' }); } catch (e) {}
       var mainImg = document.querySelector('#productProductInfo .mainImage');
       if (mainImg) mainImg.scrollIntoView({ behavior: 'smooth', block: 'center' });
       doDeleteImages();
@@ -33,41 +35,10 @@
     C.showBubble(pasteStep + '/' + pasteTotal + ' ' + msg, 'loading');
   }
 
-  // ========== Ant Select helpers ==========
-  function waitForAntSelect(labelText, cb) {
-    var start = Date.now();
-    (function check() {
-      var labels = document.querySelectorAll('#packageInfo .ant-form-item-label label');
-      for (var i = 0; i < labels.length; i++) {
-        if (labels[i].textContent.indexOf(labelText) !== -1) {
-          var formItem = labels[i].closest('.ant-form-item');
-          if (formItem) {
-            var sel = formItem.querySelector('.ant-select-selector');
-            if (sel) return cb(sel);
-          }
-        }
-      }
-      if (Date.now() - start > 5000) return cb(null);
-      requestAnimationFrame(check);
-    })();
-  }
-
-  function forceOpenAntSelect(selector) {
-    var rect = selector.getBoundingClientRect();
-    var cx = rect.left + rect.width / 2;
-    var cy = rect.top + rect.height / 2;
-    var opts = { bubbles: true, cancelable: true, view: window, clientX: cx, clientY: cy };
-    selector.dispatchEvent(new PointerEvent('pointerdown', opts));
-    selector.dispatchEvent(new MouseEvent('mousedown', opts));
-    selector.dispatchEvent(new PointerEvent('pointerup', opts));
-    selector.dispatchEvent(new MouseEvent('mouseup', opts));
-    selector.dispatchEvent(new MouseEvent('click', opts));
-  }
-
   // ========== Main flow ==========
   function doPasteImg() {
     pasteStep = 0;
-    pasteTotal = 7;
+    pasteTotal = 5;
     console.log('%c[小蜜蜂-粘] 一键粘贴图片URL 开始', 'color:#AB47BC;font-weight:bold;font-size:14px');
 
     pasteLog('读取剪贴板...');
@@ -125,7 +96,9 @@
           var modal = C.findVisibleModal('从网络地址');
           if (modal) {
             fillAndAdd(modal, clipText, function () {
-              setTimeout(selectPackageOptions, 500);
+              console.log('%c[小蜜蜂-粘] ✅ 粘图完成', 'color:#AB47BC;font-weight:bold;font-size:14px');
+              C.showBubble('✅ 粘图完成', 'ok');
+              setTimeout(C.hideBubble, 2000);
             });
             return;
           }
@@ -167,58 +140,6 @@
       addBtn.click();
       if (callback) callback();
     }, 250);
-  }
-
-  // ========== Auto-select package shape and type ==========
-  function selectPackageOptions() {
-    // Step 6: Select package shape
-    pasteLog('选择外包装形状...');
-    waitForAntSelect('外包装形状', function (sel) {
-      if (!sel) {
-        C.showBubble('❌ 未找到外包装形状', 'err');
-        setTimeout(C.hideBubble, 2000);
-        return;
-      }
-      sel.scrollIntoView({ block: 'center' });
-      setTimeout(function () {
-        forceOpenAntSelect(sel);
-
-        C.waitForElement('.ant-select-item-option[title="不规则"]', 3000, function (opt) {
-          if (!opt) {
-            C.showBubble('❌ 未找到不规则选项', 'err');
-            setTimeout(C.hideBubble, 2000);
-            return;
-          }
-          opt.click();
-          console.log('%c[小蜜蜂-粘] 已选择外包装形状: 不规则', 'color:#AB47BC;font-weight:bold');
-
-          // Step 7: Select package type
-          setTimeout(function () {
-            pasteLog('选择外包装类型...');
-            waitForAntSelect('外包装类型', function (sel2) {
-              if (!sel2) {
-                C.showBubble('❌ 未找到外包装类型', 'err');
-                setTimeout(C.hideBubble, 2000);
-                return;
-              }
-              forceOpenAntSelect(sel2);
-
-              C.waitForElement('.ant-select-item-option[title="软包装+硬物"]', 3000, function (opt2) {
-                if (!opt2) {
-                  C.showBubble('❌ 未找到软包装+硬物选项', 'err');
-                  setTimeout(C.hideBubble, 2000);
-                  return;
-                }
-                opt2.click();
-                console.log('%c[小蜜蜂-粘] ✅ 全部完成', 'color:#AB47BC;font-weight:bold;font-size:14px');
-                C.showBubble('✅ 粘图+外包装选项已完成', 'ok');
-                setTimeout(C.hideBubble, 2000);
-              });
-            });
-          }, 300);
-        });
-      }, 300);
-    });
   }
 
   // ========== Delete workflow ==========
