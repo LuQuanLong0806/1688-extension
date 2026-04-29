@@ -36,6 +36,9 @@
     var descImages = [];
     var detailImages = [];
 
+    // 排除 icon/svg 图片
+    function isIcon(src) { return /\.svg(\?|$)/i.test(src); }
+
     // 排除推荐/搭配商品区域的图片
     var excludeSelectors = ['#shopProductRecommend', '#shopProductCombine'];
     function isExcluded(el) {
@@ -45,16 +48,16 @@
       return false;
     }
 
-    // 主图：从 gallery preview 区提取 img.preview-img
-    var galleryPreview = document.querySelector('#gallery .od-gallery-preview');
-    if (galleryPreview) {
-      galleryPreview.querySelectorAll('img.preview-img').forEach(function (img) {
-        if (isExcluded(img)) return;
+    // 主图：只从 od-gallery-list 内的 img 采集
+    var galleryList = document.querySelector('#gallery .od-gallery-preview .od-gallery-list');
+    if (galleryList) {
+      galleryList.querySelectorAll('li img').forEach(function (img) {
         var src = img.src || img.getAttribute('data-src') || img.getAttribute('data-lazy-src') || '';
         if (!src || src.indexOf('data:') === 0) return;
         if (src.indexOf('//') === 0) src = 'https:' + src;
         src = src.replace(/\?x-oss-process=.*$/i, '');
-        if (src.indexOf('alicdn') !== -1 && mainImages.indexOf(src) === -1) {
+        src = src.replace(/\.webp$/i, '');
+        if (src.indexOf('alicdn') !== -1 && !isIcon(src) && mainImages.indexOf(src) === -1) {
           mainImages.push(src);
         }
       });
@@ -69,7 +72,7 @@
         if (!src || src.indexOf('data:') === 0) return;
         if (src.indexOf('//') === 0) src = 'https:' + src;
         src = src.replace(/\?x-oss-process=.*$/i, '');
-        if (src.indexOf('alicdn') !== -1 && descImages.indexOf(src) === -1) {
+        if (src.indexOf('alicdn') !== -1 && !isIcon(src) && descImages.indexOf(src) === -1) {
           descImages.push(src);
         }
       });
@@ -99,7 +102,7 @@
         if (!src || src.indexOf('data:') === 0) return;
         if (src.indexOf('//') === 0) src = 'https:' + src;
         src = src.replace(/\?x-oss-process=.*$/i, '');
-        if (src.indexOf('alicdn') !== -1 && detailImages.indexOf(src) === -1) {
+        if (src.indexOf('alicdn') !== -1 && !isIcon(src) && detailImages.indexOf(src) === -1) {
           detailImages.push(src);
         }
       });

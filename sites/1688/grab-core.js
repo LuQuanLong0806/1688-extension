@@ -162,6 +162,7 @@
       )
         return;
       if (/\.gif(\?|$)/i.test(normalized)) return;
+      if (/\.svg(\?|$)/i.test(normalized)) return;
 
       if (urlMap.has(normalized)) {
         var existing = urlMap.get(normalized);

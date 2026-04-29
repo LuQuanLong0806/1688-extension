@@ -360,25 +360,21 @@
     });
   }
 
-  // 类目设置成功后，读取实际值并回传服务器
+  // 类目设置成功后，只收集类目到库
   function onCategorySet(catListEl, cId, done) {
     setTimeout(function () {
       var el = document.querySelector('.category-list') || catListEl;
-      if (!el || !cId) { if (done) done(); return; }
+      if (!el) { if (done) done(); return; }
       var text = el.textContent.trim();
       if (!text) { if (done) done(); return; }
       var parts = text.split(/\s*>\s*/);
       var leafName = parts[parts.length - 1];
-      console.log('%c[自动填表] 回传店小秘类目: collectId=' + cId + ', path=' + parts.join('/') + ', leafName=' + leafName, 'color:#AB47BC;font-weight:bold');
-      fetch(getServerUrl() + '/api/product/dxm-category', {
+      console.log('%c[自动填表] 收集店小秘类目: ' + parts.join('/'), 'color:#AB47BC;font-weight:bold');
+      // 只收集到类目库
+      fetch(getServerUrl() + '/api/dxm-category/collect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          collectId: cId,
-          dxmCategory: { path: parts.join('/'), leafName: leafName }
-        })
-      }).then(function () {
-        console.log('%c[自动填表] 店小秘类目已回传: ' + parts.join('/'), 'color:#52c41a;font-weight:bold');
+        body: JSON.stringify({ path: parts.join('/'), leafName: leafName })
       }).catch(function () {}).finally(function () {
         if (done) done();
       });
