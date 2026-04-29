@@ -36,10 +36,6 @@
         <aside class="admin-sidebar" :class="{ collapsed: sidebarCollapsed }">
           <ul class="sidebar-menu">
             <li class="menu-group-title">主菜单</li>
-            <li class="menu-item" :class="{ active: currentView === 'page-dashboard' }" @click="switchView('page-dashboard')">
-              <i class="menu-icon">📊</i>
-              <span class="menu-text">仪表盘</span>
-            </li>
             <li class="menu-item" :class="{ active: currentView === 'page-products' }" @click="switchView('page-products')">
               <i class="menu-icon">📦</i>
               <span class="menu-text">商品管理</span>
@@ -47,6 +43,10 @@
             <li class="menu-item" :class="{ active: currentView === 'page-categories' }" @click="switchView('page-categories')">
               <i class="menu-icon">🏷️</i>
               <span class="menu-text">类目映射</span>
+            </li>
+            <li class="menu-item" :class="{ active: currentView === 'page-dashboard' }" @click="switchView('page-dashboard')">
+              <i class="menu-icon">📊</i>
+              <span class="menu-text">仪表盘</span>
             </li>
           </ul>
           <div class="sidebar-toggle" @click="sidebarCollapsed = !sidebarCollapsed" :title="sidebarCollapsed ? '展开菜单' : '收起菜单'">

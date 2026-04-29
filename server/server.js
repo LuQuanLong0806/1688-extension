@@ -238,6 +238,15 @@ app.get('/api/product/categories', (req, res) => {
   res.json(rows.map(r => r.name));
 });
 
+// 获取店小秘类目列表（去重）
+app.get('/api/product/dxm-categories', (req, res) => {
+  const rows = getAll("SELECT DISTINCT dxm_category FROM products WHERE dxm_category IS NOT NULL AND dxm_category != '' ORDER BY dxm_category");
+  const list = rows.map(r => {
+    try { return JSON.parse(r.dxm_category); } catch (e) { return null; }
+  }).filter(Boolean);
+  res.json(list);
+});
+
 // 类目偏好 Top20
 app.get('/api/product/category-top', (req, res) => {
   const rows = getAll('SELECT name, count FROM categories ORDER BY count DESC LIMIT 10');
@@ -340,6 +349,7 @@ app.get('/api/product', (req, res) => {
   const keyword = (req.query.keyword || '').trim();
   const status = req.query.status;
   const category = (req.query.category || '').trim();
+  const dxmCategory = (req.query.dxmCategory || '').trim();
 
   let where = [];
   let params = [];
@@ -356,6 +366,12 @@ app.get('/api/product', (req, res) => {
     where.push('category LIKE ?');
     params.push(`%${category}%`);
   }
+  if (dxmCategory === '_none') {
+    where.push('(dxm_category IS NULL OR dxm_category = \'\')');
+  } else if (dxmCategory) {
+    where.push('dxm_category LIKE ?');
+    params.push(`%${dxmCategory}%`);
+  }
 
   const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
 
@@ -366,7 +382,7 @@ app.get('/api/product', (req, res) => {
   const list = getAll(
     `SELECT id, source_url, title, category, custom_category, dxm_category, attrs, skus, status, created_at, updated_at
      FROM products ${whereClause}
-     ORDER BY created_at DESC, id DESC
+     ORDER BY status ASC, created_at DESC, id DESC
      LIMIT ? OFFSET ?`,
     [...params, pageSize, offset]
   );
@@ -535,6 +551,62 @@ app.get('/api/dxm-category/unmapped', (req, res) => {
     };
   }).filter(r => r.unmappedProducts > 0);
   res.json(result);
+});
+
+// 搜索所有1688类目（含已映射），返回类目名+当前映射的店小秘类目
+app.get('/api/dxm-category/search', (req, res) => {
+  const keyword = (req.query.keyword || '').trim();
+  let rows;
+  if (keyword) {
+    rows = getAll(
+      "SELECT c.name, c.count as product_count FROM categories c WHERE c.name != '' AND c.name LIKE ? ORDER BY c.count DESC",
+      ['%' + keyword + '%']
+    );
+  } else {
+    rows = getAll(
+      "SELECT c.name, c.count as product_count FROM categories c WHERE c.name != '' ORDER BY c.count DESC"
+    );
+  }
+  const result = rows.map(r => {
+    // 取该类目下第一个有 dxm_category 的商品的映射值
+    const mapped = getOne(
+      "SELECT dxm_category FROM products WHERE category LIKE ? AND dxm_category IS NOT NULL AND dxm_category != '' LIMIT 1",
+      ['%"' + r.name + '"%']
+    );
+    const total = getOne(
+      "SELECT COUNT(*) as cnt FROM products WHERE category LIKE ?",
+      ['%"' + r.name + '"%']
+    );
+    const unmapped = getOne(
+      "SELECT COUNT(*) as cnt FROM products WHERE category LIKE ? AND (dxm_category IS NULL OR dxm_category = '')",
+      ['%"' + r.name + '"%']
+    );
+    let dxmCategory = null;
+    if (mapped && mapped.dxm_category) {
+      try { dxmCategory = JSON.parse(mapped.dxm_category); } catch (e) {}
+    }
+    return {
+      name: r.name,
+      totalProducts: total ? total.cnt : 0,
+      unmappedProducts: unmapped ? unmapped.cnt : 0,
+      dxmCategory: dxmCategory
+    };
+  });
+  res.json(result);
+});
+
+// 重新映射：更新该类目下所有商品（包括已映射的）
+app.post('/api/dxm-category/remap', (req, res) => {
+  let { categoryName, dxmCategory } = req.body;
+  if (!categoryName || !dxmCategory) return res.status(400).json({ error: 'Missing params' });
+  categoryName = categoryName.trim();
+  const cleanPath = (dxmCategory.path || '').replace(/\s+/g, '');
+  const parts = cleanPath.split('/');
+  const leafName = parts[parts.length - 1] || cleanPath;
+  const dxmVal = JSON.stringify({ path: cleanPath, leafName: leafName });
+  run("UPDATE products SET dxm_category = ?, updated_at = CURRENT_TIMESTAMP WHERE category LIKE ?",
+    [dxmVal, '%"' + categoryName + '"%']);
+  res.json({ ok: true });
 });
 
 // 智能匹配：对指定1688类目名，返回候选DXM类目

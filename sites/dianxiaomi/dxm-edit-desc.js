@@ -10,6 +10,17 @@
     var descSection = document.querySelector('#describeInfo');
     if (descSection) descSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
     doEditDesc();
+    // 有 collectId 时标记为已使用
+    var params = new URLSearchParams(location.search);
+    var collectId = params.get('collectId');
+    if (collectId) {
+      var serverUrl = (C && C.getServerUrl ? C.getServerUrl() : localStorage.getItem('1688_server_url')) || 'http://localhost:3000';
+      fetch(serverUrl + '/api/product/' + collectId, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 1 })
+      }).catch(function () {});
+    }
   });
 
   // ========== Helper: hover with coords ==========

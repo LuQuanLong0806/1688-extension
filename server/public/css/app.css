@@ -325,10 +325,31 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 20px;
+  padding: 10px 20px 18px;
   border-bottom: 1px solid #f0f0f0;
   font-size: 14px;
   color: #888;
+}
+
+.status-tag {
+  display: inline-block;
+  padding: 2px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  line-height: 20px;
+  white-space: nowrap;
+}
+.status-unused {
+  background: rgba(82, 196, 26, 0.1);
+  color: #52c41a;
+  border: 1px solid rgba(82, 196, 26, 0.3);
+}
+.status-used {
+  background: rgba(255, 77, 79, 0.08);
+  color: #ff4d4f;
+  border: 1px solid rgba(255, 77, 79, 0.25);
 }
 
 .action-bar-left strong {
@@ -573,7 +594,7 @@ body {
   padding: 10px 24px;
   border-top: 1px solid #f0f0f0;
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   gap: 8px;
   align-items: center;
   background: #fff;

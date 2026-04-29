@@ -11,8 +11,10 @@ Vue.component('page-products', {
       statusFilter: 'all',
       categoryFilter: '',
       categoryList: [],
+      dxmCategoryFilter: '',
+      dxmCategoryList: [],
       selectedIds: [],
-      quoteProductId: '',
+      quoteProductId: localStorage.getItem('dxm_quote_product_id') || '',
       editingCatId: -1,
       columns: [],
       _pollTimer: null
@@ -145,19 +147,18 @@ Vue.component('page-products', {
       },
       {
         title: '店小秘类目',
-        width: 180,
+        minWidth: 180,
         render: function (h, params) {
           var dxmCat = params.row.dxmCategory;
           if (!dxmCat || !dxmCat.leafName) return h('span', { style: { color: '#ccc' } }, '-');
           var path = dxmCat.path || dxmCat.leafName;
-          var short = path.length > 25 ? path.substring(0, 25) + '...' : path;
           return h(
             'span',
             {
               attrs: { title: path },
-              style: { fontSize: '12px', color: '#ff6a00' }
+              style: { fontSize: '12px', color: '#ff6a00', wordBreak: 'break-all', lineHeight: '1.4' }
             },
-            short
+            path
           );
         }
       },
@@ -223,27 +224,19 @@ Vue.component('page-products', {
       },
       {
         title: '使用状态',
-        width: 120,
+        width: 100,
         align: 'center',
         render: function (h, params) {
-          return h('i-switch', {
-            props: {
-              value: params.row.status === 0,
-              trueColor: '#52c41a',
-              falseColor: '#d9d9d9'
-            },
-            on: {
-              'on-change': function (val) {
-                vm.toggleStatus(params.row);
-              }
-            }
-          });
+          var used = params.row.status === 1;
+          return h('span', {
+            class: used ? 'status-tag status-used' : 'status-tag status-unused'
+          }, used ? '已使用' : '未使用');
         }
       },
       { title: '采集时间', key: 'created_at', width: 200 },
       {
         title: '操作',
-        width: 240,
+        width: 180,
         align: 'center',
         className: 'col-actions',
         fixed: 'right',
@@ -262,28 +255,10 @@ Vue.component('page-products', {
               [
                 h('Button', {
                   props: { type: 'primary', size: 'small', icon: 'ios-eye' },
+                  style: { minWidth: '36px' },
                   on: {
                     click: function () {
                       vm.$root.openDetail(row.id);
-                    }
-                  }
-                })
-              ]
-            ),
-            h(
-              'Tooltip',
-              {
-                props: { content: '新建打开', placement: 'top', transfer: true }
-              },
-              [
-                h('Button', {
-                  props: { size: 'small', icon: 'md-open' },
-                  on: {
-                    click: function () {
-                      window.open(
-                        'https://www.dianxiaomi.com/web/temu/add',
-                        '_blank'
-                      );
                     }
                   }
                 })
@@ -297,6 +272,7 @@ Vue.component('page-products', {
               [
                 h('Button', {
                   props: { size: 'small', icon: 'ios-link' },
+                  style: { minWidth: '36px' },
                   on: {
                     click: function () {
                       vm.openQuoteEdit(row.id);
@@ -311,6 +287,7 @@ Vue.component('page-products', {
               [
                 h('Button', {
                   props: { type: 'error', size: 'small', icon: 'ios-trash' },
+                  style: { minWidth: '36px' },
                   on: {
                     click: function () {
                       vm.deleteProduct(row.id);
@@ -327,6 +304,7 @@ Vue.component('page-products', {
   mounted: function () {
     this.loadList(1);
     this.loadCategories();
+    this.loadDxmCategories();
     this.startPoll();
   },
   beforeDestroy: function () {
@@ -346,12 +324,14 @@ Vue.component('page-products', {
     loadCategories: function () {
       var vm = this;
       fetch('/api/product/categories')
-        .then(function (r) {
-          return r.json();
-        })
-        .then(function (list) {
-          vm.categoryList = list;
-        });
+        .then(function (r) { return r.json(); })
+        .then(function (list) { vm.categoryList = list; });
+    },
+    loadDxmCategories: function () {
+      var vm = this;
+      fetch('/api/product/dxm-categories')
+        .then(function (r) { return r.json(); })
+        .then(function (list) { vm.dxmCategoryList = list; });
     },
     loadList: function (p) {
       var vm = this;
@@ -365,6 +345,7 @@ Vue.component('page-products', {
       if (vm.statusFilter && vm.statusFilter !== 'all')
         params.set('status', vm.statusFilter);
       if (vm.categoryFilter) params.set('category', vm.categoryFilter);
+      if (vm.dxmCategoryFilter) params.set('dxmCategory', vm.dxmCategoryFilter);
       fetch('/api/product?' + params.toString())
         .then(function (r) {
           return r.json();
@@ -377,18 +358,6 @@ Vue.component('page-products', {
         .catch(function () {
           vm.loading = false;
         });
-    },
-    toggleStatus: function (row) {
-      var vm = this;
-      var ns = row.status === 0 ? 1 : 0;
-      fetch('/api/product/' + row.id, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: ns })
-      }).then(function () {
-        row.status = ns;
-        vm.$root.loadStats();
-      });
     },
     onPageChange: function (p) {
       this.loadList(p);
@@ -411,6 +380,19 @@ Vue.component('page-products', {
           id,
         '_blank'
       );
+    },
+    saveQuoteId: function () {
+      var vm = this;
+      var val = (vm.quoteProductId || '').trim();
+      if (!val) return;
+      // 校验：纯数字，15-20位
+      if (!/^\d{15,20}$/.test(val)) {
+        vm.$Message.warning('请输入正确的店小秘ID');
+        vm.quoteProductId = '';
+        return;
+      }
+      localStorage.setItem('dxm_quote_product_id', val);
+      vm.$Message.success('已保存');
     },
     openSource: function (url) {
       if (url) window.open(url, '_blank');
@@ -463,18 +445,25 @@ Vue.component('page-products', {
         <i-select v-model="categoryFilter" clearable filterable placeholder="全部类目" style="width:150px" @on-change="loadList(1)">\
           <i-option v-for="c in categoryList" :key="c" :value="c">{{ c }}</i-option>\
         </i-select>\
+        <i-select v-model="dxmCategoryFilter" clearable filterable placeholder="店小秘类目" style="width:160px" @on-change="loadList(1)">\
+          <i-option value="_none">未映射</i-option>\
+          <i-option v-for="d in dxmCategoryList" :key="d.path" :value="d.leafName">{{ d.leafName }}</i-option>\
+        </i-select>\
         <i-button type="primary" icon="ios-search" @click="loadList(1)">搜索</i-button>\
       </div>\
       <div class="action-bar">\
         <div class="action-bar-left">共采集 <strong>{{ total }}</strong> 条数据</div>\
-        <div class="action-bar-right">\
-          <i-input v-model="quoteProductId" placeholder="请输入店小秘引用产品的id" clearable style="width:260px;margin-right:8px" />\
-          <i-button type="error" icon="ios-trash" size="small"\
+        <div class="action-bar-right" style="position:relative">\
+          <div style="position:relative;margin-right:8px">\
+            <i-input v-model="quoteProductId" placeholder="店小秘引用产品ID" search enter-button="保存" style="width:240px" @on-search="saveQuoteId" />\
+            <span style="position:absolute;left:2px;top:100%;font-size:11px;color:#999;white-space:nowrap">输入店小秘产品ID后点击保存</span>\
+          </div>\
+          <i-button type="error" icon="ios-trash"\
             :disabled="selectedIds.length === 0"\
             @click="batchDelete">\
             批量删除{{ selectedIds.length ? \' (\' + selectedIds.length + \')\' : \'\' }}\
           </i-button>\
-          <tooltip content="刷新" placement="top"><i-button icon="md-refresh" shape="circle" size="small" @click="loadList()"></i-button></tooltip>\
+          <tooltip content="刷新" placement="top"><i-button icon="md-refresh" shape="circle" @click="loadList()"></i-button></tooltip>\
         </div>\
       </div>\
       <i-table :columns="columns" :data="list" :loading="loading" stripe\

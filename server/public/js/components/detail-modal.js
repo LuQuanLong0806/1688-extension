@@ -295,15 +295,17 @@ Vue.component('detail-modal', {
               <a v-if="editable.source_url" :href="editable.source_url" target="_blank">{{ editable.source_url }}</a>\
               <span v-else>-</span>\
             </span>\
-            <span class="label">类目</span><span class="value"><i-input v-model="editable.customCategory" placeholder="自定义类目" style="width:500px" /></span>\
+            <span class="label">类目</span><span class="value"><i-input v-model="editable.customCategory" placeholder="自定义类目" style="width:100%;font-size:14px" /></span>\
+            <span class="label">店小秘类目</span><span class="value">\
+              <span v-if="editable.dxmCategory" style="color:#ff6a00;font-size:14px">{{ editable.dxmCategory.path || editable.dxmCategory.leafName }}</span>\
+              <span v-else style="color:#ccc">-</span>\
+            </span>\
             <span class="label">标题</span><span class="value">\
-              <i-input v-model="editable.title" type="textarea" :rows="2" style="width:500px" />\
+              <i-input v-model="editable.title" type="textarea" :rows="2" style="width:100%;font-size:14px" />\
             </span>\
             <span class="label">采集时间</span><span class="value">{{ editable.created_at || \'-\' }}</span>\
             <span class="label">状态</span><span class="value">\
-              <span :class="\'status-dot \' + (editable.status === 0 ? \'unused\' : \'used\')" style="cursor:pointer" @click="toggleStatus">\
-                {{ editable.status === 0 ? \'未使用\' : \'已使用\' }}\
-              </span>\
+              <span :class="\'status-tag \' + (editable.status === 0 ? \'status-unused\' : \'status-used\')">{{ editable.status === 0 ? \'未使用\' : \'已使用\' }}</span>\
             </span>\
           </div>\
         </div>\
@@ -360,6 +362,9 @@ Vue.component('detail-modal', {
         <!-- 底部固定操作栏 -->\
         <div class="detail-footer-fixed">\
           <i-button type="primary" icon="md-checkmark" @click="saveProduct">保存</i-button>\
+          <i-button :type="editable.status === 0 ? \'success\' : \'error\'" @click="toggleStatus">\
+            {{ editable.status === 0 ? \'标记已使用\' : \'标记未使用\' }}\
+          </i-button>\
           <i-button icon="md-close" @click="close">关闭</i-button>\
         </div>\
       </template>\
