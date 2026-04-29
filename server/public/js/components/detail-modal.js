@@ -155,6 +155,20 @@ Vue.component('detail-modal', {
           </div>\
         </div>\
         \
+        <!-- 详情图 -->\
+        <div class="detail-section" v-if="editable.detail_images && editable.detail_images.length">\
+          <div class="detail-section-title">详情图 ({{ editable.detail_images.length }})</div>\
+          <div class="img-grid">\
+            <div class="img-item" v-for="(url, i) in editable.detail_images" :key="\'di\'+i"\
+              @click="openPreview(editable.detail_images, i)">\
+              <img :src="url" loading="lazy"\
+                @mouseenter="onSkuImgEnter(url, $event)"\
+                @mousemove="onSkuImgMove($event)"\
+                @mouseleave="onSkuImgLeave" />\
+            </div>\
+          </div>\
+        </div>\
+        \
         <!-- SKU图 -->\
         <div class="detail-section" v-if="skuImages.length">\
           <div class="detail-section-title">SKU图 ({{ skuImages.length }})</div>\

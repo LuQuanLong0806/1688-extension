@@ -330,10 +330,11 @@
             _log('  来源:', data.sourceUrl);
             _log('  主图:', data.mainImages.length + '张', data.mainImages);
             _log('  描述图:', data.descImages.length + '张', data.descImages);
+            _log('  详情图:', (data.detailImages || []).length + '张', data.detailImages || []);
             _log('  属性:', data.attrs.length + '个', data.attrs);
             _log('  SKU:', data.skus.length + '个', JSON.parse(JSON.stringify(data.skus)));
 
-            var imgCount = data.mainImages.length + data.descImages.length;
+            var imgCount = data.mainImages.length + data.descImages.length + (data.detailImages || []).length;
             var skuCount = data.skus.length;
             var attrCount = data.attrs.length;
 

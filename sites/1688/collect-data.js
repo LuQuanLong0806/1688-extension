@@ -34,11 +34,12 @@
   function collectImages() {
     var mainImages = [];
     var descImages = [];
+    var detailImages = [];
 
-    // 主图：从 #gallery 下所有 img 提取
-    var gallery = document.getElementById('gallery');
-    if (gallery) {
-      gallery.querySelectorAll('img').forEach(function (img) {
+    // 主图：从 gallery preview 区提取 img.preview-img
+    var galleryPreview = document.querySelector('#gallery .od-gallery-preview');
+    if (galleryPreview) {
+      galleryPreview.querySelectorAll('img.preview-img').forEach(function (img) {
         var src = img.src || img.getAttribute('data-src') || img.getAttribute('data-lazy-src') || '';
         if (!src || src.indexOf('data:') === 0) return;
         if (src.indexOf('//') === 0) src = 'https:' + src;
@@ -79,7 +80,21 @@
       } catch (e) {}
     });
 
-    return { mainImages: mainImages.slice(0, 8), descImages: descImages };
+    // 详情图：从 v-detail-q Shadow DOM 提取
+    var detailQ = document.querySelector('#description .od-collapse-module .collapse-body v-detail-q');
+    if (detailQ && detailQ.shadowRoot) {
+      detailQ.shadowRoot.querySelectorAll('img').forEach(function (img) {
+        var src = img.src || img.getAttribute('data-src') || img.getAttribute('data-lazy-src') || '';
+        if (!src || src.indexOf('data:') === 0) return;
+        if (src.indexOf('//') === 0) src = 'https:' + src;
+        src = src.replace(/\?x-oss-process=.*$/i, '');
+        if (src.indexOf('alicdn') !== -1 && detailImages.indexOf(src) === -1) {
+          detailImages.push(src);
+        }
+      });
+    }
+
+    return { mainImages: mainImages.slice(0, 8), descImages: descImages, detailImages: detailImages };
   }
 
   function collectAttrs() {
@@ -111,48 +126,53 @@
   function collectSkusAsync(callback) {
     var packInfo = collectPackInfo();
 
-    // 1. 点击"SKU列表"按钮打开弹窗
-    var skuListBtn = null;
-    var toolbarItems = document.querySelectorAll('.ap-pdptoolbar__item-text');
-    for (var i = 0; i < toolbarItems.length; i++) {
-      if (toolbarItems[i].textContent.trim() === 'SKU列表') {
-        skuListBtn = toolbarItems[i];
-        break;
+    // 1. 点击"SKU列表"按钮打开弹窗（带5s重试）
+    var findStart = Date.now();
+    (function tryFindBtn() {
+      var skuListBtn = null;
+      var toolbarItems = document.querySelectorAll('.ap-pdptoolbar__item-text');
+      for (var i = 0; i < toolbarItems.length; i++) {
+        if (toolbarItems[i].textContent.trim() === 'SKU列表') {
+          skuListBtn = toolbarItems[i];
+          break;
+        }
       }
-    }
 
-    if (!skuListBtn) {
-      // 没有工具栏，回退到 DOM 直接提取
-      callback(collectSkusFallback(packInfo));
-      return;
-    }
-
-    skuListBtn.click();
-
-    // 2. 等待弹窗表格出现
-    var startTime = Date.now();
-    (function waitForTable() {
-      var modal = document.querySelector('.ap-sub-checkPlatformSku-modal');
-      var table = modal ? modal.querySelector('.ap-platformSKUs-table tbody') : null;
-      if (table && table.querySelectorAll('tr').length > 0) {
-        // 3. 解析表格
-        var skus = parseSkuTable(table, packInfo);
-
-        // 4. 关闭弹窗
-        var closeBtn = modal.querySelector('.ap-pop-prompt-modal__close');
-        if (closeBtn) closeBtn.click();
-        var footerCloseBtn = modal.querySelector('.ap-pop-prompt-modal__footer button');
-        if (!closeBtn && footerCloseBtn) footerCloseBtn.click();
-
-        callback(skus);
+      if (!skuListBtn) {
+        if (Date.now() - findStart > 5000) {
+          callback(collectSkusFallback(packInfo));
+          return;
+        }
+        requestAnimationFrame(tryFindBtn);
         return;
       }
-      if (Date.now() - startTime > 5000) {
-        // 超时，回退
-        callback(collectSkusFallback(packInfo));
-        return;
-      }
-      requestAnimationFrame(waitForTable);
+
+      skuListBtn.click();
+
+      // 2. 等待弹窗表格出现
+      var tableStart = Date.now();
+      (function waitForTable() {
+        var modal = document.querySelector('.ap-sub-checkPlatformSku-modal');
+        var table = modal ? modal.querySelector('.ap-platformSKUs-table tbody') : null;
+        if (table && table.querySelectorAll('tr').length > 0) {
+          // 3. 解析表格
+          var skus = parseSkuTable(table, packInfo);
+
+          // 4. 关闭弹窗
+          var closeBtn = modal.querySelector('.ap-pop-prompt-modal__close');
+          if (closeBtn) closeBtn.click();
+          var footerCloseBtn = modal.querySelector('.ap-pop-prompt-modal__footer button');
+          if (!closeBtn && footerCloseBtn) footerCloseBtn.click();
+
+          callback(skus);
+          return;
+        }
+        if (Date.now() - tableStart > 5000) {
+          callback(collectSkusFallback(packInfo));
+          return;
+        }
+        requestAnimationFrame(waitForTable);
+      })();
     })();
   }
 
@@ -346,6 +366,7 @@
         category: cat,
         mainImages: imgs.mainImages,
         descImages: imgs.descImages,
+        detailImages: imgs.detailImages,
         attrs: attrs,
         skus: skus
       });

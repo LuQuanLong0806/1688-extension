@@ -83,6 +83,7 @@ async function initDb() {
   `);
   // 增量添加 category 列（已存在则忽略）
   try { db.run('ALTER TABLE products ADD COLUMN category TEXT'); } catch (e) {}
+  try { db.run('ALTER TABLE products ADD COLUMN detail_images TEXT'); } catch (e) {}
 
   // 配置项表
   db.run(`
@@ -211,16 +212,17 @@ app.get('/api/product/category-top', (req, res) => {
 
 // 保存采集数据
 app.post('/api/product', (req, res) => {
-  const { sourceUrl, title, category, mainImages, descImages, attrs, skus } = req.body;
+  const { sourceUrl, title, category, mainImages, descImages, detailImages, attrs, skus } = req.body;
   db.run(
-    `INSERT INTO products (source_url, title, category, main_images, desc_images, attrs, skus)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO products (source_url, title, category, main_images, desc_images, detail_images, attrs, skus)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       sourceUrl || '',
       title || '',
       JSON.stringify(category || {}),
       JSON.stringify(mainImages || []),
       JSON.stringify(descImages || []),
+      JSON.stringify(detailImages || []),
       JSON.stringify(attrs || []),
       JSON.stringify(skus || [])
     ]
@@ -329,6 +331,7 @@ app.put('/api/product/:id', (req, res) => {
     sourceUrl: 'source_url',
     mainImages: 'main_images',
     descImages: 'desc_images',
+    detailImages: 'detail_images',
     attrs: 'attrs',
     skus: 'skus',
     status: 'status'
@@ -337,7 +340,7 @@ app.put('/api/product/:id', (req, res) => {
   for (const [key, col] of Object.entries(allowedFields)) {
     if (req.body[key] !== undefined) {
       let val = req.body[key];
-      if (['main_images', 'desc_images', 'attrs', 'skus'].includes(col) || Array.isArray(val)) {
+      if (['main_images', 'desc_images', 'detail_images', 'attrs', 'skus'].includes(col) || Array.isArray(val)) {
         val = JSON.stringify(val);
       }
       fields.push(`${col} = ?`);
@@ -377,6 +380,7 @@ function parseRow(row) {
     category: row.category ? JSON.parse(row.category) : {},
     main_images: JSON.parse(row.main_images || '[]'),
     desc_images: JSON.parse(row.desc_images || '[]'),
+    detail_images: JSON.parse(row.detail_images || '[]'),
     attrs: JSON.parse(row.attrs || '[]'),
     skus: JSON.parse(row.skus || '[]')
   };

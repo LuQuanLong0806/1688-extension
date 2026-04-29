@@ -162,6 +162,7 @@
   function startAutoFill(data) {
     // 计算总步骤
     autoTotal = 1; // 填标题
+    if (data.source_url) autoTotal += 1; // 填来源URL
     if (data.main_images && data.main_images.length) autoTotal += 3; // 贴主图（打开菜单+网络图片+填入添加）
     autoTotal += 1; // 删除产品视频
     if (data.desc_images && data.desc_images.length) autoTotal += 1; // 描述图（仅存储到全局）
@@ -173,6 +174,17 @@
 
     // Step 1: 填入标题
     fillTitle(data, function () {
+      // Step 1.5: 填入来源URL
+      if (data.source_url) {
+        fillSourceUrl(data.source_url, function () {
+          doPasteMainImages(data);
+        });
+      } else {
+        doPasteMainImages(data);
+      }
+    });
+
+    function doPasteMainImages(data) {
       // Step 2: 贴主图（主图 + 已选SKU图片，最多10张）
       var allImages = buildCarouselImages(data);
       if (allImages.length) {
@@ -199,7 +211,7 @@
       } else {
         autoFinish('自动填表完成（无主图数据）');
       }
-    });
+    }
   }
 
   // ========== Step 2.5: 删除产品视频 ==========
@@ -266,6 +278,20 @@
       if (confirmBtn) confirmBtn.click();
       setTimeout(function () { deleteNextVideo(formItem, count, cb); }, 200);
     }, 150);
+  }
+
+  // ========== Step 1.5: 填入来源URL ==========
+  function fillSourceUrl(url, cb) {
+    autoLog('填入来源URL...');
+    waitForElement('#dxmInfo input[name="sourceUrl"]', 5000, function (input) {
+      if (!input) { autoError('未找到来源URL输入框'); cb(); return; }
+
+      input.focus();
+      C.setInputValue(input, url);
+      input.blur();
+      autoLog('来源URL已填入');
+      setTimeout(cb, 200);
+    });
   }
 
   // ========== Step 1: 填入标题 ==========
@@ -433,38 +459,132 @@
     }, 250);
   }
 
-  // ========== Step 5: SKU 填充（先加变种属性，再填表格行） ==========
+  // ========== Step 5: SKU 填充（智能复用已有属性 + 动态添加） ==========
   function fillSkuTable(skus, cb) {
     // 筛选已勾选的 SKU
     var selectedSkus = skus.filter(function (s) { return s._selected !== false; });
     if (!selectedSkus.length) { autoLog('无已选SKU，跳过'); cb(); return; }
 
-    // 提取自定义名称作为变种属性值
+    // 提取自定义名称作为变种属性值，并清洗
     var attrValues = [];
+    var changeLogs = [];
     selectedSkus.forEach(function (s) {
       var name = s.customName || s.name || s.sku || '';
-      if (name) attrValues.push(name);
-    });
-
-    autoLog('取消现有变种属性勾选...');
-
-    // Step 1: 取消所有现有变种属性勾选
-    uncheckAllAttrs(function () {
-
-      // Step 2: 添加新的变种属性值
-      if (attrValues.length) {
-        autoLog('添加 ' + attrValues.length + ' 个变种属性...');
-        addAttrValues(attrValues, function () {
-
-          // Step 3: 等待表格重新渲染后填充数据
-          setTimeout(function () {
-            fillSkuTableRows(selectedSkus, cb);
-          }, 500);
-        });
-      } else {
-        fillSkuTableRows(selectedSkus, cb);
+      if (name) {
+        var result = sanitizeAttrValue(name);
+        if (result.changed || result.value !== name) {
+          changeLogs.push('"' + name + '" → "' + result.value + '" (' + result.reasons.join(', ') + ')');
+        }
+        attrValues.push(result.value);
       }
     });
+
+    // 有清洗变更时提醒
+    if (changeLogs.length > 0) {
+      console.log('%c[自动填表] ⚠️ 属性值被自动修改:\n' + changeLogs.join('\n'), 'color:#FF9800;font-weight:bold');
+      C.showBubble('⚠️ ' + changeLogs.length + '个属性值被自动过滤，请检查', 'warn');
+    }
+
+    autoLog('检查已有变种属性...');
+    setTimeout(function () {
+      smartFillAttrs(attrValues, function () {
+        // 等待表格重新渲染后填充数据
+        setTimeout(function () {
+          fillSkuTableRows(selectedSkus, cb);
+        }, 500);
+      });
+    }, changeLogs.length > 0 ? 3000 : 300);
+  }
+
+  // 智能复用已有属性：编辑现有 → 补充添加 → 取消多余
+  function smartFillAttrs(targetValues, cb) {
+    var form = document.querySelector('#skuAttrsInfo form');
+    if (!form) { cb(); return; }
+
+    // 获取所有现有属性标签
+    var allLabels = form.querySelectorAll('.options-module label.d-checkbox');
+    var existingCount = allLabels.length;
+    var targetCount = targetValues.length;
+
+    autoLog('已有属性 ' + existingCount + ' 个，需 ' + targetCount + ' 个');
+
+    if (existingCount === 0) {
+      // 无已有属性，直接添加
+      if (targetCount > 0) {
+        autoLog('添加 ' + targetCount + ' 个变种属性...');
+        doAddAttrValues(targetValues, function () { cb(); });
+      } else {
+        cb();
+      }
+      return;
+    }
+
+    // 先取消所有勾选
+    uncheckAllAttrs(function () {
+      // 复用已有属性：编辑前 N 个（N = min(已有, 需求)）
+      var reuseCount = Math.min(existingCount, targetCount);
+      var reuseValues = targetValues.slice(0, reuseCount);
+
+      autoLog('复用 ' + reuseCount + ' 个已有属性...');
+      renameAndCheckAttrs(allLabels, reuseValues, 0, function () {
+
+        if (existingCount >= targetCount) {
+          // 已有 >= 需要：取消多余的勾选（已经全部取消过了，只重新勾了 reuseCount 个）
+          autoLog('已复用 ' + reuseCount + ' 个属性，跳过 ' + (existingCount - targetCount) + ' 个多余属性');
+          cb();
+        } else {
+          // 已有 < 需要：添加剩余属性
+          var remainValues = targetValues.slice(reuseCount);
+          autoLog('添加 ' + remainValues.length + ' 个剩余属性...');
+          doAddAttrValues(remainValues, function () { cb(); });
+        }
+      });
+    });
+  }
+
+  // 逐个编辑已有属性值并勾选
+  function renameAndCheckAttrs(labels, values, idx, cb) {
+    if (idx >= values.length) { cb(); return; }
+
+    var label = labels[idx];
+    var targetText = values[idx];
+
+    // 读取当前文本
+    var textEl = label.querySelector('.theme-value-text');
+    var currentText = textEl ? (textEl.getAttribute('title') || textEl.textContent || '') : '';
+
+    function afterEdit() {
+      // 勾选此属性
+      var checkbox = label.querySelector('input[type="checkbox"]');
+      if (checkbox && !checkbox.checked) checkbox.click();
+      setTimeout(function () {
+        renameAndCheckAttrs(labels, values, idx + 1, cb);
+      }, 80);
+    }
+
+    if (currentText === targetText) {
+      // 文本一致，只需勾选
+      afterEdit();
+    } else {
+      // 需要编辑文本：点击编辑按钮 → 修改输入框 → 保存
+      var editBtn = label.querySelector('.btn-edit');
+      if (!editBtn) { afterEdit(); return; }
+
+      editBtn.click();
+      setTimeout(function () {
+        var input = label.querySelector('.edit-inp');
+        if (!input) { afterEdit(); return; }
+
+        C.setInputValue(input, targetText);
+
+        setTimeout(function () {
+          var saveBtn = label.querySelector('.btn-save');
+          if (saveBtn) saveBtn.click();
+          console.log('%c[自动填表] 属性编辑: "' + currentText + '" → "' + targetText + '"', 'color:#E65100;font-weight:bold');
+          setTimeout(afterEdit, 65);
+        }, 65);
+      }, 65);
+    }
   }
 
   // 取消所有变种属性勾选
@@ -509,8 +629,10 @@
     return { value: val, changed: reasons.length > 0, reasons: reasons };
   }
 
-  // 添加变种属性值
-  function addAttrValues(values, cb) {
+  // 动态添加新的变种属性值（通过输入框添加）
+  function doAddAttrValues(values, cb) {
+    if (!values.length) { cb(); return; }
+
     var addBox = document.querySelector('#skuAttrsInfo form .theme-value-add');
     if (!addBox) { cb(); return; }
 
@@ -518,51 +640,26 @@
     var addBtn = addBox.querySelector('button');
     if (!input || !addBtn) { cb(); return; }
 
-    // 先清洗所有值，收集变更
-    var cleaned = [];
-    var changeLogs = [];
-    for (var ci = 0; ci < values.length; ci++) {
-      var result = sanitizeAttrValue(values[ci]);
-      cleaned.push(result.value);
-      if (result.changed || result.value !== values[ci]) {
-        changeLogs.push('"' + values[ci] + '" → "' + result.value + '" (' + result.reasons.join(', ') + ')');
+    var idx = 0;
+    (function next() {
+      if (idx >= values.length) {
+        autoLog('已添加 ' + values.length + ' 个变种属性');
+        setTimeout(cb, 300);
+        return;
       }
-    }
 
-    // 有变更时在控制台打印并通过气泡提醒
-    if (changeLogs.length > 0) {
-      console.log('%c[自动填表] ⚠️ 属性值被自动修改:\n' + changeLogs.join('\n'), 'color:#FF9800;font-weight:bold');
-      C.showBubble('⚠️ ' + changeLogs.length + '个属性值被自动过滤，请检查', 'warn');
-      // 提醒显示3秒后继续执行
+      var val = values[idx];
+      idx++;
+
+      input.focus();
+      C.setInputValue(input, val);
+
       setTimeout(function () {
-        doAddValues(cleaned);
-      }, 3000);
-    } else {
-      doAddValues(cleaned);
-    }
-
-    function doAddValues(vals) {
-      var idx = 0;
-      (function next() {
-        if (idx >= vals.length) {
-          autoLog('已添加 ' + vals.length + ' 个变种属性');
-          setTimeout(cb, 300);
-          return;
-        }
-
-        var val = vals[idx];
-        idx++;
-
-        input.focus();
-        setInputValue(input, val);
-
-        setTimeout(function () {
-          var btn = addBox.querySelector('button');
-          if (btn && !btn.disabled) btn.click();
-          setTimeout(next, 100);
-        }, 80);
-      })();
-    }
+        var btn = addBox.querySelector('button');
+        if (btn && !btn.disabled) btn.click();
+        setTimeout(next, 100);
+      }, 80);
+    })();
   }
 
   // 填充 SKU 表格行数据
