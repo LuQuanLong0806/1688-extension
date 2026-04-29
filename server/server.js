@@ -156,6 +156,16 @@ async function initDb() {
 
 // ========== API ==========
 
+// Clear-signal for cross-tab communication (1688 result page ← server ← dianxiaomi)
+let _clearSignalTime = 0;
+app.get('/api/clear-signal', (req, res) => {
+  res.json({ clearAt: _clearSignalTime });
+});
+app.post('/api/clear-signal', (req, res) => {
+  _clearSignalTime = Date.now();
+  res.json({ ok: true });
+});
+
 // 获取所有配置
 app.get('/api/settings', (req, res) => {
   const rows = getAll('SELECT key, value FROM settings');

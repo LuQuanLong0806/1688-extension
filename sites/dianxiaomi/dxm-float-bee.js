@@ -1351,6 +1351,7 @@
   // ========== Cross-tab: notify 1688 to clear selections ==========
   function notifyClearResult() {
     try { chrome.runtime.sendMessage({ action: 'clearResultSelections' }); } catch (e) {}
+    try { fetch('http://localhost:3000/api/clear-signal', { method: 'POST' }).catch(function () {}); } catch (e) {}
   }
   document.addEventListener('visibilitychange', function () {
     if (!document.hidden) notifyClearResult();

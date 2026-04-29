@@ -10,6 +10,7 @@
   if (pasteEl) {
     pasteEl.addEventListener('click', function () {
       try { chrome.runtime.sendMessage({ action: 'clearResultSelections' }); } catch (e) {}
+      try { fetch('http://localhost:3000/api/clear-signal', { method: 'POST' }).catch(function () {}); } catch (e) {}
       var mainImg = document.querySelector('#productProductInfo .mainImage');
       if (mainImg) mainImg.scrollIntoView({ behavior: 'smooth', block: 'center' });
       doPasteImg();
@@ -19,6 +20,7 @@
   if (deleteEl) {
     deleteEl.addEventListener('click', function () {
       try { chrome.runtime.sendMessage({ action: 'clearResultSelections' }); } catch (e) {}
+      try { fetch('http://localhost:3000/api/clear-signal', { method: 'POST' }).catch(function () {}); } catch (e) {}
       var mainImg = document.querySelector('#productProductInfo .mainImage');
       if (mainImg) mainImg.scrollIntoView({ behavior: 'smooth', block: 'center' });
       doDeleteImages();
@@ -38,7 +40,7 @@
   // ========== Main flow ==========
   function doPasteImg() {
     pasteStep = 0;
-    pasteTotal = 5;
+    pasteTotal = 3;
     console.log('%c[小蜜蜂-粘] 一键粘贴图片URL 开始', 'color:#AB47BC;font-weight:bold;font-size:14px');
 
     pasteLog('读取剪贴板...');
@@ -49,7 +51,7 @@
         return;
       }
 
-      pasteLog('打开选择图片菜单');
+      pasteLog('打开网络图片弹窗');
       var labels = document.querySelectorAll('#productProductInfo .ant-form-item-label label');
       var mainImageLabel = null;
       for (var i = 0; i < labels.length; i++) {
@@ -88,7 +90,6 @@
           return;
         }
 
-        pasteLog('点击网络图片');
         webImgItem.click();
 
         var start = Date.now();
@@ -119,7 +120,7 @@
 
   // ========== Fill textarea + click add ==========
   function fillAndAdd(modal, urlText, callback) {
-    pasteLog('填入图片地址');
+    pasteLog('添加图片');
     var textarea = modal.querySelector('textarea.ant-input');
     if (!textarea) {
       C.showBubble('❌ 未找到输入框', 'err');
@@ -130,7 +131,6 @@
     C.setInputValue(textarea, urlText);
 
     setTimeout(function () {
-      pasteLog('添加图片');
       var addBtn = modal.querySelector('.ant-modal-footer .ant-btn-primary');
       if (!addBtn) {
         C.showBubble('❌ 未找到添加按钮', 'err');

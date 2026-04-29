@@ -808,6 +808,9 @@ document.getElementById("setShowZip").addEventListener("change",function(){var o
 	document.getElementById("setShowCopy").addEventListener("change",function(){var on=this.checked;localStorage.setItem("1688_set_showCopy",on);if(_copyBtn)_copyBtn.style.display=on?"":"none";});
 	document.getElementById("setAutoCopy").checked=_getSettingBool("1688_set_autoCopy",true);
 	document.getElementById("setAutoCopy").addEventListener("change",function(){localStorage.setItem("1688_set_autoCopy",this.checked);});
+	window.addEventListener("message",function(e){if(e.data&&e.data.action==="clearResultSelections"){document.querySelectorAll(".ci").forEach(function(c){c.checked=false;if(c.closest(".card"))c.closest(".card").classList.remove("on");});updateCount();_autoCopyUpdate();}});
+	window.addEventListener("storage",function(e){if(e.key==="__1688_clear_selections"){document.querySelectorAll(".ci").forEach(function(c){c.checked=false;if(c.closest(".card"))c.closest(".card").classList.remove("on");});updateCount();_autoCopyUpdate();}});
+	var __lastClearCheck=0;setInterval(function(){fetch("http://localhost:3000/api/clear-signal").then(function(r){return r.json();}).then(function(d){if(d.clearAt&&d.clearAt>__lastClearCheck){__lastClearCheck=d.clearAt;document.querySelectorAll(".ci").forEach(function(c){c.checked=false;if(c.closest(".card"))c.closest(".card").classList.remove("on");});updateCount();_autoCopyUpdate();}}).catch(function(){});},2000);
 </script>
 </body>
 </html>`;
@@ -1069,8 +1072,10 @@ document.getElementById("setShowZip").addEventListener("change",function(){var o
   if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
     chrome.runtime.onMessage.addListener(function (msg) {
       if (msg.action === 'clearResultSelections') {
+        console.log('%c[1688] 收到清空选中指令', 'color:#1890ff;font-weight:bold');
         _resultWindows.forEach(function (w) {
           try {
+            // Method 1: Direct DOM manipulation
             w.document.querySelectorAll('.ci').forEach(function (c) {
               c.checked = false;
               if (c.closest('.card')) c.closest('.card').classList.remove('on');
@@ -1078,7 +1083,19 @@ document.getElementById("setShowZip").addEventListener("change",function(){var o
             if (typeof w.updateCount === 'function') w.updateCount();
             if (typeof w._autoCopyUpdate === 'function') w._autoCopyUpdate();
           } catch (e) {}
+          try {
+            // Method 2: postMessage (works even with DOM access restrictions)
+            w.postMessage({ action: 'clearResultSelections' }, '*');
+          } catch (e) {}
         });
+        // Method 3: localStorage storage event (fallback for when opener is gone)
+        try {
+          localStorage.setItem('__1688_clear_selections', String(Date.now()));
+          // Clear after 1s to allow the storage event to fire
+          setTimeout(function () {
+            try { localStorage.removeItem('__1688_clear_selections'); } catch (e) {}
+          }, 1000);
+        } catch (e) {}
       }
     });
   }
