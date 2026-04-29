@@ -606,7 +606,15 @@ body {
 
 /* SKU 复选框 & 勾选行高亮 */
 .sku-check-col { width: 44px; text-align: center; }
-.sku-row-checked td {  }
+.sku-row-checked td { background: #f0f7ff; }
+
+/* SKU 图片可勾选 */
+.sku-img-checkable { position: relative; cursor: pointer; }
+.sku-img-checkable .sku-img-check { position: absolute; top: 4px; left: 4px; z-index: 2; }
+.sku-img-unchecked { opacity: 0.45; }
+.sku-img-unchecked img { filter: grayscale(40%); }
+.sku-img-checkable:hover { opacity: 1 !important; }
+.sku-img-checkable:hover img { filter: none !important; }
 
 .detail-footer {
   padding: 14px 24px;

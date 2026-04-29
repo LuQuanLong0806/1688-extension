@@ -7,6 +7,15 @@ const fs = require('fs');
 const app = express();
 const PORT = 3000;
 
+// SSE 客户端管理
+const sseClients = [];
+function sseBroadcast(event, data) {
+  const msg = 'event: ' + event + '\ndata: ' + JSON.stringify(data) + '\n\n';
+  for (let i = sseClients.length - 1; i >= 0; i--) {
+    try { sseClients[i].write(msg); } catch (e) { sseClients.splice(i, 1); }
+  }
+}
+
 // Middleware
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
@@ -244,6 +253,7 @@ app.post('/api/product', (req, res) => {
 
   const row = getOne('SELECT last_insert_rowid() as id');
   scheduleSave();
+  sseBroadcast('product-added', { id: row.id, title: title || '' });
   res.json({ ok: true, id: row.id });
 });
 
@@ -257,6 +267,21 @@ app.get('/api/product/check', (req, res) => {
   } else {
     res.json({ exists: false });
   }
+});
+
+// SSE 实时推送
+app.get('/api/events', (req, res) => {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive'
+  });
+  res.write('event: connected\ndata: {}\n\n');
+  sseClients.push(res);
+  req.on('close', () => {
+    const idx = sseClients.indexOf(res);
+    if (idx >= 0) sseClients.splice(idx, 1);
+  });
 });
 
 // 获取商品列表（分页 + 搜索 + 状态筛选 + 类目筛选）
@@ -292,7 +317,7 @@ app.get('/api/product', (req, res) => {
   const list = getAll(
     `SELECT id, source_url, title, category, attrs, skus, status, created_at, updated_at
      FROM products ${whereClause}
-     ORDER BY id DESC
+     ORDER BY created_at DESC, id DESC
      LIMIT ? OFFSET ?`,
     [...params, pageSize, offset]
   );

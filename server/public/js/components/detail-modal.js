@@ -7,7 +7,8 @@ Vue.component('detail-modal', {
   data: function () {
     return {
       editable: null,
-      selectedSkuIndexes: []
+      selectedSkuIndexes: [],
+      selectedDetailIndexes: []
     };
   },
   watch: {
@@ -20,7 +21,7 @@ Vue.component('detail-modal', {
           if (!s.dimensions || !s.dimensions.length) s.dimensions = ['', '', ''];
           while (s.dimensions.length < 3) s.dimensions.push('');
         });
-        // 如果之前保存过勾选状态则回显，否则默认全选
+        // SKU: 如果之前保存过勾选状态则回显，否则默认全选
         var saved = (val.skus || [])
           .map(function (s, i) { return s._selected ? i : -1; })
           .filter(function (i) { return i >= 0; });
@@ -29,18 +30,42 @@ Vue.component('detail-modal', {
         } else {
           this.selectedSkuIndexes = (val.skus || []).map(function (_, i) { return i; });
         }
+        // 详情图: 兼容旧格式(字符串数组)和新格式(对象数组)，回显勾选状态
+        var detailImgs = val.detail_images || [];
+        var savedDetail = [];
+        var normalizedImgs = [];
+        detailImgs.forEach(function (item, i) {
+          if (typeof item === 'string') {
+            normalizedImgs.push(item);
+          } else if (item && item.url) {
+            normalizedImgs.push(item.url);
+            if (item._selected) savedDetail.push(i);
+          }
+        });
+        this.editable.detail_images = normalizedImgs;
+        if (savedDetail.length > 0) {
+          this.selectedDetailIndexes = savedDetail;
+        } else {
+          this.selectedDetailIndexes = [];
+        }
       }
     }
   },
   computed: {
     skuImages: function () {
       if (!this.editable || !this.editable.skus) return [];
+      var vm = this;
       var seen = {};
       var imgs = [];
-      this.editable.skus.forEach(function (s) {
+      this.editable.skus.forEach(function (s, i) {
         if (s.image && !seen[s.image]) {
           seen[s.image] = true;
-          imgs.push(s.image);
+          // 收集使用此图片的所有 SKU 索引
+          var indexes = [];
+          vm.editable.skus.forEach(function (s2, j) {
+            if (s2.image === s.image) indexes.push(j);
+          });
+          imgs.push({ url: s.image, indexes: indexes });
         }
       });
       return imgs;
@@ -73,6 +98,61 @@ Vue.component('detail-modal', {
     isSkuChecked: function (idx) {
       return this.selectedSkuIndexes.indexOf(idx) >= 0;
     },
+    // SKU 图片点击：切换该图片关联的所有 SKU
+    toggleSkuImage: function (item) {
+      var vm = this;
+      var allChecked = item.indexes.every(function (i) { return vm.selectedSkuIndexes.indexOf(i) >= 0; });
+      if (allChecked) {
+        // 全部取消
+        item.indexes.forEach(function (i) {
+          var pos = vm.selectedSkuIndexes.indexOf(i);
+          if (pos >= 0) vm.selectedSkuIndexes.splice(pos, 1);
+        });
+      } else {
+        // 全部勾选
+        item.indexes.forEach(function (i) {
+          if (vm.selectedSkuIndexes.indexOf(i) < 0) vm.selectedSkuIndexes.push(i);
+        });
+      }
+    },
+    isSkuImageChecked: function (item) {
+      var vm = this;
+      return item.indexes.some(function (i) { return vm.selectedSkuIndexes.indexOf(i) >= 0; });
+    },
+    // -- 详情图勾选 --
+    toggleDetailImage: function (idx) {
+      var pos = this.selectedDetailIndexes.indexOf(idx);
+      if (pos >= 0) {
+        this.selectedDetailIndexes.splice(pos, 1);
+      } else {
+        this.selectedDetailIndexes.push(idx);
+      }
+    },
+    isDetailImageChecked: function (idx) {
+      return this.selectedDetailIndexes.indexOf(idx) >= 0;
+    },
+    toggleAllDetailImages: function (checked) {
+      var vm = this;
+      if (checked) {
+        vm.selectedDetailIndexes = (vm.editable.detail_images || []).map(function (_, i) { return i; });
+      } else {
+        vm.selectedDetailIndexes = [];
+      }
+    },
+    allDetailSelected: function () {
+      if (!this.editable || !this.editable.detail_images || !this.editable.detail_images.length) return false;
+      return this.selectedDetailIndexes.length === this.editable.detail_images.length;
+    },
+    removeDetailImage: function (idx) {
+      // 先从选中索引中移除
+      var pos = this.selectedDetailIndexes.indexOf(idx);
+      if (pos >= 0) this.selectedDetailIndexes.splice(pos, 1);
+      // 调整后续索引
+      for (var i = 0; i < this.selectedDetailIndexes.length; i++) {
+        if (this.selectedDetailIndexes[i] > idx) this.selectedDetailIndexes[i]--;
+      }
+      this.editable.detail_images.splice(idx, 1);
+    },
 
     // -- 操作 --
     toggleStatus: function () {
@@ -104,10 +184,15 @@ Vue.component('detail-modal', {
       skus.forEach(function (s, i) {
         s._selected = vm.selectedSkuIndexes.indexOf(i) >= 0;
       });
+      // 详情图保存勾选状态
+      var detailImages = (vm.editable.detail_images || []).map(function (url, i) {
+        return { url: url, _selected: vm.selectedDetailIndexes.indexOf(i) >= 0 };
+      });
       var payload = {
         title: vm.editable.title,
         mainImages: vm.editable.main_images,
         descImages: vm.editable.desc_images,
+        detailImages: detailImages,
         skus: skus,
         status: vm.editable.status
       };
@@ -155,30 +240,43 @@ Vue.component('detail-modal', {
           </div>\
         </div>\
         \
-        <!-- 详情图 -->\
+        <!-- 详情图（可勾选） -->\
         <div class="detail-section" v-if="editable.detail_images && editable.detail_images.length">\
-          <div class="detail-section-title">详情图 ({{ editable.detail_images.length }})</div>\
+          <div class="detail-section-title">\
+            详情图 ({{ editable.detail_images.length }})\
+            <checkbox :value="allDetailSelected()" @on-change="toggleAllDetailImages" style="margin-left:12px;vertical-align:middle"></checkbox>\
+            <span style="font-size:12px;color:#999;margin-left:4px;vertical-align:middle">全选</span>\
+          </div>\
           <div class="img-grid">\
-            <div class="img-item" v-for="(url, i) in editable.detail_images" :key="\'di\'+i"\
-              @click="openPreview(editable.detail_images, i)">\
+            <div class="img-item sku-img-checkable" v-for="(url, i) in editable.detail_images" :key="\'di\'+i"\
+              :class="{ \'sku-img-unchecked\': !isDetailImageChecked(i) }"\
+              @click="toggleDetailImage(i)">\
               <img :src="url" loading="lazy"\
                 @mouseenter="onSkuImgEnter(url, $event)"\
                 @mousemove="onSkuImgMove($event)"\
                 @mouseleave="onSkuImgLeave" />\
+              <div class="sku-img-check">\
+                <checkbox :value="isDetailImageChecked(i)" @click.native.stop></checkbox>\
+              </div>\
+              <div class="img-del" @click.stop="removeDetailImage(i)">&times;</div>\
             </div>\
           </div>\
         </div>\
         \
-        <!-- SKU图 -->\
+        <!-- SKU图（可勾选，关联SKU列表） -->\
         <div class="detail-section" v-if="skuImages.length">\
           <div class="detail-section-title">SKU图 ({{ skuImages.length }})</div>\
           <div class="img-grid">\
-            <div class="img-item" v-for="(url, i) in skuImages" :key="\'si\'+i"\
-              @click="openPreview(skuImages, i)">\
-              <img :src="url" loading="lazy"\
-                @mouseenter="onSkuImgEnter(url, $event)"\
+            <div class="img-item sku-img-checkable" v-for="(item, i) in skuImages" :key="\'si\'+i"\
+              :class="{ \'sku-img-unchecked\': !isSkuImageChecked(item) }"\
+              @click="toggleSkuImage(item)">\
+              <img :src="item.url" loading="lazy"\
+                @mouseenter="onSkuImgEnter(item.url, $event)"\
                 @mousemove="onSkuImgMove($event)"\
                 @mouseleave="onSkuImgLeave" />\
+              <div class="sku-img-check">\
+                <checkbox :value="isSkuImageChecked(item)" @click.native.stop></checkbox>\
+              </div>\
             </div>\
           </div>\
         </div>\

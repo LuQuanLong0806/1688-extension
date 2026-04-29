@@ -97,10 +97,175 @@
     '#__dxm_bee_sku_table{margin-top:3px;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#5C6BC0,#283593);color:#fff;font:bold 12px/1 "楷体","KaiTi","STKaiti",serif;display:none;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(40,53,147,.35);transition:box-shadow .2s;user-select:none;text-shadow:0 1px 2px rgba(0,0,0,.15)}' +
     '#__dxm_bee_sku_table:hover{transform:scale(1.15)!important;box-shadow:0 4px 12px rgba(40,53,147,.5)}' +
     '#__dxm_bee_line_sku_table{display:none}' +
-    '#__dxm_bee_line_after_sku_table{display:none}';
+    '#__dxm_bee_line_after_sku_table{display:none}' +
+    // ========== 便签样式 ==========
+    '#__dxm_bee_note{position:fixed;z-index:2147483646;font:12px/1.6 "Microsoft YaHei",Arial,sans-serif}' +
+    '#__dxm_bee_note_drag{display:flex;align-items:center;justify-content:space-between;cursor:move;padding:4px}' +
+    '#__dxm_bee_note_toggle{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#FF8A65,#E64A19);color:#fff;font-size:14px;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(230,74,25,.4);transition:transform .2s,box-shadow .2s}' +
+    '#__dxm_bee_note_toggle:hover{transform:scale(1.1);box-shadow:0 4px 12px rgba(230,74,25,.6)}' +
+    '#__dxm_bee_note_panel{display:none;margin-top:8px;width:300px;background:#fff;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.15);border:1px solid #f0f0f0;overflow:hidden}' +
+    '#__dxm_bee_note.show #__dxm_bee_note_panel{display:block}' +
+    '#__dxm_bee_note_header{padding:10px 14px;background:linear-gradient(135deg,#FF8A65,#E64A19);color:#fff;font-weight:bold;font-size:13px;letter-spacing:1px}' +
+    '#__dxm_bee_note_body{padding:10px 14px;max-height:400px;overflow-y:auto}' +
+    '.note-item{display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid #f5f5f5;font-size:12px;color:#333;cursor:pointer;transition:background .15s;border-radius:4px;padding-left:4px;padding-right:4px}' +
+    '.note-item:last-child{border-bottom:none}' +
+    '.note-item:hover{background:#FFF3E0}' +
+    '.note-item.checked{color:#999;text-decoration:line-through}' +
+    '.note-cb{width:16px;height:16px;flex-shrink:0;margin-top:1px;accent-color:#E64A19}' +
+    '.note-text{flex:1;line-height:1.5}' +
+    '.note-tip{margin-top:8px;padding:8px 10px;background:#FFF8E1;border-radius:8px;font-size:11px;color:#795548;line-height:1.6}' +
+    '.note-tip b{color:#E64A19}' +
+    '.note-reset{display:block;margin:8px auto 4px;padding:4px 16px;border:1px solid #e0e0e0;border-radius:6px;background:#fff;color:#666;font-size:11px;cursor:pointer;transition:all .15s}' +
+    '.note-reset:hover{border-color:#E64A19;color:#E64A19}';
 
   document.head.appendChild(s);
   document.body.appendChild(wrapper);
+
+  // ========== 检查便签（仅工作页面） ==========
+  if (isWorkPage) {
+    var NOTE_KEY = '__dxm_bee_note_checked';
+    var NOTE_POS_KEY = '__dxm_bee_note_pos';
+    var noteItems = [
+      '分类是否正确',
+      '分类材料类别等属性有无问题',
+      '标题是否违规',
+      'SKU列表预览图检查',
+      '变种属性是否存在特殊符号',
+      '轮播图/标题不要出现儿童字样或图片',
+      '编辑描述'
+    ];
+
+    var noteDiv = document.createElement('div');
+    noteDiv.id = '__dxm_bee_note';
+    document.body.appendChild(noteDiv);
+
+    // 恢复位置
+    function loadNotePos() {
+      try {
+        var pos = JSON.parse(localStorage.getItem(NOTE_POS_KEY));
+        if (pos && typeof pos.left === 'number' && typeof pos.top === 'number') {
+          noteDiv.style.left = pos.left + 'px';
+          noteDiv.style.top = pos.top + 'px';
+          return;
+        }
+      } catch (e) {}
+      // 默认右下角
+      noteDiv.style.right = '16px';
+      noteDiv.style.bottom = '16px';
+    }
+
+    function saveNotePos() {
+      var rect = noteDiv.getBoundingClientRect();
+      localStorage.setItem(NOTE_POS_KEY, JSON.stringify({ left: rect.left, top: rect.top }));
+    }
+
+    function getChecked() {
+      try { return JSON.parse(localStorage.getItem(NOTE_KEY) || '{}'); } catch (e) { return {}; }
+    }
+    function saveChecked(obj) {
+      localStorage.setItem(NOTE_KEY, JSON.stringify(obj));
+    }
+
+    function renderNote() {
+      var checked = getChecked();
+      var itemsHtml = '';
+      noteItems.forEach(function (text, i) {
+        var c = checked[i] ? ' checked' : '';
+        itemsHtml += '<div class="note-item' + c + '" data-idx="' + i + '">' +
+          '<input type="checkbox" class="note-cb"' + c + '>' +
+          '<span class="note-text">' + text + '</span></div>';
+      });
+
+      noteDiv.innerHTML =
+        '<div id="__dxm_bee_note_drag">' +
+        '<div id="__dxm_bee_note_toggle" title="检查清单（可拖动）">&#x2714;</div>' +
+        '</div>' +
+        '<div id="__dxm_bee_note_panel">' +
+        '<div id="__dxm_bee_note_header">检查清单</div>' +
+        '<div id="__dxm_bee_note_body">' +
+        itemsHtml +
+        '<div class="note-tip">' +
+        '<b>材料优选:</b> 锌合金、铝合金<br>' +
+        '<b>食品接触:</b> 不锈钢、硅胶、PP<br>' +
+        '<b>其他优先:</b> 塑料、涤纶、尼龙、树脂、亚克力（根据产品选择）' +
+        '</div>' +
+        '<button class="note-reset">重置勾选</button>' +
+        '</div></div>';
+
+      loadNotePos();
+
+      // 展开/收起
+      noteDiv.querySelector('#__dxm_bee_note_toggle').addEventListener('click', function (e) {
+        if (noteDragMoved) return;
+        noteDiv.classList.toggle('show');
+      });
+
+      // 勾选项
+      noteDiv.querySelectorAll('.note-item').forEach(function (el) {
+        el.addEventListener('click', function () {
+          var idx = el.getAttribute('data-idx');
+          var checked = getChecked();
+          checked[idx] = !checked[idx];
+          saveChecked(checked);
+          el.classList.toggle('checked', checked[idx]);
+          el.querySelector('.note-cb').checked = checked[idx];
+        });
+      });
+
+      // 重置
+      noteDiv.querySelector('.note-reset').addEventListener('click', function () {
+        saveChecked({});
+        renderNote();
+      });
+
+      // 拖动
+      setupNoteDrag();
+    }
+
+    var noteDragMoved = false;
+    function setupNoteDrag() {
+      var dragEl = document.getElementById('__dxm_bee_note_drag');
+      if (!dragEl) return;
+      var dragging = false;
+      var startX, startY, origLeft, origTop;
+
+      dragEl.addEventListener('mousedown', function (e) {
+        dragging = true;
+        noteDragMoved = false;
+        startX = e.clientX;
+        startY = e.clientY;
+        // 固定 left/top，清除 right/bottom
+        var rect = noteDiv.getBoundingClientRect();
+        noteDiv.style.left = rect.left + 'px';
+        noteDiv.style.top = rect.top + 'px';
+        noteDiv.style.right = '';
+        noteDiv.style.bottom = '';
+        origLeft = rect.left;
+        origTop = rect.top;
+        e.preventDefault();
+      });
+
+      document.addEventListener('mousemove', function (e) {
+        if (!dragging) return;
+        var dx = e.clientX - startX;
+        var dy = e.clientY - startY;
+        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) noteDragMoved = true;
+        var newLeft = Math.max(0, Math.min(window.innerWidth - 60, origLeft + dx));
+        var newTop = Math.max(0, Math.min(window.innerHeight - 60, origTop + dy));
+        noteDiv.style.left = newLeft + 'px';
+        noteDiv.style.top = newTop + 'px';
+      });
+
+      document.addEventListener('mouseup', function () {
+        if (!dragging) return;
+        dragging = false;
+        if (noteDragMoved) saveNotePos();
+        setTimeout(function () { noteDragMoved = false; }, 50);
+      });
+    }
+
+    renderNote();
+  }
 
   // ========== State ==========
   var icon = document.getElementById('__dxm_bee_icon');

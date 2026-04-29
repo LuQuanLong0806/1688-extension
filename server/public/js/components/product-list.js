@@ -13,7 +13,8 @@ Vue.component('page-products', {
       categoryList: [],
       selectedIds: [],
       quoteProductId: '',
-      columns: []
+      columns: [],
+      _pollTimer: null
     };
   },
   created: function () {
@@ -249,8 +250,22 @@ Vue.component('page-products', {
   mounted: function () {
     this.loadList(1);
     this.loadCategories();
+    this.startPoll();
+  },
+  beforeDestroy: function () {
+    if (this._pollTimer) this._pollTimer.close();
   },
   methods: {
+    startPoll: function () {
+      var vm = this;
+      var es = new EventSource('/api/events');
+      es.addEventListener('product-added', function () {
+        vm.loadList(vm.page);
+        vm.$root.loadStats();
+        vm.$Message.info('新采集数据已同步');
+      });
+      vm._pollTimer = es;
+    },
     loadCategories: function () {
       var vm = this;
       fetch('/api/product/categories')
