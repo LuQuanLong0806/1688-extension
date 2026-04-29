@@ -36,10 +36,20 @@
     var descImages = [];
     var detailImages = [];
 
+    // 排除推荐/搭配商品区域的图片
+    var excludeSelectors = ['#shopProductRecommend', '#shopProductCombine'];
+    function isExcluded(el) {
+      for (var i = 0; i < excludeSelectors.length; i++) {
+        if (el.closest(excludeSelectors[i])) return true;
+      }
+      return false;
+    }
+
     // 主图：从 gallery preview 区提取 img.preview-img
     var galleryPreview = document.querySelector('#gallery .od-gallery-preview');
     if (galleryPreview) {
       galleryPreview.querySelectorAll('img.preview-img').forEach(function (img) {
+        if (isExcluded(img)) return;
         var src = img.src || img.getAttribute('data-src') || img.getAttribute('data-lazy-src') || '';
         if (!src || src.indexOf('data:') === 0) return;
         if (src.indexOf('//') === 0) src = 'https:' + src;
@@ -54,6 +64,7 @@
     var descArea = document.getElementById('description');
     if (descArea) {
       descArea.querySelectorAll('img').forEach(function (img) {
+        if (isExcluded(img)) return;
         var src = img.src || img.getAttribute('data-src') || img.getAttribute('data-lazy-src') || '';
         if (!src || src.indexOf('data:') === 0) return;
         if (src.indexOf('//') === 0) src = 'https:' + src;
@@ -281,13 +292,9 @@
     var headers = [];
     table.querySelectorAll('thead th').forEach(function (th) {
       var t = th.querySelector('.ap-platformSKUs-table-th-title');
-      headers.push(t ? t.textContent.trim().replace(/\s+/g, '') : '');
+      var text = t ? t.textContent.trim().replace(/\s+/g, '') : th.textContent.trim().replace(/\s+/g, '');
+      headers.push(text);
     });
-    if (headers.length === 0) {
-      table.querySelectorAll('tr:first-child th').forEach(function (th) {
-        headers.push(th.textContent.trim().replace(/\s+/g, ''));
-      });
-    }
 
     // 第一列固定为 SKU名称，其余按关键字匹配 长/宽/高/重量
     var colLen = -1, colWid = -1, colHei = -1, colWeight = -1, combinedDimCol = -1;

@@ -349,21 +349,14 @@
       }
     }
 
-    // 方法A: 尝试下拉快选
-    tryQuickSelect(leafName, function (ok) {
+    // 直接使用弹窗搜索选择
+    trySearchCategory(catInfo, function (ok) {
       if (ok) {
         onCategorySet(catList, cId, function () { cb(); });
         return;
       }
-      // 方法B: 弹窗搜索
-      trySearchCategory(catInfo, function (ok2) {
-        if (ok2) {
-          onCategorySet(catList, cId, function () { cb(); });
-          return;
-        }
-        autoLog('自动选择类目失败，请手动选择');
-        cb();
-      });
+      autoLog('自动选择类目失败，请手动选择');
+      cb();
     });
   }
 
@@ -377,7 +370,7 @@
       var parts = text.split(/\s*>\s*/);
       var leafName = parts[parts.length - 1];
       console.log('%c[自动填表] 回传店小秘类目: collectId=' + cId + ', path=' + parts.join('/') + ', leafName=' + leafName, 'color:#AB47BC;font-weight:bold');
-      fetch('http://localhost:3000/api/product/dxm-category', {
+      fetch(getServerUrl() + '/api/product/dxm-category', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -469,19 +462,28 @@
           return;
         }
         if (Date.now() - start > 3000) {
-          // 搜索超时，关闭弹窗
-          var closeBtn = modal.querySelector('.ant-modal-footer .ant-btn-default');
-          if (closeBtn) closeBtn.click();
-          else {
-            var closeX = modal.querySelector('.ant-modal-close');
-            if (closeX) closeX.click();
-          }
+          // 搜索超时，关闭弹窗（可能有两层弹窗需关闭两次）
+          closeModalCompletely(modal);
           cb(false);
           return;
         }
         requestAnimationFrame(checkResults);
       })();
     });
+  }
+
+  // 逐层关闭弹窗：点击关闭/取消按钮，若弹窗仍在则再点一次
+  function closeModalCompletely(modal) {
+    var closeBtn = modal.querySelector('.ant-modal-close');
+    var cancelBtn = modal.querySelector('.ant-modal-footer .ant-btn-default');
+    var btn = closeBtn || cancelBtn;
+    if (btn) btn.click();
+    setTimeout(function () {
+      if (modal && getComputedStyle(modal).display !== 'none') {
+        var btn2 = modal.querySelector('.ant-modal-close') || modal.querySelector('.ant-modal-footer .ant-btn-default');
+        if (btn2) btn2.click();
+      }
+    }, 300);
   }
 
   function waitForCategoryModal(cb) {
@@ -708,7 +710,7 @@
     }, changeLogs.length > 0 ? 3000 : 300);
   }
 
-  // 智能复用已有属性：编辑现有 → 补充添加 → 取消多余
+  // 智能复用已有属性：编辑现有 → 取消多余 → 补充添加
   function smartFillAttrs(targetValues, cb) {
     var form = document.querySelector('#skuAttrsInfo form');
     if (!form) { cb(); return; }
@@ -731,26 +733,27 @@
       return;
     }
 
-    // 先取消所有勾选
-    uncheckAllAttrs(function () {
-      // 复用已有属性：编辑前 N 个（N = min(已有, 需求)）
-      var reuseCount = Math.min(existingCount, targetCount);
-      var reuseValues = targetValues.slice(0, reuseCount);
+    // 复用前 N 个已有属性（N = min(已有, 需求)），直接编辑文本
+    var reuseCount = Math.min(existingCount, targetCount);
+    var reuseValues = targetValues.slice(0, reuseCount);
 
-      autoLog('复用 ' + reuseCount + ' 个已有属性...');
-      renameAndCheckAttrs(allLabels, reuseValues, 0, function () {
-
-        if (existingCount >= targetCount) {
-          // 已有 >= 需要：取消多余的勾选（已经全部取消过了，只重新勾了 reuseCount 个）
-          autoLog('已复用 ' + reuseCount + ' 个属性，跳过 ' + (existingCount - targetCount) + ' 个多余属性');
+    autoLog('复用 ' + reuseCount + ' 个已有属性...');
+    renameAndCheckAttrs(allLabels, reuseValues, 0, function () {
+      // 取消多余的属性（超过 targetCount 的那些）
+      if (existingCount > targetCount) {
+        var excessLabels = Array.prototype.slice.call(allLabels, targetCount);
+        autoLog('取消 ' + excessLabels.length + ' 个多余属性...');
+        uncheckAttrs(excessLabels, function () {
           cb();
-        } else {
-          // 已有 < 需要：添加剩余属性
-          var remainValues = targetValues.slice(reuseCount);
-          autoLog('添加 ' + remainValues.length + ' 个剩余属性...');
-          doAddAttrValues(remainValues, function () { cb(); });
-        }
-      });
+        });
+      } else if (existingCount < targetCount) {
+        // 已有 < 需要：添加剩余属性
+        var remainValues = targetValues.slice(reuseCount);
+        autoLog('添加 ' + remainValues.length + ' 个剩余属性...');
+        doAddAttrValues(remainValues, function () { cb(); });
+      } else {
+        cb();
+      }
     });
   }
 
@@ -799,12 +802,8 @@
     }
   }
 
-  // 取消所有变种属性勾选
-  function uncheckAllAttrs(cb) {
-    var form = document.querySelector('#skuAttrsInfo form');
-    if (!form) { cb(); return; }
-
-    var labels = form.querySelectorAll('.options-module label.d-checkbox');
+  // 取消指定属性的勾选
+  function uncheckAttrs(labels, cb) {
     var toUncheck = [];
     for (var i = 0; i < labels.length; i++) {
       var checkbox = labels[i].querySelector('input[type="checkbox"]');
@@ -813,7 +812,6 @@
 
     if (!toUncheck.length) { cb(); return; }
 
-    autoLog('取消 ' + toUncheck.length + ' 个现有属性勾选');
     var idx = 0;
     (function next() {
       if (idx >= toUncheck.length) { setTimeout(cb, 200); return; }
@@ -974,17 +972,10 @@
   }
 
   function fillSkuFields(tr, skuData) {
-    // SKU货号
-    if (skuData.customName || skuData.name || skuData.sku) {
-      var skuInput = tr.querySelector('input[name="variationSku"]');
-      var skuVal = skuData.customName || skuData.name || skuData.sku || '';
-      if (skuInput && !skuInput.value.trim()) focusSetBlur(skuInput, skuVal);
-    }
-
     // 申报价格
     if (skuData.price) {
       var priceInput = tr.querySelector('input[name="price"]');
-      if (priceInput && !priceInput.value.trim()) focusSetBlur(priceInput, String(skuData.price));
+      if (priceInput) focusSetBlur(priceInput, String(skuData.price));
     }
 
     // 尺寸
@@ -993,15 +984,15 @@
       var lenInput = tr.querySelector('input[name="skuLength"]');
       var widInput = tr.querySelector('input[name="skuWidth"]');
       var heiInput = tr.querySelector('input[name="skuHeight"]');
-      if (lenInput && !lenInput.value.trim()) focusSetBlur(lenInput, String(sorted[0]));
-      if (widInput && !widInput.value.trim()) focusSetBlur(widInput, String(sorted[1]));
-      if (heiInput && !heiInput.value.trim()) focusSetBlur(heiInput, String(sorted[2]));
+      if (lenInput) focusSetBlur(lenInput, String(sorted[0]));
+      if (widInput) focusSetBlur(widInput, String(sorted[1]));
+      if (heiInput) focusSetBlur(heiInput, String(sorted[2]));
     }
 
     // 重量
     if (skuData.weight) {
       var weightInput = tr.querySelector('input[name="weight"]');
-      if (weightInput && !weightInput.value.trim()) focusSetBlur(weightInput, String(skuData.weight));
+      if (weightInput) focusSetBlur(weightInput, String(skuData.weight));
     }
   }
 

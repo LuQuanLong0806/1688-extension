@@ -98,7 +98,7 @@
     '#__dxm_bee_delete:hover{transform:scale(1.15)!important;box-shadow:0 4px 12px rgba(198,40,40,.5)}' +
     '#__dxm_bee_sku_table{margin-top:3px;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#5C6BC0,#283593);color:#fff;font:bold 12px/1 "楷体","KaiTi","STKaiti",serif;display:none;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(40,53,147,.35);transition:box-shadow .2s;user-select:none;text-shadow:0 1px 2px rgba(0,0,0,.15)}' +
     '#__dxm_bee_sku_table:hover{transform:scale(1.15)!important;box-shadow:0 4px 12px rgba(40,53,147,.5)}' +
-    '#__dxm_bee_line_sku_table{display:none}' +
+    '#__dxm_bee_line_sku_table{display:block}' +
     '#__dxm_bee_line_after_sku_table{display:none}' +
     '#__dxm_bee_package{margin-top:3px;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#8D6E63,#4E342E);color:#fff;font:bold 12px/1 "楷体","KaiTi","STKaiti",serif;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(78,52,46,.35);transition:box-shadow .2s;user-select:none;text-shadow:0 1px 2px rgba(0,0,0,.15)}' +
     '#__dxm_bee_package:hover{transform:scale(1.15)!important;box-shadow:0 4px 12px rgba(78,52,46,.5)}' +
@@ -1356,6 +1356,33 @@
   document.addEventListener('visibilitychange', function () {
     if (!document.hidden) notifyClearResult();
   });
+
+  // ========== 自动收集店小秘类目 ==========
+  var _lastCollectedCat = '';
+  function collectDxmCategory() {
+    var catList = document.querySelector('.category-list');
+    if (!catList) return;
+    var text = catList.textContent.trim();
+    if (!text || text === _lastCollectedCat) return;
+    _lastCollectedCat = text;
+    var parts = text.split(/\s*>\s*/);
+    try {
+      var serverUrl = (Config && Config.getServerUrl ? Config.getServerUrl() : localStorage.getItem('1688_server_url')) || 'http://localhost:3000';
+      fetch(serverUrl + '/api/dxm-category/collect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: parts.join('/'), leafName: parts[parts.length - 1] })
+      }).catch(function () {});
+    } catch (e) {}
+  }
+  // 页面加载后监听类目变化
+  setTimeout(function () {
+    var catList = document.querySelector('.category-list');
+    if (!catList) return;
+    collectDxmCategory();
+    var observer = new MutationObserver(collectDxmCategory);
+    observer.observe(catList, { childList: true, characterData: true, subtree: true });
+  }, 3000);
 
   // ========== 包装按钮 ==========
   if (isWorkPage) {

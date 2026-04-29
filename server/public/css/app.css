@@ -749,3 +749,23 @@ body {
   .admin-sidebar .menu-text { display: none; }
   .admin-sidebar .menu-group-title { display: none; }
 }
+
+/* ========== 类目映射页面 ========== */
+.cat-map-item { border-bottom: 1px solid #f0f0f0; }
+.cat-map-item:last-child { border-bottom: none; }
+.cat-map-header {
+  display: flex; align-items: center; padding: 12px 16px; cursor: pointer;
+  transition: background .15s;
+}
+.cat-map-header:hover { background: #fafafa; }
+.cat-map-name { font-size: 14px; font-weight: 500; margin-right: 12px; }
+.cat-map-body { padding: 0 16px 12px 16px; }
+.cat-map-match {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; margin-bottom: 6px; border-radius: 6px;
+  background: #f9f9f9; transition: background .15s;
+}
+.cat-map-match:hover { background: #f0f0f0; }
+.cat-map-score { font-size: 14px; font-weight: 600; min-width: 48px; }
+.cat-map-path { font-size: 13px; color: #333; flex: 1; }
+.cat-map-count { font-size: 12px; color: #999; }

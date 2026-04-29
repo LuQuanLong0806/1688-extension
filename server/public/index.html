@@ -44,6 +44,10 @@
               <i class="menu-icon">📦</i>
               <span class="menu-text">商品管理</span>
             </li>
+            <li class="menu-item" :class="{ active: currentView === 'page-categories' }" @click="switchView('page-categories')">
+              <i class="menu-icon">🏷️</i>
+              <span class="menu-text">类目映射</span>
+            </li>
           </ul>
           <div class="sidebar-toggle" @click="sidebarCollapsed = !sidebarCollapsed" :title="sidebarCollapsed ? '展开菜单' : '收起菜单'">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -85,6 +89,7 @@
   <script src="js/components/detail-modal.js"></script>
   <script src="js/components/dashboard.js"></script>
   <script src="js/components/product-list.js"></script>
+  <script src="js/components/category-page.js"></script>
   <!-- Main app -->
   <script src="js/app.js"></script>
 </body>

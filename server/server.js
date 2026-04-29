@@ -155,6 +155,17 @@ async function initDb() {
     }
   } catch (e) {}
 
+  // 店小秘类目库（收集所有在店小秘选过的分类）
+  db.run(`
+    CREATE TABLE IF NOT EXISTS dxm_categories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      path TEXT NOT NULL UNIQUE,
+      leaf_name TEXT NOT NULL,
+      count INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   saveDb();
 }
 
@@ -239,6 +250,7 @@ app.post('/api/product', (req, res) => {
 
   // 匹配类目字典，获取自定义类目名
   let customCategory = '';
+  let dxmCategoryVal = '';
   if (category) {
     const catName = category.leafCategoryName || category.categoryPath;
     if (catName) {
@@ -246,17 +258,26 @@ app.post('/api/product', (req, res) => {
       if (catRow && catRow.custom_name) {
         customCategory = catRow.custom_name;
       }
+      // 从同类目已有商品中获取店小秘类目
+      const existing = getOne(
+        "SELECT dxm_category FROM products WHERE category LIKE ? AND dxm_category IS NOT NULL AND dxm_category != '' LIMIT 1",
+        ['%"' + catName + '"%']
+      );
+      if (existing && existing.dxm_category) {
+        dxmCategoryVal = existing.dxm_category;
+      }
     }
   }
 
   db.run(
-    `INSERT INTO products (source_url, title, category, custom_category, main_images, desc_images, detail_images, attrs, skus)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO products (source_url, title, category, custom_category, dxm_category, main_images, desc_images, detail_images, attrs, skus)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       sourceUrl || '',
       title || '',
       JSON.stringify(category || {}),
       customCategory,
+      dxmCategoryVal,
       JSON.stringify(mainImages || []),
       JSON.stringify(descImages || []),
       JSON.stringify(detailImages || []),
@@ -446,8 +467,159 @@ app.post('/api/product/dxm-category', (req, res) => {
   if (!collectId || !dxmCategory) return res.status(400).json({ error: 'Missing collectId or dxmCategory' });
   run('UPDATE products SET dxm_category = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
     [JSON.stringify(dxmCategory), parseInt(collectId)]);
+
+  // 同步填充：同1688类目且dxm_category为空的商品，自动填入相同的店小秘类目
+  try {
+    const product = getOne('SELECT category FROM products WHERE id = ?', [parseInt(collectId)]);
+    if (product && product.category) {
+      const cat = JSON.parse(product.category);
+      const catName = cat.leafCategoryName || cat.categoryPath;
+      if (catName) {
+        const dxmVal = JSON.stringify(dxmCategory);
+        run("UPDATE products SET dxm_category = ?, updated_at = CURRENT_TIMESTAMP WHERE category LIKE ? AND (dxm_category IS NULL OR dxm_category = '')",
+          [dxmVal, '%"' + catName + '"%']);
+      }
+    }
+  } catch (e) {}
+
   res.json({ ok: true });
 });
+
+// ========== 店小秘类目库 ==========
+
+// 收集店小秘类目
+app.post('/api/dxm-category/collect', (req, res) => {
+  const { path, leafName } = req.body;
+  if (!path || !leafName) return res.status(400).json({ error: 'Missing path or leafName' });
+  const existing = getOne('SELECT id, count FROM dxm_categories WHERE path = ?', [path]);
+  if (existing) {
+    run('UPDATE dxm_categories SET count = count + 1 WHERE id = ?', [existing.id]);
+  } else {
+    run('INSERT INTO dxm_categories (path, leaf_name) VALUES (?, ?)', [path, leafName]);
+  }
+  res.json({ ok: true });
+});
+
+// 获取类目库列表
+app.get('/api/dxm-category/library', (req, res) => {
+  const rows = getAll('SELECT id, path, leaf_name, count, created_at FROM dxm_categories ORDER BY count DESC, id DESC');
+  res.json(rows);
+});
+
+// 获取未映射的1688类目（有商品但 dxm_category 为空）
+app.get('/api/dxm-category/unmapped', (req, res) => {
+  const rows = getAll(`
+    SELECT
+      c.name,
+      c.count as product_count,
+      c.custom_name
+    FROM categories c
+    WHERE c.name != ''
+    ORDER BY c.count DESC
+  `);
+  // 检查每个类目有多少商品缺 dxm_category
+  const result = rows.map(r => {
+    const unmapped = getOne(
+      "SELECT COUNT(*) as cnt FROM products WHERE category LIKE ? AND (dxm_category IS NULL OR dxm_category = '')",
+      ['%"' + r.name + '"%']
+    );
+    const total = getOne(
+      "SELECT COUNT(*) as cnt FROM products WHERE category LIKE ?",
+      ['%"' + r.name + '"%']
+    );
+    return {
+      name: r.name,
+      customName: r.custom_name || '',
+      totalProducts: total ? total.cnt : 0,
+      unmappedProducts: unmapped ? unmapped.cnt : 0
+    };
+  }).filter(r => r.unmappedProducts > 0);
+  res.json(result);
+});
+
+// 智能匹配：对指定1688类目名，返回候选DXM类目
+app.get('/api/dxm-category/match', (req, res) => {
+  const categoryName = (req.query.name || '').trim();
+  if (!categoryName) return res.json([]);
+
+  const dxmRows = getAll('SELECT path, leaf_name, count FROM dxm_categories ORDER BY count DESC');
+  const results = dxmRows.map(dxm => {
+    // 提取倒数1-2级类目名用于匹配
+    const pathParts = (dxm.path || '').split('/').filter(Boolean);
+    const candidates = [];
+    if (pathParts.length >= 1) candidates.push(pathParts[pathParts.length - 1]); // 倒数第1级
+    if (pathParts.length >= 2) candidates.push(pathParts[pathParts.length - 2]); // 倒数第2级
+    // 取最高分
+    let bestScore = 0;
+    for (const cand of candidates) {
+      const s = calcMatchScore(categoryName, cand);
+      if (s > bestScore) bestScore = s;
+    }
+    return { ...dxm, score: Math.round(bestScore * 100) / 100 };
+  }).filter(r => r.score >= 30)
+    .sort((a, b) => b.score - a.score);
+
+  res.json(results);
+});
+
+// 确认映射
+app.post('/api/dxm-category/confirm', (req, res) => {
+  let { categoryName, dxmCategory } = req.body;
+  if (!categoryName || !dxmCategory) return res.status(400).json({ error: 'Missing categoryName or dxmCategory' });
+  categoryName = categoryName.trim();
+  // 自动去空格
+  const cleanPath = (dxmCategory.path || '').replace(/\s+/g, '');
+  const parts = cleanPath.split('/');
+  const leafName = parts[parts.length - 1] || cleanPath;
+  const dxmVal = JSON.stringify({ path: cleanPath, leafName: leafName });
+  run("UPDATE products SET dxm_category = ?, updated_at = CURRENT_TIMESTAMP WHERE category LIKE ? AND (dxm_category IS NULL OR dxm_category = '')",
+    [dxmVal, '%"' + categoryName + '"%']);
+  res.json({ ok: true });
+});
+
+// 匹配算法
+function calcMatchScore(a, b) {
+  if (!a || !b) return 0;
+  if (a === b) return 100;
+
+  var charsA = a.split('');
+  var charsB = b.split('');
+
+  // 正向命中率：a 中有多少字符出现在 b 中
+  var forwardHits = 0;
+  for (var i = 0; i < charsA.length; i++) {
+    if (charsB.indexOf(charsA[i]) !== -1) forwardHits++;
+  }
+  var forward = forwardHits / charsA.length;
+
+  // 反向命中率：b 中有多少字符出现在 a 中
+  var reverseHits = 0;
+  for (var j = 0; j < charsB.length; j++) {
+    if (charsA.indexOf(charsB[j]) !== -1) reverseHits++;
+  }
+  var reverse = reverseHits / charsB.length;
+
+  // 最长公共子串占比
+  var lcs = longestCommonSubstring(a, b);
+  var lcsRatio = lcs / Math.max(charsA.length, charsB.length);
+
+  // 综合得分
+  return forward * 40 + reverse * 20 + lcsRatio * 40;
+}
+
+function longestCommonSubstring(a, b) {
+  if (!a || !b) return 0;
+  var maxLen = 0;
+  for (var i = 0; i < a.length; i++) {
+    for (var j = i + 1; j <= a.length; j++) {
+      var sub = a.substring(i, j);
+      if (b.indexOf(sub) !== -1 && sub.length > maxLen) {
+        maxLen = sub.length;
+      }
+    }
+  }
+  return maxLen;
+}
 
 // 删除商品
 app.delete('/api/product/:id', (req, res) => {
