@@ -93,18 +93,20 @@
       } catch (e) {}
     });
 
-    // 详情图：从 Shadow DOM 提取（v-detail-y 或 v-detail-q）
-    var detailEl = document.querySelector('#description .od-collapse-module .collapse-body v-detail-y')
-      || document.querySelector('#description .od-collapse-module .collapse-body v-detail-q');
-    if (detailEl && detailEl.shadowRoot) {
-      detailEl.shadowRoot.querySelectorAll('img').forEach(function (img) {
-        var src = img.src || img.getAttribute('data-src') || img.getAttribute('data-lazy-src') || '';
-        if (!src || src.indexOf('data:') === 0) return;
-        if (src.indexOf('//') === 0) src = 'https:' + src;
-        src = src.replace(/\?x-oss-process=.*$/i, '');
-        if (src.indexOf('alicdn') !== -1 && !isIcon(src) && detailImages.indexOf(src) === -1) {
-          detailImages.push(src);
-        }
+    // 详情图：从 .collapse-body 下所有 Shadow DOM 提取
+    var collapseBody = document.querySelector('#description .od-collapse-module .collapse-body');
+    if (collapseBody) {
+      collapseBody.querySelectorAll('*').forEach(function (el) {
+        if (!el.shadowRoot) return;
+        el.shadowRoot.querySelectorAll('img').forEach(function (img) {
+          var src = img.src || img.getAttribute('data-src') || img.getAttribute('data-lazy-src') || '';
+          if (!src || src.indexOf('data:') === 0) return;
+          if (src.indexOf('//') === 0) src = 'https:' + src;
+          src = src.replace(/\?x-oss-process=.*$/i, '');
+          if (src.indexOf('alicdn') !== -1 && !isIcon(src) && detailImages.indexOf(src) === -1) {
+            detailImages.push(src);
+          }
+        });
       });
     }
 
