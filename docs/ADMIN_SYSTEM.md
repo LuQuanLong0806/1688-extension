@@ -535,7 +535,7 @@ es.onerror = function () {
 | P0 | 8.6 SSE 断线重连 | 改动极小，提升体验 |
 | P1 | 8.2 废弃 categories.custom_name | 减少数据冗余，需验证迁移 |
 | P1 | 8.3 合并 dxm_categories | 减少表数量，需验证迁移 |
-| P2 | 8.1 分类字段统一 | 涉及面最广，UI 改动大，建议最后做 |
+| P2 | 8.1 分类字段统一 | 涉及面最广，UI 改动大，建议最后做。**暂缓**：当前 custom_category + manual_category 功能正常，后续可能直接取消手动分类，届时再做统一 |
 
 ### 8.8 通用兼容原则（适用于所有优化）
 

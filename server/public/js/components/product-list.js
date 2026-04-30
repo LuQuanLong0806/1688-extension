@@ -160,6 +160,10 @@ Vue.component('page-products', {
         vm.$root.loadStats();
         vm.$Message.info('新采集数据已同步');
       });
+      es.onerror = function () {
+        es.close();
+        setTimeout(function () { vm.startPoll(); }, 3000);
+      };
       vm._pollTimer = es;
     },
     loadCategories: function () {

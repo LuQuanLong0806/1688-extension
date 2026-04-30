@@ -221,6 +221,18 @@ async function initDb() {
     )
   `);
 
+  // 迁移：将 categories.custom_name 导入 category_mappings（仅首次）
+  try {
+    const migrationCheck = getOne("SELECT value FROM settings WHERE key = 'migration_custom_name_to_mappings'");
+    if (!migrationCheck) {
+      const oldMappings = getAll("SELECT name, custom_name FROM categories WHERE custom_name IS NOT NULL AND custom_name != ''");
+      oldMappings.forEach(function (r) {
+        run('INSERT OR IGNORE INTO category_mappings (category_name, custom_category) VALUES (?, ?)', [r.name, r.custom_name]);
+      });
+      run("INSERT OR REPLACE INTO settings (key, value) VALUES ('migration_custom_name_to_mappings', '1')");
+    }
+  } catch (e) {}
+
   saveDb();
 }
 
@@ -344,9 +356,15 @@ app.post('/api/product', (req, res) => {
   if (category) {
     const catName = category.leafCategoryName || category.categoryPath;
     if (catName) {
-      const catRow = getOne('SELECT id, count, custom_name FROM categories WHERE name = ?', [catName]);
-      if (catRow && catRow.custom_name) {
-        customCategory = catRow.custom_name;
+      // 优先查 category_mappings，fallback 到 categories.custom_name
+      const mappingRow = getOne('SELECT custom_category FROM category_mappings WHERE category_name = ? LIMIT 1', [catName]);
+      if (mappingRow && mappingRow.custom_category) {
+        customCategory = mappingRow.custom_category;
+      } else {
+        const catRow = getOne('SELECT custom_name FROM categories WHERE name = ?', [catName]);
+        if (catRow && catRow.custom_name) {
+          customCategory = catRow.custom_name;
+        }
       }
       // 从同类目已有商品中获取店小秘类目
       const existing = getOne(
@@ -583,23 +601,26 @@ app.post('/api/product/dxm-category', (req, res) => {
 
 // ========== 店小秘类目库 ==========
 
-// 收集店小秘类目
+// 收集店小秘类目（写入 dxm_category_tree）
 app.post('/api/dxm-category/collect', (req, res) => {
   const { path, leafName } = req.body;
   if (!path || !leafName) return res.status(400).json({ error: 'Missing path or leafName' });
-  const existing = getOne('SELECT id, count FROM dxm_categories WHERE path = ?', [path]);
+  const cleanPath = path.replace(/\s+/g, '');
+  const existing = treeGetOne('SELECT cat_id FROM dxm_category_tree WHERE path = ?', [cleanPath]);
   if (existing) {
-    run('UPDATE dxm_categories SET count = count + 1 WHERE id = ?', [existing.id]);
+    treeRun('UPDATE dxm_category_tree SET sync_at = CURRENT_TIMESTAMP WHERE cat_id = ?', [existing.cat_id]);
   } else {
-    run('INSERT INTO dxm_categories (path, leaf_name) VALUES (?, ?)', [path, leafName]);
+    const parts = cleanPath.split('/');
+    treeRun('INSERT INTO dxm_category_tree (cat_id, cat_name, parent_cat_id, cat_level, is_leaf, path) VALUES (?, ?, ?, ?, ?, ?)',
+      [Date.now(), leafName, 0, parts.length, 1, cleanPath]);
   }
   res.json({ ok: true });
 });
 
-// 获取类目库列表
+// 获取类目库列表（从 dxm_category_tree 查询）
 app.get('/api/dxm-category/library', (req, res) => {
-  const rows = getAll('SELECT id, path, leaf_name, count, created_at FROM dxm_categories ORDER BY count DESC, id DESC');
-  res.json(rows);
+  const rows = treeGetAll('SELECT cat_id as id, cat_name as leaf_name, path, sync_at as created_at FROM dxm_category_tree WHERE is_leaf = 1 ORDER BY cat_name');
+  res.json(rows.map(r => ({ ...r, count: 1 })));
 });
 
 // 获取1688类目 → 自定义类目映射
@@ -718,12 +739,13 @@ app.post('/api/dxm-category/remap', (req, res) => {
   const cleanPath = (dxmCategory.path || '').replace(/\s+/g, '');
   const parts = cleanPath.split('/');
   const leafName = parts[parts.length - 1] || cleanPath;
-  // 只收集到类目库，不修改产品
-  const existing = getOne('SELECT id, count FROM dxm_categories WHERE path = ?', [cleanPath]);
+  // 写入 dxm_category_tree
+  const existing = treeGetOne('SELECT cat_id FROM dxm_category_tree WHERE path = ?', [cleanPath]);
   if (existing) {
-    run('UPDATE dxm_categories SET count = count + 1 WHERE id = ?', [existing.id]);
+    treeRun('UPDATE dxm_category_tree SET sync_at = CURRENT_TIMESTAMP WHERE cat_id = ?', [existing.cat_id]);
   } else {
-    run('INSERT INTO dxm_categories (path, leaf_name) VALUES (?, ?)', [cleanPath, leafName]);
+    treeRun('INSERT INTO dxm_category_tree (cat_id, cat_name, parent_cat_id, cat_level, is_leaf, path) VALUES (?, ?, ?, ?, ?, ?)',
+      [Date.now(), leafName, 0, parts.length, 1, cleanPath]);
   }
   res.json({ ok: true });
 });
@@ -733,8 +755,11 @@ app.get('/api/dxm-category/match', (req, res) => {
   const categoryName = (req.query.name || '').trim();
   if (!categoryName) return res.json([]);
 
-  const dxmRows = getAll('SELECT path, leaf_name, count FROM dxm_categories ORDER BY count DESC');
-  const results = dxmRows.map(dxm => {
+  const dxmRows = treeGetAll('SELECT path, cat_name as leaf_name FROM dxm_category_tree WHERE is_leaf = 1');
+  // fallback 到 dxm_categories
+  const fallbackRows = dxmRows.length ? [] : getAll('SELECT path, leaf_name, count FROM dxm_categories ORDER BY count DESC');
+  const allRows = dxmRows.length ? dxmRows : fallbackRows;
+  const results = allRows.map(dxm => {
     // 提取倒数1-2级类目名用于匹配
     const pathParts = (dxm.path || '').split('/').filter(Boolean);
     const candidates = [];
@@ -761,12 +786,13 @@ app.post('/api/dxm-category/confirm', (req, res) => {
   const cleanPath = (dxmCategory.path || '').replace(/\s+/g, '');
   const parts = cleanPath.split('/');
   const leafName = parts[parts.length - 1] || cleanPath;
-  // 只收集到类目库，不修改产品
-  const existing = getOne('SELECT id, count FROM dxm_categories WHERE path = ?', [cleanPath]);
+  // 写入 dxm_category_tree
+  const existing = treeGetOne('SELECT cat_id FROM dxm_category_tree WHERE path = ?', [cleanPath]);
   if (existing) {
-    run('UPDATE dxm_categories SET count = count + 1 WHERE id = ?', [existing.id]);
+    treeRun('UPDATE dxm_category_tree SET sync_at = CURRENT_TIMESTAMP WHERE cat_id = ?', [existing.cat_id]);
   } else {
-    run('INSERT INTO dxm_categories (path, leaf_name) VALUES (?, ?)', [cleanPath, leafName]);
+    treeRun('INSERT INTO dxm_category_tree (cat_id, cat_name, parent_cat_id, cat_level, is_leaf, path) VALUES (?, ?, ?, ?, ?, ?)',
+      [Date.now(), leafName, 0, parts.length, 1, cleanPath]);
   }
   res.json({ ok: true });
 });
@@ -969,25 +995,29 @@ app.delete('/api/category-mappings/:id', (req, res) => {
   res.json({ ok: true });
 });
 
-// 清空所有自定义类目 + 迁移已有映射
-app.post('/api/product/clear-custom-category', (req, res) => {
-  // 先把已有的自定义类目映射保存到映射表
-  var existing = getAll("SELECT category, custom_category FROM products WHERE custom_category IS NOT NULL AND custom_category != ''");
-  existing.forEach(function (r) {
-    try {
-      var cat = JSON.parse(r.category);
-      var catName = cat.leafCategoryName || cat.categoryPath;
-      if (catName && r.custom_category) {
-        run('INSERT OR IGNORE INTO category_mappings (category_name, custom_category) VALUES (?, ?)', [catName, r.custom_category]);
-      }
-    } catch (e) {}
-  });
-  run("UPDATE products SET custom_category = ''");
-  res.json({ ok: true });
-});
-
 // Start
 initDb().then(() => initTreeDb()).then(() => {
+  // 迁移 dxm_categories → dxm_category_tree（仅首次）
+  try {
+    const migrationCheck = getOne("SELECT value FROM settings WHERE key = 'migration_dxm_categories_to_tree'");
+    if (!migrationCheck) {
+      const oldCats = getAll("SELECT path, leaf_name FROM dxm_categories");
+      if (oldCats.length) {
+        console.log('[migration] 迁移 dxm_categories → dxm_category_tree (' + oldCats.length + ' 条)');
+        oldCats.forEach(function (r) {
+          const cleanPath = (r.path || '').replace(/\s+/g, '');
+          const parts = cleanPath.split('/');
+          if (!cleanPath) return;
+          const existing = treeGetOne('SELECT cat_id FROM dxm_category_tree WHERE path = ?', [cleanPath]);
+          if (!existing) {
+            treeRun('INSERT INTO dxm_category_tree (cat_id, cat_name, parent_cat_id, cat_level, is_leaf, path) VALUES (?, ?, ?, ?, ?, ?)',
+              [Date.now() + Math.random() * 10000 | 0, r.leaf_name || parts[parts.length - 1], 0, parts.length, 1, cleanPath]);
+          }
+        });
+      }
+      run("INSERT OR REPLACE INTO settings (key, value) VALUES ('migration_dxm_categories_to_tree', '1')");
+    }
+  } catch (e) { console.error('[migration] dxm_categories 迁移失败:', e.message); }
   app.listen(PORT, () => {
     console.log(`\n  商品采集服务已启动`);
     console.log(`  管理页面: http://localhost:${PORT}`);
