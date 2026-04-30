@@ -108,13 +108,14 @@ Vue.component('category-picker', {
             style="position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:16px;color:#808695;cursor:pointer"
             @mousedown.prevent="clearValue"></i>
         </div>
-        <div v-if="dropdownVisible && searchOptions.length" style="position:absolute;top:34px;left:0;right:0;z-index:1050;background:#fff;border:1px solid #dcdee2;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.15);max-height:260px;overflow-y:auto">
+        <div v-if="dropdownVisible && searchOptions.length" style="position:absolute;top:34px;left:0;min-width:360px;z-index:1050;background:#fff;border:1px solid #dcdee2;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.15);max-height:260px;overflow-y:auto">
           <div v-for="item in searchOptions" :key="item.catId"
             style="padding:6px 10px;cursor:pointer;border-bottom:1px solid #f5f5f5"
             @mouseenter="$event.target.style.background='#f0f7ff'"
             @mouseleave="$event.target.style.background=''"
             @mousedown.prevent="selectOption(item)">
             <div style="font-size:13px;color:#333">{{ item.catName }}</div>
+            <div v-if="item.path" style="font-size:11px;color:#999;margin-top:1px;word-break:break-all">{{ item.path }}</div>
           </div>
         </div>
         <div v-if="dropdownVisible && !searchOptions.length && keyword && !searchLoading" style="position:absolute;top:34px;left:0;right:0;z-index:1050;background:#fff;border:1px solid #dcdee2;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.15);padding:10px;text-align:center;color:#999;font-size:13px">
