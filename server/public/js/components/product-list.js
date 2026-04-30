@@ -57,12 +57,12 @@ Vue.component('page-products', {
           slot: 'aliCategory'
         },
         {
-          title: '店小秘类目',
+          title: '选择分类',
           width: 300,
           slot: 'category'
         },
         {
-          title: '推荐自定义类目',
+          title: '推荐类目',
           minWidth: 200,
           slot: 'recommendedCats'
         },
@@ -128,12 +128,12 @@ Vue.component('page-products', {
       });
     },
     saveCategory: function (row, val) {
-      if (val === undefined || val === '') return;
+      if (val === undefined) return;
       row.customCategory = val;
       fetch('/api/product/' + row.id, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customCategory: val })
+        body: JSON.stringify({ customCategory: val || '' })
       });
     },
     // -- 数据加载 --

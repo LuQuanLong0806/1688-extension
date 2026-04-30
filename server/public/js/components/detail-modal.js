@@ -268,22 +268,18 @@ Vue.component('detail-modal', {
         <div class="detail-section">
           <div class="detail-section-title">基本信息</div>
           <div class="info-grid">
+            <span class="label">选择分类</span><span class="value">
+              <category-picker v-model="editable.customCategory" placeholder="搜索或选择分类" style="width:600px" />
+            </span>
+            <span class="label">标题</span><span class="value">
+              <i-input v-model="editable.title" type="textarea" :rows="2" style="width:600px;font-size:14px" />
+            </span>
             <span class="label">来源</span><span class="value">
               <a v-if="editable.source_url" :href="editable.source_url" target="_blank">{{ editable.source_url }}</a>
               <span v-else>-</span>
             </span>
-            <span class="label">自定义类目</span><span class="value">
-              <category-picker v-model="editable.customCategory" placeholder="搜索或选择分类" style="width:600px" />
-            </span>
             <span class="label">1688类目</span><span class="value">
               <span style="color:#666;font-size:14px">{{ originCategory }}</span>
-            </span>
-            <span class="label">店小秘类目</span><span class="value">
-              <span v-if="editable.dxmCategory" style="color:#ff6a00;font-size:14px">{{ editable.dxmCategory.path || editable.dxmCategory.leafName }}</span>
-              <span v-else style="color:#ccc">-</span>
-            </span>
-            <span class="label">标题</span><span class="value">
-              <i-input v-model="editable.title" type="textarea" :rows="2" style="width:600px;font-size:14px" />
             </span>
             <span class="label">采集时间</span><span class="value">{{ editable.created_at || '-' }}</span>
             <span class="label">状态</span><span class="value">

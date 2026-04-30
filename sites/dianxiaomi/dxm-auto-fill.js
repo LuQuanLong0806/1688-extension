@@ -590,34 +590,12 @@
     // 直接使用弹窗搜索选择
     trySearchCategory(catInfo, function (ok) {
       if (ok) {
-        onCategorySet(catList, cId, function () { cb(); });
-        return;
+        setTimeout(cb, 500);
+      } else {
+        autoLog('自动选择类目失败，请手动选择');
+        cb();
       }
-      autoLog('自动选择类目失败，请手动选择');
-      cb();
     });
-  }
-
-  // 类目设置成功后，只收集类目到库
-  function onCategorySet(catListEl, cId, done) {
-    setTimeout(function () {
-      var el = document.querySelector('.category-list') || catListEl;
-      if (!el) { if (done) done(); return; }
-      var text = el.textContent.trim();
-      if (!text) { if (done) done(); return; }
-      var parts = text.split(/\s*>\s*/);
-      var leafName = parts[parts.length - 1];
-      console.log('%c[自动填表] 收集店小秘类目: ' + parts.join('/'), 'color:#AB47BC;font-weight:bold');
-      // 只收集到类目库
-      var serverUrl = C && C.getServerUrl ? C.getServerUrl() : (localStorage.getItem(SERVER_KEY) || 'http://localhost:3000');
-      fetch(serverUrl + '/api/dxm-category/collect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: parts.join('/'), leafName: leafName })
-      }).catch(function () {}).finally(function () {
-        if (done) done();
-      });
-    }, 1000);
   }
 
   // 方法A: 下拉快选
