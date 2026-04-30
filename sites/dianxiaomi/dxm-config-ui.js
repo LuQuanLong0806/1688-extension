@@ -122,7 +122,8 @@
     '<div class="menu-item"><span class="menu-label">🌐 网络图片</span><div class="switch ' + (useWebImage ? 'on' : '') + '" id="__dxm_bee_menu_webimg_switch"></div><div class="menu-desc">编字流程使用网络图片URL上传</div></div>' +
     '<div class="menu-item"><span class="menu-label">🚀 自动发布</span><div class="switch ' + (autoPublishOn ? 'on' : '') + '" id="__dxm_bee_menu_publish_switch"></div><div class="menu-desc">开启后工作流完成所有步骤自动发布</div></div>' +
     '<div class="menu-item"><span class="menu-label">🔑 店铺ID</span><input type="text" class="menu-input" id="__dxm_bee_menu_shopid_input" value="' + shopId + '" maxlength="20" placeholder="输入店铺ID"><div class="menu-desc">同步类目所需的店铺ID</div></div>' +
-    '<div class="menu-item clickable" id="__dxm_bee_menu_sync_cat"><span class="menu-label clickable">🌳 同步类目树</span><span class="menu-arrow">▸</span><div class="menu-desc">从店小秘递归采集全部分类，保存到独立数据库</div></div>';
+    '<div class="menu-item clickable" id="__dxm_bee_menu_sync_cat"><span class="menu-label clickable">🌳 同步类目树</span><span class="menu-arrow">▸</span><div class="menu-desc">从店小秘递归采集全部分类，保存到独立数据库</div></div>' +
+    '<div class="menu-item"><span class="menu-label">🔗 服务器地址</span><input type="text" class="menu-input" id="__dxm_bee_menu_server_input" value="' + (Config.getServerUrl() || 'http://localhost:3000') + '" placeholder="http://localhost:3000"><div class="menu-desc">管理端服务器地址，局域网内可填写IP地址</div></div>';
   document.body.appendChild(menu);
 
   var publishSwitch = document.getElementById('__dxm_bee_menu_publish_switch');
@@ -289,6 +290,26 @@
     console.log('%c[小蜜蜂] 店铺ID已保存: ' + this.value.trim(), 'color:#FFA000;font-weight:bold');
   });
   shopIdInput.addEventListener('click', function (e) {
+    e.stopPropagation();
+  });
+
+  // 服务器地址配置
+  var serverInput = document.getElementById('__dxm_bee_menu_server_input');
+  var serverTimer = null;
+  serverInput.addEventListener('input', function () {
+    var self = this;
+    clearTimeout(serverTimer);
+    serverTimer = setTimeout(function () {
+      var url = self.value.trim().replace(/\/+$/, '');
+      localStorage.setItem('1688_server_url', url);
+    }, 500);
+  });
+  serverInput.addEventListener('blur', function () {
+    var url = this.value.trim().replace(/\/+$/, '');
+    localStorage.setItem('1688_server_url', url);
+    console.log('%c[小蜜蜂] 服务器地址已保存: ' + url, 'color:#FFA000;font-weight:bold');
+  });
+  serverInput.addEventListener('click', function (e) {
     e.stopPropagation();
   });
 

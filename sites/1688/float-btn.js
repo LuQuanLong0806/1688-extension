@@ -11,7 +11,8 @@
       '<div id="__1688_grab_chain_l"></div>' +
       '<div id="__1688_grab_chain_r"></div>' +
       '<div id="__1688_grab_collect" title="采集商品数据到服务器">采集</div>' +
-    '</div>';
+    '</div>' +
+    '<div id="__1688_grab_settings" title="服务器地址设置" style="position:absolute;bottom:-20px;left:50%;transform:translateX(-50%);width:18px;height:18px;border-radius:50%;background:#607D8B;color:#fff;text-align:center;line-height:18px;font-size:11px;cursor:pointer;opacity:.6">⚙</div>';
 
   var dialogEl = document.createElement('div');
   dialogEl.id = '__1688_dialog_overlay';
@@ -278,6 +279,18 @@
     }
     doRound();
   }
+
+  // ========== Settings button ==========
+  var settingsBtn = document.getElementById('__1688_grab_settings');
+  settingsBtn.addEventListener('click', function () {
+    var current = localStorage.getItem('1688_server_url') || 'http://localhost:3000';
+    var url = prompt('设置服务器地址：', current);
+    if (url !== null) {
+      url = url.trim().replace(/\/+$/, '');
+      localStorage.setItem('1688_server_url', url);
+      _log('服务器地址已保存: ' + url);
+    }
+  });
 
   // ========== Collect button ==========
   collectBtn.addEventListener('click', function () {

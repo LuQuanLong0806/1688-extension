@@ -1351,7 +1351,7 @@
   // ========== Cross-tab: notify 1688 to clear selections ==========
   function notifyClearResult() {
     try { chrome.runtime.sendMessage({ action: 'clearResultSelections' }); } catch (e) {}
-    try { fetch('http://localhost:3000/api/clear-signal', { method: 'POST' }).catch(function () {}); } catch (e) {}
+    try { if (!localStorage.getItem('__client_id')) localStorage.setItem('__client_id', 'c' + Date.now() + Math.random().toString(36).slice(2, 8)); var _su = (Config && Config.getServerUrl ? Config.getServerUrl() : localStorage.getItem('1688_server_url')) || 'http://localhost:3000'; fetch(_su + '/api/clear-signal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientId: localStorage.getItem('__client_id') }) }).catch(function () {}); } catch (e) {}
   }
   document.addEventListener('visibilitychange', function () {
     if (!document.hidden) notifyClearResult();

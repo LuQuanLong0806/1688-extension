@@ -3,6 +3,8 @@
   window.__dxmPasteImg = true;
 
   var C = window.BeeConfig;
+  var _serverUrl = function () { return (C && C.getServerUrl ? C.getServerUrl() : localStorage.getItem('1688_server_url')) || 'http://localhost:3000'; };
+  var _clientId = function () { if (!localStorage.getItem('__client_id')) localStorage.setItem('__client_id', 'c' + Date.now() + Math.random().toString(36).slice(2, 8)); return localStorage.getItem('__client_id'); };
   var pasteEl = document.getElementById('__dxm_bee_paste');
   var deleteEl = document.getElementById('__dxm_bee_delete');
   if (!pasteEl && !deleteEl) return;
@@ -10,7 +12,7 @@
   if (pasteEl) {
     pasteEl.addEventListener('click', function () {
       try { chrome.runtime.sendMessage({ action: 'clearResultSelections' }); } catch (e) {}
-      try { fetch('http://localhost:3000/api/clear-signal', { method: 'POST' }).catch(function () {}); } catch (e) {}
+      try { fetch(_serverUrl() + '/api/clear-signal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientId: _clientId() }) }).catch(function () {}); } catch (e) {}
       var mainImg = document.querySelector('#productProductInfo .mainImage');
       if (mainImg) mainImg.scrollIntoView({ behavior: 'smooth', block: 'center' });
       doPasteImg();
@@ -20,7 +22,7 @@
   if (deleteEl) {
     deleteEl.addEventListener('click', function () {
       try { chrome.runtime.sendMessage({ action: 'clearResultSelections' }); } catch (e) {}
-      try { fetch('http://localhost:3000/api/clear-signal', { method: 'POST' }).catch(function () {}); } catch (e) {}
+      try { fetch(_serverUrl() + '/api/clear-signal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientId: _clientId() }) }).catch(function () {}); } catch (e) {}
       var mainImg = document.querySelector('#productProductInfo .mainImage');
       if (mainImg) mainImg.scrollIntoView({ behavior: 'smooth', block: 'center' });
       doDeleteImages();

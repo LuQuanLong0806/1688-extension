@@ -265,12 +265,15 @@ async function initTreeDb() {
 // ========== API ==========
 
 // Clear-signal for cross-tab communication (1688 result page ← server ← dianxiaomi)
-let _clearSignalTime = 0;
+let _clearSignals = {};
 app.get('/api/clear-signal', (req, res) => {
-  res.json({ clearAt: _clearSignalTime });
+  const clientId = req.query.clientId || '';
+  const signal = clientId ? _clearSignals[clientId] : 0;
+  res.json({ clearAt: signal || 0 });
 });
 app.post('/api/clear-signal', (req, res) => {
-  _clearSignalTime = Date.now();
+  const clientId = req.body.clientId || '';
+  if (clientId) _clearSignals[clientId] = Date.now();
   res.json({ ok: true });
 });
 
