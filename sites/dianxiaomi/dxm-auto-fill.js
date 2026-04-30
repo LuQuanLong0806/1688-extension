@@ -158,10 +158,105 @@
     return images;
   }
 
+  // ========== Step 0: 自动选择店铺 ==========
+  function autoSelectShop(cb) {
+    var shopName = C.loadSelectedStore ? C.loadSelectedStore() : '';
+    if (!shopName) {
+      console.log('%c[自动填表] 未配置店铺，跳过', 'color:#E65100;font-weight:bold');
+      cb();
+      return;
+    }
+
+    autoLog('选择店铺: ' + shopName + '...');
+
+    // 查找"店铺名称"标签对应的 ant-select
+    var storeSelector = null;
+    var labels = document.querySelectorAll('#productBasicInfo label');
+    for (var i = 0; i < labels.length; i++) {
+      if ((labels[i].textContent || '').indexOf('店铺名称') !== -1) {
+        var formItem = labels[i].closest('.ant-form-item');
+        if (formItem) {
+          storeSelector = formItem.querySelector('.ant-select-selector');
+        }
+        break;
+      }
+    }
+
+    if (!storeSelector) {
+      console.log('%c[自动填表] 未找到店铺选择器，跳过', 'color:#E65100;font-weight:bold');
+      cb();
+      return;
+    }
+
+    // 检查是否已选中正确店铺
+    var selectedText = storeSelector.querySelector('.ant-select-selection-item');
+    if (selectedText && (selectedText.textContent || '').trim() === shopName) {
+      autoLog('店铺已正确选择');
+      cb();
+      return;
+    }
+
+    // 点击打开下拉
+    forceOpenAntSelect(storeSelector);
+
+    // 等待下拉选项出现，通过 title 属性匹配
+    var start = Date.now();
+    (function checkDropdown() {
+      var dropdowns = document.querySelectorAll('.ant-select-dropdown');
+      var visibleDropdown = null;
+      for (var d = 0; d < dropdowns.length; d++) {
+        if (getComputedStyle(dropdowns[d]).display !== 'none') {
+          visibleDropdown = dropdowns[d];
+          break;
+        }
+      }
+
+      if (!visibleDropdown) {
+        if (Date.now() - start > 5000) {
+          console.log('%c[自动填表] 店铺下拉未出现，跳过', 'color:#E65100;font-weight:bold');
+          cb();
+          return;
+        }
+        requestAnimationFrame(checkDropdown);
+        return;
+      }
+
+      // 通过 title 属性精确匹配店铺
+      var targetItem = visibleDropdown.querySelector('.ant-select-item-option[title="' + shopName + '"]');
+      if (targetItem) {
+        targetItem.click();
+        autoLog('店铺已选择: ' + shopName);
+        setTimeout(cb, 300);
+      } else {
+        // 尝试模糊匹配
+        var items = visibleDropdown.querySelectorAll('.ant-select-item-option');
+        var found = null;
+        for (var j = 0; j < items.length; j++) {
+          var itemTitle = items[j].getAttribute('title') || '';
+          var itemText = (items[j].textContent || '').trim();
+          if (itemTitle === shopName || itemText === shopName) {
+            found = items[j];
+            break;
+          }
+        }
+        if (found) {
+          found.click();
+          autoLog('店铺已选择: ' + shopName);
+          setTimeout(cb, 300);
+        } else {
+          console.log('%c[自动填表] 下拉中未找到店铺 "' + shopName + '"，跳过', 'color:#E65100;font-weight:bold');
+          storeSelector.click();
+          setTimeout(cb, 200);
+        }
+      }
+    })();
+  }
+
   // ========== 自动填表主流程 ==========
   function startAutoFill(data) {
     // 计算总步骤
-    autoTotal = 1; // 填标题
+    autoTotal = 1; // 选店铺
+    autoTotal += 1; // 填标题
     if (data.source_url) autoTotal += 1; // 填来源URL
     // 自动选择类目（只要有可用的类目名就尝试）
     var catInfo = resolveCategory(data);
@@ -175,16 +270,19 @@
     autoStep = 0;
     console.log('%c[自动填表] ===== 开始自动填表 =====', 'color:#E65100;font-weight:bold;font-size:14px');
 
-    // Step 1: 填入标题
-    fillTitle(data, function () {
-      // Step 1.5: 填入来源URL
-      if (data.source_url) {
-        fillSourceUrl(data.source_url, function () {
+    // Step 0: 选择店铺
+    autoSelectShop(function () {
+      // Step 1: 填入标题
+      fillTitle(data, function () {
+        // Step 1.5: 填入来源URL
+        if (data.source_url) {
+          fillSourceUrl(data.source_url, function () {
+            doCategorySelect(data);
+          });
+        } else {
           doCategorySelect(data);
-        });
-      } else {
-        doCategorySelect(data);
-      }
+        }
+      });
     });
 
     function doCategorySelect(data) {
@@ -372,7 +470,8 @@
       var leafName = parts[parts.length - 1];
       console.log('%c[自动填表] 收集店小秘类目: ' + parts.join('/'), 'color:#AB47BC;font-weight:bold');
       // 只收集到类目库
-      fetch(getServerUrl() + '/api/dxm-category/collect', {
+      var serverUrl = C && C.getServerUrl ? C.getServerUrl() : (localStorage.getItem(SERVER_KEY) || 'http://localhost:3000');
+      fetch(serverUrl + '/api/dxm-category/collect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: parts.join('/'), leafName: leafName })
