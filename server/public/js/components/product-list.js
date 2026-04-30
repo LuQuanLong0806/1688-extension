@@ -135,21 +135,23 @@ Vue.component('page-products', {
     saveCategory: function (row, val) {
       if (val === undefined) return;
       row.customCategory = val;
+      var vm = this;
       fetch('/api/product/' + row.id, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ customCategory: val || '' })
-      });
+      }).then(function () { vm.$Message.success('已保存'); });
     },
     saveManualCategory: function (row, event) {
       var val = (event.target.value || '').trim();
       if (val === (row.manualCategory || '')) return;
       row.manualCategory = val;
+      var vm = this;
       fetch('/api/product/' + row.id, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ manualCategory: val })
-      });
+      }).then(function () { vm.$Message.success('已保存'); });
     },
     // -- 数据加载 --
     startPoll: function () {
