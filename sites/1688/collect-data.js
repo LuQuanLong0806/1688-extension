@@ -93,10 +93,11 @@
       } catch (e) {}
     });
 
-    // 详情图：从 v-detail-q Shadow DOM 提取
-    var detailQ = document.querySelector('#description .od-collapse-module .collapse-body v-detail-q');
-    if (detailQ && detailQ.shadowRoot) {
-      detailQ.shadowRoot.querySelectorAll('img').forEach(function (img) {
+    // 详情图：从 Shadow DOM 提取（v-detail-y 或 v-detail-q）
+    var detailEl = document.querySelector('#description .od-collapse-module .collapse-body v-detail-y')
+      || document.querySelector('#description .od-collapse-module .collapse-body v-detail-q');
+    if (detailEl && detailEl.shadowRoot) {
+      detailEl.shadowRoot.querySelectorAll('img').forEach(function (img) {
         var src = img.src || img.getAttribute('data-src') || img.getAttribute('data-lazy-src') || '';
         if (!src || src.indexOf('data:') === 0) return;
         if (src.indexOf('//') === 0) src = 'https:' + src;
