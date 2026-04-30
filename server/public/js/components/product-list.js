@@ -16,6 +16,7 @@ Vue.component('page-products', {
       selectedIds: [],
       quoteProductId: localStorage.getItem('dxm_quote_product_id') || '',
       editingCatId: -1,
+      dxmCatOptions: [],
       columns: [],
       _pollTimer: null
     };
@@ -23,10 +24,10 @@ Vue.component('page-products', {
   created: function () {
     var vm = this;
     this.columns = [
-      { type: 'selection', width: 60, align: 'center' },
+      { type: 'selection', width: 40, align: 'center' },
       {
         title: '预览',
-        width: 100,
+        width: 80,
         align: 'center',
         ellipsis: false,
         className: 'col-thumb',
@@ -54,33 +55,49 @@ Vue.component('page-products', {
       {
         title: '标题',
         key: 'title',
-        width: 300,
+        width: 220,
         ellipsis: false,
+        tooltip: false,
         render: function (h, params) {
-          return h('span', { class: 'title-text' }, params.row.title || '-');
+          return h(
+            'span',
+            { style: { wordBreak: 'break-all', lineHeight: '1.4' } },
+            params.row.title || '-'
+          );
         }
       },
       {
         title: '类目',
-        width: 240,
+        width: 280,
         render: function (h, params) {
           var idx = params.index;
           var row = vm.list[idx];
           var cat = row.category;
-          var name = row.customCategory || (cat && (cat.leafCategoryName || cat.categoryPath)) || '';
+          var name =
+            row.customCategory ||
+            (cat && (cat.leafCategoryName || cat.categoryPath)) ||
+            '';
           var isEditing = vm.editingCatId === row.id;
 
           if (!isEditing) {
             // 显示模式：文字 + 修改icon + 复制icon
             return h('span', { class: 'cell-category-wrap' }, [
-              h('span', { style: { fontSize: '13px', marginRight: '6px' } }, name || '-'),
+              h(
+                'span',
+                { style: { fontSize: '13px', marginRight: '6px' } },
+                name || '-'
+              ),
               h('Icon', {
                 props: { type: 'md-create', size: 16 },
                 style: { color: '#bbb', cursor: 'pointer', marginRight: '4px' },
                 attrs: { title: '修改类目' },
                 nativeOn: {
-                  mouseenter: function (e) { e.target.style.color = '#1890ff'; },
-                  mouseleave: function (e) { e.target.style.color = '#bbb'; },
+                  mouseenter: function (e) {
+                    e.target.style.color = '#1890ff';
+                  },
+                  mouseleave: function (e) {
+                    e.target.style.color = '#bbb';
+                  },
                   click: function (e) {
                     e.stopPropagation();
                     if (!vm.list[idx].customCategory) {
@@ -95,8 +112,12 @@ Vue.component('page-products', {
                 style: { color: '#bbb', cursor: 'pointer' },
                 attrs: { title: '复制类目' },
                 nativeOn: {
-                  mouseenter: function (e) { e.target.style.color = '#1890ff'; },
-                  mouseleave: function (e) { e.target.style.color = '#bbb'; },
+                  mouseenter: function (e) {
+                    e.target.style.color = '#1890ff';
+                  },
+                  mouseleave: function (e) {
+                    e.target.style.color = '#bbb';
+                  },
                   click: function (e) {
                     e.stopPropagation();
                     if (!name) return;
@@ -109,56 +130,139 @@ Vue.component('page-products', {
             ]);
           }
 
-          // 编辑模式：输入框 + 保存icon
+          // 编辑模式：可搜索下拉，选中自动保存
           return h('span', { class: 'cell-category-wrap' }, [
-            h('i-input', {
-              props: { value: name, size: 'small', placeholder: '-' },
-              style: { width: '150px' },
-              on: {
-                input: function (val) {
-                  vm.list[idx].customCategory = val;
+            h(
+              'i-select',
+              {
+                props: {
+                  value: name,
+                  filterable: true,
+                  clearable: true,
+                  placeholder: '搜索店小秘类目',
+                  size: 'small',
+                  'not-found-text': '无匹配'
+                },
+                style: { width: '160px' },
+                on: {
+                  'on-change': function (val) {
+                    if (val === undefined || val === '') return;
+                    vm.list[idx].customCategory = val;
+                    fetch('/api/product/' + row.id, {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ customCategory: val })
+                    }).then(function () {
+                      vm.$Message.success('类目已保存');
+                      vm.editingCatId = -1;
+                      vm.loadList();
+                    });
+                  },
+                  'on-open-change': function (open) {
+                    if (!open && vm.editingCatId === row.id) {
+                      vm.editingCatId = -1;
+                    }
+                  }
                 }
-              }
-            }),
-            h('Icon', {
-              props: { type: 'md-checkmark-circle', size: 18 },
-              style: { color: '#bbb', cursor: 'pointer', marginLeft: '4px', transition: 'color .2s' },
-              attrs: { title: '保存类目' },
-              nativeOn: {
-                mouseenter: function (e) { e.target.style.color = '#52c41a'; },
-                mouseleave: function (e) { e.target.style.color = '#bbb'; },
-                click: function (e) {
-                  e.stopPropagation();
-                  var newVal = vm.list[idx].customCategory || '';
-                  fetch('/api/product/' + row.id, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ customCategory: newVal })
-                  }).then(function () {
-                    vm.$Message.success('类目已保存');
-                    vm.editingCatId = -1;
-                    vm.loadList();
-                  });
-                }
-              }
-            })
+              },
+              vm.dxmCatOptions.map(function (c) {
+                return h('i-option', { props: { value: c.path } }, c.path);
+              })
+            )
           ]);
         }
       },
       {
-        title: '店小秘类目',
+        title: '推荐店小秘类目',
         minWidth: 180,
         render: function (h, params) {
-          var dxmCat = params.row.dxmCategory;
-          if (!dxmCat || !dxmCat.leafName) return h('span', { style: { color: '#ccc' } }, '-');
-          var path = dxmCat.path || dxmCat.leafName;
+          var recs = params.row.recommendedDxm;
+          if (!recs || ((!recs.mapped || !recs.mapped.length) && (!recs.matched || !recs.matched.length))) {
+            return h('span', { style: { color: '#ccc' } }, '-');
+          }
+          var items = [];
+          // 映射的排在前面
+          if (recs.mapped && recs.mapped.length) {
+            recs.mapped.forEach(function (c) {
+              items.push({ path: c.path, leafName: c.leafName, isMapped: true });
+            });
+          }
+          if (recs.matched && recs.matched.length) {
+            recs.matched.forEach(function (c) {
+              // 去重
+              for (var i = 0; i < items.length; i++) {
+                if (items[i].path === c.path) return;
+              }
+              items.push({ path: c.path, leafName: c.leafName, isMapped: false });
+            });
+          }
+          if (!items.length) return h('span', { style: { color: '#ccc' } }, '-');
+
+          return h('div', { style: { lineHeight: '1.6' } },
+            items.map(function (c) {
+              return h('div', {
+                style: { display: 'flex', alignItems: 'center', marginBottom: '2px' }
+              }, [
+                h('Tooltip', {
+                  props: { content: c.path, placement: 'top', transfer: true, maxWidth: 400 }
+                }, [
+                  h('span', {
+                    style: {
+                      fontSize: '12px',
+                      color: c.isMapped ? '#ff6a00' : '#666',
+                      cursor: 'pointer',
+                      wordBreak: 'break-all'
+                    }
+                  }, c.leafName)
+                ]),
+                h('Icon', {
+                  props: { type: 'md-arrow-round-forward', size: 14 },
+                  style: { color: '#bbb', cursor: 'pointer', marginLeft: '4px', flexShrink: '0' },
+                  attrs: { title: '设为自定义类目' },
+                  nativeOn: {
+                    mouseenter: function (e) { e.target.style.color = '#1890ff'; },
+                    mouseleave: function (e) { e.target.style.color = '#bbb'; },
+                    click: function (e) {
+                      e.stopPropagation();
+                      fetch('/api/product/' + params.row.id, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ customCategory: c.path })
+                      }).then(function () {
+                        vm.$Message.success('已设为: ' + c.leafName);
+                        vm.loadList();
+                      });
+                    }
+                  }
+                })
+              ]);
+            })
+          );
+        }
+      },
+      {
+        title: '来源地址',
+        width: 200,
+        render: function (h, params) {
+          var url = params.row.source_url;
+          if (!url) return h('span', { style: { color: '#ccc' } }, '-');
+          var short = url.length > 35 ? url.substring(0, 35) + '...' : url;
           return h(
-            'span',
+            'a',
             {
-              attrs: { title: path },
-              style: { fontSize: '12px', color: '#ff6a00', wordBreak: 'break-all', lineHeight: '1.4' }
+              attrs: { href: url, target: '_blank', title: url },
+              style: {
+                fontSize: '12px',
+                color: '#ff6a00',
+                wordBreak: 'break-all',
+                lineHeight: '1.4',
+                display: '-webkit-box',
+                WebkitLineClamp: '2',
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden'
+              }
             },
-            path
+            short
           );
         }
       },
@@ -197,40 +301,20 @@ Vue.component('page-products', {
         }
       },
       {
-        title: '来源地址',
-        width: 200,
-        render: function (h, params) {
-          var url = params.row.source_url;
-          if (!url) return h('span', { style: { color: '#ccc' } }, '-');
-          var short = url.length > 35 ? url.substring(0, 35) + '...' : url;
-          return h(
-            'a',
-            {
-              attrs: { href: url, target: '_blank', title: url },
-              style: {
-                fontSize: '12px',
-                color: '#ff6a00',
-                wordBreak: 'break-all',
-                lineHeight: '1.4',
-                display: '-webkit-box',
-                WebkitLineClamp: '2',
-                WebkitBoxOrient: 'vertical',
-                overflow: 'hidden'
-              }
-            },
-            short
-          );
-        }
-      },
-      {
         title: '使用状态',
         width: 100,
         align: 'center',
         render: function (h, params) {
           var used = params.row.status === 1;
-          return h('span', {
-            class: used ? 'status-tag status-used' : 'status-tag status-unused'
-          }, used ? '已使用' : '未使用');
+          return h(
+            'span',
+            {
+              class: used
+                ? 'status-tag status-used'
+                : 'status-tag status-unused'
+            },
+            used ? '已使用' : '未使用'
+          );
         }
       },
       { title: '采集时间', key: 'created_at', width: 200 },
@@ -305,6 +389,7 @@ Vue.component('page-products', {
     this.loadList(1);
     this.loadCategories();
     this.loadDxmCategories();
+    this.loadDxmCatOptions();
     this.startPoll();
   },
   beforeDestroy: function () {
@@ -324,14 +409,32 @@ Vue.component('page-products', {
     loadCategories: function () {
       var vm = this;
       fetch('/api/product/categories')
-        .then(function (r) { return r.json(); })
-        .then(function (list) { vm.categoryList = list; });
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (list) {
+          vm.categoryList = list;
+        });
     },
     loadDxmCategories: function () {
       var vm = this;
       fetch('/api/product/dxm-categories')
-        .then(function (r) { return r.json(); })
-        .then(function (list) { vm.dxmCategoryList = list; });
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (list) {
+          vm.dxmCategoryList = list;
+        });
+    },
+    loadDxmCatOptions: function () {
+      var vm = this;
+      fetch('/api/dxm-category/library')
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (list) {
+          vm.dxmCatOptions = list;
+        });
     },
     loadList: function (p) {
       var vm = this;

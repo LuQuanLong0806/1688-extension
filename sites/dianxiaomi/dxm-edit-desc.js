@@ -21,20 +21,17 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 1 })
       }).catch(function () {});
-      // 更新店小秘类目
+      // 只收集店小秘类目到库
       var catList = document.querySelector('.category-list');
       if (catList) {
         var text = catList.textContent.trim();
         if (text) {
           var parts = text.split(/\s*>\s*/);
           var leafName = parts[parts.length - 1];
-          fetch(serverUrl + '/api/product/dxm-category', {
+          fetch(serverUrl + '/api/dxm-category/collect', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              collectId: collectId,
-              dxmCategory: { path: parts.join('/'), leafName: leafName }
-            })
+            body: JSON.stringify({ path: parts.join('/'), leafName: leafName })
           }).catch(function () {});
         }
       }

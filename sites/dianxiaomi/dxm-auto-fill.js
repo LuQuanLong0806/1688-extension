@@ -311,15 +311,16 @@
 
   // ========== Step 1.6: 自动选择类目 ==========
 
-  // 类目回退优先级：dxmCategory → customCategory → 1688原始类目
+  // 类目回退优先级：customCategory → dxmCategory → 1688原始类目
   function resolveCategory(data) {
-    // 1. 优先用已保存的店小秘类目
+    // 1. 优先用自定义类目
+    if (data.customCategory) {
+      var cc = data.customCategory;
+      return { path: cc, leafName: cc.split(/[\/>]/).pop() || cc };
+    }
+    // 2. 用已保存的店小秘类目
     if (data.dxmCategory && data.dxmCategory.leafName) {
       return data.dxmCategory;
-    }
-    // 2. 用自定义类目
-    if (data.customCategory) {
-      return { path: data.customCategory, leafName: data.customCategory };
     }
     // 3. 用1688原始类目
     var cat = data.category;

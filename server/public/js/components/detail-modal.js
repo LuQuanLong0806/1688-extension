@@ -8,8 +8,15 @@ Vue.component('detail-modal', {
     return {
       editable: null,
       selectedSkuIndexes: [],
-      selectedDetailIndexes: []
+      selectedDetailIndexes: [],
+      dxmCatOptions: []
     };
+  },
+  mounted: function () {
+    var vm = this;
+    fetch('/api/dxm-category/library')
+      .then(function (r) { return r.json(); })
+      .then(function (list) { vm.dxmCatOptions = list; });
   },
   watch: {
     detail: function (val) {
@@ -295,13 +302,20 @@ Vue.component('detail-modal', {
               <a v-if="editable.source_url" :href="editable.source_url" target="_blank">{{ editable.source_url }}</a>\
               <span v-else>-</span>\
             </span>\
-            <span class="label">类目</span><span class="value"><i-input v-model="editable.customCategory" placeholder="自定义类目" style="width:100%;font-size:14px" /></span>\
+            <span class="label">自定义类目</span><span class="value">\
+              <i-select v-model="editable.customCategory" filterable clearable placeholder="搜索店小秘类目" style="width:600px;font-size:14px" not-found-text="无匹配">\
+                <i-option v-for="c in dxmCatOptions" :key="c.id" :value="c.path">{{ c.path }}</i-option>\
+              </i-select>\
+            </span>\
+            <span class="label">1688类目</span><span class="value">\
+              <span style="color:#666;font-size:14px">{{ (editable.category && (editable.category.leafCategoryName || editable.category.categoryPath)) || \'-\' }}</span>\
+            </span>\
             <span class="label">店小秘类目</span><span class="value">\
               <span v-if="editable.dxmCategory" style="color:#ff6a00;font-size:14px">{{ editable.dxmCategory.path || editable.dxmCategory.leafName }}</span>\
               <span v-else style="color:#ccc">-</span>\
             </span>\
             <span class="label">标题</span><span class="value">\
-              <i-input v-model="editable.title" type="textarea" :rows="2" style="width:100%;font-size:14px" />\
+              <i-input v-model="editable.title" type="textarea" :rows="2" style="width:600px;font-size:14px" />\
             </span>\
             <span class="label">采集时间</span><span class="value">{{ editable.created_at || \'-\' }}</span>\
             <span class="label">状态</span><span class="value">\
