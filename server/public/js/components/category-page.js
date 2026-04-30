@@ -137,64 +137,64 @@ Vue.component('page-categories', {
       return '#999';
     }
   },
-  template: '\
-    <div class="list-card">\
-      <div class="action-bar">\
-        <div class="action-bar-left">\
-          <i-select v-model="statusFilter" style="width:120px" @on-change="page = 1">\
-            <i-option value="all">全部</i-option>\
-            <i-option value="unmapped">未映射</i-option>\
-            <i-option value="mapped">已映射</i-option>\
-          </i-select>\
-          <i-input v-model="keyword" placeholder="搜索类目名称" style="width:260px" @on-enter="doSearch" @on-clear="clearSearch" clearable>\
-            <icon type="ios-search" slot="prefix"></icon>\
-          </i-input>\
-          <i-button type="primary" icon="ios-search" @click="doSearch">搜索</i-button>\
-        </div>\
-        <div class="action-bar-right">\
-          <i-button icon="md-refresh" @click="loadAll">刷新</i-button>\
-        </div>\
-      </div>\
-      <div style="padding:8px 20px;border-bottom:1px solid #f0f0f0;font-size:13px;color:#888;display:flex;gap:20px">\
-        <span>共 <strong style="color:#333">{{ allCategories.length }}</strong> 个类目</span>\
-        <span>待映射 <strong style="color:#ff4d4f">{{ unmappedCount }}</strong> 个</span>\
-        <span>类目库 <strong style="color:#333">{{ library.length }}</strong> 个</span>\
-      </div>\
-      <div v-if="loading || searchLoading" style="text-align:center;padding:40px;color:#999">加载中...</div>\
-      <div v-else-if="!displayList.length && searchResults !== null" style="text-align:center;padding:40px;color:#999">无匹配结果</div>\
-      <div v-else-if="!displayList.length" style="text-align:center;padding:40px;color:#999">暂无类目数据</div>\
-      <div v-else>\
-        <div v-for="item in displayList" :key="item.name" class="cat-map-item">\
-          <div class="cat-map-header" @click="toggleExpand(item.name)">\
-            <span class="cat-map-name">{{ item.name }}</span>\
-            <tag v-if="item.dxmCategory" color="green">{{ item.dxmCategory.leafName }}</tag>\
-            <tag v-else color="red">未映射</tag>\
-            <tag color="blue">{{ item.totalProducts }}条商品</tag>\
-            <icon :type="expandedId === item.name ? \'ios-arrow-up\' : \'ios-arrow-down\'" style="margin-left:8px;color:#999" />\
-          </div>\
-          <div v-if="expandedId === item.name" class="cat-map-body">\
-            <div style="margin-bottom:8px;padding:6px 10px;background:#f6f8fa;border-radius:6px;font-size:13px">\
-              <span style="color:#999">当前映射：</span>\
-              <span v-if="item.dxmCategory" style="color:#ff6a00">{{ item.dxmCategory.path }}</span>\
-              <span v-else style="color:#999">无</span>\
-            </div>\
-            <div style="margin-bottom:8px;display:flex;align-items:center;gap:8px">\
-              <i-input v-model="manualInput[item.name]" placeholder="手动输入店小秘类目路径" style="flex:1" @keyup.enter.native="doManualMap(item.name)" />\
-              <i-button type="warning" @click="doManualMap(item.name)">手动映射</i-button>\
-            </div>\
-            <div style="font-size:12px;color:#999;margin-bottom:8px;padding-left:2px">请复制店小秘完整类目路径</div>\
-            <div v-if="matchResults[item.name]">\
-              <div v-if="!matchResults[item.name].length" style="color:#999;padding:8px 0">类目库中暂无自动匹配项</div>\
-              <div v-for="m in matchResults[item.name]" :key="m.path" class="cat-map-match">\
-                <span class="cat-map-score" :style="{ color: scoreColor(m.score) }">{{ m.score }}%</span>\
-                <span class="cat-map-path">{{ m.path }}</span>\
-                <span class="cat-map-count">选过{{ m.count }}次</span>\
-                <i-button type="primary" size="small" @click="doRemap(item.name, m)">选择映射</i-button>\
-              </div>\
-            </div>\
-            <div v-else style="color:#999;padding:8px 0">匹配中...</div>\
-          </div>\
-        </div>\
-      </div>\
-    </div>'
+  template: `
+    <div class="list-card">
+      <div class="action-bar">
+        <div class="action-bar-left">
+          <i-select v-model="statusFilter" style="width:120px" @on-change="page = 1">
+            <i-option value="all">全部</i-option>
+            <i-option value="unmapped">未映射</i-option>
+            <i-option value="mapped">已映射</i-option>
+          </i-select>
+          <i-input v-model="keyword" placeholder="搜索类目名称" style="width:260px" @on-enter="doSearch" @on-clear="clearSearch" clearable>
+            <icon type="ios-search" slot="prefix"></icon>
+          </i-input>
+          <i-button type="primary" icon="ios-search" @click="doSearch">搜索</i-button>
+        </div>
+        <div class="action-bar-right">
+          <i-button icon="md-refresh" @click="loadAll">刷新</i-button>
+        </div>
+      </div>
+      <div style="padding:8px 20px;border-bottom:1px solid #f0f0f0;font-size:13px;color:#888;display:flex;gap:20px">
+        <span>共 <strong style="color:#333">{{ allCategories.length }}</strong> 个类目</span>
+        <span>待映射 <strong style="color:#ff4d4f">{{ unmappedCount }}</strong> 个</span>
+        <span>类目库 <strong style="color:#333">{{ library.length }}</strong> 个</span>
+      </div>
+      <div v-if="loading || searchLoading" style="text-align:center;padding:40px;color:#999">加载中...</div>
+      <div v-else-if="!displayList.length && searchResults !== null" style="text-align:center;padding:40px;color:#999">无匹配结果</div>
+      <div v-else-if="!displayList.length" style="text-align:center;padding:40px;color:#999">暂无类目数据</div>
+      <div v-else>
+        <div v-for="item in displayList" :key="item.name" class="cat-map-item">
+          <div class="cat-map-header" @click="toggleExpand(item.name)">
+            <span class="cat-map-name">{{ item.name }}</span>
+            <tag v-if="item.dxmCategory" color="green">{{ item.dxmCategory.leafName }}</tag>
+            <tag v-else color="red">未映射</tag>
+            <tag color="blue">{{ item.totalProducts }}条商品</tag>
+            <icon :type="expandedId === item.name ? 'ios-arrow-up' : 'ios-arrow-down'" style="margin-left:8px;color:#999" />
+          </div>
+          <div v-if="expandedId === item.name" class="cat-map-body">
+            <div style="margin-bottom:8px;padding:6px 10px;background:#f6f8fa;border-radius:6px;font-size:13px">
+              <span style="color:#999">当前映射：</span>
+              <span v-if="item.dxmCategory" style="color:#ff6a00">{{ item.dxmCategory.path }}</span>
+              <span v-else style="color:#999">无</span>
+            </div>
+            <div style="margin-bottom:8px;display:flex;align-items:center;gap:8px">
+              <i-input v-model="manualInput[item.name]" placeholder="手动输入店小秘类目路径" style="flex:1" @keyup.enter.native="doManualMap(item.name)" />
+              <i-button type="warning" @click="doManualMap(item.name)">手动映射</i-button>
+            </div>
+            <div style="font-size:12px;color:#999;margin-bottom:8px;padding-left:2px">请复制店小秘完整类目路径</div>
+            <div v-if="matchResults[item.name]">
+              <div v-if="!matchResults[item.name].length" style="color:#999;padding:8px 0">类目库中暂无自动匹配项</div>
+              <div v-for="m in matchResults[item.name]" :key="m.path" class="cat-map-match">
+                <span class="cat-map-score" :style="{ color: scoreColor(m.score) }">{{ m.score }}%</span>
+                <span class="cat-map-path">{{ m.path }}</span>
+                <span class="cat-map-count">选过{{ m.count }}次</span>
+                <i-button type="primary" size="small" @click="doRemap(item.name, m)">选择映射</i-button>
+              </div>
+            </div>
+            <div v-else style="color:#999;padding:8px 0">匹配中...</div>
+          </div>
+        </div>
+      </div>
+    </div>`
 });

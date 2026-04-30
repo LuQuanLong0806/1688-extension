@@ -123,71 +123,71 @@ Vue.component('page-dashboard', {
       });
     }
   },
-  template: '\
-    <div>\
-      <div class="stat-cards">\
-        <div class="stat-card">\
-          <div class="icon-wrap blue">\
-            <svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V8a2 2 0 00-2-2zm0 12H4V8h16z"/></svg>\
-          </div>\
-          <div class="stat-body"><div class="stat-val">{{ stats.total }}</div><div class="stat-label">总商品</div></div>\
-        </div>\
-        <div class="stat-card">\
-          <div class="icon-wrap green">\
-            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8z"/></svg>\
-          </div>\
-          <div class="stat-body"><div class="stat-val">{{ stats.unused }}</div><div class="stat-label">未使用</div></div>\
-        </div>\
-        <div class="stat-card">\
-          <div class="icon-wrap gray">\
-            <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>\
-          </div>\
-          <div class="stat-body"><div class="stat-val">{{ stats.used }}</div><div class="stat-label">已使用</div></div>\
-        </div>\
-        <div class="stat-card">\
-          <div class="icon-wrap orange">\
-            <svg viewBox="0 0 24 24"><path d="M4 6H2v14a2 2 0 002 2h14v-2H4zm16-4H8a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V4a2 2 0 00-2-2zm0 14H8V4h12zm-6-1h2V5h-4v2h2z"/></svg>\
-          </div>\
-          <div class="stat-body"><div class="stat-val">{{ stats.totalCategories }}</div><div class="stat-label">类目总数</div></div>\
-        </div>\
-      </div>\
-      <div class="chart-grid">\
-        <div class="chart-card">\
-          <div class="chart-card-header">采集趋势（近 7 天）</div>\
-          <div class="chart-card-body" id="chart-trend"></div>\
-        </div>\
-        <div class="chart-card">\
-          <div class="chart-card-header">偏好分布（类目 Top10）</div>\
-          <div class="chart-card-body" id="chart-status"></div>\
-        </div>\
-      </div>\
-      <div class="chart-grid">\
-        <div class="chart-card">\
-          <div class="chart-card-header">\
-            <span>最近采集</span>\
-            <a href="javascript:void(0)" @click="goProducts" style="font-size:13px;color:#ff6a00;">查看全部 &rarr;</a>\
-          </div>\
-          <div class="chart-card-body" style="height:auto;padding:0 20px;">\
-            <ul class="recent-list">\
-              <li v-for="item in recentList" :key="item.id">\
-                <img v-if="item._thumb" class="recent-thumb" :src="item._thumb" />\
-                <div v-else class="recent-thumb-ph"></div>\
-                <div class="recent-info">\
-                  <div class="recent-title">{{ item.title || (\'商品 #\' + item.id) }}</div>\
-                  <div class="recent-time">{{ item.created_at }}</div>\
-                </div>\
-                <span :class="\'recent-badge \' + (item.status === 0 ? \'unused\' : \'used\')">\
-                  {{ item.status === 0 ? \'未使用\' : \'已使用\' }}\
-                </span>\
-              </li>\
-              <li v-if="!recentList.length" style="justify-content:center;color:#ccc;padding:20px 0;">暂无数据</li>\
-            </ul>\
-          </div>\
-        </div>\
-        <div class="chart-card">\
-          <div class="chart-card-header">使用率</div>\
-          <div class="chart-card-body" id="chart-usage"></div>\
-        </div>\
-      </div>\
-    </div>'
+  template: `
+    <div>
+      <div class="stat-cards">
+        <div class="stat-card">
+          <div class="icon-wrap blue">
+            <svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V8a2 2 0 00-2-2zm0 12H4V8h16z"/></svg>
+          </div>
+          <div class="stat-body"><div class="stat-val">{{ stats.total }}</div><div class="stat-label">总商品</div></div>
+        </div>
+        <div class="stat-card">
+          <div class="icon-wrap green">
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8z"/></svg>
+          </div>
+          <div class="stat-body"><div class="stat-val">{{ stats.unused }}</div><div class="stat-label">未使用</div></div>
+        </div>
+        <div class="stat-card">
+          <div class="icon-wrap gray">
+            <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+          </div>
+          <div class="stat-body"><div class="stat-val">{{ stats.used }}</div><div class="stat-label">已使用</div></div>
+        </div>
+        <div class="stat-card">
+          <div class="icon-wrap orange">
+            <svg viewBox="0 0 24 24"><path d="M4 6H2v14a2 2 0 002 2h14v-2H4zm16-4H8a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V4a2 2 0 00-2-2zm0 14H8V4h12zm-6-1h2V5h-4v2h2z"/></svg>
+          </div>
+          <div class="stat-body"><div class="stat-val">{{ stats.totalCategories }}</div><div class="stat-label">类目总数</div></div>
+        </div>
+      </div>
+      <div class="chart-grid">
+        <div class="chart-card">
+          <div class="chart-card-header">采集趋势（近 7 天）</div>
+          <div class="chart-card-body" id="chart-trend"></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-card-header">偏好分布（类目 Top10）</div>
+          <div class="chart-card-body" id="chart-status"></div>
+        </div>
+      </div>
+      <div class="chart-grid">
+        <div class="chart-card">
+          <div class="chart-card-header">
+            <span>最近采集</span>
+            <a href="javascript:void(0)" @click="goProducts" style="font-size:13px;color:#ff6a00;">查看全部 &rarr;</a>
+          </div>
+          <div class="chart-card-body" style="height:auto;padding:0 20px;">
+            <ul class="recent-list">
+              <li v-for="item in recentList" :key="item.id">
+                <img v-if="item._thumb" class="recent-thumb" :src="item._thumb" />
+                <div v-else class="recent-thumb-ph"></div>
+                <div class="recent-info">
+                  <div class="recent-title">{{ item.title || ('商品 #' + item.id) }}</div>
+                  <div class="recent-time">{{ item.created_at }}</div>
+                </div>
+                <span :class="'recent-badge ' + (item.status === 0 ? 'unused' : 'used')">
+                  {{ item.status === 0 ? '未使用' : '已使用' }}
+                </span>
+              </li>
+              <li v-if="!recentList.length" style="justify-content:center;color:#ccc;padding:20px 0;">暂无数据</li>
+            </ul>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-card-header">使用率</div>
+          <div class="chart-card-body" id="chart-usage"></div>
+        </div>
+      </div>
+    </div>`
 });
