@@ -377,7 +377,7 @@ body {
 .list-card .ivu-table th { background: #fafafa; color: #666; font-weight: 500; font-size: 14px; }
 .list-card .ivu-table td { color: #333; }
 .list-card .ivu-table-stripe .ivu-table-body tr:nth-child(2n) td { background: #fafafa; }
-.list-card .ivu-table-cell { overflow: visible; }
+.list-card .ivu-table-cell { overflow: visible; padding-left: 8px; padding-right: 8px; }
 .list-card .col-thumb .ivu-table-cell { overflow: visible; padding-left: 12px; padding-right: 12px; }
 
 .action-btns {

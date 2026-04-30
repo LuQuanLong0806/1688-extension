@@ -17,6 +17,8 @@ Vue.component('page-products', {
       quoteProductId: localStorage.getItem('dxm_quote_product_id') || '',
       editingCatId: -1,
       dxmCatOptions: [],
+      batchCatVisible: false,
+      batchCatValue: '',
       columns: [],
       _pollTimer: null
     };
@@ -140,10 +142,9 @@ Vue.component('page-products', {
                   filterable: true,
                   clearable: true,
                   placeholder: '搜索店小秘类目',
-                  size: 'small',
                   'not-found-text': '无匹配'
                 },
-                style: { width: '160px' },
+                style: { width: '100%' },
                 on: {
                   'on-change': function (val) {
                     if (val === undefined || val === '') return;
@@ -174,17 +175,26 @@ Vue.component('page-products', {
       },
       {
         title: '推荐店小秘类目',
-        minWidth: 180,
+        minWidth: 240,
         render: function (h, params) {
           var recs = params.row.recommendedDxm;
-          if (!recs || ((!recs.mapped || !recs.mapped.length) && (!recs.matched || !recs.matched.length))) {
+          if (
+            !recs ||
+            ((!recs.mapped || !recs.mapped.length) &&
+              (!recs.matched || !recs.matched.length))
+          ) {
             return h('span', { style: { color: '#ccc' } }, '-');
           }
           var items = [];
           // 映射的排在前面
           if (recs.mapped && recs.mapped.length) {
             recs.mapped.forEach(function (c) {
-              items.push({ path: c.path, leafName: c.leafName, isMapped: true });
+              items.push({
+                path: c.path,
+                leafName: c.leafName,
+                isMapped: true,
+                score: null
+              });
             });
           }
           if (recs.matched && recs.matched.length) {
@@ -193,56 +203,105 @@ Vue.component('page-products', {
               for (var i = 0; i < items.length; i++) {
                 if (items[i].path === c.path) return;
               }
-              items.push({ path: c.path, leafName: c.leafName, isMapped: false });
+              items.push({
+                path: c.path,
+                leafName: c.leafName,
+                isMapped: false,
+                score: c.score
+              });
             });
           }
-          if (!items.length) return h('span', { style: { color: '#ccc' } }, '-');
+          if (!items.length)
+            return h('span', { style: { color: '#ccc' } }, '-');
 
-          return h('div', { style: { lineHeight: '1.6' } },
+          return h(
+            'div',
+            { style: { lineHeight: '1.6' } },
             items.map(function (c) {
-              return h('div', {
-                style: { display: 'flex', alignItems: 'center', marginBottom: '2px' }
-              }, [
-                h('Tooltip', {
-                  props: { content: c.path, placement: 'top', transfer: true, maxWidth: 400 }
-                }, [
-                  h('span', {
-                    style: {
-                      fontSize: '12px',
-                      color: c.isMapped ? '#ff6a00' : '#666',
-                      cursor: 'pointer',
-                      wordBreak: 'break-all'
-                    }
-                  }, c.leafName)
-                ]),
-                h('Icon', {
-                  props: { type: 'md-arrow-round-forward', size: 14 },
-                  style: { color: '#bbb', cursor: 'pointer', marginLeft: '4px', flexShrink: '0' },
-                  attrs: { title: '设为自定义类目' },
-                  nativeOn: {
-                    mouseenter: function (e) { e.target.style.color = '#1890ff'; },
-                    mouseleave: function (e) { e.target.style.color = '#bbb'; },
-                    click: function (e) {
-                      e.stopPropagation();
-                      fetch('/api/product/' + params.row.id, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ customCategory: c.path })
-                      }).then(function () {
-                        vm.$Message.success('已设为: ' + c.leafName);
-                        vm.loadList();
-                      });
-                    }
+              return h(
+                'div',
+                {
+                  style: {
+                    marginBottom: '2px'
                   }
-                })
-              ]);
+                },
+                [
+                  h(
+                    'Tooltip',
+                    {
+                      props: {
+                        content: c.path,
+                        placement: 'top',
+                        transfer: true,
+                        maxWidth: 400
+                      }
+                    },
+                    [
+                      h(
+                        'span',
+                        {
+                          style: {
+                            fontSize: '14px',
+                            color: c.isMapped ? '#52c41a' : (c.score >= 50 ? '#ff6a00' : '#999'),
+                            cursor: 'pointer',
+                            wordBreak: 'break-all'
+                          }
+                        },
+                        c.leafName
+                      ),
+                      h(
+                        'span',
+                        {
+                          style: {
+                            fontSize: '13px',
+                            color: c.isMapped ? '#52c41a' : (c.score >= 50 ? '#ff6a00' : '#999'),
+                            marginLeft: '4px'
+                          }
+                        },
+                        c.isMapped ? '100%' : (c.score !== null ? Math.round(c.score) + '%' : '')
+                      )
+                    ]
+                  ),
+                  h('Icon', {
+                    props: { type: 'md-checkmark-circle-outline', size: 18 },
+                    style: {
+                      color: '#bbb',
+                      cursor: 'pointer',
+                      verticalAlign: 'middle',
+                      marginLeft: '6px',
+                      position: 'relative',
+                      top: '-1px'
+                    },
+                    attrs: { title: '设为自定义类目' },
+                    nativeOn: {
+                      mouseenter: function (e) {
+                        e.target.style.color = '#1890ff';
+                      },
+                      mouseleave: function (e) {
+                        e.target.style.color = '#bbb';
+                      },
+                      click: function (e) {
+                        e.stopPropagation();
+                        fetch('/api/product/' + params.row.id, {
+                          method: 'PUT',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ customCategory: c.path })
+                        }).then(function () {
+                          vm.$Message.success('已设为: ' + c.leafName);
+                          vm.loadList();
+                        });
+                      }
+                    }
+                  })
+                ]
+              );
             })
           );
         }
       },
       {
         title: '来源地址',
-        width: 200,
+        width: 120,
         render: function (h, params) {
           var url = params.row.source_url;
           if (!url) return h('span', { style: { color: '#ccc' } }, '-');
@@ -268,8 +327,7 @@ Vue.component('page-products', {
       },
       {
         title: 'SKU',
-        minWidth: 160,
-        maxWidth: 360,
+        width: 200,
         render: function (h, params) {
           var skus = JSON.parse(params.row.skus || '[]');
           if (!skus.length) return h('span', { style: { color: '#ccc' } }, '-');
@@ -531,6 +589,33 @@ Vue.component('page-products', {
           });
         }
       });
+    },
+    openBatchCategory: function () {
+      if (!this.selectedIds.length) {
+        this.$Message.warning('请先选择商品');
+        return;
+      }
+      this.batchCatValue = '';
+      this.batchCatVisible = true;
+    },
+    saveBatchCategory: function () {
+      var vm = this;
+      if (!vm.batchCatValue) {
+        vm.$Message.warning('请选择类目');
+        return;
+      }
+      Promise.all(vm.selectedIds.map(function (id) {
+        return fetch('/api/product/' + id, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ customCategory: vm.batchCatValue })
+        });
+      })).then(function () {
+        vm.$Message.success('已批量设置 ' + vm.selectedIds.length + ' 条商品的类目');
+        vm.batchCatVisible = false;
+        vm.selectedIds = [];
+        vm.loadList();
+      });
     }
   },
   template:
@@ -566,6 +651,11 @@ Vue.component('page-products', {
             @click="batchDelete">\
             批量删除{{ selectedIds.length ? \' (\' + selectedIds.length + \')\' : \'\' }}\
           </i-button>\
+          <i-button type="warning" icon="md-pricetag"\
+            :disabled="selectedIds.length === 0"\
+            @click="openBatchCategory">\
+            批量设置类目{{ selectedIds.length ? \' (\' + selectedIds.length + \')\' : \'\' }}\
+          </i-button>\
           <tooltip content="刷新" placement="top"><i-button icon="md-refresh" shape="circle" @click="loadList()"></i-button></tooltip>\
         </div>\
       </div>\
@@ -576,5 +666,17 @@ Vue.component('page-products', {
           :page-size-opts="[10,20,50,100]" show-total show-elevator show-sizer\
           @on-change="onPageChange" @on-page-size-change="onPageSizeChange" />\
       </div>\
+      <modal v-model="batchCatVisible" title="批量设置类目" :mask-closable="false" width="500">\
+        <div style="margin-bottom:12px">\
+          <p style="margin-bottom:8px;color:#666">已选择 <strong>{{ selectedIds.length }}</strong> 条商品</p>\
+          <i-select v-model="batchCatValue" filterable clearable placeholder="搜索店小秘类目" style="width:100%" not-found-text="无匹配">\
+            <i-option v-for="c in dxmCatOptions" :key="c.id" :value="c.path">{{ c.path }}</i-option>\
+          </i-select>\
+        </div>\
+        <div slot="footer">\
+          <i-button @click="batchCatVisible = false">取消</i-button>\
+          <i-button type="primary" @click="saveBatchCategory">保存</i-button>\
+        </div>\
+      </modal>\
     </div>'
 });
