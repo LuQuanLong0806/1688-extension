@@ -1534,11 +1534,11 @@
     }).then(function (r) { return r.json(); }).then(function (resp) {
       var list = (!resp || resp.code !== 0 || !Array.isArray(resp.data)) ? [] : resp.data;
       item.processCb(list, function () {
-        setTimeout(processQueue, randomDelay(1000, 2000));
+        setTimeout(processQueue, randomDelay(1500, 1500));
       });
     }).catch(function () {
       item.processCb([], function () {
-        setTimeout(processQueue, randomDelay(1000, 2000));
+        setTimeout(processQueue, randomDelay(1500, 1500));
       });
     });
   }
@@ -1548,86 +1548,80 @@
     _syncTasks[startCatId || 'root'] = task;
     var batchBuffer = [];
     var BATCH_SIZE = 50;
+    var pendingCount = 0;
 
-    function flushBatch(cb) {
-      if (!batchBuffer.length) return cb();
+    function flushBatch() {
+      if (!batchBuffer.length) return;
       var items = batchBuffer.slice();
       batchBuffer = [];
       fetch(serverUrl + '/api/dxm-tree/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ categories: items })
-      }).then(function () { cb(); }).catch(function () { cb(); });
+      }).catch(function () {});
     }
 
-    function scheduleChildren(parentId, parentPath, depth, nonLeafItems, idx, cb) {
-      if (idx >= nonLeafItems.length) return cb();
-      var item = nonLeafItems[idx];
-      enqueueRequest(shopId, item.catId, function (list, next) {
-        processResponse(list, item.catId, item.fullPath, item.level, function () {
-          scheduleChildren(parentId, parentPath, depth, nonLeafItems, idx + 1, next);
-        });
-      });
+    function checkDone() {
+      if (pendingCount > 0) return;
+      flushBatch();
+      showBubble(startCatName + ' 同步完成！共 ' + task.totalNodes + ' 个', 'ok');
+      console.log('%c[小蜜蜂] ' + startCatName + ' 同步完成: ' + task.totalNodes + ' 个', 'color:#52c41a;font-weight:bold');
+      delete _syncTasks[startCatId || 'root'];
+      if (onDone) onDone(task.totalNodes);
     }
 
-    function processResponse(list, parentId, parentPath, depth, cb) {
-      if (!list.length) return cb();
+    // 每个请求的 processCb：处理响应 + 立即 next 让队列继续
+    function makeProcessCb(parentId, parentPath, depth) {
+      return function (list, next) {
+        if (list.length) {
+          var nonLeafItems = [];
+          list.forEach(function (cat) {
+            if (cat.isHidden || cat.deleted) return;
+            var catId = cat.catId;
+            var catName = cat.catName || '';
+            var parentCatId = cat.parentCatId || parentId;
+            var isLeaf = !!cat.isLeaf;
+            var level = cat.catLevel || (depth + 1);
+            var fullPath = parentPath ? parentPath + '/' + catName : catName;
 
-      var nonLeafItems = [];
-      list.forEach(function (cat) {
-        if (cat.isHidden || cat.deleted) return;
+            task.totalNodes++;
+            batchBuffer.push({
+              catId: catId, catName: catName, parentCatId: parentCatId,
+              catLevel: level, isLeaf: isLeaf ? 1 : 0, path: fullPath
+            });
 
-        var catId = cat.catId;
-        var catName = cat.catName || '';
-        var parentCatId = cat.parentCatId || parentId;
-        var isLeaf = !!cat.isLeaf;
-        var level = cat.catLevel || (depth + 1);
-        var fullPath = parentPath ? parentPath + '/' + catName : catName;
+            if (!isLeaf) nonLeafItems.push({ catId: catId, fullPath: fullPath, level: level });
+          });
 
-        task.totalNodes++;
-        batchBuffer.push({
-          catId: catId,
-          catName: catName,
-          parentCatId: parentCatId,
-          catLevel: level,
-          isLeaf: isLeaf ? 1 : 0,
-          path: fullPath
-        });
+          // 更新气泡
+          var parts = [];
+          for (var k in _syncTasks) {
+            var t = _syncTasks[k];
+            if (t.totalNodes > 0) parts.push(t._name + ' ' + t.totalNodes);
+          }
+          showBubble('采集中: ' + parts.join('、'), 'loading');
 
-        if (!isLeaf) nonLeafItems.push({ catId: catId, fullPath: fullPath, level: level });
-      });
+          // 批量保存 + 入队子请求
+          if (batchBuffer.length >= BATCH_SIZE) flushBatch();
 
-      // 更新气泡：显示所有进行中的任务
-      var parts = [];
-      for (var k in _syncTasks) {
-        var t = _syncTasks[k];
-        if (t.totalNodes > 0) parts.push(t._name + ' ' + t.totalNodes);
-      }
-      showBubble('采集中: ' + parts.join('、'), 'loading');
+          nonLeafItems.forEach(function (item) {
+            pendingCount++;
+            enqueueRequest(shopId, item.catId, makeProcessCb(item.catId, item.fullPath, item.level));
+          });
+        }
 
-      if (batchBuffer.length >= BATCH_SIZE) {
-        flushBatch(function () { scheduleChildren(parentId, parentPath, depth, nonLeafItems, 0, cb); });
-      } else {
-        scheduleChildren(parentId, parentPath, depth, nonLeafItems, 0, cb);
-      }
+        pendingCount--;
+        next(); // 立即让队列继续处理下一个
+        checkDone();
+      };
     }
 
     task._name = startCatName;
     showBubble('开始同步 ' + startCatName + '...', 'loading');
 
-    // 第一个请求：获取根节点或子节点
     var initDepth = startCatId ? 1 : 0;
-    enqueueRequest(shopId, startCatId, function (list, next) {
-      processResponse(list, startCatId, startCatName, initDepth, function () {
-        flushBatch(function () {
-          showBubble(startCatName + ' 同步完成！共 ' + task.totalNodes + ' 个', 'ok');
-          console.log('%c[小蜜蜂] ' + startCatName + ' 同步完成: ' + task.totalNodes + ' 个', 'color:#52c41a;font-weight:bold');
-          delete _syncTasks[startCatId || 'root'];
-          if (onDone) onDone(task.totalNodes);
-          next();
-        });
-      });
-    });
+    pendingCount = 1;
+    enqueueRequest(shopId, startCatId, makeProcessCb(startCatId, startCatName, initDepth));
   }
 
   // 同步全部分类（依次同步每个大类）

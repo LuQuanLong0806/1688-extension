@@ -423,6 +423,7 @@
     loadShopId: loadShopId,
     saveShopId: saveShopId,
     loadFromServer: loadFromServer,
+    getServerUrl: getServerUrl,
     setInputValue: setInputValue,
     applyFilters: applyFilters,
     findVisibleModal: findVisibleModal,

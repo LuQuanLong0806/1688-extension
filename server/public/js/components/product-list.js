@@ -15,11 +15,8 @@ Vue.component('page-products', {
       dxmCategoryList: [],
       selectedIds: [],
       quoteProductId: localStorage.getItem('dxm_quote_product_id') || '',
-      editingCatId: -1,
-      dxmCatOptions: [],
       batchCatVisible: false,
-      batchCatValue: [],
-      treeData: [],
+      batchCatValue: '',
       _pollTimer: null
     };
   },
@@ -27,8 +24,6 @@ Vue.component('page-products', {
     this.loadList(1);
     this.loadCategories();
     this.loadDxmCategories();
-    this.loadDxmCatOptions();
-    this.loadTreeData();
     this.startPoll();
   },
   beforeDestroy: function () {
@@ -56,14 +51,20 @@ Vue.component('page-products', {
           slot: 'title'
         },
         {
-          title: '类目',
-          width: 280,
+          title: '1688类目',
+          width: 160,
+          align: 'center',
+          slot: 'aliCategory'
+        },
+        {
+          title: '店小秘类目',
+          width: 300,
           slot: 'category'
         },
         {
-          title: '推荐店小秘类目',
-          minWidth: 240,
-          slot: 'recommendedDxm'
+          title: '推荐自定义类目',
+          minWidth: 200,
+          slot: 'recommendedCats'
         },
         {
           title: '来源地址',
@@ -84,7 +85,7 @@ Vue.component('page-products', {
         { title: '采集时间', key: 'created_at', width: 200 },
         {
           title: '操作',
-          width: 180,
+          width: 240,
           align: 'center',
           className: 'col-actions',
           fixed: 'right',
@@ -103,31 +104,6 @@ Vue.component('page-products', {
       var cat = row.category;
       return row.customCategory || (cat && (cat.leafCategoryName || cat.categoryPath)) || '';
     },
-    getRecommendItems: function (row) {
-      var recs = row.recommendedDxm;
-      if (!recs) return [];
-      var items = [];
-      if (recs.mapped && recs.mapped.length) {
-        recs.mapped.forEach(function (c) {
-          items.push({ path: c.path, leafName: c.leafName, isMapped: true, score: null });
-        });
-      }
-      if (recs.matched && recs.matched.length) {
-        recs.matched.forEach(function (c) {
-          for (var i = 0; i < items.length; i++) {
-            if (items[i].path === c.path) return;
-          }
-          items.push({ path: c.path, leafName: c.leafName, isMapped: false, score: c.score });
-        });
-      }
-      return items;
-    },
-    getRecColor: function (c) {
-      return c.isMapped ? '#52c41a' : (c.score >= 50 ? '#ff6a00' : '#999');
-    },
-    getRecScore: function (c) {
-      return c.isMapped ? '100%' : (c.score !== null ? Math.round(c.score) + '%' : '');
-    },
     getSkuText: function (row) {
       var skus = JSON.parse(row.skus || '[]');
       if (!skus.length) return '';
@@ -135,85 +111,29 @@ Vue.component('page-products', {
       if (!names.length) names = skus.map(function (s, i) { return 'SKU' + (i + 1); });
       return names.join('、');
     },
-    // -- 列操作方法 --
-    startEditCategory: function (row) {
-      if (!row.customCategory) {
-        row.customCategory = this.getCategoryName(row);
-      }
-      this.editingCatId = row.id;
+    getRecommendedCats: function (row) {
+      var cats = row.recommendedCustomCategories || [];
+      var current = row.customCategory || '';
+      return cats.filter(function (c) { return c !== current; });
+    },
+    setRecommendedCat: function (row, cat) {
+      var vm = this;
+      fetch('/api/product/' + row.id, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customCategory: cat })
+      }).then(function () {
+        vm.$Message.success('已设为: ' + cat);
+        vm.loadList();
+      });
     },
     saveCategory: function (row, val) {
       if (val === undefined || val === '') return;
-      // Cascader returns array of values; extract path from treeData
-      if (Array.isArray(val) && val.length > 0) {
-        var path = this.getCascaderPath(val);
-        if (!path) return;
-        row.customCategory = path;
-      } else if (typeof val === 'string') {
-        row.customCategory = val;
-      } else {
-        return;
-      }
-      var vm = this;
+      row.customCategory = val;
       fetch('/api/product/' + row.id, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ customCategory: val })
-      }).then(function () {
-        vm.$Message.success('类目已保存');
-        vm.editingCatId = -1;
-        vm.loadList();
-      });
-    },
-    cancelEditCategory: function (open) {
-      if (!open && this.editingCatId >= 0) this.editingCatId = -1;
-    },
-    getCascaderPath: function (selectedValues) {
-      var nodes = this.treeData;
-      var labels = [];
-      for (var i = 0; i < selectedValues.length; i++) {
-        var found = null;
-        for (var j = 0; j < nodes.length; j++) {
-          if (nodes[j].value === selectedValues[i]) { found = nodes[j]; break; }
-        }
-        if (!found) return '';
-        labels.push(found.label);
-        nodes = found.children || [];
-      }
-      return labels.join('/');
-    },
-    getCascaderValue: function (path) {
-      if (!path || !this.treeData.length) return [];
-      var parts = path.split('/');
-      var values = [];
-      var nodes = this.treeData;
-      for (var i = 0; i < parts.length; i++) {
-        var found = null;
-        for (var j = 0; j < nodes.length; j++) {
-          if (nodes[j].label === parts[i]) { found = nodes[j]; break; }
-        }
-        if (!found) return [];
-        values.push(found.value);
-        nodes = found.children || [];
-      }
-      return values;
-    },
-    copyCategory: function (name) {
-      if (!name) return;
-      var vm = this;
-      navigator.clipboard.writeText(name).then(function () {
-        vm.$Message.success('已复制: ' + name);
-      });
-    },
-    setRecommendedCategory: function (row, c) {
-      var vm = this;
-      fetch('/api/product/' + row.id, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customCategory: c.path })
-      }).then(function () {
-        vm.$Message.success('已设为: ' + c.leafName);
-        vm.loadList();
       });
     },
     // -- 数据加载 --
@@ -239,18 +159,6 @@ Vue.component('page-products', {
         .then(function (r) { return r.json(); })
         .then(function (list) { vm.dxmCategoryList = list; });
     },
-    loadDxmCatOptions: function () {
-      var vm = this;
-      fetch('/api/dxm-category/library')
-        .then(function (r) { return r.json(); })
-        .then(function (list) { vm.dxmCatOptions = list; });
-    },
-    loadTreeData: function () {
-      var vm = this;
-      fetch('/api/dxm-tree/tree')
-        .then(function (r) { return r.json(); })
-        .then(function (data) { vm.treeData = data || []; });
-    },
     loadList: function (p) {
       var vm = this;
       if (p) vm.page = p;
@@ -273,6 +181,9 @@ Vue.component('page-products', {
     onPageSizeChange: function (s) { this.pageSize = s; this.loadList(1); },
     onSelectionChange: function (sel) {
       this.selectedIds = sel.map(function (i) { return i.id; });
+    },
+    openAdd: function (id) {
+      window.open('https://www.dianxiaomi.com/web/temu/add?collectId=' + id, '_blank');
     },
     openQuoteEdit: function (id) {
       var pid = this.quoteProductId || '166827730497622099';
@@ -327,17 +238,12 @@ Vue.component('page-products', {
         this.$Message.warning('请先选择商品');
         return;
       }
-      this.batchCatValue = this.treeData.length ? [] : '';
+      this.batchCatValue = '';
       this.batchCatVisible = true;
     },
     saveBatchCategory: function () {
       var vm = this;
-      var catValue;
-      if (Array.isArray(vm.batchCatValue) && vm.batchCatValue.length > 0) {
-        catValue = vm.getCascaderPath(vm.batchCatValue);
-      } else if (typeof vm.batchCatValue === 'string' && vm.batchCatValue) {
-        catValue = vm.batchCatValue;
-      }
+      var catValue = (vm.batchCatValue || '').trim();
       if (!catValue) {
         vm.$Message.warning('请选择类目');
         return;
@@ -403,50 +309,30 @@ Vue.component('page-products', {
         <template slot="title" slot-scope="{ row }">
           <span style="word-break:break-all;line-height:1.4">{{ row.title || '-' }}</span>
         </template>
-        <template slot="category" slot-scope="{ row, index }">
-          <span class="cell-category-wrap" v-if="editingCatId !== row.id">
-            <span style="font-size:13px;margin-right:6px">{{ getCategoryName(row) || '-' }}</span>
-            <Icon type="md-create" size="16" title="修改类目"
-              style="color:#bbb;cursor:pointer;margin-right:4px"
-              @mouseenter.native="$event.target.style.color='#1890ff'"
-              @mouseleave.native="$event.target.style.color='#bbb'"
-              @click.native.stop="startEditCategory(row)" />
-            <Icon type="md-copy" size="16" title="复制类目"
-              style="color:#bbb;cursor:pointer"
-              @mouseenter.native="$event.target.style.color='#1890ff'"
-              @mouseleave.native="$event.target.style.color='#bbb'"
-              @click.native.stop="copyCategory(getCategoryName(row))" />
-          </span>
-          <span class="cell-category-wrap" v-else>
-            <Cascader v-if="treeData.length" :value="getCascaderValue(getCategoryName(row))" :data="treeData"
-              placeholder="选择分类" change-on-select filterable clearable
-              style="width:100%"
-              @on-change="saveCategory(row, $event)"
-              @on-visible-change="cancelEditCategory" />
-            <i-select v-else :value="getCategoryName(row)" filterable clearable placeholder="搜索店小秘类目" not-found-text="无匹配"
-              style="width:100%"
-              @on-change="saveCategory(row, $event)"
-              @on-open-change="cancelEditCategory">
-              <i-option v-for="c in dxmCatOptions" :key="c.id" :value="c.path">{{ c.path }}</i-option>
-            </i-select>
-          </span>
+        <template slot="aliCategory" slot-scope="{ row }">
+          <span style="font-size:12px;color:#666;word-break:break-all">{{ (row.category && (row.category.leafCategoryName || row.category.categoryPath)) || '-' }}</span>
         </template>
-        <template slot="recommendedDxm" slot-scope="{ row }">
-          <template v-if="!getRecommendItems(row).length">
+        <template slot="category" slot-scope="{ row }">
+          <category-picker :value="row.customCategory || ''"
+            placeholder="搜索或选择分类"
+            @input="saveCategory(row, $event)" />
+        </template>
+        <template slot="recommendedCats" slot-scope="{ row }">
+          <template v-if="!getRecommendedCats(row).length">
             <span style="color:#ccc">-</span>
           </template>
           <template v-else>
             <div style="line-height:1.6">
-              <div v-for="(c, ci) in getRecommendItems(row)" :key="ci" style="margin-bottom:2px">
-                <Tooltip :content="c.path" placement="top" transfer :max-width="400">
-                  <span :style="{ fontSize:'14px', color:getRecColor(c), cursor:'pointer', wordBreak:'break-all' }">{{ c.leafName }}</span>
-                  <span :style="{ fontSize:'13px', color:getRecColor(c), marginLeft:'4px' }">{{ getRecScore(c) }}</span>
-                </Tooltip>
-                <Icon type="md-checkmark-circle-outline" size="18" title="设为自定义类目"
-                  style="color:#bbb;cursor:pointer;vertical-align:middle;margin-left:6px;position:relative;top:-1px"
-                  @mouseenter.native="$event.target.style.color='#1890ff'"
-                  @mouseleave.native="$event.target.style.color='#bbb'"
-                  @click.native.stop="setRecommendedCategory(row, c)" />
+              <div v-for="(cat, ci) in getRecommendedCats(row)" :key="ci" style="margin-bottom:2px">
+                <span style="display:inline">
+                  <Tooltip :content="cat" placement="top" transfer :max-width="400">
+                    <span style="font-size:13px;color:#ff6a00;cursor:pointer">{{ cat }}</span>
+                  </Tooltip><Icon type="md-checkmark-circle-outline" size="16" title="设为自定义类目"
+                    style="color:#bbb;cursor:pointer;vertical-align:middle;margin-left:4px;position:relative;top:-1px"
+                    @mouseenter.native="$event.target.style.color='#1890ff'"
+                    @mouseleave.native="$event.target.style.color='#bbb'"
+                    @click.native.stop="setRecommendedCat(row, cat)" />
+                </span>
               </div>
             </div>
           </template>
@@ -474,6 +360,9 @@ Vue.component('page-products', {
             <Tooltip content="查看/编辑" placement="top" transfer>
               <Button type="primary" size="small" icon="ios-eye" style="min-width:36px" @click="$root.openDetail(row.id)"></Button>
             </Tooltip>
+            <Tooltip content="新建打开" placement="top" transfer>
+              <Button size="small" icon="md-add" style="min-width:36px" @click="openAdd(row.id)"></Button>
+            </Tooltip>
             <Tooltip content="引用打开" placement="top" transfer>
               <Button size="small" icon="ios-link" style="min-width:36px" @click="openQuoteEdit(row.id)"></Button>
             </Tooltip>
@@ -491,11 +380,7 @@ Vue.component('page-products', {
       <modal v-model="batchCatVisible" title="批量设置类目" :mask-closable="false" width="500">
         <div style="margin-bottom:12px">
           <p style="margin-bottom:8px;color:#666">已选择 <strong>{{ selectedIds.length }}</strong> 条商品</p>
-          <Cascader v-if="treeData.length" v-model="batchCatValue" :data="treeData"
-            placeholder="选择分类" change-on-select filterable clearable style="width:100%" />
-          <i-select v-else v-model="batchCatValue" filterable clearable placeholder="搜索店小秘类目" style="width:100%" not-found-text="无匹配">
-            <i-option v-for="c in dxmCatOptions" :key="c.id" :value="c.path">{{ c.path }}</i-option>
-          </i-select>
+          <category-picker v-model="batchCatValue" placeholder="搜索或选择分类" />
         </div>
         <div slot="footer">
           <i-button @click="batchCatVisible = false">取消</i-button>

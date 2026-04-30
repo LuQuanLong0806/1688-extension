@@ -209,6 +209,16 @@ async function initDb() {
     )
   `);
 
+  // 1688类目 → 自定义类目映射（独立于商品，删除商品不影响）
+  db.run(`
+    CREATE TABLE IF NOT EXISTS category_mappings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      category_name TEXT NOT NULL,
+      custom_category TEXT NOT NULL,
+      UNIQUE(category_name, custom_category)
+    )
+  `);
+
   saveDb();
 }
 
@@ -452,13 +462,24 @@ app.get('/api/product', (req, res) => {
   const parsedList = list.map(row => {
     var catObj = row.category ? JSON.parse(row.category) : {};
     var catName = catObj.leafCategoryName || catObj.categoryPath || '';
-    var recs = getRecommendedDxmCategories(catName);
+    var recommendedCats = [];
+    if (catName) {
+      var catRows = getAll(
+        "SELECT custom_category FROM category_mappings WHERE category_name = ?",
+        [catName]
+      );
+      catRows.forEach(function (r) {
+        if (r.custom_category && recommendedCats.indexOf(r.custom_category) === -1) {
+          recommendedCats.push(r.custom_category);
+        }
+      });
+    }
     return {
       ...row,
       category: catObj,
       customCategory: row.custom_category || '',
       dxmCategory: row.dxm_category ? JSON.parse(row.dxm_category) : null,
-      recommendedDxm: recs,
+      recommendedCustomCategories: recommendedCats,
       attrs: JSON.parse(row.attrs || '[]'),
       skuCount: JSON.parse(row.skus || '[]').length
     };
@@ -517,21 +538,16 @@ app.put('/api/product/:id', (req, res) => {
 
   run(`UPDATE products SET ${fields.join(', ')} WHERE id = ?`, params);
 
-  // 修改自定义类目时，只更新类目字典
+  // 修改自定义类目时，保存映射关系到独立表
   if (req.body.customCategory !== undefined) {
     const product = getOne('SELECT category FROM products WHERE id = ?', [parseInt(req.params.id)]);
     if (product && product.category) {
       try {
         const cat = JSON.parse(product.category);
         const catName = cat.leafCategoryName || cat.categoryPath;
-        if (catName) {
-          const newCustomName = req.body.customCategory;
-          run('UPDATE categories SET custom_name = ? WHERE name = ?', [newCustomName, catName]);
-          const existCat = getOne('SELECT id FROM categories WHERE name = ?', [catName]);
-          if (!existCat) {
-            run('INSERT INTO categories (name, custom_name, cat_id, leaf_category_id, top_category_id, post_category_id) VALUES (?, ?, ?, ?, ?, ?)',
-              [catName, newCustomName, cat.catId || '', cat.leafCategoryId || '', cat.topCategoryId || '', cat.postCategoryId || '']);
-          }
+        const newCustomName = req.body.customCategory;
+        if (catName && newCustomName) {
+          run('INSERT OR IGNORE INTO category_mappings (category_name, custom_category) VALUES (?, ?)', [catName, newCustomName]);
         }
       } catch (e) {}
     }
@@ -569,6 +585,41 @@ app.post('/api/dxm-category/collect', (req, res) => {
 app.get('/api/dxm-category/library', (req, res) => {
   const rows = getAll('SELECT id, path, leaf_name, count, created_at FROM dxm_categories ORDER BY count DESC, id DESC');
   res.json(rows);
+});
+
+// 获取1688类目 → 自定义类目映射
+app.get('/api/category/custom-mappings', (req, res) => {
+  const keyword = (req.query.keyword || '').trim();
+  let cats;
+  if (keyword) {
+    cats = getAll("SELECT name FROM categories WHERE name != '' AND name LIKE ? ORDER BY count DESC", ['%' + keyword + '%']);
+  } else {
+    cats = getAll("SELECT name FROM categories WHERE name != '' ORDER BY count DESC");
+  }
+  const result = cats.map(r => {
+    var catName = r.name;
+    var products = getAll(
+      "SELECT id, custom_category, title FROM products WHERE category LIKE ? ORDER BY updated_at DESC",
+      ['%"' + catName + '"%']
+    );
+    var totalCount = products.length;
+    var customCats = [];
+    var noCustomCount = 0;
+    products.forEach(function (p) {
+      if (p.custom_category) {
+        if (customCats.indexOf(p.custom_category) === -1) customCats.push(p.custom_category);
+      } else {
+        noCustomCount++;
+      }
+    });
+    return {
+      name: catName,
+      totalCount: totalCount,
+      customCategories: customCats,
+      noCustomCount: noCustomCount
+    };
+  });
+  res.json(result);
 });
 
 // 获取未映射的1688类目（有商品但 dxm_category 为空）
@@ -705,46 +756,6 @@ app.post('/api/dxm-category/confirm', (req, res) => {
   res.json({ ok: true });
 });
 
-// 推荐 DXM 类目（映射 + 智能匹配）
-function getRecommendedDxmCategories(catName) {
-  if (!catName) return { mapped: [], matched: [] };
-  var dxmLib = getAll('SELECT path, leaf_name FROM dxm_categories ORDER BY count DESC');
-
-  // 1. 已映射：该1688类目下有 dxm_category 的商品
-  var mapped = [];
-  try {
-    var mappedRows = getAll(
-      "SELECT DISTINCT dxm_category FROM products WHERE category LIKE ? AND dxm_category IS NOT NULL AND dxm_category != ''",
-      ['%"' + catName + '"%']
-    );
-    var seen = {};
-    mappedRows.forEach(function (r) {
-      try {
-        var d = JSON.parse(r.dxm_category);
-        if (d && d.path && !seen[d.path]) {
-          seen[d.path] = true;
-          mapped.push({ path: d.path, leafName: d.leafName || d.path.split('/').pop() });
-        }
-      } catch (e) {}
-    });
-  } catch (e) {}
-
-  // 2. 智能匹配：排除已映射的，得分 >= 30
-  var matched = [];
-  dxmLib.forEach(function (c) {
-    for (var i = 0; i < mapped.length; i++) {
-      if (mapped[i].path === c.path) return; // 跳过已映射
-    }
-    var score = calcMatchScore(catName, c.leaf_name || '');
-    if (score >= 30) {
-      matched.push({ path: c.path, leafName: c.leaf_name, score: score });
-    }
-  });
-  matched.sort(function (a, b) { return b.score - a.score; });
-
-  return { mapped: mapped, matched: matched };
-}
-
 // 匹配算法
 function calcMatchScore(a, b) {
   if (!a || !b) return 0;
@@ -813,7 +824,7 @@ app.post('/api/dxm-tree/sync', (req, res) => {
 // 获取子级分类
 app.get('/api/dxm-tree/children', (req, res) => {
   const parentId = parseInt(req.query.parentId) || 0;
-  const rows = treeGetAll('SELECT cat_id, cat_name, parent_cat_id, cat_level, is_leaf, path FROM dxm_category_tree WHERE parent_cat_id = ? ORDER BY cat_name', [parentId]);
+  const rows = treeGetAll('SELECT cat_id, cat_name, parent_cat_id, cat_level, is_leaf, path FROM dxm_category_tree WHERE parent_cat_id = ? GROUP BY cat_name ORDER BY cat_name', [parentId]);
   res.json(rows.map(r => ({
     catId: r.cat_id, catName: r.cat_name, parentCatId: r.parent_cat_id,
     catLevel: r.cat_level, isLeaf: r.is_leaf, path: r.path
@@ -848,12 +859,20 @@ app.get('/api/dxm-tree/root-status', (req, res) => {
   res.json(result);
 });
 
-// 搜索分类
+// 搜索分类（只返回叶子分类）
 app.get('/api/dxm-tree/search', (req, res) => {
   const keyword = (req.query.keyword || '').trim();
   if (!keyword) return res.json([]);
-  const rows = treeGetAll('SELECT cat_id, cat_name, path, is_leaf FROM dxm_category_tree WHERE cat_name LIKE ? ORDER BY cat_level, cat_name', ['%' + keyword + '%']);
+  const rows = treeGetAll('SELECT cat_id, cat_name, path, is_leaf FROM dxm_category_tree WHERE is_leaf = 1 AND cat_name LIKE ? ORDER BY cat_level, cat_name', ['%' + keyword + '%']);
   res.json(rows.map(r => ({ catId: r.cat_id, catName: r.cat_name, path: r.path, isLeaf: r.is_leaf })));
+});
+
+// 根据叶子名称精确查找路径
+app.get('/api/dxm-tree/resolve-path', (req, res) => {
+  const name = (req.query.name || '').trim();
+  if (!name) return res.json({ path: '' });
+  const row = treeGetOne('SELECT path FROM dxm_category_tree WHERE cat_name = ? AND is_leaf = 1 LIMIT 1', [name]);
+  res.json({ path: row ? row.path : '' });
 });
 
 // 所有叶子分类完整路径（替代 dxmCatOptions）
@@ -921,6 +940,41 @@ function parseRow(row) {
     skus: JSON.parse(row.skus || '[]')
   };
 }
+
+// ========== 类目映射 CRUD ==========
+
+app.get('/api/category-mappings', (req, res) => {
+  const keyword = (req.query.keyword || '').trim();
+  let rows;
+  if (keyword) {
+    rows = getAll('SELECT id, category_name, custom_category FROM category_mappings WHERE category_name LIKE ? OR custom_category LIKE ? ORDER BY category_name', ['%' + keyword + '%', '%' + keyword + '%']);
+  } else {
+    rows = getAll('SELECT id, category_name, custom_category FROM category_mappings ORDER BY category_name');
+  }
+  res.json(rows.map(r => ({ id: r.id, categoryName: r.category_name, customCategory: r.custom_category })));
+});
+
+app.delete('/api/category-mappings/:id', (req, res) => {
+  run('DELETE FROM category_mappings WHERE id = ?', [parseInt(req.params.id)]);
+  res.json({ ok: true });
+});
+
+// 清空所有自定义类目 + 迁移已有映射
+app.post('/api/product/clear-custom-category', (req, res) => {
+  // 先把已有的自定义类目映射保存到映射表
+  var existing = getAll("SELECT category, custom_category FROM products WHERE custom_category IS NOT NULL AND custom_category != ''");
+  existing.forEach(function (r) {
+    try {
+      var cat = JSON.parse(r.category);
+      var catName = cat.leafCategoryName || cat.categoryPath;
+      if (catName && r.custom_category) {
+        run('INSERT OR IGNORE INTO category_mappings (category_name, custom_category) VALUES (?, ?)', [catName, r.custom_category]);
+      }
+    } catch (e) {}
+  });
+  run("UPDATE products SET custom_category = ''");
+  res.json({ ok: true });
+});
 
 // Start
 initDb().then(() => initTreeDb()).then(() => {

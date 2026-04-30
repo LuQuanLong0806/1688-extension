@@ -8,20 +8,10 @@ Vue.component('detail-modal', {
     return {
       editable: null,
       selectedSkuIndexes: [],
-      selectedDetailIndexes: [],
-      dxmCatOptions: [],
-      treeData: []
+      selectedDetailIndexes: []
     };
   },
-  mounted: function () {
-    var vm = this;
-    fetch('/api/dxm-category/library')
-      .then(function (r) { return r.json(); })
-      .then(function (list) { vm.dxmCatOptions = list; });
-    fetch('/api/dxm-tree/tree')
-      .then(function (r) { return r.json(); })
-      .then(function (data) { vm.treeData = data || []; });
-  },
+  mounted: function () {},
   watch: {
     detail: function (val) {
       if (val) {
@@ -92,43 +82,6 @@ Vue.component('detail-modal', {
   },
   methods: {
     close: function () { this.$emit('update:visible', false); },
-    getCascaderPath: function (selectedValues) {
-      var nodes = this.treeData;
-      var labels = [];
-      for (var i = 0; i < selectedValues.length; i++) {
-        var found = null;
-        for (var j = 0; j < nodes.length; j++) {
-          if (nodes[j].value === selectedValues[i]) { found = nodes[j]; break; }
-        }
-        if (!found) return '';
-        labels.push(found.label);
-        nodes = found.children || [];
-      }
-      return labels.join('/');
-    },
-    getCascaderValue: function (path) {
-      if (!path || !this.treeData.length) return [];
-      var parts = path.split('/');
-      var values = [];
-      var nodes = this.treeData;
-      for (var i = 0; i < parts.length; i++) {
-        var found = null;
-        for (var j = 0; j < nodes.length; j++) {
-          if (nodes[j].label === parts[i]) { found = nodes[j]; break; }
-        }
-        if (!found) return [];
-        values.push(found.value);
-        nodes = found.children || [];
-      }
-      return values;
-    },
-    onCascaderChange: function (val) {
-      if (Array.isArray(val) && val.length > 0) {
-        this.editable.customCategory = this.getCascaderPath(val);
-      } else if (Array.isArray(val) && val.length === 0) {
-        this.editable.customCategory = '';
-      }
-    },
     toggleSkuAll: function (checked) {
       var vm = this;
       if (checked) {
@@ -324,12 +277,7 @@ Vue.component('detail-modal', {
               <span v-else>-</span>
             </span>
             <span class="label">自定义类目</span><span class="value">
-              <Cascader v-if="treeData.length" :value="getCascaderValue(editable.customCategory)" :data="treeData"
-                placeholder="选择分类" change-on-select filterable clearable style="width:600px;font-size:14px"
-                @on-change="onCascaderChange" />
-              <i-select v-else v-model="editable.customCategory" filterable clearable placeholder="搜索店小秘类目" style="width:600px;font-size:14px" not-found-text="无匹配">
-                <i-option v-for="c in dxmCatOptions" :key="c.id" :value="c.path">{{ c.path }}</i-option>
-              </i-select>
+              <category-picker v-model="editable.customCategory" placeholder="搜索或选择分类" style="width:600px" />
             </span>
             <span class="label">1688类目</span><span class="value">
               <span style="color:#666;font-size:14px">{{ originCategory }}</span>
