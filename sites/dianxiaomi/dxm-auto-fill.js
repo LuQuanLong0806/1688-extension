@@ -125,17 +125,32 @@
       });
   }
 
-  // ========== 组合轮播图：主图 + 已选SKU图片，最多10张 ==========
+  // ========== 组合轮播图：选中的主图 + 详情图 + SKU图，最多10张 ==========
   function buildCarouselImages(data) {
     var images = [];
     var seen = {};
     var limit = 10;
 
-    // 主图
+    // 选中的主图
     if (data.main_images) {
       for (var i = 0; i < data.main_images.length && images.length < limit; i++) {
-        var url = data.main_images[i];
-        if (url && !seen[url]) {
+        var item = data.main_images[i];
+        var isSelected = typeof item === 'string' || item._selected !== false;
+        var url = typeof item === 'string' ? item : item.url;
+        if (isSelected && url && !seen[url]) {
+          images.push(url);
+          seen[url] = true;
+        }
+      }
+    }
+
+    // 选中的详情图
+    if (images.length < limit && data.detail_images) {
+      for (var i = 0; i < data.detail_images.length && images.length < limit; i++) {
+        var item = data.detail_images[i];
+        var isSelected = typeof item === 'string' || item._selected !== false;
+        var url = typeof item === 'string' ? item : item.url;
+        if (isSelected && url && !seen[url]) {
           images.push(url);
           seen[url] = true;
         }
@@ -143,7 +158,7 @@
     }
 
     // 已选SKU图片
-    if (data.skus) {
+    if (images.length < limit && data.skus) {
       var selected = data.skus.filter(function (s) { return s._selected !== false; });
       for (var j = 0; j < selected.length && images.length < limit; j++) {
         var skuImg = selected[j].image;
@@ -154,7 +169,7 @@
       }
     }
 
-    console.log('%c[自动填表] 轮播图: ' + images.length + '张 (主图' + (data.main_images || []).length + ' + SKU图' + (images.length - Math.min((data.main_images || []).length, limit)) + ')', 'color:#E65100;font-weight:bold');
+    console.log('%c[自动填表] 轮播图: ' + images.length + '张', 'color:#E65100;font-weight:bold');
     return images;
   }
 

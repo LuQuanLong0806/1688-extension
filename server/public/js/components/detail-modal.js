@@ -8,7 +8,8 @@ Vue.component('detail-modal', {
     return {
       editable: null,
       selectedSkuIndexes: [],
-      selectedDetailIndexes: []
+      selectedDetailIndexes: [],
+      selectedMainIndexes: []
     };
   },
   mounted: function () {},
@@ -21,6 +22,21 @@ Vue.component('detail-modal', {
           if (!s.dimensions || !s.dimensions.length) s.dimensions = ['', '', ''];
           while (s.dimensions.length < 3) s.dimensions.push('');
         });
+        // 主图选中状态
+        var savedMain = [];
+        var mainImgs = val.main_images || [];
+        var normalizedMain = [];
+        mainImgs.forEach(function (item, i) {
+          if (typeof item === 'string') {
+            normalizedMain.push(item);
+          } else if (item && item.url) {
+            normalizedMain.push(item.url);
+            if (item._selected) savedMain.push(i);
+          }
+        });
+        this.editable.main_images = normalizedMain;
+        this.selectedMainIndexes = savedMain.length > 0 ? savedMain : normalizedMain.map(function (_, i) { return i; });
+        // SKU选中状态
         var saved = (val.skus || [])
           .map(function (s, i) { return s._selected ? i : -1; })
           .filter(function (i) { return i >= 0; });
@@ -29,6 +45,7 @@ Vue.component('detail-modal', {
         } else {
           this.selectedSkuIndexes = (val.skus || []).map(function (_, i) { return i; });
         }
+        // 详情图选中状态
         var detailImgs = val.detail_images || [];
         var savedDetail = [];
         var normalizedImgs = [];
@@ -77,6 +94,33 @@ Vue.component('detail-modal', {
     }
   },
   methods: {
+    toggleMainImage: function (idx) {
+      var pos = this.selectedMainIndexes.indexOf(idx);
+      if (pos >= 0) this.selectedMainIndexes.splice(pos, 1);
+      else this.selectedMainIndexes.push(idx);
+    },
+    isMainImageChecked: function (idx) {
+      return this.selectedMainIndexes.indexOf(idx) >= 0;
+    },
+    toggleAllMainImages: function (checked) {
+      if (checked) {
+        this.selectedMainIndexes = (this.editable.main_images || []).map(function (_, i) { return i; });
+      } else {
+        this.selectedMainIndexes = [];
+      }
+    },
+    allMainSelected: function () {
+      if (!this.editable || !this.editable.main_images || !this.editable.main_images.length) return false;
+      return this.selectedMainIndexes.length === this.editable.main_images.length;
+    },
+    removeMainImage: function (idx) {
+      var pos = this.selectedMainIndexes.indexOf(idx);
+      if (pos >= 0) this.selectedMainIndexes.splice(pos, 1);
+      for (var i = 0; i < this.selectedMainIndexes.length; i++) {
+        if (this.selectedMainIndexes[i] > idx) this.selectedMainIndexes[i]--;
+      }
+      this.editable.main_images.splice(idx, 1);
+    },
     openAdd: function () {
       if (!this.editable) return;
       window.open('https://www.dianxiaomi.com/web/temu/add?collectId=' + this.editable.id, '_blank');
@@ -176,11 +220,14 @@ Vue.component('detail-modal', {
       var detailImages = (vm.editable.detail_images || []).map(function (url, i) {
         return { url: url, _selected: vm.selectedDetailIndexes.indexOf(i) >= 0 };
       });
+      var mainImages = (vm.editable.main_images || []).map(function (url, i) {
+        return { url: url, _selected: vm.selectedMainIndexes.indexOf(i) >= 0 };
+      });
       var payload = {
         title: vm.editable.title,
         customCategory: vm.editable.customCategory,
         manualCategory: vm.editable.manualCategory,
-        mainImages: vm.editable.main_images,
+        mainImages: mainImages,
         descImages: vm.editable.desc_images,
         detailImages: detailImages,
         skus: skus,
@@ -213,17 +260,25 @@ Vue.component('detail-modal', {
       :title="editable ? (editable.title || ('商品 #' + editable.id)) : '商品详情'" fullscreen footer-hide>
       <template v-if="editable">
 
-        <!-- 主图 -->
+        <!-- 主图（可勾选） -->
         <div class="detail-section" v-if="editable.main_images && editable.main_images.length">
-          <div class="detail-section-title">主图 ({{ editable.main_images.length }})</div>
+          <div class="detail-section-title">
+            主图 ({{ editable.main_images.length }})
+            <checkbox :value="allMainSelected()" @on-change="toggleAllMainImages" style="margin-left:12px;vertical-align:middle"></checkbox>
+            <span style="font-size:12px;color:#999;margin-left:4px;vertical-align:middle">全选</span>
+          </div>
           <div class="img-grid">
-            <div class="img-item" v-for="(url, i) in editable.main_images" :key="'m'+i"
-              @click="openPreview(editable.main_images, i)">
+            <div class="img-item sku-img-checkable" v-for="(url, i) in editable.main_images" :key="'m'+i"
+              :class="{ 'sku-img-unchecked': !isMainImageChecked(i) }"
+              @click="toggleMainImage(i)">
               <img :src="url" loading="lazy"
                 @mouseenter="onSkuImgEnter(url, $event)"
                 @mousemove="onSkuImgMove($event)"
                 @mouseleave="onSkuImgLeave" />
-              <div class="img-del" @click.stop="editable.main_images.splice(i, 1)">&times;</div>
+              <div class="sku-img-check">
+                <checkbox :value="isMainImageChecked(i)" @click.native.stop></checkbox>
+              </div>
+              <div class="img-del" @click.stop="removeMainImage(i)">&times;</div>
             </div>
           </div>
         </div>
