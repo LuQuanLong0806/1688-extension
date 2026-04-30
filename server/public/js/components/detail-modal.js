@@ -175,6 +175,7 @@ Vue.component('detail-modal', {
       var payload = {
         title: vm.editable.title,
         customCategory: vm.editable.customCategory,
+        manualCategory: vm.editable.manualCategory,
         mainImages: vm.editable.main_images,
         descImages: vm.editable.desc_images,
         detailImages: detailImages,
@@ -270,6 +271,9 @@ Vue.component('detail-modal', {
           <div class="info-grid">
             <span class="label">选择分类</span><span class="value">
               <category-picker v-model="editable.customCategory" placeholder="搜索或选择分类" style="width:600px" />
+            </span>
+            <span class="label">手动分类</span><span class="value">
+              <i-input v-model="editable.manualCategory" placeholder="手动填写分类" style="width:600px" />
             </span>
             <span class="label">标题</span><span class="value">
               <i-input v-model="editable.title" type="textarea" :rows="2" style="width:600px;font-size:14px" />

@@ -548,9 +548,14 @@
 
   // ========== Step 1.6: 自动选择类目 ==========
 
-  // 类目回退优先级：customCategory → dxmCategory → 1688原始类目
+  // 类目回退优先级：manualCategory → customCategory → dxmCategory → 1688原始类目
   function resolveCategory(data) {
-    // 1. 优先用自定义类目
+    // 0. 最优先用手动分类
+    if (data.manualCategory) {
+      var mc = data.manualCategory;
+      return { path: mc, leafName: mc.split(/[\/>]/).pop() || mc };
+    }
+    // 1. 自定义类目（category-picker 选的）
     if (data.customCategory) {
       var cc = data.customCategory;
       return { path: cc, leafName: cc.split(/[\/>]/).pop() || cc };

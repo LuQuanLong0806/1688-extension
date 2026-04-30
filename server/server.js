@@ -138,6 +138,7 @@ async function initDb() {
   try { db.run('ALTER TABLE products ADD COLUMN detail_images TEXT'); } catch (e) {}
   try { db.run('ALTER TABLE products ADD COLUMN custom_category TEXT'); } catch (e) {}
   try { db.run('ALTER TABLE products ADD COLUMN dxm_category TEXT DEFAULT \'\''); } catch (e) {}
+  try { db.run('ALTER TABLE products ADD COLUMN manual_category TEXT'); } catch (e) {}
 
   // 配置项表
   db.run(`
@@ -517,6 +518,7 @@ app.put('/api/product/:id', (req, res) => {
     skus: 'skus',
     status: 'status',
     customCategory: 'custom_category',
+    manualCategory: 'manual_category',
     dxmCategory: 'dxm_category'
   };
 
@@ -926,6 +928,7 @@ function parseRow(row) {
     ...row,
     category: row.category ? JSON.parse(row.category) : {},
     customCategory: row.custom_category || '',
+    manualCategory: row.manual_category || '',
     dxmCategory: row.dxm_category ? JSON.parse(row.dxm_category) : null,
     main_images: JSON.parse(row.main_images || '[]'),
     desc_images: JSON.parse(row.desc_images || '[]'),

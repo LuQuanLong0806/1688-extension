@@ -62,6 +62,11 @@ Vue.component('page-products', {
           slot: 'category'
         },
         {
+          title: '手动分类',
+          width: 200,
+          slot: 'manualCat'
+        },
+        {
           title: '推荐类目',
           minWidth: 200,
           slot: 'recommendedCats'
@@ -134,6 +139,16 @@ Vue.component('page-products', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ customCategory: val || '' })
+      });
+    },
+    saveManualCategory: function (row, event) {
+      var val = (event.target.value || '').trim();
+      if (val === (row.manualCategory || '')) return;
+      row.manualCategory = val;
+      fetch('/api/product/' + row.id, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ manualCategory: val })
       });
     },
     // -- 数据加载 --
@@ -316,6 +331,12 @@ Vue.component('page-products', {
           <category-picker :value="row.customCategory || ''"
             placeholder="搜索或选择分类"
             @input="saveCategory(row, $event)" />
+        </template>
+        <template slot="manualCat" slot-scope="{ row }">
+          <i-input :value="row.manualCategory || ''"
+            placeholder="手动填写分类"
+            size="small"
+            @on-enter="saveManualCategory(row, $event)" />
         </template>
         <template slot="recommendedCats" slot-scope="{ row }">
           <template v-if="!getRecommendedCats(row).length">
