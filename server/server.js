@@ -379,6 +379,10 @@ app.post('/api/product', (req, res) => {
         run('INSERT INTO categories (name, cat_id, leaf_category_id, top_category_id, post_category_id) VALUES (?, ?, ?, ?, ?)',
           [catName, category.catId || '', category.leafCategoryId || '', category.topCategoryId || '', category.postCategoryId || '']);
       }
+      // 自动匹配到自定义类目时写入映射
+      if (customCategory) {
+        run('INSERT OR IGNORE INTO category_mappings (category_name, custom_category) VALUES (?, ?)', [catName, customCategory]);
+      }
     }
   }
 
@@ -541,19 +545,20 @@ app.put('/api/product/:id', (req, res) => {
   run(`UPDATE products SET ${fields.join(', ')} WHERE id = ?`, params);
 
   // 修改自定义类目时，保存映射关系到独立表
-  if (req.body.customCategory !== undefined) {
-    const product = getOne('SELECT category FROM products WHERE id = ?', [parseInt(req.params.id)]);
-    if (product && product.category) {
-      try {
-        const cat = JSON.parse(product.category);
-        const catName = cat.leafCategoryName || cat.categoryPath;
-        const newCustomName = req.body.customCategory;
-        if (catName && newCustomName) {
-          run('INSERT OR IGNORE INTO category_mappings (category_name, custom_category) VALUES (?, ?)', [catName, newCustomName]);
-        }
-      } catch (e) {}
+  const product = getOne('SELECT category FROM products WHERE id = ?', [parseInt(req.params.id)]);
+  ['customCategory', 'manualCategory'].forEach(function (field) {
+    if (req.body[field] !== undefined && req.body[field]) {
+      if (product && product.category) {
+        try {
+          const cat = JSON.parse(product.category);
+          const catName = cat.leafCategoryName || cat.categoryPath;
+          if (catName) {
+            run('INSERT OR IGNORE INTO category_mappings (category_name, custom_category) VALUES (?, ?)', [catName, req.body[field]]);
+          }
+        } catch (e) {}
+      }
     }
-  }
+  });
 
   res.json({ ok: true });
 });
