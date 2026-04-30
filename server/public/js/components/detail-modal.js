@@ -77,6 +77,10 @@ Vue.component('detail-modal', {
     }
   },
   methods: {
+    openAdd: function () {
+      if (!this.editable) return;
+      window.open('https://www.dianxiaomi.com/web/temu/add?collectId=' + this.editable.id, '_blank');
+    },
     close: function () { this.$emit('update:visible', false); },
     toggleSkuAll: function (checked) {
       var vm = this;
@@ -344,6 +348,7 @@ Vue.component('detail-modal', {
         <!-- 底部固定操作栏 -->
         <div class="detail-footer-fixed">
           <i-button type="primary" icon="md-checkmark" @click="saveProduct">保存</i-button>
+          <i-button type="success" icon="md-add" @click="openAdd">新建打开</i-button>
           <i-button :type="editable.status === 0 ? 'success' : 'error'" @click="toggleStatus">
             {{ editable.status === 0 ? '标记已使用' : '标记未使用' }}
           </i-button>

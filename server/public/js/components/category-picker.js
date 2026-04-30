@@ -28,12 +28,21 @@ Vue.component('category-picker', {
   },
   methods: {
     loadPath: function () {
-      if (!this.value) { this.currentPath = ''; return; }
+      if (!this.value) {
+        this.currentPath = '';
+        return;
+      }
       var vm = this;
       fetch('/api/dxm-tree/resolve-path?name=' + encodeURIComponent(this.value))
-        .then(function (r) { return r.json(); })
-        .then(function (data) { vm.currentPath = data.path || ''; })
-        .catch(function () { vm.currentPath = ''; });
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (data) {
+          vm.currentPath = data.path || '';
+        })
+        .catch(function () {
+          vm.currentPath = '';
+        });
     },
     onInputChange: function () {
       var vm = this;
@@ -59,13 +68,17 @@ Vue.component('category-picker', {
       var vm = this;
       vm.searchLoading = true;
       fetch('/api/dxm-tree/search?keyword=' + encodeURIComponent(kw))
-        .then(function (r) { return r.json(); })
+        .then(function (r) {
+          return r.json();
+        })
         .then(function (list) {
           vm.searchOptions = list;
           vm.searchLoading = false;
           vm.dropdownVisible = true;
         })
-        .catch(function () { vm.searchLoading = false; });
+        .catch(function () {
+          vm.searchLoading = false;
+        });
     },
     selectOption: function (item) {
       this._selecting = true;
@@ -75,7 +88,9 @@ Vue.component('category-picker', {
       this.searchOptions = [];
       this.$emit('input', item.catName);
       var vm = this;
-      setTimeout(function () { vm._selecting = false; }, 300);
+      setTimeout(function () {
+        vm._selecting = false;
+      }, 300);
     },
     onInputBlur: function () {
       var vm = this;
@@ -115,7 +130,7 @@ Vue.component('category-picker', {
             @mouseleave="$event.target.style.background=''"
             @mousedown.prevent="selectOption(item)">
             <div style="font-size:13px;color:#333">{{ item.catName }}</div>
-            <div v-if="item.path" style="font-size:11px;color:#999;margin-top:1px;word-break:break-all">{{ item.path }}</div>
+            <div v-if="item.path" style="font-size:12px;color:#999;margin-top:1px;word-break:break-all">{{ item.path }}</div>
           </div>
         </div>
         <div v-if="dropdownVisible && !searchOptions.length && keyword && !searchLoading" style="position:absolute;top:34px;left:0;right:0;z-index:1050;background:#fff;border:1px solid #dcdee2;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.15);padding:10px;text-align:center;color:#999;font-size:13px">
