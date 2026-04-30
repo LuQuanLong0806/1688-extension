@@ -53,19 +53,6 @@ Vue.component('page-categories', {
       fetch('/api/dxm-tree/status').then(function (r) { return r.json(); }).then(function (s) {
         vm.treeStatus = s;
       });
-    },
-    clearTree: function () {
-      var vm = this;
-      this.$Modal.confirm({
-        title: '确认清空',
-        content: '确认清空分类树数据？清空后可在店小秘页面重新同步。',
-        onOk: function () {
-          fetch('/api/dxm-tree/clear', { method: 'POST' }).then(function () {
-            vm.$Message.success('已清空');
-            vm.loadTreeStatus();
-          });
-        }
-      });
     }
   },
   template: `
@@ -75,8 +62,7 @@ Vue.component('page-categories', {
         <span style="font-size:13px;color:#888">共 <strong style="color:#333">{{ treeStatus.total }}</strong> 个分类</span>
         <span v-if="treeStatus.lastSync" style="font-size:13px;color:#888">最后同步: {{ treeStatus.lastSync }}</span>
         <span v-if="treeStatus.levels" style="font-size:13px;color:#888">层级: {{ treeStatus.levels }}</span>
-        <i-button v-if="treeStatus.total > 0" type="error" size="small" @click="clearTree">清空重新同步</i-button>
-        <i-button v-else type="info" size="small" @click="$Message.info('请在店小秘页面右键小蜜蜂 → 同步类目树')">前往同步</i-button>
+        <i-button v-if="treeStatus.total === 0" type="info" size="small" @click="$Message.info('请在店小秘页面右键小蜜蜂 → 同步类目树')">前往同步</i-button>
       </div>
       <div class="action-bar">
         <div class="action-bar-left">

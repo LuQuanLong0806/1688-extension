@@ -843,12 +843,6 @@ app.get('/api/dxm-tree/status', (req, res) => {
   });
 });
 
-// 清空分类树
-app.post('/api/dxm-tree/clear', (req, res) => {
-  treeRun('DELETE FROM dxm_category_tree');
-  res.json({ ok: true });
-});
-
 // 各大类同步状态
 app.get('/api/dxm-tree/root-status', (req, res) => {
   const roots = treeGetAll('SELECT cat_id, cat_name, path, sync_at FROM dxm_category_tree WHERE parent_cat_id = 0 ORDER BY cat_name');

@@ -1516,7 +1516,7 @@
 
     // 每 BATCH_LIMIT 次请求进入冷却
     if (_syncRequestCount > 1 && (_syncRequestCount - 1) % BATCH_LIMIT === 0) {
-      var coolDown = randomDelay(4000, 4000);
+      var coolDown = randomDelay(3000, 2000);
       setTimeout(function () { execRequest(item); }, coolDown);
     } else {
       execRequest(item);
@@ -1534,11 +1534,11 @@
     }).then(function (r) { return r.json(); }).then(function (resp) {
       var list = (!resp || resp.code !== 0 || !Array.isArray(resp.data)) ? [] : resp.data;
       item.processCb(list, function () {
-        setTimeout(processQueue, randomDelay(1500, 1500));
+        setTimeout(processQueue, randomDelay(1000, 1000));
       });
     }).catch(function () {
       item.processCb([], function () {
-        setTimeout(processQueue, randomDelay(1500, 1500));
+        setTimeout(processQueue, randomDelay(1000, 1000));
       });
     });
   }
