@@ -102,10 +102,9 @@
 
       var text = textEl.getAttribute('title') || textEl.textContent || '';
       var result = C.applyFilters(text, filters);
-      var unitResult = addUnits(result.text);
-      var finalText = unitResult.text;
+      var finalText = result.text;
 
-      if (!result.changed && !unitResult.changed) {
+      if (!result.changed) {
         setTimeout(processNext, 50);
         return;
       }

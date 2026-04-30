@@ -15,6 +15,7 @@
   var AUTO_SKU_NO_KEY = '__dxm_bee_auto_sku_no';
   var DEL_VIDEO_KEY = '__dxm_bee_del_video';
   var AUTO_FILL_KEY = '__dxm_bee_auto_fill';
+  var SHOP_ID_KEY = '__dxm_bee_shop_id';
 
   var SERVER_URL_KEY = '1688_server_url';
 
@@ -232,8 +233,7 @@
   }
 
   function loadAutoSkuNo() {
-    var val = localStorage.getItem(AUTO_SKU_NO_KEY);
-    return val !== 'false';
+    return localStorage.getItem(AUTO_SKU_NO_KEY) === 'true';
   }
 
   function saveAutoSkuNo(val) {
@@ -261,6 +261,16 @@
     var v = val ? 'true' : 'false';
     localStorage.setItem(AUTO_FILL_KEY, v);
     syncToServer(AUTO_FILL_KEY, v);
+  }
+
+  function loadShopId() {
+    return localStorage.getItem(SHOP_ID_KEY) || '';
+  }
+
+  function saveShopId(val) {
+    val = (val || '').trim();
+    localStorage.setItem(SHOP_ID_KEY, val);
+    syncToServer(SHOP_ID_KEY, val);
   }
 
 
@@ -410,6 +420,8 @@
     saveDelVideo: saveDelVideo,
     loadAutoFill: loadAutoFill,
     saveAutoFill: saveAutoFill,
+    loadShopId: loadShopId,
+    saveShopId: saveShopId,
     loadFromServer: loadFromServer,
     setInputValue: setInputValue,
     applyFilters: applyFilters,

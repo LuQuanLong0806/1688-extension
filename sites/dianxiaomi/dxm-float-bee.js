@@ -1489,4 +1489,213 @@
       });
     }
   }
+
+  // ========== 同步类目（从配置面板触发） ==========
+  var _syncCatRunning = false;
+
+  function randomDelay(base, range) {
+    return base + Math.floor(Math.random() * range);
+  }
+
+  // 请求间隔 1~3 秒，冷却 4~8 秒
+  function getInterval() { return randomDelay(1000, 2000); }
+  function getCoolDown() { return randomDelay(4000, 4000); }
+
+  function doSyncTree(shopId, serverUrl, startCatId, startCatName, onDone) {
+    var totalNodes = 0;
+    var requestCount = 0;
+    var batchBuffer = [];
+    var BATCH_SIZE = 50;
+    var BATCH_LIMIT = 20;
+
+    function flushBatch(cb) {
+      if (!batchBuffer.length) return cb();
+      var items = batchBuffer.slice();
+      batchBuffer = [];
+      fetch(serverUrl + '/api/dxm-tree/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ categories: items })
+      }).then(function () { cb(); }).catch(function () { cb(); });
+    }
+
+    function fetchChildren(parentId, parentPath, depth, cb) {
+      if (depth > 10) return cb();
+
+      requestCount++;
+      if (requestCount > 1 && (requestCount - 1) % BATCH_LIMIT === 0) {
+        var coolDown = getCoolDown();
+        showBubble(startCatName + ' 已采集 ' + totalNodes + ' 个，冷却 ' + Math.round(coolDown / 1000) + ' 秒...', 'loading');
+        setTimeout(function () { doReq(parentId, parentPath, depth, cb); }, coolDown);
+      } else {
+        doReq(parentId, parentPath, depth, cb);
+      }
+    }
+
+    function doReq(parentId, parentPath, depth, cb) {
+      var body = 'shopId=' + encodeURIComponent(shopId);
+      if (parentId) body += '&categoryParentId=' + parentId;
+
+      fetch('https://www.dianxiaomi.com/api/pddkjCategory/list.json', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: body
+      }).then(function (r) { return r.json(); }).then(function (resp) {
+        if (!resp || resp.code !== 0 || !Array.isArray(resp.data)) return cb();
+        var list = resp.data;
+        if (!list.length) return cb();
+
+        var nonLeafItems = [];
+        list.forEach(function (cat) {
+          if (cat.isHidden || cat.deleted) return;
+
+          var catId = cat.catId;
+          var catName = cat.catName || '';
+          var parentCatId = cat.parentCatId || parentId;
+          var isLeaf = !!cat.isLeaf;
+          var level = cat.catLevel || (depth + 1);
+          var fullPath = parentPath ? parentPath + '/' + catName : catName;
+
+          totalNodes++;
+          batchBuffer.push({
+            catId: catId,
+            catName: catName,
+            parentCatId: parentCatId,
+            catLevel: level,
+            isLeaf: isLeaf ? 1 : 0,
+            path: fullPath
+          });
+
+          if (!isLeaf) nonLeafItems.push({ catId: catId, fullPath: fullPath, level: level });
+        });
+
+        showBubble(startCatName + ' 已采集 ' + totalNodes + ' 个（第 ' + requestCount + ' 次请求）', 'loading');
+
+        if (batchBuffer.length >= BATCH_SIZE) {
+          flushBatch(function () { processNonLeaf(nonLeafItems, 0, cb); });
+        } else {
+          processNonLeaf(nonLeafItems, 0, cb);
+        }
+      }).catch(function () {
+        showBubble(startCatName + ' 请求失败（第 ' + requestCount + ' 次），跳过', 'loading');
+        cb();
+      });
+    }
+
+    function processNonLeaf(items, idx, doneCb) {
+      if (idx >= items.length) return doneCb();
+      var item = items[idx];
+      setTimeout(function () {
+        fetchChildren(item.catId, item.fullPath, item.level, function () {
+          processNonLeaf(items, idx + 1, doneCb);
+        });
+      }, getInterval());
+    }
+
+    showBubble('开始同步 ' + startCatName + '...', 'loading');
+
+    var initDepth = startCatId ? 1 : 0;
+    fetchChildren(startCatId, startCatName, initDepth, function () {
+      flushBatch(function () {
+        showBubble(startCatName + ' 同步完成！共 ' + totalNodes + ' 个', 'ok');
+        console.log('%c[小蜜蜂] ' + startCatName + ' 同步完成: ' + totalNodes + ' 个', 'color:#52c41a;font-weight:bold');
+        if (onDone) onDone(totalNodes);
+      });
+    });
+  }
+
+  // 同步全部分类（依次同步每个大类）
+  function syncDxmCategories(onDone) {
+    var shopId = Config.loadShopId();
+    if (!shopId) {
+      showBubble('请先设置店铺ID', 'warn');
+      setTimeout(hideBubble, 3000);
+      return;
+    }
+    if (_syncCatRunning) return;
+    _syncCatRunning = true;
+
+    var serverUrl = (Config && Config.getServerUrl ? Config.getServerUrl() : localStorage.getItem('1688_server_url')) || 'http://localhost:3000';
+
+    // 先获取全部一级分类，再依次同步
+    fetch('https://www.dianxiaomi.com/api/pddkjCategory/list.json', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'shopId=' + encodeURIComponent(shopId)
+    }).then(function (r) { return r.json(); }).then(function (resp) {
+      if (!resp || resp.code !== 0 || !Array.isArray(resp.data)) {
+        _syncCatRunning = false;
+        showBubble('获取一级分类失败', 'err');
+        return;
+      }
+      var roots = resp.data.filter(function (c) { return !c.isHidden && !c.deleted; });
+      var totalAll = 0;
+      var idx = 0;
+
+      function syncNext() {
+        if (idx >= roots.length) {
+          _syncCatRunning = false;
+          showBubble('全部分类同步完成！共 ' + totalAll + ' 个', 'ok');
+          console.log('%c[小蜜蜂] 全部分类同步完成: ' + totalAll + ' 个', 'color:#52c41a;font-weight:bold;font-size:14px');
+          setTimeout(hideBubble, 3000);
+          if (onDone) onDone(totalAll);
+          return;
+        }
+        var root = roots[idx];
+        idx++;
+        doSyncTree(shopId, serverUrl, root.catId, root.catName, function (cnt) {
+          totalAll += cnt;
+          syncNext();
+        });
+      }
+
+      syncNext();
+    }).catch(function () {
+      _syncCatRunning = false;
+      showBubble('获取一级分类失败', 'err');
+    });
+  }
+
+  // 同步单个大类
+  function syncSingleCategory(catId, catName, onDone) {
+    var shopId = Config.loadShopId();
+    if (!shopId) {
+      showBubble('请先设置店铺ID', 'warn');
+      setTimeout(hideBubble, 3000);
+      return;
+    }
+    if (_syncCatRunning) {
+      showBubble('正在同步中，请等待', 'warn');
+      setTimeout(hideBubble, 2000);
+      return;
+    }
+    _syncCatRunning = true;
+    var serverUrl = (Config && Config.getServerUrl ? Config.getServerUrl() : localStorage.getItem('1688_server_url')) || 'http://localhost:3000';
+    doSyncTree(shopId, serverUrl, catId, catName, function (cnt) {
+      _syncCatRunning = false;
+      if (onDone) onDone(cnt);
+    });
+  }
+
+  // 获取一级分类列表
+  function fetchRootCategories(cb) {
+    var shopId = Config.loadShopId();
+    if (!shopId) { cb(null, '请先设置店铺ID'); return; }
+    fetch('https://www.dianxiaomi.com/api/pddkjCategory/list.json', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'shopId=' + encodeURIComponent(shopId)
+    }).then(function (r) { return r.json(); }).then(function (resp) {
+      if (!resp || resp.code !== 0 || !Array.isArray(resp.data)) {
+        cb(null, resp && resp.msg || '获取失败');
+        return;
+      }
+      var roots = resp.data.filter(function (c) { return !c.isHidden && !c.deleted; });
+      cb(roots, null);
+    }).catch(function () { cb(null, '网络错误'); });
+  }
+
+  Config.syncDxmCategories = syncDxmCategories;
+  Config.syncSingleCategory = syncSingleCategory;
+  Config.fetchRootCategories = fetchRootCategories;
 })();

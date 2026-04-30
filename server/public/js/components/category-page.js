@@ -11,7 +11,8 @@ Vue.component('page-categories', {
       searchLoading: false,
       expandedId: -1,
       matchResults: {},
-      manualInput: {}
+      manualInput: {},
+      treeStatus: { total: 0, lastSync: null, levels: 0 }
     };
   },
   computed: {
@@ -32,12 +33,32 @@ Vue.component('page-categories', {
   mounted: function () {
     this.loadLibrary();
     this.loadAll();
+    this.loadTreeStatus();
   },
   methods: {
     loadLibrary: function () {
       var vm = this;
       fetch('/api/dxm-category/library').then(function (r) { return r.json(); }).then(function (list) {
         vm.library = list;
+      });
+    },
+    loadTreeStatus: function () {
+      var vm = this;
+      fetch('/api/dxm-tree/status').then(function (r) { return r.json(); }).then(function (s) {
+        vm.treeStatus = s;
+      });
+    },
+    clearTree: function () {
+      var vm = this;
+      this.$Modal.confirm({
+        title: '确认清空',
+        content: '确认清空分类树数据？清空后可在店小秘页面重新同步。',
+        onOk: function () {
+          fetch('/api/dxm-tree/clear', { method: 'POST' }).then(function () {
+            vm.$Message.success('已清空');
+            vm.loadTreeStatus();
+          });
+        }
       });
     },
     loadAll: function () {
@@ -156,6 +177,14 @@ Vue.component('page-categories', {
   },
   template: `
     <div class="list-card">
+      <div style="padding:12px 20px;background:#f6f8fa;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+        <span style="font-weight:500;color:#333">分类树同步</span>
+        <span style="font-size:13px;color:#888">共 <strong style="color:#333">{{ treeStatus.total }}</strong> 个分类</span>
+        <span v-if="treeStatus.lastSync" style="font-size:13px;color:#888">最后同步: {{ treeStatus.lastSync }}</span>
+        <span v-if="treeStatus.levels" style="font-size:13px;color:#888">层级: {{ treeStatus.levels }}</span>
+        <i-button v-if="treeStatus.total > 0" type="error" size="small" @click="clearTree">清空重新同步</i-button>
+        <i-button v-else type="info" size="small" @click="$Message.info('请在店小秘页面右键小蜜蜂 → 同步类目树')">前往同步</i-button>
+      </div>
       <div class="action-bar">
         <div class="action-bar-left">
           <i-select v-model="statusFilter" style="width:120px" @on-change="page = 1">

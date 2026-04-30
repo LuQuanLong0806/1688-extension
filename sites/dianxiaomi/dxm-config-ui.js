@@ -75,7 +75,25 @@
     '#__dxm_bee_settings .btn-del:hover{background:#fff1f0}' +
     '#__dxm_bee_settings .toast{display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(82,196,26,.92);color:#fff;padding:8px 24px;border-radius:8px;font-size:13px;pointer-events:none}' +
     '#__dxm_bee_settings .toast.show{display:block;animation:__dxm_toast .3s ease}' +
-    '@keyframes __dxm_toast{from{opacity:0;transform:translate(-50%,-50%) scale(.9)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}';
+    '@keyframes __dxm_toast{from{opacity:0;transform:translate(-50%,-50%) scale(.9)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}' +
+    // --- Sync popup ---
+    '#__dxm_bee_sync_overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:2147483647;align-items:center;justify-content:center}' +
+    '#__dxm_bee_sync_overlay.show{display:flex}' +
+    '#__dxm_bee_sync_panel{background:#fff;border-radius:14px;box-shadow:0 8px 40px rgba(0,0,0,.2);width:520px;max-height:80vh;display:flex;flex-direction:column;font:13px/1.6 "Microsoft YaHei",Arial,sans-serif;color:#333;overflow:hidden}' +
+    '#__dxm_bee_sync_header{display:flex;align-items:center;justify-content:space-between;padding:16px 22px;border-bottom:1px solid #f0f0f0;background:linear-gradient(135deg,#FFFDE7,#FFF8E1)}' +
+    '#__dxm_bee_sync_header h3{margin:0;font-size:15px;color:#5D4037;font-weight:600}' +
+    '#__dxm_bee_sync_toolbar{display:flex;align-items:center;gap:10px;padding:14px 22px;border-bottom:1px solid #f0f0f0}' +
+    '#__dxm_bee_sync_toolbar input{flex:1;padding:7px 12px;border:1px solid #e0e0e0;border-radius:8px;font-size:13px;outline:none}' +
+    '#__dxm_bee_sync_toolbar input:focus{border-color:#FFA000;box-shadow:0 0 0 2px rgba(255,160,0,.12)}' +
+    '#__dxm_bee_sync_list{flex:1;overflow-y:auto;padding:0}' +
+    '.sync-row{display:flex;align-items:center;justify-content:space-between;padding:10px 22px;border-bottom:1px solid #f5f5f5;transition:background .15s}' +
+    '.sync-row:hover{background:#FFF8E1}' +
+    '.sync-row-name{font-size:13px;flex:1;display:flex;align-items:center}' +
+    '.sync-row-btn{padding:4px 14px;border:1px solid #FFA000;border-radius:6px;background:#fff;color:#E65100;font-size:12px;cursor:pointer;transition:all .2s;white-space:nowrap}' +
+    '.sync-row-btn:hover{background:#FFA000;color:#fff}' +
+    '.sync-row-btn:disabled{opacity:.5;cursor:not-allowed;background:#f5f5f0;color:#999;border-color:#e0e0e0}' +
+    '#__dxm_bee_sync_footer{padding:12px 22px;border-top:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center}' +
+    '#__dxm_bee_sync_status{font-size:12px;color:#888}';
   document.head.appendChild(s);
 
   // ========== Context Menu ==========
@@ -91,6 +109,7 @@
   var autoTranslate = Config.loadAutoTranslate();
   var autoSkuNo = Config.loadAutoSkuNo();
   var delVideo = Config.loadDelVideo();
+  var shopId = Config.loadShopId();
   menu.innerHTML =
     '<div class="menu-item clickable" id="__dxm_bee_menu_filter"><span class="menu-label clickable" id="__dxm_bee_menu_filter_text">📝 标题过滤</span><div class="switch ' + (filterEnabled ? 'on' : '') + '" id="__dxm_bee_menu_filter_switch"></div><div class="menu-desc">点击文字打开配置弹窗，开启后自动过滤标题违规文字</div></div>' +
     '<div class="menu-item clickable" id="__dxm_bee_menu_sku_filter"><span class="menu-label clickable" id="__dxm_bee_menu_sku_filter_text">🏷️ SKU变种属性过滤</span><div class="switch ' + (skuFilterEnabled ? 'on' : '') + '" id="__dxm_bee_menu_sku_filter_switch"></div><div class="menu-desc">点击文字打开配置弹窗，开启后自动过滤SKU变种属性违规文字</div></div>' +
@@ -101,7 +120,9 @@
     '<div class="menu-item"><span class="menu-label">🔊 自动翻译</span><div class="switch ' + (autoTranslate ? 'on' : '') + '" id="__dxm_bee_menu_translate_switch"></div><div class="menu-desc">开启后工作流自动触发一键翻译</div></div>' +
     '<div class="menu-item"><span class="menu-label">📍 省份选择</span><input type="text" class="menu-input" id="__dxm_bee_menu_province_input" value="' + province + '" maxlength="10" placeholder="广东省"><div class="menu-desc">工作流填写的省份，须以省/市/自治区结尾</div></div>' +
     '<div class="menu-item"><span class="menu-label">🌐 网络图片</span><div class="switch ' + (useWebImage ? 'on' : '') + '" id="__dxm_bee_menu_webimg_switch"></div><div class="menu-desc">编字流程使用网络图片URL上传</div></div>' +
-    '<div class="menu-item"><span class="menu-label">🚀 自动发布</span><div class="switch ' + (autoPublishOn ? 'on' : '') + '" id="__dxm_bee_menu_publish_switch"></div><div class="menu-desc">开启后工作流完成所有步骤自动发布</div></div>';
+    '<div class="menu-item"><span class="menu-label">🚀 自动发布</span><div class="switch ' + (autoPublishOn ? 'on' : '') + '" id="__dxm_bee_menu_publish_switch"></div><div class="menu-desc">开启后工作流完成所有步骤自动发布</div></div>' +
+    '<div class="menu-item"><span class="menu-label">🔑 店铺ID</span><input type="text" class="menu-input" id="__dxm_bee_menu_shopid_input" value="' + shopId + '" maxlength="20" placeholder="输入店铺ID"><div class="menu-desc">同步类目所需的店铺ID</div></div>' +
+    '<div class="menu-item clickable" id="__dxm_bee_menu_sync_cat"><span class="menu-label clickable">🌳 同步类目树</span><span class="menu-arrow">▸</span><div class="menu-desc">从店小秘递归采集全部分类，保存到独立数据库</div></div>';
   document.body.appendChild(menu);
 
   var publishSwitch = document.getElementById('__dxm_bee_menu_publish_switch');
@@ -251,6 +272,176 @@
   });
   provinceInput.addEventListener('click', function (e) {
     e.stopPropagation();
+  });
+
+  // ========== ShopId Input ==========
+  var shopIdInput = document.getElementById('__dxm_bee_menu_shopid_input');
+  var shopIdTimer = null;
+  shopIdInput.addEventListener('input', function () {
+    var self = this;
+    clearTimeout(shopIdTimer);
+    shopIdTimer = setTimeout(function () {
+      Config.saveShopId(self.value.trim());
+    }, 500);
+  });
+  shopIdInput.addEventListener('blur', function () {
+    Config.saveShopId(this.value.trim());
+    console.log('%c[小蜜蜂] 店铺ID已保存: ' + this.value.trim(), 'color:#FFA000;font-weight:bold');
+  });
+  shopIdInput.addEventListener('click', function (e) {
+    e.stopPropagation();
+  });
+
+  // ========== Sync Categories Popup ==========
+  var syncOverlay = document.createElement('div');
+  syncOverlay.id = '__dxm_bee_sync_overlay';
+  syncOverlay.innerHTML =
+    '<div id="__dxm_bee_sync_panel">' +
+    '<div id="__dxm_bee_sync_header"><h3>同步店小秘分类树</h3><button class="close-btn" id="__dxm_bee_sync_close" style="width:28px;height:28px;border:none;background:none;font-size:17px;cursor:pointer;color:#999;border-radius:50%;display:flex;align-items:center;justify-content:center">&#x2715;</button></div>' +
+    '<div id="__dxm_bee_sync_toolbar">' +
+      '<input type="text" id="__dxm_sync_shopid" placeholder="店铺ID" maxlength="20">' +
+      '<button id="__dxm_sync_all_btn" style="padding:7px 16px;background:#FFA000;color:#fff;border:none;border-radius:8px;font-size:12px;cursor:pointer;white-space:nowrap">同步全部</button>' +
+      '<button id="__dxm_sync_refresh_btn" style="padding:7px 12px;border:1px solid #e0e0e0;border-radius:8px;background:#fff;font-size:12px;cursor:pointer">刷新</button>' +
+    '</div>' +
+    '<div id="__dxm_bee_sync_list"><div style="padding:20px;text-align:center;color:#999">点击刷新获取分类列表</div></div>' +
+    '<div id="__dxm_bee_sync_footer"><span id="__dxm_bee_sync_status">就绪</span></div>' +
+    '</div>';
+  document.body.appendChild(syncOverlay);
+
+  var syncShopIdInput = document.getElementById('__dxm_sync_shopid');
+  var syncListEl = document.getElementById('__dxm_bee_sync_list');
+  var syncStatusEl = document.getElementById('__dxm_bee_sync_status');
+  var syncAllBtn = document.getElementById('__dxm_sync_all_btn');
+  var syncRefreshBtn = document.getElementById('__dxm_sync_refresh_btn');
+
+  syncShopIdInput.value = Config.loadShopId();
+  syncShopIdInput.addEventListener('input', function () {
+    Config.saveShopId(this.value.trim());
+  });
+  syncShopIdInput.addEventListener('click', function (e) { e.stopPropagation(); });
+
+  function openSyncPopup() {
+    hideMenu();
+    syncShopIdInput.value = Config.loadShopId();
+    syncOverlay.classList.add('show');
+    if (!syncListEl.querySelector('.sync-row')) loadSyncList();
+  }
+
+  function closeSyncPopup() {
+    syncOverlay.classList.remove('show');
+  }
+
+  document.getElementById('__dxm_bee_menu_sync_cat').addEventListener('click', openSyncPopup);
+  syncOverlay.addEventListener('click', function (e) { if (e.target === syncOverlay) closeSyncPopup(); });
+  document.getElementById('__dxm_bee_sync_close').addEventListener('click', closeSyncPopup);
+
+  function loadSyncList() {
+    syncListEl.innerHTML = '<div style="padding:20px;text-align:center;color:#999">加载中...</div>';
+    var serverUrl = (Config && Config.getServerUrl ? Config.getServerUrl() : localStorage.getItem('1688_server_url')) || 'http://localhost:3000';
+
+    // 并行获取 DXM 一级分类 + 服务端已有同步状态
+    var rootList = null;
+    var syncStatus = null;
+
+    function tryRender() {
+      if (!rootList || !syncStatus) return;
+      if (!rootList.length) {
+        syncListEl.innerHTML = '<div style="padding:20px;text-align:center;color:#999">无分类数据</div>';
+        return;
+      }
+
+      // 构建 catId → status 映射
+      var statusMap = {};
+      syncStatus.forEach(function (s) { statusMap[s.catId] = s; });
+
+      syncListEl.innerHTML = '';
+      rootList.forEach(function (cat) {
+        var st = statusMap[cat.catId];
+        var syncTime = st && st.lastSync ? st.lastSync.replace(/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}).*$/, '$1 $2') : '';
+        var countStr = st && st.count ? st.count + ' 个' : '';
+        var infoHtml = '';
+        if (syncTime) {
+          infoHtml = '<span style="font-size:11px;color:#52c41a;margin-left:8px">' + syncTime + (countStr ? ' (' + countStr + ')' : '') + '</span>';
+        }
+
+        var row = document.createElement('div');
+        row.className = 'sync-row';
+        row.innerHTML = '<span class="sync-row-name">' + cat.catName + infoHtml + '</span>' +
+          '<button class="sync-row-btn" data-cat-id="' + cat.catId + '" data-cat-name="' + cat.catName + '">同步</button>';
+        syncListEl.appendChild(row);
+      });
+      syncStatusEl.textContent = '共 ' + rootList.length + ' 个一级分类';
+    }
+
+    Config.fetchRootCategories(function (roots, err) {
+      if (err) {
+        syncListEl.innerHTML = '<div style="padding:20px;text-align:center;color:#ff4d4f">' + err + '</div>';
+        return;
+      }
+      rootList = roots || [];
+      tryRender();
+    });
+
+    fetch(serverUrl + '/api/dxm-tree/root-status')
+      .then(function (r) { return r.json(); })
+      .then(function (data) { syncStatus = data || []; tryRender(); })
+      .catch(function () { syncStatus = []; tryRender(); });
+  }
+
+  syncRefreshBtn.addEventListener('click', loadSyncList);
+
+  // 单个大类同步
+  syncListEl.addEventListener('click', function (e) {
+    var btn = e.target.closest('.sync-row-btn');
+    if (!btn || btn.disabled) return;
+    var catId = parseInt(btn.getAttribute('data-cat-id'));
+    var catName = btn.getAttribute('data-cat-name');
+    btn.disabled = true;
+    btn.textContent = '同步中...';
+    syncAllBtn.disabled = true;
+    syncStatusEl.textContent = '正在同步 ' + catName + '...';
+    Config.syncSingleCategory(catId, catName, function (cnt) {
+      btn.textContent = '完成 (' + cnt + ')';
+      btn.disabled = false;
+      syncAllBtn.disabled = false;
+      syncStatusEl.textContent = catName + ' 同步完成，共 ' + cnt + ' 个';
+    });
+  });
+
+  // 同步全部
+  syncAllBtn.addEventListener('click', function () {
+    if (this.disabled) return;
+    var rows = syncListEl.querySelectorAll('.sync-row-btn');
+    rows.forEach(function (b) { b.disabled = true; b.textContent = '等待中...'; });
+    this.disabled = true;
+    this.textContent = '同步中...';
+    syncStatusEl.textContent = '开始同步全部分类...';
+
+    var allRows = Array.prototype.slice.call(rows);
+    var rowIdx = 0;
+
+    function syncNextRow() {
+      if (rowIdx >= allRows.length) {
+        syncAllBtn.disabled = false;
+        syncAllBtn.textContent = '同步全部';
+        syncStatusEl.textContent = '全部分类同步完成';
+        allRows.forEach(function (b) { b.disabled = false; });
+        return;
+      }
+      var btn = allRows[rowIdx];
+      var catId = parseInt(btn.getAttribute('data-cat-id'));
+      var catName = btn.getAttribute('data-cat-name');
+      btn.textContent = '同步中...';
+      syncStatusEl.textContent = '正在同步 ' + catName + ' (' + (rowIdx + 1) + '/' + allRows.length + ')...';
+
+      Config.syncSingleCategory(catId, catName, function (cnt) {
+        btn.textContent = '完成 (' + cnt + ')';
+        rowIdx++;
+        syncNextRow();
+      });
+    }
+
+    syncNextRow();
   });
 
   // ========== Store Popup ==========

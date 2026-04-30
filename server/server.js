@@ -33,6 +33,49 @@ function saveDb() {
   fs.writeFileSync(DB_FILE, buffer);
 }
 
+// DXM 分类树独立数据库
+const TREE_DB_FILE = path.join(__dirname, 'dxm_tree.db');
+let treeDb;
+let treeSaveTimer = null;
+
+function saveTreeDb() {
+  if (!treeDb) return;
+  const data = treeDb.export();
+  const buffer = Buffer.from(data);
+  fs.writeFileSync(TREE_DB_FILE, buffer);
+}
+
+function scheduleTreeSave() {
+  if (treeSaveTimer) clearTimeout(treeSaveTimer);
+  treeSaveTimer = setTimeout(saveTreeDb, 500);
+}
+
+function treeRun(sql, params) {
+  treeDb.run(sql, params);
+  scheduleTreeSave();
+}
+
+function treeGetOne(sql, params) {
+  const stmt = treeDb.prepare(sql);
+  if (params) stmt.bind(params);
+  if (stmt.step()) {
+    const row = stmt.getAsObject();
+    stmt.free();
+    return row;
+  }
+  stmt.free();
+  return null;
+}
+
+function treeGetAll(sql, params) {
+  const stmt = treeDb.prepare(sql);
+  if (params) stmt.bind(params);
+  const rows = [];
+  while (stmt.step()) rows.push(stmt.getAsObject());
+  stmt.free();
+  return rows;
+}
+
 function scheduleSave() {
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(saveDb, 500);
@@ -167,6 +210,25 @@ async function initDb() {
   `);
 
   saveDb();
+}
+
+async function initTreeDb() {
+  const SQL = await initSqlJs();
+  if (fs.existsSync(TREE_DB_FILE)) {
+    treeDb = new SQL.Database(fs.readFileSync(TREE_DB_FILE));
+  } else {
+    treeDb = new SQL.Database();
+  }
+  treeDb.run(`CREATE TABLE IF NOT EXISTS dxm_category_tree (
+    cat_id INTEGER PRIMARY KEY,
+    cat_name TEXT NOT NULL,
+    parent_cat_id INTEGER DEFAULT 0,
+    cat_level INTEGER DEFAULT 1,
+    is_leaf INTEGER DEFAULT 0,
+    path TEXT DEFAULT '',
+    sync_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+  scheduleTreeSave();
 }
 
 // ========== API ==========
@@ -727,6 +789,108 @@ function longestCommonSubstring(a, b) {
   return maxLen;
 }
 
+// ========== DXM 分类树 API ==========
+
+// 批量保存分类节点
+app.post('/api/dxm-tree/sync', (req, res) => {
+  const { categories } = req.body;
+  if (!Array.isArray(categories) || !categories.length) return res.json({ ok: true, saved: 0 });
+  let saved = 0;
+  categories.forEach(c => {
+    const existing = treeGetOne('SELECT cat_id FROM dxm_category_tree WHERE cat_id = ?', [c.catId]);
+    if (existing) {
+      treeRun('UPDATE dxm_category_tree SET cat_name=?, parent_cat_id=?, cat_level=?, is_leaf=?, path=?, sync_at=CURRENT_TIMESTAMP WHERE cat_id=?',
+        [c.catName, c.parentCatId, c.catLevel, c.isLeaf ? 1 : 0, c.path || '', c.catId]);
+    } else {
+      treeRun('INSERT INTO dxm_category_tree (cat_id, cat_name, parent_cat_id, cat_level, is_leaf, path) VALUES (?, ?, ?, ?, ?, ?)',
+        [c.catId, c.catName, c.parentCatId, c.catLevel, c.isLeaf ? 1 : 0, c.path || '']);
+    }
+    saved++;
+  });
+  res.json({ ok: true, saved });
+});
+
+// 获取子级分类
+app.get('/api/dxm-tree/children', (req, res) => {
+  const parentId = parseInt(req.query.parentId) || 0;
+  const rows = treeGetAll('SELECT cat_id, cat_name, parent_cat_id, cat_level, is_leaf, path FROM dxm_category_tree WHERE parent_cat_id = ? ORDER BY cat_name', [parentId]);
+  res.json(rows.map(r => ({
+    catId: r.cat_id, catName: r.cat_name, parentCatId: r.parent_cat_id,
+    catLevel: r.cat_level, isLeaf: r.is_leaf, path: r.path
+  })));
+});
+
+// 同步状态
+app.get('/api/dxm-tree/status', (req, res) => {
+  const total = treeGetOne('SELECT COUNT(*) as cnt FROM dxm_category_tree');
+  const lastSync = treeGetOne('SELECT MAX(sync_at) as last FROM dxm_category_tree');
+  const levels = treeGetOne('SELECT MAX(cat_level) as lv FROM dxm_category_tree');
+  res.json({
+    total: total ? total.cnt : 0,
+    lastSync: lastSync ? lastSync.last : null,
+    levels: levels ? levels.lv : 0
+  });
+});
+
+// 清空分类树
+app.post('/api/dxm-tree/clear', (req, res) => {
+  treeRun('DELETE FROM dxm_category_tree');
+  res.json({ ok: true });
+});
+
+// 各大类同步状态
+app.get('/api/dxm-tree/root-status', (req, res) => {
+  const roots = treeGetAll('SELECT cat_id, cat_name, path, sync_at FROM dxm_category_tree WHERE parent_cat_id = 0 ORDER BY cat_name');
+  const result = roots.map(r => {
+    const cnt = treeGetOne('SELECT COUNT(*) as c FROM dxm_category_tree WHERE path LIKE ?', [r.path + '%']);
+    return { catId: r.cat_id, catName: r.cat_name, count: cnt ? cnt.c : 0, lastSync: r.sync_at };
+  });
+  res.json(result);
+});
+
+// 搜索分类
+app.get('/api/dxm-tree/search', (req, res) => {
+  const keyword = (req.query.keyword || '').trim();
+  if (!keyword) return res.json([]);
+  const rows = treeGetAll('SELECT cat_id, cat_name, path, is_leaf FROM dxm_category_tree WHERE cat_name LIKE ? ORDER BY cat_level, cat_name', ['%' + keyword + '%']);
+  res.json(rows.map(r => ({ catId: r.cat_id, catName: r.cat_name, path: r.path, isLeaf: r.is_leaf })));
+});
+
+// 所有叶子分类完整路径（替代 dxmCatOptions）
+app.get('/api/dxm-tree/all-leaf-paths', (req, res) => {
+  const rows = treeGetAll("SELECT cat_id, cat_name, path FROM dxm_category_tree WHERE is_leaf = 1 AND path != '' ORDER BY path");
+  res.json(rows.map(r => ({ catId: r.cat_id, leafName: r.cat_name, path: r.path })));
+});
+
+// 完整树形数据（iView Cascader 格式）
+app.get('/api/dxm-tree/tree', (req, res) => {
+  const rows = treeGetAll('SELECT cat_id, cat_name, parent_cat_id, is_leaf FROM dxm_category_tree ORDER BY parent_cat_id, cat_name');
+  const map = {};
+  const roots = [];
+  rows.forEach(r => {
+    const node = { value: r.cat_id, label: r.cat_name, children: [] };
+    map[r.cat_id] = node;
+    if (r.parent_cat_id === 0) {
+      roots.push(node);
+    }
+  });
+  rows.forEach(r => {
+    if (r.parent_cat_id !== 0 && map[r.parent_cat_id]) {
+      map[r.parent_cat_id].children.push(map[r.cat_id]);
+    }
+  });
+  // 清理叶子节点的空 children
+  function cleanChildren(nodes) {
+    if (!nodes) return;
+    nodes.forEach(n => {
+      if (n.children && n.children.length === 0) delete n.children;
+      else cleanChildren(n.children);
+    });
+  }
+  cleanChildren(roots);
+  res.json(roots);
+});
+
 // 删除商品
 app.delete('/api/product/:id', (req, res) => {
   run('DELETE FROM products WHERE id = ?', [parseInt(req.params.id)]);
@@ -759,7 +923,7 @@ function parseRow(row) {
 }
 
 // Start
-initDb().then(() => {
+initDb().then(() => initTreeDb()).then(() => {
   app.listen(PORT, () => {
     console.log(`\n  商品采集服务已启动`);
     console.log(`  管理页面: http://localhost:${PORT}`);

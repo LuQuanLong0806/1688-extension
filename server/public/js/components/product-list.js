@@ -18,7 +18,8 @@ Vue.component('page-products', {
       editingCatId: -1,
       dxmCatOptions: [],
       batchCatVisible: false,
-      batchCatValue: '',
+      batchCatValue: [],
+      treeData: [],
       _pollTimer: null
     };
   },
@@ -27,6 +28,7 @@ Vue.component('page-products', {
     this.loadCategories();
     this.loadDxmCategories();
     this.loadDxmCatOptions();
+    this.loadTreeData();
     this.startPoll();
   },
   beforeDestroy: function () {
@@ -142,7 +144,16 @@ Vue.component('page-products', {
     },
     saveCategory: function (row, val) {
       if (val === undefined || val === '') return;
-      row.customCategory = val;
+      // Cascader returns array of values; extract path from treeData
+      if (Array.isArray(val) && val.length > 0) {
+        var path = this.getCascaderPath(val);
+        if (!path) return;
+        row.customCategory = path;
+      } else if (typeof val === 'string') {
+        row.customCategory = val;
+      } else {
+        return;
+      }
       var vm = this;
       fetch('/api/product/' + row.id, {
         method: 'PUT',
@@ -156,6 +167,36 @@ Vue.component('page-products', {
     },
     cancelEditCategory: function (open) {
       if (!open && this.editingCatId >= 0) this.editingCatId = -1;
+    },
+    getCascaderPath: function (selectedValues) {
+      var nodes = this.treeData;
+      var labels = [];
+      for (var i = 0; i < selectedValues.length; i++) {
+        var found = null;
+        for (var j = 0; j < nodes.length; j++) {
+          if (nodes[j].value === selectedValues[i]) { found = nodes[j]; break; }
+        }
+        if (!found) return '';
+        labels.push(found.label);
+        nodes = found.children || [];
+      }
+      return labels.join('/');
+    },
+    getCascaderValue: function (path) {
+      if (!path || !this.treeData.length) return [];
+      var parts = path.split('/');
+      var values = [];
+      var nodes = this.treeData;
+      for (var i = 0; i < parts.length; i++) {
+        var found = null;
+        for (var j = 0; j < nodes.length; j++) {
+          if (nodes[j].label === parts[i]) { found = nodes[j]; break; }
+        }
+        if (!found) return [];
+        values.push(found.value);
+        nodes = found.children || [];
+      }
+      return values;
     },
     copyCategory: function (name) {
       if (!name) return;
@@ -203,6 +244,12 @@ Vue.component('page-products', {
       fetch('/api/dxm-category/library')
         .then(function (r) { return r.json(); })
         .then(function (list) { vm.dxmCatOptions = list; });
+    },
+    loadTreeData: function () {
+      var vm = this;
+      fetch('/api/dxm-tree/tree')
+        .then(function (r) { return r.json(); })
+        .then(function (data) { vm.treeData = data || []; });
     },
     loadList: function (p) {
       var vm = this;
@@ -280,12 +327,18 @@ Vue.component('page-products', {
         this.$Message.warning('请先选择商品');
         return;
       }
-      this.batchCatValue = '';
+      this.batchCatValue = this.treeData.length ? [] : '';
       this.batchCatVisible = true;
     },
     saveBatchCategory: function () {
       var vm = this;
-      if (!vm.batchCatValue) {
+      var catValue;
+      if (Array.isArray(vm.batchCatValue) && vm.batchCatValue.length > 0) {
+        catValue = vm.getCascaderPath(vm.batchCatValue);
+      } else if (typeof vm.batchCatValue === 'string' && vm.batchCatValue) {
+        catValue = vm.batchCatValue;
+      }
+      if (!catValue) {
         vm.$Message.warning('请选择类目');
         return;
       }
@@ -293,7 +346,7 @@ Vue.component('page-products', {
         return fetch('/api/product/' + id, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ customCategory: vm.batchCatValue })
+          body: JSON.stringify({ customCategory: catValue })
         });
       })).then(function () {
         vm.$Message.success('已批量设置 ' + vm.selectedIds.length + ' 条商品的类目');
@@ -365,7 +418,12 @@ Vue.component('page-products', {
               @click.native.stop="copyCategory(getCategoryName(row))" />
           </span>
           <span class="cell-category-wrap" v-else>
-            <i-select :value="getCategoryName(row)" filterable clearable placeholder="搜索店小秘类目" not-found-text="无匹配"
+            <Cascader v-if="treeData.length" :value="getCascaderValue(getCategoryName(row))" :data="treeData"
+              placeholder="选择分类" change-on-select filterable clearable
+              style="width:100%"
+              @on-change="saveCategory(row, $event)"
+              @on-visible-change="cancelEditCategory" />
+            <i-select v-else :value="getCategoryName(row)" filterable clearable placeholder="搜索店小秘类目" not-found-text="无匹配"
               style="width:100%"
               @on-change="saveCategory(row, $event)"
               @on-open-change="cancelEditCategory">
@@ -433,7 +491,9 @@ Vue.component('page-products', {
       <modal v-model="batchCatVisible" title="批量设置类目" :mask-closable="false" width="500">
         <div style="margin-bottom:12px">
           <p style="margin-bottom:8px;color:#666">已选择 <strong>{{ selectedIds.length }}</strong> 条商品</p>
-          <i-select v-model="batchCatValue" filterable clearable placeholder="搜索店小秘类目" style="width:100%" not-found-text="无匹配">
+          <Cascader v-if="treeData.length" v-model="batchCatValue" :data="treeData"
+            placeholder="选择分类" change-on-select filterable clearable style="width:100%" />
+          <i-select v-else v-model="batchCatValue" filterable clearable placeholder="搜索店小秘类目" style="width:100%" not-found-text="无匹配">
             <i-option v-for="c in dxmCatOptions" :key="c.id" :value="c.path">{{ c.path }}</i-option>
           </i-select>
         </div>
