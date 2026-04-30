@@ -42,12 +42,10 @@ Vue.component('category-picker', {
 
       var kw = (vm.keyword || '').trim();
 
-      // 值为空时清空下拉并 emit 空
+      // 值为空时只清空下拉，不触发保存
       if (!kw) {
         vm.searchOptions = [];
         vm.dropdownVisible = false;
-        vm.currentPath = '';
-        vm.$emit('input', '');
         return;
       }
 
@@ -83,7 +81,11 @@ Vue.component('category-picker', {
       var vm = this;
       setTimeout(function () {
         vm.dropdownVisible = false;
-        if (!vm._selecting) vm.keyword = vm.value || '';
+        if (!vm._selecting) {
+          // 未选中任何选项，恢复原值
+          vm.keyword = vm.value || '';
+          vm.loadPath();
+        }
       }, 150);
     },
     clearValue: function () {
