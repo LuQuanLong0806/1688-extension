@@ -1490,23 +1490,64 @@
     }
   }
 
-  // ========== 同步类目（从配置面板触发） ==========
-  var _syncCatRunning = false;
+  // ========== 同步类目（共享请求队列，支持多个大类并发） ==========
+  var _syncQueue = [];
+  var _syncProcessing = false;
+  var _syncRequestCount = 0;
+  var _syncTasks = {}; // catId → { totalNodes, onDone }
+  var BATCH_LIMIT = 20;
 
   function randomDelay(base, range) {
     return base + Math.floor(Math.random() * range);
   }
 
-  // 请求间隔 1~3 秒，冷却 4~8 秒
-  function getInterval() { return randomDelay(1000, 2000); }
-  function getCoolDown() { return randomDelay(4000, 4000); }
+  // 共享队列：所有同步任务的 API 请求都排队，串行执行
+  function enqueueRequest(shopId, parentId, processCb) {
+    _syncQueue.push({ shopId: shopId, parentId: parentId, processCb: processCb });
+    if (!_syncProcessing) processQueue();
+  }
+
+  function processQueue() {
+    if (!_syncQueue.length) { _syncProcessing = false; return; }
+    _syncProcessing = true;
+
+    var item = _syncQueue.shift();
+    _syncRequestCount++;
+
+    // 每 BATCH_LIMIT 次请求进入冷却
+    if (_syncRequestCount > 1 && (_syncRequestCount - 1) % BATCH_LIMIT === 0) {
+      var coolDown = randomDelay(4000, 4000);
+      setTimeout(function () { execRequest(item); }, coolDown);
+    } else {
+      execRequest(item);
+    }
+  }
+
+  function execRequest(item) {
+    var body = 'shopId=' + encodeURIComponent(item.shopId);
+    if (item.parentId) body += '&categoryParentId=' + item.parentId;
+
+    fetch('https://www.dianxiaomi.com/api/pddkjCategory/list.json', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body
+    }).then(function (r) { return r.json(); }).then(function (resp) {
+      var list = (!resp || resp.code !== 0 || !Array.isArray(resp.data)) ? [] : resp.data;
+      item.processCb(list, function () {
+        setTimeout(processQueue, randomDelay(1000, 2000));
+      });
+    }).catch(function () {
+      item.processCb([], function () {
+        setTimeout(processQueue, randomDelay(1000, 2000));
+      });
+    });
+  }
 
   function doSyncTree(shopId, serverUrl, startCatId, startCatName, onDone) {
-    var totalNodes = 0;
-    var requestCount = 0;
+    var task = { totalNodes: 0, onDone: onDone };
+    _syncTasks[startCatId || 'root'] = task;
     var batchBuffer = [];
     var BATCH_SIZE = 50;
-    var BATCH_LIMIT = 20;
 
     function flushBatch(cb) {
       if (!batchBuffer.length) return cb();
@@ -1519,87 +1560,72 @@
       }).then(function () { cb(); }).catch(function () { cb(); });
     }
 
-    function fetchChildren(parentId, parentPath, depth, cb) {
-      if (depth > 10) return cb();
-
-      requestCount++;
-      if (requestCount > 1 && (requestCount - 1) % BATCH_LIMIT === 0) {
-        var coolDown = getCoolDown();
-        showBubble(startCatName + ' 已采集 ' + totalNodes + ' 个，冷却 ' + Math.round(coolDown / 1000) + ' 秒...', 'loading');
-        setTimeout(function () { doReq(parentId, parentPath, depth, cb); }, coolDown);
-      } else {
-        doReq(parentId, parentPath, depth, cb);
-      }
-    }
-
-    function doReq(parentId, parentPath, depth, cb) {
-      var body = 'shopId=' + encodeURIComponent(shopId);
-      if (parentId) body += '&categoryParentId=' + parentId;
-
-      fetch('https://www.dianxiaomi.com/api/pddkjCategory/list.json', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: body
-      }).then(function (r) { return r.json(); }).then(function (resp) {
-        if (!resp || resp.code !== 0 || !Array.isArray(resp.data)) return cb();
-        var list = resp.data;
-        if (!list.length) return cb();
-
-        var nonLeafItems = [];
-        list.forEach(function (cat) {
-          if (cat.isHidden || cat.deleted) return;
-
-          var catId = cat.catId;
-          var catName = cat.catName || '';
-          var parentCatId = cat.parentCatId || parentId;
-          var isLeaf = !!cat.isLeaf;
-          var level = cat.catLevel || (depth + 1);
-          var fullPath = parentPath ? parentPath + '/' + catName : catName;
-
-          totalNodes++;
-          batchBuffer.push({
-            catId: catId,
-            catName: catName,
-            parentCatId: parentCatId,
-            catLevel: level,
-            isLeaf: isLeaf ? 1 : 0,
-            path: fullPath
-          });
-
-          if (!isLeaf) nonLeafItems.push({ catId: catId, fullPath: fullPath, level: level });
+    function scheduleChildren(parentId, parentPath, depth, nonLeafItems, idx, cb) {
+      if (idx >= nonLeafItems.length) return cb();
+      var item = nonLeafItems[idx];
+      enqueueRequest(shopId, item.catId, function (list, next) {
+        processResponse(list, item.catId, item.fullPath, item.level, function () {
+          scheduleChildren(parentId, parentPath, depth, nonLeafItems, idx + 1, next);
         });
-
-        showBubble(startCatName + ' 已采集 ' + totalNodes + ' 个（第 ' + requestCount + ' 次请求）', 'loading');
-
-        if (batchBuffer.length >= BATCH_SIZE) {
-          flushBatch(function () { processNonLeaf(nonLeafItems, 0, cb); });
-        } else {
-          processNonLeaf(nonLeafItems, 0, cb);
-        }
-      }).catch(function () {
-        showBubble(startCatName + ' 请求失败（第 ' + requestCount + ' 次），跳过', 'loading');
-        cb();
       });
     }
 
-    function processNonLeaf(items, idx, doneCb) {
-      if (idx >= items.length) return doneCb();
-      var item = items[idx];
-      setTimeout(function () {
-        fetchChildren(item.catId, item.fullPath, item.level, function () {
-          processNonLeaf(items, idx + 1, doneCb);
+    function processResponse(list, parentId, parentPath, depth, cb) {
+      if (!list.length) return cb();
+
+      var nonLeafItems = [];
+      list.forEach(function (cat) {
+        if (cat.isHidden || cat.deleted) return;
+
+        var catId = cat.catId;
+        var catName = cat.catName || '';
+        var parentCatId = cat.parentCatId || parentId;
+        var isLeaf = !!cat.isLeaf;
+        var level = cat.catLevel || (depth + 1);
+        var fullPath = parentPath ? parentPath + '/' + catName : catName;
+
+        task.totalNodes++;
+        batchBuffer.push({
+          catId: catId,
+          catName: catName,
+          parentCatId: parentCatId,
+          catLevel: level,
+          isLeaf: isLeaf ? 1 : 0,
+          path: fullPath
         });
-      }, getInterval());
+
+        if (!isLeaf) nonLeafItems.push({ catId: catId, fullPath: fullPath, level: level });
+      });
+
+      // 更新气泡：显示所有进行中的任务
+      var parts = [];
+      for (var k in _syncTasks) {
+        var t = _syncTasks[k];
+        if (t.totalNodes > 0) parts.push(t._name + ' ' + t.totalNodes);
+      }
+      showBubble('采集中: ' + parts.join('、'), 'loading');
+
+      if (batchBuffer.length >= BATCH_SIZE) {
+        flushBatch(function () { scheduleChildren(parentId, parentPath, depth, nonLeafItems, 0, cb); });
+      } else {
+        scheduleChildren(parentId, parentPath, depth, nonLeafItems, 0, cb);
+      }
     }
 
+    task._name = startCatName;
     showBubble('开始同步 ' + startCatName + '...', 'loading');
 
+    // 第一个请求：获取根节点或子节点
     var initDepth = startCatId ? 1 : 0;
-    fetchChildren(startCatId, startCatName, initDepth, function () {
-      flushBatch(function () {
-        showBubble(startCatName + ' 同步完成！共 ' + totalNodes + ' 个', 'ok');
-        console.log('%c[小蜜蜂] ' + startCatName + ' 同步完成: ' + totalNodes + ' 个', 'color:#52c41a;font-weight:bold');
-        if (onDone) onDone(totalNodes);
+    enqueueRequest(shopId, startCatId, function (list, next) {
+      processResponse(list, startCatId, startCatName, initDepth, function () {
+        flushBatch(function () {
+          showBubble(startCatName + ' 同步完成！共 ' + task.totalNodes + ' 个', 'ok');
+          console.log('%c[小蜜蜂] ' + startCatName + ' 同步完成: ' + task.totalNodes + ' 个', 'color:#52c41a;font-weight:bold');
+          delete _syncTasks[startCatId || 'root'];
+          if (onDone) onDone(task.totalNodes);
+          next();
+        });
       });
     });
   }
@@ -1612,19 +1638,14 @@
       setTimeout(hideBubble, 3000);
       return;
     }
-    if (_syncCatRunning) return;
-    _syncCatRunning = true;
-
     var serverUrl = (Config && Config.getServerUrl ? Config.getServerUrl() : localStorage.getItem('1688_server_url')) || 'http://localhost:3000';
 
-    // 先获取全部一级分类，再依次同步
     fetch('https://www.dianxiaomi.com/api/pddkjCategory/list.json', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: 'shopId=' + encodeURIComponent(shopId)
     }).then(function (r) { return r.json(); }).then(function (resp) {
       if (!resp || resp.code !== 0 || !Array.isArray(resp.data)) {
-        _syncCatRunning = false;
         showBubble('获取一级分类失败', 'err');
         return;
       }
@@ -1634,10 +1655,8 @@
 
       function syncNext() {
         if (idx >= roots.length) {
-          _syncCatRunning = false;
           showBubble('全部分类同步完成！共 ' + totalAll + ' 个', 'ok');
           console.log('%c[小蜜蜂] 全部分类同步完成: ' + totalAll + ' 个', 'color:#52c41a;font-weight:bold;font-size:14px');
-          setTimeout(hideBubble, 3000);
           if (onDone) onDone(totalAll);
           return;
         }
@@ -1651,12 +1670,11 @@
 
       syncNext();
     }).catch(function () {
-      _syncCatRunning = false;
       showBubble('获取一级分类失败', 'err');
     });
   }
 
-  // 同步单个大类
+  // 同步单个大类（可同时启动多个）
   function syncSingleCategory(catId, catName, onDone) {
     var shopId = Config.loadShopId();
     if (!shopId) {
@@ -1664,17 +1682,13 @@
       setTimeout(hideBubble, 3000);
       return;
     }
-    if (_syncCatRunning) {
-      showBubble('正在同步中，请等待', 'warn');
+    if (_syncTasks[catId]) {
+      showBubble(catName + ' 正在同步中', 'warn');
       setTimeout(hideBubble, 2000);
       return;
     }
-    _syncCatRunning = true;
     var serverUrl = (Config && Config.getServerUrl ? Config.getServerUrl() : localStorage.getItem('1688_server_url')) || 'http://localhost:3000';
-    doSyncTree(shopId, serverUrl, catId, catName, function (cnt) {
-      _syncCatRunning = false;
-      if (onDone) onDone(cnt);
-    });
+    doSyncTree(shopId, serverUrl, catId, catName, onDone);
   }
 
   // 获取一级分类列表

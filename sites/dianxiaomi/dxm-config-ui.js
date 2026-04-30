@@ -391,6 +391,7 @@
   syncRefreshBtn.addEventListener('click', loadSyncList);
 
   // 单个大类同步
+  // 单个大类同步（可同时点击多个）
   syncListEl.addEventListener('click', function (e) {
     var btn = e.target.closest('.sync-row-btn');
     if (!btn || btn.disabled) return;
@@ -398,50 +399,44 @@
     var catName = btn.getAttribute('data-cat-name');
     btn.disabled = true;
     btn.textContent = '同步中...';
-    syncAllBtn.disabled = true;
     syncStatusEl.textContent = '正在同步 ' + catName + '...';
     Config.syncSingleCategory(catId, catName, function (cnt) {
       btn.textContent = '完成 (' + cnt + ')';
       btn.disabled = false;
-      syncAllBtn.disabled = false;
-      syncStatusEl.textContent = catName + ' 同步完成，共 ' + cnt + ' 个';
+      syncStatusEl.textContent = catName + ' 完成，共 ' + cnt + ' 个';
+      loadSyncList();
     });
   });
 
-  // 同步全部
+  // 同步全部（并行启动所有大类）
   syncAllBtn.addEventListener('click', function () {
     if (this.disabled) return;
     var rows = syncListEl.querySelectorAll('.sync-row-btn');
-    rows.forEach(function (b) { b.disabled = true; b.textContent = '等待中...'; });
+    var allRows = Array.prototype.slice.call(rows).filter(function (b) { return !b.disabled; });
+    if (!allRows.length) return;
+
     this.disabled = true;
     this.textContent = '同步中...';
-    syncStatusEl.textContent = '开始同步全部分类...';
+    var doneCount = 0;
 
-    var allRows = Array.prototype.slice.call(rows);
-    var rowIdx = 0;
-
-    function syncNextRow() {
-      if (rowIdx >= allRows.length) {
-        syncAllBtn.disabled = false;
-        syncAllBtn.textContent = '同步全部';
-        syncStatusEl.textContent = '全部分类同步完成';
-        allRows.forEach(function (b) { b.disabled = false; });
-        return;
-      }
-      var btn = allRows[rowIdx];
+    allRows.forEach(function (btn) {
       var catId = parseInt(btn.getAttribute('data-cat-id'));
       var catName = btn.getAttribute('data-cat-name');
+      btn.disabled = true;
       btn.textContent = '同步中...';
-      syncStatusEl.textContent = '正在同步 ' + catName + ' (' + (rowIdx + 1) + '/' + allRows.length + ')...';
 
       Config.syncSingleCategory(catId, catName, function (cnt) {
         btn.textContent = '完成 (' + cnt + ')';
-        rowIdx++;
-        syncNextRow();
+        btn.disabled = false;
+        doneCount++;
+        syncStatusEl.textContent = '已完成 ' + doneCount + '/' + allRows.length;
+        if (doneCount >= allRows.length) {
+          syncAllBtn.disabled = false;
+          syncAllBtn.textContent = '同步全部';
+          loadSyncList();
+        }
       });
-    }
-
-    syncNextRow();
+    });
   });
 
   // ========== Store Popup ==========
