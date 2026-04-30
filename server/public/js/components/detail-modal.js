@@ -16,10 +16,6 @@ Vue.component('detail-modal', {
     detail: function (val) {
       if (val) {
         this.editable = JSON.parse(JSON.stringify(val));
-        if (!this.editable.customCategory) {
-          var cat = this.editable.category;
-          this.editable.customCategory = cat && (cat.leafCategoryName || cat.categoryPath) || '';
-        }
         (this.editable.skus || []).forEach(function (s) {
           if (!s.customName && s.name) s.customName = s.name;
           if (!s.dimensions || !s.dimensions.length) s.dimensions = ['', '', ''];
