@@ -43,6 +43,7 @@ function saveTreeDb() {
   const data = treeDb.export();
   const buffer = Buffer.from(data);
   fs.writeFileSync(TREE_DB_FILE, buffer);
+  try { fs.writeFileSync(TREE_DB_FILE + '.bak', buffer); } catch (e) {}
 }
 
 function scheduleTreeSave() {
@@ -225,8 +226,15 @@ async function initDb() {
 
 async function initTreeDb() {
   const SQL = await initSqlJs();
+  const bakFile = TREE_DB_FILE + '.bak';
   if (fs.existsSync(TREE_DB_FILE)) {
     treeDb = new SQL.Database(fs.readFileSync(TREE_DB_FILE));
+  } else if (fs.existsSync(bakFile) && fs.statSync(bakFile).size > 0) {
+    // db 文件丢失但备份存在，从备份恢复
+    console.log('[tree] dxm_tree.db 丢失，从备份恢复...');
+    const bakData = fs.readFileSync(bakFile);
+    fs.writeFileSync(TREE_DB_FILE, bakData);
+    treeDb = new SQL.Database(bakData);
   } else {
     treeDb = new SQL.Database();
   }
