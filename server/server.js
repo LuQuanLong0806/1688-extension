@@ -493,21 +493,21 @@ app.get('/api/product', (req, res) => {
     [...params, pageSize, offset]
   );
 
+  // 一次性加载所有映射，避免每条商品单独查询
+  const allMappings = getAll("SELECT category_name, custom_category FROM category_mappings");
+  const mappingMap = {};
+  allMappings.forEach(function (r) {
+    if (!r.category_name || !r.custom_category) return;
+    if (!mappingMap[r.category_name]) mappingMap[r.category_name] = [];
+    if (mappingMap[r.category_name].indexOf(r.custom_category) === -1) {
+      mappingMap[r.category_name].push(r.custom_category);
+    }
+  });
+
   const parsedList = list.map(row => {
     var catObj = row.category ? JSON.parse(row.category) : {};
     var catName = catObj.leafCategoryName || catObj.categoryPath || '';
-    var recommendedCats = [];
-    if (catName) {
-      var catRows = getAll(
-        "SELECT custom_category FROM category_mappings WHERE category_name = ?",
-        [catName]
-      );
-      catRows.forEach(function (r) {
-        if (r.custom_category && recommendedCats.indexOf(r.custom_category) === -1) {
-          recommendedCats.push(r.custom_category);
-        }
-      });
-    }
+    var recommendedCats = mappingMap[catName] || [];
     return {
       ...row,
       category: catObj,
