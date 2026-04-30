@@ -86,9 +86,17 @@ Vue.component('page-categories', {
     },
     doRemap: function (categoryName, dxmItem) {
       var vm = this;
+      var existing = vm.allCategories.find(function (c) { return c.name === categoryName; });
+      var existingPath = existing && existing.dxmCategory && existing.dxmCategory.path;
+      var content;
+      if (existingPath) {
+        content = '当前映射为 "' + existingPath + '"，是否替换为 "' + dxmItem.path + '"？';
+      } else {
+        content = '确认将"' + categoryName + '"映射到"' + dxmItem.leaf_name + '"？';
+      }
       this.$Modal.confirm({
         title: '确认映射',
-        content: '将"' + categoryName + '"映射到"' + dxmItem.leaf_name + '"？该类目下所有商品都会被更新。',
+        content: content,
         onOk: function () {
           fetch('/api/dxm-category/remap', {
             method: 'POST',
@@ -112,9 +120,18 @@ Vue.component('page-categories', {
       var cleanPath = input.replace(/\s+/g, '');
       var parts = cleanPath.split('/');
       var leafName = parts[parts.length - 1] || cleanPath;
+      // 检查是否已有映射
+      var existing = vm.allCategories.find(function (c) { return c.name === categoryName; });
+      var existingPath = existing && existing.dxmCategory && existing.dxmCategory.path;
+      var content;
+      if (existingPath) {
+        content = '当前映射为 "' + existingPath + '"，是否替换为 "' + cleanPath + '"？';
+      } else {
+        content = '确认将"' + categoryName + '"映射到"' + cleanPath + '"？';
+      }
       vm.$Modal.confirm({
         title: '确认映射',
-        content: '将"' + categoryName + '"映射到"' + cleanPath + '"？该类目下所有商品都会被更新。',
+        content: content,
         onOk: function () {
           fetch('/api/dxm-category/remap', {
             method: 'POST',
