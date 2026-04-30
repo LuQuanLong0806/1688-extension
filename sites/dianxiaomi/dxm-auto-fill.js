@@ -158,6 +158,20 @@
     return images;
   }
 
+  // ========== 等待页面 loading 消失 ==========
+  function waitPageReady(cb) {
+    var loading = document.getElementById('dPageLoading');
+    if (!loading || loading.classList.contains('hidden')) return cb();
+    console.log('%c[自动填表] 等待页面加载...', 'color:#E65100;font-weight:bold');
+    var start = Date.now();
+    (function check() {
+      var el = document.getElementById('dPageLoading');
+      if (!el || el.classList.contains('hidden')) { cb(); return; }
+      if (Date.now() - start > 3000) { cb(); return; }
+      setTimeout(check, 200);
+    })();
+  }
+
   // ========== Step 0: 自动选择店铺 ==========
   function autoSelectShop(cb) {
     var shopName = C.loadSelectedStore ? C.loadSelectedStore() : '';
@@ -171,12 +185,13 @@
 
     // 查找"店铺名称"标签对应的 ant-select
     var storeSelector = null;
+    var storeFormItem = null;
     var labels = document.querySelectorAll('#productBasicInfo label');
     for (var i = 0; i < labels.length; i++) {
       if ((labels[i].textContent || '').indexOf('店铺名称') !== -1) {
-        var formItem = labels[i].closest('.ant-form-item');
-        if (formItem) {
-          storeSelector = formItem.querySelector('.ant-select-selector');
+        storeFormItem = labels[i].closest('.ant-form-item');
+        if (storeFormItem) {
+          storeSelector = storeFormItem.querySelector('.ant-select-selector');
         }
         break;
       }
@@ -263,6 +278,9 @@
     if (catInfo) autoTotal += 1;
     if (data.main_images && data.main_images.length) autoTotal += 3; // 贴主图（打开菜单+网络图片+填入添加）
     autoTotal += 1; // 删除产品视频
+    autoTotal += 1; // 选择省份
+    autoTotal += 1; // 外包装形状
+    autoTotal += 1; // 外包装类型
     if (data.desc_images && data.desc_images.length) autoTotal += 1; // 描述图（仅存储到全局）
     if (data.skus && data.skus.length) autoTotal += 2; // SKU表格填充
     autoTotal += 1; // 外包装图片
@@ -272,25 +290,31 @@
 
     // Step 0: 选择店铺
     autoSelectShop(function () {
-      // Step 1: 填入标题
-      fillTitle(data, function () {
-        // Step 1.5: 填入来源URL
-        if (data.source_url) {
-          fillSourceUrl(data.source_url, function () {
+      // 选店铺后等待页面 loading 消失
+      waitPageReady(function () {
+        // Step 1: 填入标题
+        fillTitle(data, function () {
+          // Step 1.5: 填入来源URL
+          if (data.source_url) {
+            fillSourceUrl(data.source_url, function () {
+              doCategorySelect(data);
+            });
+          } else {
             doCategorySelect(data);
-          });
-        } else {
-          doCategorySelect(data);
-        }
+          }
+        });
       });
     });
 
     function doCategorySelect(data) {
-      // Step 1.6: 自动选择类目
+      // Step 1.6: 自动选择类目（等待类目按钮出现）
       var catInfo = resolveCategory(data);
       if (catInfo) {
-        autoSelectCategory(catInfo, collectId, function () {
-          doPasteMainImages(data);
+        // 等待类目选择按钮渲染
+        waitForElement('#productBasicInfo .category-item button', 5000, function () {
+          autoSelectCategory(catInfo, collectId, function () {
+            doPasteMainImages(data);
+          });
         });
       } else {
         doPasteMainImages(data);
@@ -304,20 +328,29 @@
         pasteMainImages(allImages, function () {
           // Step 2.5: 删除产品视频
           deleteProductVideos(function () {
-            // Step 3: 外包装图片
-            updatePackageImage(data, function () {
-              // Step 4: 描述图（存储到全局，供描述按钮使用）
-              if (data.desc_images && data.desc_images.length) {
-                autoLog('描述图已加载 (' + data.desc_images.length + '张)');
-              }
-              // Step 5: SKU 填充
-              if (data.skus && data.skus.length) {
-                fillSkuTable(data.skus, function () {
-                  autoFinish('自动填表完成');
+            // Step 3: 选择省份
+            autoSelectProvince(function () {
+              // Step 4: 外包装形状+类型+图片
+              var pkgArea = document.querySelector('#packageInfo');
+              if (pkgArea) pkgArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              autoSelectPackageShape(function () {
+                autoSelectPackageType(function () {
+                  updatePackageImage(data, function () {
+                    // Step 5: 描述图（存储到全局，供描述按钮使用）
+                    if (data.desc_images && data.desc_images.length) {
+                      autoLog('描述图已加载 (' + data.desc_images.length + '张)');
+                    }
+                    // Step 6: SKU 填充
+                    if (data.skus && data.skus.length) {
+                      fillSkuTable(data.skus, function () {
+                        autoFinish('自动填表完成');
+                      });
+                    } else {
+                      autoFinish('自动填表完成（无SKU数据）');
+                    }
+                  });
                 });
-              } else {
-                autoFinish('自动填表完成（无SKU数据）');
-              }
+              });
             });
           });
         });
@@ -325,6 +358,112 @@
         autoFinish('自动填表完成（无主图数据）');
       }
     }
+  }
+
+  // ========== Step 3: 选择省份 ==========
+  function autoSelectProvince(cb) {
+    var province = C && C.loadProvince ? C.loadProvince() : '';
+    if (!province) { cb(); return; }
+
+    autoLog('选择省份: ' + province + '...');
+
+    var labels = document.querySelectorAll('#productProductInfo .ant-form-item-label label');
+    var originEl = null;
+    for (var i = 0; i < labels.length; i++) {
+      if ((labels[i].textContent || '').indexOf('产地') !== -1) {
+        var formItem = labels[i].closest('.ant-form-item');
+        if (formItem) originEl = formItem.querySelector('.productOrigin');
+        break;
+      }
+    }
+    if (!originEl) { autoLog('未找到产地区域，跳过省份'); cb(); return; }
+
+    var selects = originEl.querySelectorAll('.ant-select-selector');
+    if (selects.length < 2) { cb(); return; }
+
+    var provSel = selects[1];
+    // 检查是否已选正确省份
+    var selItem = provSel.querySelector('.ant-select-selection-item');
+    if (selItem && (selItem.textContent || '').trim() === province) {
+      autoLog('省份已正确选择');
+      cb();
+      return;
+    }
+
+    var input = provSel.querySelector('.ant-select-selection-search-input');
+    if (input) input.focus();
+    forceOpenAntSelect(provSel);
+
+    setTimeout(function () {
+      var opt = document.querySelector('.ant-select-item-option[title="' + province + '"]');
+      if (opt) {
+        opt.click();
+        autoLog('省份已选择: ' + province);
+      } else {
+        autoLog('未找到省份选项: ' + province);
+      }
+      setTimeout(cb, 200);
+    }, 500);
+  }
+
+  // ========== Step 4a: 选择外包装形状（不规则） ==========
+  function autoSelectPackageShape(cb) {
+    autoLog('选择外包装形状...');
+    waitForAntSelect('外包装形状', function (sel) {
+      if (!sel) { autoLog('未找到外包装形状，跳过'); cb(); return; }
+      setTimeout(function () {
+        forceOpenAntSelect(sel);
+        setTimeout(function () {
+          var opt = document.querySelector('.ant-select-item-option[title="不规则"]');
+          if (opt) {
+            opt.click();
+            autoLog('外包装形状已选择: 不规则');
+          } else {
+            autoLog('未找到"不规则"选项');
+          }
+          setTimeout(cb, 200);
+        }, 300);
+      }, 200);
+    });
+  }
+
+  // ========== Step 4b: 选择外包装类型（软包装+硬物） ==========
+  function autoSelectPackageType(cb) {
+    autoLog('选择外包装类型...');
+    waitForAntSelect('外包装类型', function (sel) {
+      if (!sel) { autoLog('未找到外包装类型，跳过'); cb(); return; }
+      setTimeout(function () {
+        forceOpenAntSelect(sel);
+        setTimeout(function () {
+          var opt = document.querySelector('.ant-select-item-option[title="软包装+硬物"]');
+          if (opt) {
+            opt.click();
+            autoLog('外包装类型已选择: 软包装+硬物');
+          } else {
+            autoLog('未找到"软包装+硬物"选项');
+          }
+          setTimeout(cb, 200);
+        }, 300);
+      }, 200);
+    });
+  }
+
+  function waitForAntSelect(labelText, cb) {
+    var start = Date.now();
+    (function check() {
+      var labels = document.querySelectorAll('#packageInfo .ant-form-item-label label');
+      for (var i = 0; i < labels.length; i++) {
+        if ((labels[i].textContent || '').indexOf(labelText) !== -1) {
+          var formItem = labels[i].closest('.ant-form-item');
+          if (formItem) {
+            var sel = formItem.querySelector('.ant-select-selector');
+            if (sel) return cb(sel);
+          }
+        }
+      }
+      if (Date.now() - start > 5000) { cb(null); return; }
+      requestAnimationFrame(check);
+    })();
   }
 
   // ========== Step 2.5: 删除产品视频 ==========
@@ -771,6 +910,10 @@
 
   // ========== Step 5: SKU 填充（智能复用已有属性 + 动态添加） ==========
   function fillSkuTable(skus, cb) {
+    // 滚动到SKU区域
+    var skuArea = document.querySelector('#skuAttrsInfo');
+    if (skuArea) skuArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
     // 筛选已勾选的 SKU
     var selectedSkus = skus.filter(function (s) { return s._selected !== false; });
     if (!selectedSkus.length) { autoLog('无已选SKU，跳过'); cb(); return; }

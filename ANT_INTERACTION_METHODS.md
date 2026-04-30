@@ -716,8 +716,10 @@ Dropdown 菜单项统一通过 `waitForVisibleLi(文字片段)` 查找：
 
 | 步骤 | 操作 | 关键选择器 | 备注 |
 |------|------|-----------|------|
+| 0 | 自动选择店铺 | `#productBasicInfo label(店铺名称)` → `.ant-select-selector` | 通过 `title` 属性精确匹配；配置: `BeeConfig.loadSelectedStore()` |
 | 1 | 填入标题 | `#productProductInfo form .ant-form-item input` | 始终覆盖 |
 | 1.5 | 填入来源URL | `#dxmInfo input[name="sourceUrl"]` | `data.source_url`，无则跳过 |
+| 1.6 | 自动选择类目 | 分类搜索弹窗 → 搜索 `leafName` → 点击结果 | 优先级: `customCategory` → `dxmCategory` → 1688类目 |
 | 2 | 贴主图（主图 + 已选SKU图，最多10张） | 轮播图选择图片下拉 → 网络图片弹窗 | 先删除已有轮播图再贴 |
 | 2.5 | 删除产品视频 | `.video-operate-img` → `a.link` (删除) | 无视频区域则跳过 |
 | 3 | 更新外包装图片 | 轮播图首图 → 外包装网络图片弹窗 | 先对比URL，一致则跳过 |
@@ -725,7 +727,25 @@ Dropdown 菜单项统一通过 `waitForVisibleLi(文字片段)` 查找：
 | 5 | SKU填充（智能复用属性） | `#skuAttrsInfo` + `#skuDataInfo` | 见 7.7 智能属性策略 |
 | 6 | 滚动到顶部 | `window.scrollTo({ top: 0 })` | 完成后平滑回到顶部 |
 
-**数据来源**: `GET /api/product/:id`，数据结构与采集一致（`main_images`/`desc_images`/`detail_images`/`skus`/`attrs`/`source_url` 等）。
+**Step 0 店铺选择详解**:
+1. 通过 `#productBasicInfo label` 中文字"店铺名称"定位 form item
+2. 找到 `.ant-select-selector`，检查 `.ant-select-selection-item` 是否已选中正确店铺
+3. 未选中则 `forceOpenAntSelect` 打开下拉
+4. 轮询等待 `.ant-select-dropdown` 可见（`getComputedStyle.display !== 'none'`）
+5. 通过 `.ant-select-item-option[title="店铺名"]` 精确匹配并点击
+6. 未配置店铺名（`loadSelectedStore()` 返回空）则跳过
+
+**Step 1.6 类目自动选择详解**:
+1. `resolveCategory(data)` 按优先级解析类目名:
+   - `customCategory`（管理端通过 category-picker 设置的叶子名称，如"冰块模具和托盘"）
+   - `dxmCategory.leafName`（已保存的店小秘类目）
+   - `category.leafCategoryName`（1688原始类目）
+2. 点击"选择分类"按钮（`#productBasicInfo .category-item button.ant-btn-primary`）打开弹窗
+3. 在弹窗搜索框输入叶子名称搜索
+4. 匹配搜索结果并点击，确认选择
+5. 选择成功后通过 `onCategorySet` 收集类目到库（`POST /api/dxm-category/collect`）
+
+**数据来源**: `GET /api/product/:id`，数据结构与采集一致（`main_images`/`desc_images`/`detail_images`/`skus`/`attrs`/`source_url`/`customCategory` 等）。
 
 **气泡类型**:
 | type | 样式 | 含义 |
@@ -783,35 +803,60 @@ textarea 不能用 `HTMLInputElement.prototype` 的 setter。`setInputValue` 已
 **目的**: 检查店铺是否已选，未选则自动选择配置的店铺。
 **前置**: 页面已加载，`#productBasicInfo` 可见。
 **配置**: `Config.loadSelectedStore()` 获取目标店铺名。
+**文件位置**: `dxm-auto-fill.js` → `autoSelectShop()`
 
 ```javascript
-// 1. 找到店铺标签
-var labels = document.querySelectorAll('#productBasicInfo .ant-form-item-label label');
-var storeFormItem = null;
+// 1. 通过 label 文字"店铺名称"定位 ant-select
+var labels = document.querySelectorAll('#productBasicInfo label');
+var storeSelector = null;
 for (var i = 0; i < labels.length; i++) {
-  if (labels[i].textContent.includes('店铺名称')) {
-    storeFormItem = labels[i].closest('.ant-form-item');
+  if ((labels[i].textContent || '').indexOf('店铺名称') !== -1) {
+    var formItem = labels[i].closest('.ant-form-item');
+    if (formItem) storeSelector = formItem.querySelector('.ant-select-selector');
     break;
   }
 }
 
-// 2. 读取当前店铺
-var selectionItem = storeFormItem.querySelector('.ant-select-selection-item');
-var currentStore = selectionItem ? (selectionItem.getAttribute('title') || selectionItem.textContent.trim()) : '';
-
-// 3. 店铺为空时，选择配置的店铺
-if (!currentStore) {
-  var configStore = Config.loadSelectedStore();
-  var storeSelector = storeFormItem.querySelector('.ant-select-selector');
-  var searchInput = storeFormItem.querySelector('.ant-select-selection-search-input');
-  if (searchInput) searchInput.focus();
-  forceOpenAntSelect(storeSelector);
-  // 等待选项出现后点击
-  waitForElement('.ant-select-item-option[title="' + configStore + '"]', 3000, function (opt) {
-    if (opt) opt.click();
-  });
+// 2. 检查是否已选中正确店铺
+var selectedText = storeSelector.querySelector('.ant-select-selection-item');
+if (selectedText && (selectedText.textContent || '').trim() === shopName) {
+  // 已正确选择，跳过
+  return;
 }
+
+// 3. 打开下拉
+forceOpenAntSelect(storeSelector);
+
+// 4. 等待下拉菜单可见（用 getComputedStyle 检测）
+var start = Date.now();
+(function checkDropdown() {
+  var dropdowns = document.querySelectorAll('.ant-select-dropdown');
+  var visibleDropdown = null;
+  for (var d = 0; d < dropdowns.length; d++) {
+    if (getComputedStyle(dropdowns[d]).display !== 'none') {
+      visibleDropdown = dropdowns[d];
+      break;
+    }
+  }
+
+  if (!visibleDropdown) {
+    if (Date.now() - start > 5000) return; // 超时
+    requestAnimationFrame(checkDropdown);
+    return;
+  }
+
+  // 5. 通过 title 属性精确匹配店铺
+  var targetItem = visibleDropdown.querySelector('.ant-select-item-option[title="' + shopName + '"]');
+  if (targetItem) {
+    targetItem.click();
+  }
+})();
 ```
+
+**关键细节**:
+- 下拉选项的 `title` 属性即店铺名（如 `title="Zondon"`），用于精确匹配
+- `getComputedStyle(display)` 检测下拉可见性，比 CSS 选择器更可靠
+- 未配置店铺名（`loadSelectedStore()` 返回空）则跳过
 
 **注意**: 店铺变更后分类会清空，此时应跳过分类步骤（Step 2/3）。
 
@@ -1324,6 +1369,13 @@ setTimeout(function () {
 → 更新外包装图 (10.9) → 检查标题长度 (10.10) → 发布 (10.11)
 ```
 
+**示例: 自动填表(collectId) = 选店铺 + 标题 + 来源URL + 类目 + 轮播图 + 视频 + 外包装 + SKU**
+```
+选择店铺 (10.1) → 填入标题 → 填入来源URL (10.16) → 自动选择类目(搜索弹窗)
+→ 贴主图(主图+已选SKU图) → 删除视频 (10.6) → 更新外包装图 (10.9)
+→ SKU填充(智能复用属性 10.17)
+```
+
 **示例: 描述按钮 = 编辑描述 + 更新外包装**
 ```
 编辑描述 (10.13) → 等待 1500ms → 更新外包装图 (10.9)
@@ -1351,6 +1403,8 @@ setTimeout(function () {
 | `hoverWithCoords` | dxm-edit-desc.js / dxm-sku-table.js | 内部函数 |
 | `findVisibleLi` / `waitForVisibleLi` | dxm-edit-desc.js / dxm-paste-img.js / dxm-sku.js | 各自内部函数 |
 | `doSkuTableFill` | dxm-sku-table.js | `BeeConfig.doSkuTableFill` |
+| `autoSelectShop` | dxm-auto-fill.js | 内部函数 |
+| `autoSelectCategory` / `resolveCategory` | dxm-auto-fill.js | 内部函数 |
 
 ---
 
@@ -1360,7 +1414,7 @@ setTimeout(function () {
 dxm-config.js       → 配置系统（最先加载，其他文件依赖 BeeConfig）
 dxm-float-bee.js    → 蜜蜂图标 + 拖动 + 气泡 + 19步工作流 + 译按钮 + 填表按钮
 dxm-config-ui.js    → 右键菜单 + 店铺管理 + 过滤配置面板
-dxm-auto-fill.js    → 自动填表（collectId 参数触发，填标题+来源URL+轮播图+外包装+SKU）
+dxm-auto-fill.js    → 自动填表（collectId 参数触发，选店铺+选类目+填标题+来源URL+轮播图+外包装+SKU）
 dxm-edit-desc.js    → 编字工作流
 dxm-paste-img.js    → 粘字工作流 + 删字工作流
 dxm-sku.js          → SKU变种属性过滤 + 数字单位补全 + 高级SKU货号
