@@ -63,11 +63,6 @@ Vue.component('page-products', {
           slot: 'category'
         },
         {
-          title: '来源地址',
-          width: 120,
-          slot: 'sourceUrl'
-        },
-        {
           title: 'SKU',
           width: 200,
           slot: 'sku'
@@ -306,7 +301,11 @@ Vue.component('page-products', {
             @mouseleave="$root.$refs.thumbPreview.close()" />
         </template>
         <template slot="title" slot-scope="{ row }">
-          <span style="word-break:break-all;line-height:1.4">{{ row.title || '-' }}</span>
+          <a v-if="row.source_url" :href="row.source_url" target="_blank"
+            style="word-break:break-all;line-height:1.4;color:#333;text-decoration:none;cursor:pointer;display:inline-block"
+            @mouseenter="$event.target.style.color='#ff6a00';$event.target.style.textDecoration='underline'"
+            @mouseleave="$event.target.style.color='#333';$event.target.style.textDecoration='none'">{{ row.title || '-' }}</a>
+          <span v-else style="word-break:break-all;line-height:1.4">{{ row.title || '-' }}</span>
         </template>
         <template slot="aliCategory" slot-scope="{ row }">
           <span style="font-size:12px;color:#666;word-break:break-all">{{ (row.category && (row.category.leafCategoryName || row.category.categoryPath)) || '-' }}</span>
@@ -316,15 +315,6 @@ Vue.component('page-products', {
             placeholder="搜索或选择分类"
             @input="saveCategory(row, $event)"
             @path="saveCategoryPath(row, $event)" />
-        </template>
-        <template slot="sourceUrl" slot-scope="{ row }">
-          <template v-if="!row.source_url">
-            <span style="color:#ccc">-</span>
-          </template>
-          <a v-else :href="row.source_url" target="_blank" :title="row.source_url"
-            style="font-size:12px;color:#ff6a00;word-break:break-all;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">
-            {{ row.source_url.length > 35 ? row.source_url.substring(0, 35) + '...' : row.source_url }}
-          </a>
         </template>
         <template slot="sku" slot-scope="{ row }">
           <template v-if="!getSkuText(row)">
