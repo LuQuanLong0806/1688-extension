@@ -29,7 +29,7 @@ Vue.component('page-dashboard', {
             } catch (e) { item._thumb = ''; }
             return item;
           });
-        });
+        }).catch(function () {});
     },
     initCharts: function () {
       this.initTrendChart();
@@ -61,7 +61,7 @@ Vue.component('page-dashboard', {
             }]
           });
           chart.resize();
-        });
+        }).catch(function () {});
     },
     initCategoryChart: function () {
       var el = document.getElementById('chart-status');

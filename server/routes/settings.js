@@ -5,11 +5,11 @@ const router = Router();
 
 let _clearSignals = {};
 
-// Clear-signal
+// Clear-signal（按 clientId 区分，同一浏览器的 1688/DXM 共享同一 ID）
 router.get('/clear-signal', (req, res) => {
   const clientId = req.query.clientId || '';
-  const signal = clientId ? _clearSignals[clientId] : 0;
-  res.json({ clearAt: signal || 0 });
+  const signal = clientId ? _clearSignals[clientId] || 0 : 0;
+  res.json({ clearAt: signal });
 });
 
 router.post('/clear-signal', (req, res) => {

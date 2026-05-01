@@ -809,9 +809,13 @@ document.getElementById("setShowZip").addEventListener("change",function(){var o
 	document.getElementById("setShowCopy").addEventListener("change",function(){var on=this.checked;localStorage.setItem("1688_set_showCopy",on);if(_copyBtn)_copyBtn.style.display=on?"":"none";});
 	document.getElementById("setAutoCopy").checked=_getSettingBool("1688_set_autoCopy",true);
 	document.getElementById("setAutoCopy").addEventListener("change",function(){localStorage.setItem("1688_set_autoCopy",this.checked);});
+	// 方案3(备用): 同窗口 postMessage + 同源 localStorage storage 事件
 	window.addEventListener("message",function(e){if(e.data&&e.data.action==="clearResultSelections"){document.querySelectorAll(".ci").forEach(function(c){c.checked=false;if(c.closest(".card"))c.closest(".card").classList.remove("on");});updateCount();_autoCopyUpdate();}});
 	window.addEventListener("storage",function(e){if(e.key==="__1688_clear_selections"){document.querySelectorAll(".ci").forEach(function(c){c.checked=false;if(c.closest(".card"))c.closest(".card").classList.remove("on");});updateCount();_autoCopyUpdate();}});
-	if(!localStorage.getItem('__client_id'))localStorage.setItem('__client_id','c'+Date.now()+Math.random().toString(36).slice(2,8));var __lastClearCheck=0;setInterval(function(){fetch((localStorage.getItem('1688_server_url')||'http://localhost:3000')+'/api/clear-signal?clientId='+localStorage.getItem('__client_id')).then(function(r){return r.json();}).then(function(d){if(d.clearAt&&d.clearAt>__lastClearCheck){__lastClearCheck=d.clearAt;document.querySelectorAll(".ci").forEach(function(c){c.checked=false;if(c.closest(".card"))c.closest(".card").classList.remove("on");});updateCount();_autoCopyUpdate();}}).catch(function(){});},2000);
+	// 共享 clientId（chrome.storage.local 跨域共享，同扩展内 1688/DXM 一致）
+	var __sharedClientId='';try{chrome.storage.local.get('__shared_client_id',function(r){if(r.__shared_client_id){__sharedClientId=r.__shared_client_id}else{__sharedClientId='c'+Date.now()+Math.random().toString(36).slice(2,8);chrome.storage.local.set({__shared_client_id:__sharedClientId})}})}catch(e){}
+	// 方案2(备用): 服务端轮询 - 方案1 background 中继失败时兜底
+	var __lastClearCheck=0;setInterval(function(){if(!__sharedClientId)return;fetch((localStorage.getItem('1688_server_url')||'http://localhost:3000')+'/api/clear-signal?clientId='+__sharedClientId).then(function(r){return r.json()}).then(function(d){if(d.clearAt&&d.clearAt>__lastClearCheck){__lastClearCheck=d.clearAt;document.querySelectorAll(".ci").forEach(function(c){c.checked=false;if(c.closest(".card"))c.closest(".card").classList.remove("on")});updateCount();_autoCopyUpdate()}}).catch(function(){})},2000);
 </script>
 </body>
 </html>`;
@@ -1069,7 +1073,7 @@ document.getElementById("setShowZip").addEventListener("change",function(){var o
   var _copyIconObserver = new MutationObserver(function () { setupCopyIcons(); });
   _copyIconObserver.observe(document.body, { childList: true, subtree: true });
 
-  // Cross-tab: clear result window selections when notified
+  // 方案1(主): background.js 中继 → chrome.runtime.onMessage 即时清空结果页选中
   if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
     chrome.runtime.onMessage.addListener(function (msg) {
       if (msg.action === 'clearResultSelections') {

@@ -11,6 +11,14 @@ chrome.runtime.onMessage.addListener(function (msg, sender) {
   if (msg.action === 'closeSourceTab') {
     chrome.tabs.remove(sender.tab.id);
   }
+  // 方案1: background 中继 —— 无需服务器，即时通知所有 1688 标签页
+  if (msg.action === 'clearResultSelections') {
+    chrome.tabs.query({}, function (tabs) {
+      for (var i = 0; i < tabs.length; i++) {
+        try { chrome.tabs.sendMessage(tabs[i].id, msg); } catch (e) {}
+      }
+    });
+  }
 });
 
 chrome.tabs.onRemoved.addListener(function (tabId) {

@@ -46,7 +46,7 @@ initDb().then(() => initTreeDb()).then(() => {
   app.listen(PORT, () => {
     console.log(`\n  商品采集服务已启动`);
     console.log(`  管理页面: http://localhost:${PORT}`);
-    console.log(`  API 地址: http://localhost:${PORT}/api/product`);
+    console.log(`  API 地址: http://localhost:${PORT}/api`);
     console.log(`  数据库: ${DB_FILE}\n`);
     // 自动打开管理页面
     var openUrl = 'http://localhost:' + PORT;

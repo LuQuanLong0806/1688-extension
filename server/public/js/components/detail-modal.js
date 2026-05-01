@@ -200,7 +200,7 @@ Vue.component('detail-modal', {
         vm.editable.status = ns;
         if (vm.detail) vm.detail.status = ns;
         vm.$emit('status-changed');
-      });
+      }).catch(function () { vm.$Message.error('状态更新失败'); });
     },
     copyUrl: function () {
       var vm = this;
@@ -240,7 +240,7 @@ Vue.component('detail-modal', {
       }).then(function () {
         vm.$Message.success('保存成功');
         vm.$emit('status-changed');
-      });
+      }).catch(function () { vm.$Message.error('保存失败'); });
     },
     openPreview: function (imgs, idx) {
       this.$root.openPreview(imgs, idx);

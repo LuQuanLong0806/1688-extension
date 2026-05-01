@@ -4,7 +4,7 @@
 
   var C = window.BeeConfig;
   var _serverUrl = function () { return (C && C.getServerUrl ? C.getServerUrl() : localStorage.getItem('1688_server_url')) || 'http://localhost:3000'; };
-  var _clientId = function () { if (!localStorage.getItem('__client_id')) localStorage.setItem('__client_id', 'c' + Date.now() + Math.random().toString(36).slice(2, 8)); return localStorage.getItem('__client_id'); };
+  var _clientId = function () { return window.__sharedClientId || ''; };
   var pasteEl = document.getElementById('__dxm_bee_paste');
   var deleteEl = document.getElementById('__dxm_bee_delete');
   if (!pasteEl && !deleteEl) return;

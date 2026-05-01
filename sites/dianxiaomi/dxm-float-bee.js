@@ -1312,9 +1312,14 @@
   }
 
   // ========== Cross-tab: notify 1688 to clear selections ==========
+  var __sharedClientId = window.__sharedClientId = '';
+  try { chrome.storage.local.get('__shared_client_id', function (r) {
+    if (r.__shared_client_id) { __sharedClientId = window.__sharedClientId = r.__shared_client_id; }
+    else { __sharedClientId = window.__sharedClientId = 'c' + Date.now() + Math.random().toString(36).slice(2, 8); chrome.storage.local.set({ __shared_client_id: __sharedClientId }); }
+  }); } catch (e) {}
   function notifyClearResult() {
     try { chrome.runtime.sendMessage({ action: 'clearResultSelections' }); } catch (e) {}
-    try { if (!localStorage.getItem('__client_id')) localStorage.setItem('__client_id', 'c' + Date.now() + Math.random().toString(36).slice(2, 8)); var _su = (Config && Config.getServerUrl ? Config.getServerUrl() : localStorage.getItem('1688_server_url')) || 'http://localhost:3000'; fetch(_su + '/api/clear-signal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientId: localStorage.getItem('__client_id') }) }).catch(function () {}); } catch (e) {}
+    try { var _su = (Config && Config.getServerUrl ? Config.getServerUrl() : localStorage.getItem('1688_server_url')) || 'http://localhost:3000'; fetch(_su + '/api/clear-signal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientId: __sharedClientId }) }).catch(function () {}); } catch (e) {}
   }
   document.addEventListener('visibilitychange', function () {
     if (!document.hidden) notifyClearResult();

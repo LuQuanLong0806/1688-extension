@@ -110,7 +110,7 @@ Vue.component('page-products', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ customCategory: val || '' })
-      }).then(function () { vm.$Message.success('已保存'); });
+      }).then(function () { vm.$Message.success('已保存'); }).catch(function () { vm.$Message.error('保存失败'); });
     },
     saveCategoryPath: function (row, path) {
       row.manualCategory = path || '';
@@ -118,7 +118,7 @@ Vue.component('page-products', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ manualCategory: path || '' })
-      });
+      }).catch(function () {});
     },
     // -- 数据加载 --
     startPoll: function () {
@@ -139,13 +139,13 @@ Vue.component('page-products', {
       var vm = this;
       fetch('/api/product/categories')
         .then(function (r) { return r.json(); })
-        .then(function (list) { vm.categoryList = list; });
+        .then(function (list) { vm.categoryList = list; }).catch(function () {});
     },
     loadDxmCategories: function () {
       var vm = this;
       fetch('/api/product/dxm-categories')
         .then(function (r) { return r.json(); })
-        .then(function (list) { vm.dxmCategoryList = list; });
+        .then(function (list) { vm.dxmCategoryList = list; }).catch(function () {});
     },
     loadList: function (p) {
       var vm = this;
@@ -198,7 +198,7 @@ Vue.component('page-products', {
           fetch('/api/product/' + id, { method: 'DELETE' }).then(function () {
             vm.loadList();
             vm.$root.loadStats();
-          });
+          }).catch(function () { vm.$Message.error('删除失败'); });
         }
       });
     },
@@ -217,7 +217,7 @@ Vue.component('page-products', {
             vm.selectedIds = [];
             vm.loadList();
             vm.$root.loadStats();
-          });
+          }).catch(function () { vm.$Message.error('批量删除失败'); });
         }
       });
     },
@@ -250,7 +250,7 @@ Vue.component('page-products', {
         vm.batchCatVisible = false;
         vm.selectedIds = [];
         vm.loadList();
-      });
+      }).catch(function () { vm.$Message.error('批量设置失败'); });
     }
   },
   template: `

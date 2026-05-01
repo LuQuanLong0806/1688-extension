@@ -26,12 +26,12 @@ new Vue({
     loadStats: function () {
       var vm = this;
       fetch('/api/product/stats').then(function (r) { return r.json(); })
-        .then(function (d) { vm.stats = d; });
+        .then(function (d) { vm.stats = d; }).catch(function () {});
     },
     openDetail: function (id) {
       var vm = this;
       fetch('/api/product/' + id).then(function (r) { return r.json(); })
-        .then(function (d) { vm.detailData = d; vm.showDetail = true; });
+        .then(function (d) { vm.detailData = d; vm.showDetail = true; }).catch(function () { vm.$Message.error('加载详情失败'); });
     },
     onDetailStatusChanged: function () {
       this.loadStats();

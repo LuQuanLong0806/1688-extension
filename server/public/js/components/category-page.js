@@ -48,13 +48,13 @@ Vue.component('page-categories', {
       var vm = this;
       fetch('/api/dxm-tree/status').then(function (r) { return r.json(); }).then(function (s) {
         vm.treeStatus = s;
-      });
+      }).catch(function () {});
     },
     loadAliCategories: function () {
       var vm = this;
       fetch('/api/product/categories').then(function (r) { return r.json(); }).then(function (list) {
         vm.addAliList = list || [];
-      });
+      }).catch(function () {});
     },
     // 删除整个店小秘类目映射
     deleteDxmCategory: function (row) {
@@ -67,7 +67,7 @@ Vue.component('page-categories', {
             .then(function () {
               vm.$Message.success('已删除');
               vm.loadList();
-            });
+            }).catch(function () { vm.$Message.error('删除失败'); });
         }
       });
     },
@@ -102,7 +102,7 @@ Vue.component('page-categories', {
             vm.$Message.success('已解除');
             vm.loadModalList();
             vm.loadList();
-          });
+          }).catch(function () { vm.$Message.error('解除失败'); });
         }
       });
     },
@@ -117,7 +117,7 @@ Vue.component('page-categories', {
           .then(function (r) { return r.json(); })
           .then(function (d) {
             vm.addOptions = d.list || [];
-          });
+          }).catch(function () {});
       }, 300);
     },
     // 维护弹窗 - 选中1688类目绑定
@@ -133,7 +133,7 @@ Vue.component('page-categories', {
         vm.addOptions = [];
         vm.loadModalList();
         vm.loadList();
-      });
+      }).catch(function () { vm.$Message.error('绑定失败'); });
     },
     // === 新增映射弹窗（顶栏按钮）===
     openAddDialog: function () {
@@ -162,7 +162,7 @@ Vue.component('page-categories', {
         vm.$Message.success('已创建 ' + vm.addAliSelected.length + ' 条映射');
         vm.addVisible = false;
         vm.loadList();
-      });
+      }).catch(function () { vm.$Message.error('创建映射失败'); });
     }
   },
   computed: {
