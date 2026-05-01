@@ -17,6 +17,7 @@ Vue.component('page-products', {
       quoteProductId: localStorage.getItem('dxm_quote_product_id') || '',
       batchCatVisible: false,
       batchCatValue: '',
+      batchCatPath: '',
       _pollTimer: null
     };
   },
@@ -60,11 +61,6 @@ Vue.component('page-products', {
           title: '选择分类',
           width: 300,
           slot: 'category'
-        },
-        {
-          title: '手动分类',
-          width: 200,
-          slot: 'manualCat'
         },
         {
           title: '来源地址',
@@ -121,16 +117,13 @@ Vue.component('page-products', {
         body: JSON.stringify({ customCategory: val || '' })
       }).then(function () { vm.$Message.success('已保存'); });
     },
-    saveManualCategory: function (row, event) {
-      var val = (event.target.value || '').trim();
-      if (val === (row.manualCategory || '')) return;
-      row.manualCategory = val;
-      var vm = this;
+    saveCategoryPath: function (row, path) {
+      row.manualCategory = path || '';
       fetch('/api/product/' + row.id, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ manualCategory: val })
-      }).then(function () { vm.$Message.success('已保存'); });
+        body: JSON.stringify({ manualCategory: path || '' })
+      });
     },
     // -- 数据加载 --
     startPoll: function () {
@@ -239,6 +232,7 @@ Vue.component('page-products', {
         return;
       }
       this.batchCatValue = '';
+      this.batchCatPath = '';
       this.batchCatVisible = true;
     },
     saveBatchCategory: function () {
@@ -248,11 +242,13 @@ Vue.component('page-products', {
         vm.$Message.warning('请选择类目');
         return;
       }
+      var body = { customCategory: catValue };
+      if (vm.batchCatPath) body.manualCategory = vm.batchCatPath;
       Promise.all(vm.selectedIds.map(function (id) {
         return fetch('/api/product/' + id, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ customCategory: catValue })
+          body: JSON.stringify(body)
         });
       })).then(function () {
         vm.$Message.success('已批量设置 ' + vm.selectedIds.length + ' 条商品的类目');
@@ -318,13 +314,8 @@ Vue.component('page-products', {
         <template slot="category" slot-scope="{ row }">
           <category-picker :value="row.customCategory || ''"
             placeholder="搜索或选择分类"
-            @input="saveCategory(row, $event)" />
-        </template>
-        <template slot="manualCat" slot-scope="{ row }">
-          <i-input :value="row.manualCategory || ''"
-            placeholder="手动填写分类"
-            size="small"
-            @on-enter="saveManualCategory(row, $event)" />
+            @input="saveCategory(row, $event)"
+            @path="saveCategoryPath(row, $event)" />
         </template>
         <template slot="sourceUrl" slot-scope="{ row }">
           <template v-if="!row.source_url">
@@ -369,7 +360,7 @@ Vue.component('page-products', {
       <modal v-model="batchCatVisible" title="批量设置类目" :mask-closable="false" width="500">
         <div style="margin-bottom:12px">
           <p style="margin-bottom:8px;color:#666">已选择 <strong>{{ selectedIds.length }}</strong> 条商品</p>
-          <category-picker v-model="batchCatValue" placeholder="搜索或选择分类" />
+          <category-picker v-model="batchCatValue" placeholder="搜索或选择分类" @path="function(p) { batchCatPath = p }" />
         </div>
         <div slot="footer">
           <i-button @click="batchCatVisible = false">取消</i-button>

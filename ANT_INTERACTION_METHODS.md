@@ -43,7 +43,7 @@ function forceOpenAntSelect(selector) {
 **原理**: 模拟完整点击流程 (pointerdown → mousedown → pointerup → mouseup → click)，带坐标信息。
 **适用**: 省份选择、包裹形状、包裹类型等 Ant Select 组件。
 **注意**: 目标元素是 `.ant-select-selector`，不是外层容器。
-**文件位置**: `dxm-float-bee.js` 内部函数
+**文件位置**: `dxm-config.js (BeeConfig)`
 
 ---
 
@@ -65,7 +65,7 @@ function unhoverElement(el) {
 **原理**: 模拟鼠标进入/离开，`mouseenter` 必须设 `bubbles: false`（原生行为）。
 **适用**: `.ant-dropdown-trigger` class 的触发器、选择图片按钮等。
 **关键**: 目标元素通常有 `.ant-dropdown-trigger` class，如果按钮本身没有该 class，需向上查找祖先元素。
-**文件位置**: `dxm-float-bee.js`，暴露到 `BeeConfig.hoverElement`
+**文件位置**: `dxm-config.js (BeeConfig)`，暴露到 `BeeConfig.hoverElement`
 
 ---
 
@@ -91,7 +91,7 @@ function hoverWithCoords(el) {
 **原理**: 在 `hoverElement` 基础上增加 PointerEvent 和坐标信息。
 **适用**: Dropdown 内的子菜单项（如「清空描述」li），需要坐标让 Ant Design 正确定位子菜单。
 **与 hoverElement 的区别**: hoverElement 不带坐标，适用于顶层 trigger；hoverWithCoords 带坐标，适用于菜单内的子项。
-**文件位置**: `dxm-edit-desc.js` 内部函数
+**文件位置**: `dxm-config.js (BeeConfig)`，暴露到 `BeeConfig.hoverWithCoords`
 
 ---
 
@@ -132,7 +132,7 @@ function waitForElement(selector, timeout, cb) {
 
 **适用**: 等待弹窗、按钮等 DOM 元素出现。
 **局限**: 只按 CSS 选择器查找，不检查文本内容或可见性。如果元素不存在会等满超时时间。
-**文件位置**: `dxm-float-bee.js`，暴露到 `BeeConfig.waitForElement`
+**文件位置**: `dxm-config.js (BeeConfig)`，暴露到 `BeeConfig.waitForElement`
 
 ---
 
@@ -162,7 +162,7 @@ function waitForVisibleLi(textFragment, timeout, cb) {
 **原理**: 遍历所有 `<li>` 元素，过滤隐藏元素（`offsetParent === null`），按文本内容匹配。
 **适用**: Dropdown 菜单项（「清空描述」「批量传图」「网络图片」等）。
 **注意**: Dropdown 的弹出菜单通常是 `<li>` 元素。
-**文件位置**: `dxm-edit-desc.js` / `dxm-paste-img.js` 各自内部函数
+**文件位置**: `dxm-config.js (BeeConfig)`，暴露到 `BeeConfig.findVisibleLi` / `BeeConfig.waitForVisibleLi`
 
 ---
 
@@ -486,11 +486,12 @@ Dropdown 菜单项统一通过 `waitForVisibleLi(文字片段)` 查找：
 | `__dxm_bee_auto_publish` | `'true'`/`'false'` | `'true'` | 是否自动发布（控制 Step 18/19） |
 | `__dxm_bee_stores` | JSON 数组 | `[]` | 店铺名称列表 |
 | `__dxm_bee_selected_store` | 字符串 | `''` | 当前选中的店铺名称 |
-| `__dxm_bee_use_web_image` | `'true'`/`'false'` | `'false'` | 编字流程是否使用网络图片 |
+| `__dxm_bee_desc_web_upload` | `'true'`/`'false'` | `'false'` | 描述传图方式（网络上传/引用轮播图） |
 | `__dxm_bee_auto_category` | `'true'`/`'false'` | `'false'` | 是否自动点击分类（控制 Step 2/3） |
 | `__dxm_bee_province` | 字符串 | `'广东省'` | 省份选择（校验必须以省/市/自治区/特别行政区结尾） |
 | `__dxm_bee_auto_translate` | `'true'`/`'false'` | `'true'` | 是否自动翻译（控制 Step 5） |
 | `__dxm_bee_auto_fill` | `'true'`/`'false'` | `'false'` | 是否启用自动填表（collectId 参数触发） |
+| `__dxm_bee_sync_ts` | string | `''` | 配置同步时间戳（防多设备覆盖） |
 
 ### 5.2 BeeConfig API
 
@@ -505,7 +506,7 @@ Dropdown 菜单项统一通过 `waitForVisibleLi(文字片段)` 查找：
 | `loadAutoPublish()` / `saveAutoPublish(val)` | 自动发布开关 |
 | `loadStores()` / `saveStores(data)` | 店铺列表 |
 | `loadSelectedStore()` / `saveSelectedStore(val)` | 当前店铺 |
-| `loadUseWebImage()` / `saveUseWebImage(val)` | 网络图片开关 |
+| `loadDescWebUpload()` / `saveDescWebUpload(val)` | 描述传图方式开关（网络上传/引用轮播图） |
 | `loadAutoCategory()` / `saveAutoCategory(val)` | 自动分类开关 |
 | `loadProvince()` / `saveProvince(val)` | 省份选择（带校验，不合法回退默认值） |
 | `loadAutoTranslate()` / `saveAutoTranslate(val)` | 自动翻译开关 |
@@ -516,7 +517,10 @@ Dropdown 菜单项统一通过 `waitForVisibleLi(文字片段)` 查找：
 | `applyFilters(text, filters)` | 分组一次性文本过滤（返回 `{ text, hits, changed }`） |
 | `findVisibleModal(titleText)` | 双重判断定位弹窗（返回 `.ant-modal-wrap`） |
 | `hoverElement(el)` / `unhoverElement(el)` | 悬浮触发/取消 Dropdown |
-| `waitForElement(selector, timeout, cb)` | 等待元素出现 |
+| `waitForElement(selector, timeout, cb)` | 等待DOM元素出现 |
+| `forceOpenAntSelect(el)` | 强制打开ant-select下拉 |
+| `hoverWithCoords(el)` | 带坐标完整hover事件链 |
+| `findVisibleLi(text)` | 查找可见li元素 |
 | `showBubble(text, type)` / `hideBubble()` | 气泡通知 |
 | `doSkuTableFill(dataArray)` | SKU表格自动填充（预览图+货号+价格+尺寸+重量） |
 
@@ -531,7 +535,6 @@ Dropdown 菜单项统一通过 `waitForVisibleLi(文字片段)` 查找：
 - 🎬 删除产品视频 — switch 开关，默认开启，控制蜜蜂 Step 8
 - 🔊 自动翻译 — switch 开关，默认开启，控制蜜蜂 Step 5 翻译步骤
 - 📍 省份选择 — 输入框，防抖 500ms 自动保存，为空或格式不合法自动回退默认值 `广东省`
-- 🌐 网络图片 — switch 开关，控制编字流程图片来源
 - 🚀 自动发布 — switch 开关，控制蜜蜂 Step 18/19
 
 **菜单定位**: 自动检测空间，右侧不够显示在左侧，下方不够向上弹出。
@@ -576,6 +579,8 @@ Dropdown 菜单项统一通过 `waitForVisibleLi(文字片段)` 查找：
 
 ### 7.1 点击小蜜蜂 — 自动填表 (19步)
 
+> **注意**：当前工作流的外包装步骤（形状+类型）存在问题，具体表现为选择失败。独立按钮（翻译/删图/贴图/SKU/包装/描述）的逻辑完全正确，是可靠的参考实现。外包装步骤应以包装按钮（doPackage）的代码逻辑为准。
+
 | 步骤 | 操作 | 关键选择器 | 备注 |
 |------|------|-----------|------|
 | 1 | 检查/选择店铺 | `#productBasicInfo .ant-form-item-label label` | 店铺变更后跳过 Step 2/3 |
@@ -598,6 +603,8 @@ Dropdown 菜单项统一通过 `waitForVisibleLi(文字片段)` 查找：
 | 18 | 悬浮发布按钮 | `.footer button.btn-green` | 可配置跳过 |
 | 19 | 立即发布 | `.ant-dropdown-menu-item[data-menu-id="2"]` | |
 
+> **注意**: Step 9-12（外包装形状+类型）已合并但仍存在问题，请以包装按钮（doPackage）的代码逻辑为准。
+
 ### 7.2 点击"S" — SKU变种属性过滤 + 高级SKU货号
 
 | 步骤 | 操作 | 关键选择器 | 备注 |
@@ -615,7 +622,7 @@ Dropdown 菜单项统一通过 `waitForVisibleLi(文字片段)` 查找：
 
 ### 7.4 点击"编" — 一键编辑描述
 
-**条件分支**: 根据 `BeeConfig.loadUseWebImage()` 决定图片来源
+**条件分支**: 根据 `BeeConfig.loadDescWebUpload()` 决定图片来源
 
 **流程**:
 1. 打开编辑描述（`#baiduStatisticsSmtNewEditorEditClickNum > button`）
@@ -623,8 +630,8 @@ Dropdown 菜单项统一通过 `waitForVisibleLi(文字片段)` 查找：
 3. 检测已有内容：`.smt-new-editor .desc-content`（文字）、`.smt-new-editor .desc-img-box img`（图片）
 4. 如有内容 → 链式清空（清空文字模块 / 清空图片模块）
 5. 批量传图 → 选择图片下拉 → 两条路径：
-   - **网络上传**（`useWebImage=true`）: 从产品页抓取前 8 张图片 URL → 填入 textarea → 添加
-   - **引用产品轮播图**（`useWebImage=false`）: 全选 → 确认
+   - **网络上传**（`descWebUpload=true`）: 从产品页抓取前 8 张图片 URL → 填入 textarea → 添加
+   - **引用产品轮播图**（`descWebUpload=false`）: 全选 → 确认
 6. 确认批量传图 → 保存描述
 7. 更新外包装图片（获取轮播图首图 → 删除旧外包装图 → 网络图片弹窗填入 → 添加）
 
@@ -737,12 +744,13 @@ Dropdown 菜单项统一通过 `waitForVisibleLi(文字片段)` 查找：
 
 **Step 1.6 类目自动选择详解**:
 1. `resolveCategory(data)` 按优先级解析类目名:
+   - `manualCategory`（完整DXM路径，优先级最高）— 包含完整DXM路径如 "美容和个人护理/美发护发/美发工具/梳子"
    - `customCategory`（管理端通过 category-picker 设置的叶子名称，如"冰块模具和托盘"）
    - `dxmCategory.leafName`（已保存的店小秘类目）
    - `category.leafCategoryName`（1688原始类目）
 2. 点击"选择分类"按钮（`#productBasicInfo .category-item button.ant-btn-primary`）打开弹窗
 3. 在弹窗搜索框输入叶子名称搜索
-4. 匹配搜索结果并点击，确认选择
+4. 匹配搜索结果并点击，确认选择；当搜索结果有多条时，使用 `manualCategory` 的完整路径进行精确匹配
 5. 选择成功后通过 `onCategorySet` 收集类目到库（`POST /api/dxm-category/collect`）
 
 **数据来源**: `GET /api/product/:id`，数据结构与采集一致（`main_images`/`desc_images`/`detail_images`/`skus`/`attrs`/`source_url`/`customCategory` 等）。
@@ -1244,7 +1252,7 @@ navigator.clipboard.readText().then(function (clipText) {
 
 **目的**: 打开描述编辑器，清空旧内容，批量传图，保存。
 **前置**: 描述区域可见。
-**配置**: `Config.loadUseWebImage()` 决定网络上传还是引用轮播图。
+**配置**: `Config.loadDescWebUpload()` 决定网络上传还是引用轮播图。
 
 ```javascript
 // 1. 点击"编辑描述"
@@ -1391,17 +1399,17 @@ setTimeout(function () {
 
 | 方法 | 文件 | 暴露方式 |
 |------|------|---------|
-| `hoverElement` / `unhoverElement` | dxm-float-bee.js | `BeeConfig.hoverElement` |
-| `waitForElement` | dxm-float-bee.js | `BeeConfig.waitForElement` |
+| `hoverElement` / `unhoverElement` | dxm-config.js (BeeConfig) | `BeeConfig.hoverElement` |
+| `waitForElement` | dxm-config.js (BeeConfig) | `BeeConfig.waitForElement` |
 | `showBubble` / `hideBubble` | dxm-float-bee.js | `BeeConfig.showBubble` |
-| `forceOpenAntSelect` | dxm-float-bee.js | 内部函数 |
+| `forceOpenAntSelect` | dxm-config.js (BeeConfig) | `BeeConfig.forceOpenAntSelect` |
 | `waitForAntSelect` | dxm-float-bee.js | 内部函数 |
 | `waitForProvinceSelect` | dxm-float-bee.js | 内部函数 |
 | `setInputValue` | dxm-config.js | `BeeConfig.setInputValue` |
 | `findVisibleModal` | dxm-config.js | `BeeConfig.findVisibleModal` |
 | 所有配置 load/save | dxm-config.js | `BeeConfig.loadXxx` / `BeeConfig.saveXxx` |
-| `hoverWithCoords` | dxm-edit-desc.js / dxm-sku-table.js | 内部函数 |
-| `findVisibleLi` / `waitForVisibleLi` | dxm-edit-desc.js / dxm-paste-img.js / dxm-sku.js | 各自内部函数 |
+| `hoverWithCoords` | dxm-config.js (BeeConfig) | `BeeConfig.hoverWithCoords` |
+| `findVisibleLi` / `waitForVisibleLi` | dxm-config.js (BeeConfig) | `BeeConfig.findVisibleLi` / `BeeConfig.waitForVisibleLi` |
 | `doSkuTableFill` | dxm-sku-table.js | `BeeConfig.doSkuTableFill` |
 | `autoSelectShop` | dxm-auto-fill.js | 内部函数 |
 | `autoSelectCategory` / `resolveCategory` | dxm-auto-fill.js | 内部函数 |

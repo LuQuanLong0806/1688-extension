@@ -628,12 +628,26 @@
           if (results.length === 1) {
             target = results[0];
           } else {
-            // 多条结果，用路径匹配
-            for (var i = 0; i < results.length; i++) {
-              var resultPath = (results[i].textContent || '').replace(/\s+/g, '');
-              if (resultPath.indexOf(path.replace(/\s+/g, '')) !== -1 || resultPath.indexOf(leafName) !== -1) {
-                target = results[i];
-                break;
+            // 多条结果，优先用完整路径精确匹配
+            var normalizedPath = path.replace(/\s+/g, '');
+            if (normalizedPath.indexOf('/') !== -1) {
+              // path 是完整路径（如"美容和个人护理/美发护发/美发工具/梳子"）
+              for (var i = 0; i < results.length; i++) {
+                var resultPath = (results[i].textContent || '').replace(/\s+/g, '');
+                if (resultPath === normalizedPath || resultPath.indexOf(normalizedPath) !== -1 || normalizedPath.indexOf(resultPath) !== -1) {
+                  target = results[i];
+                  break;
+                }
+              }
+            }
+            // 回退：用叶子名匹配
+            if (!target) {
+              for (var j = 0; j < results.length; j++) {
+                var resultText = (results[j].textContent || '').replace(/\s+/g, '');
+                if (resultText.indexOf(leafName) !== -1) {
+                  target = results[j];
+                  break;
+                }
               }
             }
             if (!target) target = results[0];

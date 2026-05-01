@@ -87,6 +87,7 @@ Vue.component('category-picker', {
       this.dropdownVisible = false;
       this.searchOptions = [];
       this.$emit('input', item.catName);
+      this.$emit('path', item.path || '');
       var vm = this;
       setTimeout(function () {
         vm._selecting = false;
@@ -109,6 +110,7 @@ Vue.component('category-picker', {
       this.searchOptions = [];
       this.dropdownVisible = false;
       this.$emit('input', '');
+      this.$emit('path', '');
     }
   },
   template: `
