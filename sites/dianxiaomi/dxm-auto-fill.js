@@ -887,7 +887,7 @@
           fillSkuTableRows(selectedSkus, cb);
         }, 500);
       });
-    }, changeLogs.length > 0 ? 3000 : 300);
+    }, changeLogs.length > 0 ? 1000 : 300);
   }
 
   // 智能复用已有属性：编辑现有 → 取消多余 → 补充添加
