@@ -1330,32 +1330,6 @@
     if (!document.hidden) notifyClearResult();
   });
 
-  // ========== 自动收集店小秘类目 ==========
-  var _lastCollectedCat = '';
-  function collectDxmCategory() {
-    var catList = document.querySelector('.category-list');
-    if (!catList) return;
-    var text = catList.textContent.trim();
-    if (!text || text === _lastCollectedCat) return;
-    _lastCollectedCat = text;
-    var parts = text.split(/\s*>\s*/);
-    try {
-      var serverUrl = (Config && Config.getServerUrl ? Config.getServerUrl() : localStorage.getItem('1688_server_url')) || 'http://localhost:3000';
-      fetch(serverUrl + '/api/dxm-category/collect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: parts.join('/'), leafName: parts[parts.length - 1] })
-      }).catch(function () {});
-    } catch (e) {}
-  }
-  // 页面加载后监听类目变化
-  setTimeout(function () {
-    var catList = document.querySelector('.category-list');
-    if (!catList) return;
-    collectDxmCategory();
-    var observer = new MutationObserver(collectDxmCategory);
-    observer.observe(catList, { childList: true, characterData: true, subtree: true });
-  }, 3000);
 
   // ========== 包装按钮 ==========
   if (isWorkPage) {

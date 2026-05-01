@@ -5,7 +5,7 @@
   var AUTO_PUBLISH_KEY = '__dxm_bee_auto_publish';
   var STORE_KEY = '__dxm_bee_stores';
   var SELECTED_STORE_KEY = '__dxm_bee_selected_store';
-  var WEB_IMAGE_KEY = '__dxm_bee_use_web_image';
+  var DESC_WEB_UPLOAD_KEY = '__dxm_bee_desc_web_upload';
   var FILTER_ENABLED_KEY = '__dxm_bee_filter_enabled';
   var AUTO_CATEGORY_KEY = '__dxm_bee_auto_category';
   var PROVINCE_KEY = '__dxm_bee_province';
@@ -130,14 +130,14 @@
     syncToServer(SELECTED_STORE_KEY, val);
   }
 
-  function loadUseWebImage() {
-    return localStorage.getItem(WEB_IMAGE_KEY) === 'true';
+  function loadDescWebUpload() {
+    return localStorage.getItem(DESC_WEB_UPLOAD_KEY) === 'true';
   }
 
-  function saveUseWebImage(val) {
+  function saveDescWebUpload(val) {
     var v = val ? 'true' : 'false';
-    localStorage.setItem(WEB_IMAGE_KEY, v);
-    syncToServer(WEB_IMAGE_KEY, v);
+    localStorage.setItem(DESC_WEB_UPLOAD_KEY, v);
+    syncToServer(DESC_WEB_UPLOAD_KEY, v);
   }
 
   function loadFilterEnabled() {
@@ -453,8 +453,8 @@
     saveStores: saveStores,
     loadSelectedStore: loadSelectedStore,
     saveSelectedStore: saveSelectedStore,
-    loadUseWebImage: loadUseWebImage,
-    saveUseWebImage: saveUseWebImage,
+    loadDescWebUpload: loadDescWebUpload,
+    saveDescWebUpload: saveDescWebUpload,
     loadFilterEnabled: loadFilterEnabled,
     saveFilterEnabled: saveFilterEnabled,
     loadAutoCategory: loadAutoCategory,

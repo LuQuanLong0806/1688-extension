@@ -182,7 +182,7 @@
           }
         }, 300);
 
-        if (C.loadUseWebImage()) {
+        if (C.loadDescWebUpload()) {
           doWebImageUpload();
         } else {
           doProductCarouselUpload();
@@ -231,19 +231,6 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ status: 1 })
           }).catch(function () {});
-          var catList = document.querySelector('.category-list');
-          if (catList) {
-            var text = catList.textContent.trim();
-            if (text) {
-              var parts = text.split(/\s*>\s*/);
-              var leafName = parts[parts.length - 1];
-              fetch(serverUrl + '/api/dxm-category/collect', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ path: parts.join('/'), leafName: leafName })
-              }).catch(function () {});
-            }
-          }
         }
       }, 300);
     }, 150);
