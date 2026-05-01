@@ -985,7 +985,9 @@
       step('正在选择' + province + '...', '已选择' + province, function () {
         var o = document.querySelector('.ant-select-item-option[title="' + province + '"]');
         if (!o) return false;
-        o.click();
+        if (!o.classList.contains('ant-select-item-option-selected')) {
+          o.click();
+        }
         return true;
       }, doStepDelVideo);
     }
@@ -1095,7 +1097,9 @@
       step('正在选择不规则...', '已选择不规则', function () {
         var o = document.querySelector('.ant-select-item-option[title=”不规则”]');
         if (!o) return false;
-        o.click();
+        if (!o.classList.contains('ant-select-item-option-selected')) {
+          o.click();
+        }
         return true;
       }, doStep10);
     }
@@ -1122,7 +1126,9 @@
       step('正在选择软包装+硬物...', '已选择软包装+硬物', function () {
         var o = document.querySelector('.ant-select-item-option[title=”软包装+硬物”]');
         if (!o) return false;
-        o.click();
+        if (!o.classList.contains('ant-select-item-option-selected')) {
+          o.click();
+        }
         return true;
       }, doStep12);
     }
@@ -1356,18 +1362,24 @@
         sel.scrollIntoView({ block: 'center' });
         setTimeout(function () {
           forceOpenAntSelect(sel);
-          waitForElement('.ant-select-item-option[title="不规则"]', 3000, function (opt) {
+          setTimeout(function () {
+            var opt = document.querySelector('.ant-select-item-option[title="不规则"]');
             if (!opt) { showBubble('❌ 未找到不规则选项', 'err'); setTimeout(hideBubble, 2000); return; }
-            opt.click();
+            if (!opt.classList.contains('ant-select-item-option-selected')) {
+              opt.click();
+            }
 
             setTimeout(function () {
               pkgLog('选择外包装类型...');
               waitForAntSelect('外包装类型', function (sel2) {
                 if (!sel2) { showBubble('❌ 未找到外包装类型', 'err'); setTimeout(hideBubble, 2000); return; }
                 forceOpenAntSelect(sel2);
-                waitForElement('.ant-select-item-option[title="软包装+硬物"]', 3000, function (opt2) {
+                setTimeout(function () {
+                  var opt2 = document.querySelector('.ant-select-item-option[title="软包装+硬物"]');
                   if (!opt2) { showBubble('❌ 未找到软包装+硬物', 'err'); setTimeout(hideBubble, 2000); return; }
-                  opt2.click();
+                  if (!opt2.classList.contains('ant-select-item-option-selected')) {
+                    opt2.click();
+                  }
 
                   setTimeout(function () {
                     doUpdatePkgImage(pkgLog, function () {
@@ -1375,10 +1387,10 @@
                       setTimeout(hideBubble, 2000);
                     });
                   }, 300);
-                });
+                }, 300);
               });
             }, 300);
-          });
+          }, 300);
         }, 300);
       });
     }

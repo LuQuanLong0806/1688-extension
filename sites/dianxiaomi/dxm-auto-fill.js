@@ -381,7 +381,9 @@
         setTimeout(function () {
           var opt = document.querySelector('.ant-select-item-option[title="不规则"]');
           if (opt) {
-            opt.click();
+            if (!opt.classList.contains('ant-select-item-option-selected')) {
+              opt.click();
+            }
             autoLog('外包装形状已选择: 不规则');
           } else {
             autoLog('未找到"不规则"选项');
@@ -402,7 +404,9 @@
         setTimeout(function () {
           var opt = document.querySelector('.ant-select-item-option[title="软包装+硬物"]');
           if (opt) {
-            opt.click();
+            if (!opt.classList.contains('ant-select-item-option-selected')) {
+              opt.click();
+            }
             autoLog('外包装类型已选择: 软包装+硬物');
           } else {
             autoLog('未找到"软包装+硬物"选项');
