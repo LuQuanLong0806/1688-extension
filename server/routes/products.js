@@ -63,14 +63,21 @@ router.get('/product/dxm-category-top', (req, res) => {
        FROM products p
        INNER JOIN category_mappings cm ON JSON_EXTRACT(p.category, '$.leafCategoryName') = cm.category_name
        WHERE cm.custom_category IS NOT NULL AND cm.custom_category != ''
-       GROUP BY cm.custom_category ORDER BY count DESC LIMIT ?`,
-      [limit]
+       GROUP BY cm.custom_category ORDER BY count DESC`,
+      []
     );
-    // 统一显示叶子名：从 dxm_category_tree 解析
-    const result = rows.map(r => {
+    // 解析叶子名并合并同名项（防止路径/名称重复）
+    const merged = {};
+    rows.forEach(r => {
       const treeRow = treeGetOne('SELECT cat_name FROM dxm_category_tree WHERE (cat_name = ? OR path = ?) AND is_leaf = 1 LIMIT 1', [r.name, r.name]);
-      return { name: treeRow ? treeRow.cat_name : r.name.split('/').pop(), count: r.count };
+      const leafName = treeRow ? treeRow.cat_name : r.name.split('/').pop();
+      if (merged[leafName]) {
+        merged[leafName].count += r.count;
+      } else {
+        merged[leafName] = { name: leafName, count: r.count };
+      }
     });
+    const result = Object.values(merged).sort((a, b) => b.count - a.count).slice(0, limit);
     res.json(result);
   } catch (e) {
     res.json([]);
@@ -254,21 +261,17 @@ router.put('/product/:id', (req, res) => {
   params.push(parseInt(req.params.id));
   run(`UPDATE products SET ${fields.join(', ')} WHERE id = ?`, params);
 
-  // 保存映射关系
+  // 保存映射关系（仅 customCategory，manualCategory 不进映射表）
   const product = getOne('SELECT category FROM products WHERE id = ?', [parseInt(req.params.id)]);
-  ['customCategory', 'manualCategory'].forEach(function (field) {
-    if (req.body[field] !== undefined && req.body[field]) {
-      if (product && product.category) {
-        try {
-          const cat = JSON.parse(product.category);
-          const catName = cat.leafCategoryName || cat.categoryPath;
-          if (catName) {
-            run('INSERT OR IGNORE INTO category_mappings (category_name, custom_category) VALUES (?, ?)', [catName, req.body[field]]);
-          }
-        } catch (e) {}
+  if (req.body.customCategory && product && product.category) {
+    try {
+      const cat = JSON.parse(product.category);
+      const catName = cat.leafCategoryName || cat.categoryPath;
+      if (catName) {
+        run('INSERT OR IGNORE INTO category_mappings (category_name, custom_category) VALUES (?, ?)', [catName, req.body.customCategory]);
       }
-    }
-  });
+    } catch (e) {}
+  }
 
   res.json({ ok: true });
 });

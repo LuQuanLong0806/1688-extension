@@ -43,6 +43,30 @@ initDb().then(() => initTreeDb()).then(() => {
     }
   } catch (e) { console.error('[migration] dxm_categories 迁移失败:', e.message); }
 
+  // 迁移：清理 category_mappings 中 custom_category 存了完整路径的脏数据
+  try {
+    const m2 = getOne("SELECT value FROM settings WHERE key = 'migration_cleanup_path_mappings'");
+    if (!m2) {
+      const pathMappings = getAll("SELECT id, category_name, custom_category FROM category_mappings WHERE custom_category LIKE '%/%'");
+      let cleaned = 0;
+      pathMappings.forEach(function (r) {
+        const leafName = r.custom_category.split('/').pop();
+        // 检查是否已存在叶子名映射
+        const existing = getOne('SELECT id FROM category_mappings WHERE category_name = ? AND custom_category = ?', [r.category_name, leafName]);
+        if (existing) {
+          // 已有叶子名映射，删除路径版
+          run('DELETE FROM category_mappings WHERE id = ?', [r.id]);
+        } else {
+          // 无叶子名映射，更新为叶子名
+          run('UPDATE category_mappings SET custom_category = ? WHERE id = ?', [leafName, r.id]);
+        }
+        cleaned++;
+      });
+      if (cleaned > 0) console.log('[migration] 清理路径映射 ' + cleaned + ' 条');
+      run("INSERT OR REPLACE INTO settings (key, value) VALUES ('migration_cleanup_path_mappings', '1')");
+    }
+  } catch (e) { console.error('[migration] 路径映射清理失败:', e.message); }
+
   app.listen(PORT, () => {
     console.log(`\n  商品采集服务已启动`);
     console.log(`  管理页面: http://localhost:${PORT}`);
