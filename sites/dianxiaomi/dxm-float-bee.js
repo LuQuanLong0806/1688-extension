@@ -39,7 +39,8 @@
 
   // ========== Constants ==========
   var isWorkPage = location.pathname === '/web/temu/add' || location.pathname === '/web/temu/edit' || location.pathname === '/web/temu/quoteEdit';
-  var totalSteps = 19;
+  var _stepCounter = 0;
+  function nextStepNum() { return ++_stepCounter; }
 
   // ========== Create DOM ==========
   var wrapper = document.createElement('div');
@@ -290,10 +291,10 @@
   }
 
   function updateProgress(stepNum, text, type) {
-    var pct = Math.round((stepNum / totalSteps) * 100);
+    var pct = Math.round((stepNum / 19) * 100);
     var prefix = type === 'err' ? '❌ ' : type === 'ok' ? '✅ ' : '⏳ ';
     var bar = isWorking ? '<div id="__dxm_bee_bar"><div id="__dxm_bee_bar_fill" style="width:' + pct + '%"></div></div>' : '';
-    showBubble(prefix + text + ' <span style="color:#bbb;font-size:10px">' + stepNum + '/' + totalSteps + '</span>' + bar, type);
+    showBubble(prefix + text + ' <span style="color:#bbb;font-size:10px">' + stepNum + '/' + 19 + '</span>' + bar, type);
   }
 
   function log(stepNum, msg, el) {
@@ -570,18 +571,19 @@
   }
 
   // ========== Step Chain ==========
-  function step(stepNum, loadingText, okText, action, nextFn) {
-    log(stepNum, loadingText);
-    updateProgress(stepNum, loadingText, 'loading');
+  function step(loadingText, okText, action, nextFn) {
+    var s = nextStepNum();
+    log(s, loadingText);
+    updateProgress(s, loadingText, 'loading');
     var result = action();
     if (result === false) {
-      log(stepNum, '❌ 失败 - ' + okText.replace('已', '未找到'));
-      updateProgress(stepNum, okText.replace('已', '未找到'), 'err');
+      log(s, '❌ 失败 - ' + okText.replace('已', '未找到'));
+      updateProgress(s, okText.replace('已', '未找到'), 'err');
       finishWork();
       return;
     }
-    log(stepNum, '✅ ' + okText);
-    updateProgress(stepNum, okText, 'ok');
+    log(s, '✅ ' + okText);
+    updateProgress(s, okText, 'ok');
     if (nextFn) setTimeout(nextFn, 150);
   }
 
@@ -597,6 +599,7 @@
     icon.addEventListener('click', function () {
       if (dragMoved || isWorking) return;
       isWorking = true;
+      _stepCounter = 0;
       wrapper.classList.add('flying');
       console.log('%c[小蜜蜂] ===== 开始工作 =====', 'color:#FFCA28;font-weight:bold;font-size:14px');
       doStep1();
@@ -732,10 +735,11 @@
 
     // Step 1: 检查店铺名称
     function doStep1() {
-      log(1, '正在检查店铺名称...');
-      updateProgress(1, '正在检查店铺名称...', 'loading');
+      var s = nextStepNum();
+      log(s, '正在检查店铺名称...');
+      updateProgress(s, '正在检查店铺名称...', 'loading');
 
-      var labels = document.querySelectorAll('#productBasicInfo .ant-form-item-label label'); // #productBasicInfo: 产品基本信息区域; .ant-form-item-label label: 表单项标签(店铺名称等)
+      var labels = document.querySelectorAll('#productBasicInfo .ant-form-item-label label');
       var storeFormItem = null;
       for (var i = 0; i < labels.length; i++) {
         if (labels[i].textContent.includes('店铺名称')) {
@@ -743,57 +747,55 @@
           break;
         }
       }
-      log(1, '店铺表单项', storeFormItem);
+      log(s, '店铺表单项', storeFormItem);
 
       if (!storeFormItem) {
-        log(1, '⚠️ 未找到店铺表单项，跳过');
-        updateProgress(1, '未找到店铺选择', 'ok');
+        log(s, '⚠️ 未找到店铺表单项，跳过');
+        updateProgress(s, '未找到店铺选择', 'ok');
         doStep2();
         return;
       }
 
-      var selectionItem = storeFormItem.querySelector('.ant-select-selection-item'); // .ant-select-selection-item: Select组件当前已选中的值显示元素
+      var selectionItem = storeFormItem.querySelector('.ant-select-selection-item');
       var currentStore = selectionItem ? (selectionItem.getAttribute('title') || selectionItem.textContent.trim()) : '';
-      log(1, '当前店铺: "' + currentStore + '"');
+      log(s, '当前店铺: "' + currentStore + '"');
 
       if (currentStore) {
-        log(1, '✅ 店铺已选择: ' + currentStore);
-        updateProgress(1, '店铺: ' + currentStore, 'ok');
+        log(s, '✅ 店铺已选择: ' + currentStore);
+        updateProgress(s, '店铺: ' + currentStore, 'ok');
         doStep2();
         return;
       }
 
-      // 店铺为空，尝试选择配置的店铺
       var configStore = Config.loadSelectedStore();
-      log(1, '配置店铺: "' + configStore + '"');
+      log(s, '配置店铺: "' + configStore + '"');
       if (!configStore) {
-        log(1, '⚠️ 未配置店铺，跳过');
-        updateProgress(1, '未配置店铺，跳过', 'ok');
+        log(s, '⚠️ 未配置店铺，跳过');
+        updateProgress(s, '未配置店铺，跳过', 'ok');
         doStep2();
         return;
       }
 
-      log(1, '店铺为空，正在选择: ' + configStore);
-      updateProgress(1, '正在选择店铺 ' + configStore + '...', 'loading');
+      log(s, '店铺为空，正在选择: ' + configStore);
+      updateProgress(s, '正在选择店铺 ' + configStore + '...', 'loading');
 
-      var storeSelector = storeFormItem.querySelector('.ant-select-selector'); // .ant-select-selector: Select组件的触发区域(点击开下拉)
-      log(1, '店铺下拉框', storeSelector);
-      var searchInput = storeFormItem.querySelector('.ant-select-selection-search-input'); // .ant-select-selection-search-input: Select可搜索时的输入框
+      var storeSelector = storeFormItem.querySelector('.ant-select-selector');
+      log(s, '店铺下拉框', storeSelector);
+      var searchInput = storeFormItem.querySelector('.ant-select-selection-search-input');
       if (searchInput) searchInput.focus();
       forceOpenAntSelect(storeSelector);
 
-      waitForElement('.ant-select-item-option[title="' + configStore + '"]', 3000, function (opt) { // .ant-select-item-option[title=...]: 下拉菜单中匹配店铺名称的选项
-        log(1, '店铺选项', opt);
+      waitForElement('.ant-select-item-option[title="' + configStore + '"]', 3000, function (opt) {
+        log(s, '店铺选项', opt);
         if (!opt) {
-          log(1, '❌ 未找到店铺选项: ' + configStore);
-          updateProgress(1, '未找到店铺 ' + configStore, 'err');
+          log(s, '❌ 未找到店铺选项: ' + configStore);
+          updateProgress(s, '未找到店铺 ' + configStore, 'err');
           doStep2();
           return;
         }
         opt.click();
-        log(1, '✅ 已选择店铺: ' + configStore + '（跳过分类步骤）');
-        updateProgress(1, '已选择店铺: ' + configStore, 'ok');
-        // 店铺变更后分类会清空，跳过 Step 2(分类按钮) 和 Step 3(确认弹窗)
+        log(s, '✅ 已选择店铺: ' + configStore + '（跳过分类步骤）');
+        updateProgress(s, '已选择店铺: ' + configStore, 'ok');
         setTimeout(doStep4, 150);
       });
     }
@@ -801,23 +803,22 @@
     // Step 2: 点击「确认分类」按钮
     function doStep2() {
       if (!Config.loadAutoCategory()) {
-        log(2, '⏭️ 自动点击分类已关闭，跳过');
-        updateProgress(2, '跳过分类步骤', 'ok');
+        var s = nextStepNum();
+        log(s, '⏭️ 自动点击分类已关闭，跳过');
+        updateProgress(s, '跳过分类步骤', 'ok');
         doStep4();
         return;
       }
-      step(2, '正在点击分类按钮...', '已点击分类按钮', function () {
-        var btn = document.querySelector('#productBasicInfo .category-item .ant-form-item-control button'); // #productBasicInfo .category-item: 产品基本信息中的分类区域; button: 确认分类按钮
-        log(2, '分类按钮', btn);
+      step('正在点击分类按钮...', '已点击分类按钮', function () {
+        var btn = document.querySelector('#productBasicInfo .category-item .ant-form-item-control button');
         if (!btn) return false;
         btn.click();
         return true;
       }, function () {
 
       // Step 3: 点击弹窗「确认」按钮
-      step(3, '正在点击确认按钮...', '分类确认完成！', function () {
-        var btn = document.querySelector('.ant-modal-wrap:not([style*="display: none"]) .ant-modal-content .ant-modal-footer button.ant-btn-primary'); // 可见的模态弹窗底部的主按钮(确认分类弹窗)
-        log(3, '弹窗确认按钮', btn);
+      step('正在点击确认按钮...', '分类确认完成！', function () {
+        var btn = document.querySelector('.ant-modal-wrap:not([style*="display: none"]) .ant-modal-content .ant-modal-footer button.ant-btn-primary');
         if (!btn) return false;
         btn.click();
         return true;
@@ -828,18 +829,19 @@
 
     // Step 4: 过滤标题违规字样
     function doStep4() {
-      log(4, '正在过滤标题违规字样...');
-      updateProgress(4, '正在过滤标题...', 'loading');
-      var input = document.querySelector('#productProductInfo form .ant-form-item input'); // #productProductInfo: 产品信息区域; 第一个 input 即为标题输入框
-      log(4, '标题输入框', input);
+      var s = nextStepNum();
+      log(s, '正在过滤标题违规字样...');
+      updateProgress(s, '正在过滤标题...', 'loading');
+      var input = document.querySelector('#productProductInfo form .ant-form-item input');
+      log(s, '标题输入框', input);
       if (!input || !input.value) {
-        log(4, '⚠️ 未找到标题输入框或值为空，跳过过滤');
-        updateProgress(4, '标题为空，跳过过滤', 'ok');
+        log(s, '⚠️ 未找到标题输入框或值为空，跳过过滤');
+        updateProgress(s, '标题为空，跳过过滤', 'ok');
         setTimeout(doStep5, 150);
         return;
       }
       var title = input.value;
-      log(4, '原标题: "' + title + '"');
+      log(s, '原标题: "' + title + '"');
       var filterEnabled = Config.loadFilterEnabled();
       var filters = Config.loadFilters().filter(function (f) { return f.enabled && f.from; });
 
@@ -849,13 +851,13 @@
         var hits = result.hits;
         var changed = result.changed;
         if (changed) {
-          log(4, '过滤后: "' + filtered + '"');
+          log(s, '过滤后: "' + filtered + '"');
           Config.setInputValue(input, filtered);
-          log(4, '✅ 标题已过滤');
-          updateProgress(4, '标题已过滤', 'ok');
+          log(s, '✅ 标题已过滤');
+          updateProgress(s, '标题已过滤', 'ok');
         } else {
-          log(4, '✅ 标题无违规字样');
-          updateProgress(4, '标题无违规字样', 'ok');
+          log(s, '✅ 标题无违规字样');
+          updateProgress(s, '标题无违规字样', 'ok');
         }
         showTitleBubble(title, changed ? filtered : null, changed ? hits : [], input);
         input.setAttribute('data-bee-title-snapshot', input.value);
@@ -867,11 +869,11 @@
         showTitleBubble(title, null, forbidden, input);
         input.setAttribute('data-bee-title-snapshot', input.value);
         if (forbidden.length) {
-          log(4, '⚠️ 文字过滤已关闭，存在违禁字符: ' + forbidden.join(', '));
-          updateProgress(4, '存在违禁字符（过滤已关闭）', 'ok');
+          log(s, '⚠️ 文字过滤已关闭，存在违禁字符: ' + forbidden.join(', '));
+          updateProgress(s, '存在违禁字符（过滤已关闭）', 'ok');
         } else {
-          log(4, '✅ 标题无违规字样');
-          updateProgress(4, '标题无违规字样', 'ok');
+          log(s, '✅ 标题无违规字样');
+          updateProgress(s, '标题无违规字样', 'ok');
         }
       }
       setTimeout(doStep5, 200);
@@ -919,17 +921,18 @@
 
     // Step 5: 悬浮「一键翻译」，点击「中文→英文」
     function doStep5() {
+      var s = nextStepNum();
       if (!Config.loadAutoTranslate()) {
-        log(5, '⏭️ 自动翻译已关闭，跳过');
-        updateProgress(5, '自动翻译已关闭，跳过', 'ok');
+        log(s, '⏭️ 自动翻译已关闭，跳过');
+        updateProgress(s, '自动翻译已关闭，跳过', 'ok');
         doStep6();
         return;
       }
-      log(5, '正在触发一键翻译...');
-      updateProgress(5, '正在触发一键翻译...', 'loading');
+      log(s, '正在触发一键翻译...');
+      updateProgress(s, '正在触发一键翻译...', 'loading');
       var translateBtn = document.querySelector('#app .product-add-layout .header .btn-box button.translation-btn');
-      log(5, '翻译按钮', translateBtn);
-      if (!translateBtn) { updateProgress(5, '未找到一键翻译按钮', 'err'); finishWork(); return; }
+      log(s, '翻译按钮', translateBtn);
+      if (!translateBtn) { updateProgress(s, '未找到一键翻译按钮', 'err'); finishWork(); return; }
       hoverElement(translateBtn);
 
       function findTranslateMenuItem() {
@@ -947,8 +950,8 @@
         if (item) {
           item.click();
           unhoverElement(translateBtn);
-          log(5, '✅ 已点击中文→英文');
-          updateProgress(5, '已点击中文→英文', 'ok');
+          log(s, '✅ 已点击中文→英文');
+          updateProgress(s, '已点击中文→英文', 'ok');
           var input5 = document.querySelector('#productProductInfo form .ant-form-item input');
           if (input5) watchTitleChange(input5);
           setTimeout(doStep6, 300);
@@ -962,8 +965,8 @@
             if (item2) {
               item2.click();
               unhoverElement(translateBtn);
-              log(5, '✅ 已点击中文→英文');
-              updateProgress(5, '已点击中文→英文', 'ok');
+              log(s, '✅ 已点击中文→英文');
+              updateProgress(s, '已点击中文→英文', 'ok');
               var input5b = document.querySelector('#productProductInfo form .ant-form-item input');
               if (input5b) watchTitleChange(input5b);
               setTimeout(doStep6, 200);
@@ -971,8 +974,8 @@
             }
             if (Date.now() - start2 > 3000) {
               unhoverElement(translateBtn);
-              log(5, '❌ 未找到翻译菜单');
-              updateProgress(5, '未找到翻译菜单', 'err');
+              log(s, '❌ 未找到翻译菜单');
+              updateProgress(s, '未找到翻译菜单', 'err');
               finishWork();
               return;
             }
@@ -986,16 +989,17 @@
 
     // Step 6: 省份下拉框
     function doStep6() {
-      log(6, '正在打开省份选择...');
-      updateProgress(6, '正在打开省份选择...', 'loading');
+      var s = nextStepNum();
+      log(s, '正在打开省份选择...');
+      updateProgress(s, '正在打开省份选择...', 'loading');
       waitForProvinceSelect(function (sel) {
-        log(6, '省份下拉框', sel);
-        if (!sel) { updateProgress(6, '未找到省份下拉框', 'err'); finishWork(); return; }
+        log(s, '省份下拉框', sel);
+        if (!sel) { updateProgress(s, '未找到省份下拉框', 'err'); finishWork(); return; }
         var input = sel.querySelector('.ant-select-selection-search-input');
         if (input) input.focus();
         forceOpenAntSelect(sel);
-        log(6, '✅ 已打开省份下拉框');
-        updateProgress(6, '已打开省份下拉框', 'ok');
+        log(s, '✅ 已打开省份下拉框');
+        updateProgress(s, '已打开省份下拉框', 'ok');
         setTimeout(doStep7, 200);
       });
     }
@@ -1003,9 +1007,8 @@
     // Step 7: 选择配置的省份
     function doStep7() {
       var province = Config.loadProvince();
-      step(7, '正在选择' + province + '...', '已选择' + province, function () {
+      step('正在选择' + province + '...', '已选择' + province, function () {
         var o = document.querySelector('.ant-select-item-option[title="' + province + '"]');
-        log(7, province + '选项', o);
         if (!o) return false;
         o.click();
         return true;
@@ -1014,15 +1017,16 @@
 
     // Step 8: 删除产品视频
     function doStepDelVideo() {
+      var s = nextStepNum();
       if (!Config.loadDelVideo()) {
-        log(8, '⏭️ 删除产品视频已关闭，跳过');
-        updateProgress(8, '删除视频已关闭，跳过', 'ok');
+        log(s, '⏭️ 删除产品视频已关闭，跳过');
+        updateProgress(s, '删除视频已关闭，跳过', 'ok');
         setTimeout(doStep8, 150);
         return;
       }
 
-      log(8, '正在检查产品视频...');
-      updateProgress(8, '正在检查产品视频...', 'loading');
+      log(s, '正在检查产品视频...');
+      updateProgress(s, '正在检查产品视频...', 'loading');
 
       var labels = document.querySelectorAll('#productProductInfo .ant-form-item-label label');
       var videoLabel = null;
@@ -1034,18 +1038,17 @@
       }
 
       if (!videoLabel) {
-        log(8, '⚠️ 未找到产品视频区域，跳过');
-        updateProgress(8, '无产品视频，跳过', 'ok');
+        log(s, '⚠️ 未找到产品视频区域，跳过');
+        updateProgress(s, '无产品视频，跳过', 'ok');
         setTimeout(doStep8, 150);
         return;
       }
 
       var videoFormItem = videoLabel.closest('.ant-form-item');
-      deleteNextVideo(videoFormItem, 0);
+      deleteNextVideo(videoFormItem, 0, s);
     }
 
-    function deleteNextVideo(formItem, count) {
-      // 只查找可见的视频容器（隐藏的跳过）
+    function deleteNextVideo(formItem, count, s) {
       var videoImgs = formItem.querySelectorAll('.video-operate-img');
       var visibleBox = null;
       for (var v = 0; v < videoImgs.length; v++) {
@@ -1057,11 +1060,11 @@
 
       if (!visibleBox) {
         if (count > 0) {
-          log(8, '✅ 已删除 ' + count + ' 个产品视频');
-          updateProgress(8, '已删除 ' + count + ' 个产品视频', 'ok');
+          log(s, '✅ 已删除 ' + count + ' 个产品视频');
+          updateProgress(s, '已删除 ' + count + ' 个产品视频', 'ok');
         } else {
-          log(8, '✅ 无产品视频，跳过');
-          updateProgress(8, '无产品视频，跳过', 'ok');
+          log(s, '✅ 无产品视频，跳过');
+          updateProgress(s, '无产品视频，跳过', 'ok');
         }
         setTimeout(doStep8, 150);
         return;
@@ -1077,113 +1080,109 @@
       }
 
       if (!delBtn) {
-        log(8, '✅ 无可删除的视频');
-        updateProgress(8, '无产品视频，跳过', 'ok');
+        log(s, '✅ 无可删除的视频');
+        updateProgress(s, '无产品视频，跳过', 'ok');
         setTimeout(doStep8, 150);
         return;
       }
 
       count++;
-      log(8, '正在删除产品视频 ' + count + '...');
-      updateProgress(8, '正在删除产品视频 ' + count + '...', 'loading');
+      log(s, '正在删除产品视频 ' + count + '...');
+      updateProgress(s, '正在删除产品视频 ' + count + '...', 'loading');
       delBtn.click();
 
-      // 点击删除后检查是否有确认弹窗
       setTimeout(function () {
         var confirmBtn = document.querySelector('.ant-popconfirm-buttons .ant-btn-primary');
         if (confirmBtn) confirmBtn.click();
-        setTimeout(function () { deleteNextVideo(formItem, count); }, 200);
+        setTimeout(function () { deleteNextVideo(formItem, count, s); }, 200);
       }, 150);
     }
 
     // Step 9: 外包装形状
     function doStep8() {
-      log(9, '正在打开外包装形状...');
-      updateProgress(9, '正在打开外包装形状...', 'loading');
+      var s = nextStepNum();
+      log(s, '正在打开外包装形状...');
+      updateProgress(s, '正在打开外包装形状...', 'loading');
       waitForAntSelect('外包装形状', function (sel) {
-        log(9, '外包装形状下拉框', sel);
-        if (!sel) { updateProgress(9, '未找到外包装形状', 'err'); finishWork(); return; }
+        if (!sel) { updateProgress(s, '未找到外包装形状', 'err'); finishWork(); return; }
         sel.scrollIntoView({ block: 'center' });
         setTimeout(function () {
           forceOpenAntSelect(sel);
-          log(9, '✅ 已打开外包装形状');
-          updateProgress(9, '已打开外包装形状', 'ok');
+          log(s, '✅ 已打开外包装形状');
+          updateProgress(s, '已打开外包装形状', 'ok');
           setTimeout(doStep9, 150);
         }, 300);
       });
     }
 
-    // Step 9: 选择不规则
+    // Step 10: 选择不规则
     function doStep9() {
-      step(10, '正在选择不规则...', '已选择不规则', function () {
-        var o = document.querySelector('.ant-select-item-option[title="不规则"]');
-        log(10, '不规则选项', o);
+      step('正在选择不规则...', '已选择不规则', function () {
+        var o = document.querySelector('.ant-select-item-option[title=”不规则”]');
         if (!o) return false;
         o.click();
         return true;
       }, doStep10);
     }
 
-    // Step 10: 外包装类型
+    // Step 11: 外包装类型
     function doStep10() {
-      log(11, '正在打开外包装类型...');
-      updateProgress(11, '正在打开外包装类型...', 'loading');
+      var s = nextStepNum();
+      log(s, '正在打开外包装类型...');
+      updateProgress(s, '正在打开外包装类型...', 'loading');
       waitForAntSelect('外包装类型', function (sel) {
-        log(11, '外包装类型下拉框', sel);
-        if (!sel) { updateProgress(11, '未找到外包装类型', 'err'); finishWork(); return; }
+        if (!sel) { updateProgress(s, '未找到外包装类型', 'err'); finishWork(); return; }
         sel.scrollIntoView({ block: 'center' });
         setTimeout(function () {
           forceOpenAntSelect(sel);
-          log(11, '✅ 已打开外包装类型');
-          updateProgress(11, '已打开外包装类型', 'ok');
+          log(s, '✅ 已打开外包装类型');
+          updateProgress(s, '已打开外包装类型', 'ok');
           setTimeout(doStep11, 150);
         }, 300);
       });
     }
 
-    // Step 11: 选择软包装+硬物
+    // Step 12: 选择软包装+硬物
     function doStep11() {
-      step(12, '正在选择软包装+硬物...', '已选择软包装+硬物', function () {
-        var o = document.querySelector('.ant-select-item-option[title="软包装+硬物"]');
-        log(12, '软包装+硬物选项', o);
+      step('正在选择软包装+硬物...', '已选择软包装+硬物', function () {
+        var o = document.querySelector('.ant-select-item-option[title=”软包装+硬物”]');
         if (!o) return false;
         o.click();
         return true;
       }, doStep12);
     }
 
-    // Step 12: 获取产品轮播图首图 + 打开外包装选择图片
+    // Step 13-16: 获取产品轮播图首图 + 打开外包装选择图片
     function doStep12() {
-      log(13, '正在获取产品首图...');
-      updateProgress(13, '正在获取产品首图...', 'loading');
+      var s13 = nextStepNum();
+      log(s13, '正在获取产品首图...');
+      updateProgress(s13, '正在获取产品首图...', 'loading');
 
-      var firstImg = document.querySelector('#productProductInfo .mainImage .img-list .img-item img.img-css'); // 产品轮播图列表中的第一张图片
+      var firstImg = document.querySelector('#productProductInfo .mainImage .img-list .img-item img.img-css');
       if (!firstImg || !firstImg.src) {
-        log(13, '⚠️ 未找到产品轮播图图片，跳过外包装');
-        updateProgress(13, '无产品图片，跳过外包装', 'ok');
+        log(s13, '⚠️ 未找到产品轮播图图片，跳过外包装');
+        updateProgress(s13, '无产品图片，跳过外包装', 'ok');
         doStep16();
         return;
       }
 
       var imgUrl = firstImg.src;
-      log(13, '✅ 产品首图: ' + imgUrl.substring(0, 60));
-      updateProgress(13, '已获取产品首图', 'ok');
+      log(s13, '✅ 产品首图: ' + imgUrl.substring(0, 60));
+      updateProgress(s13, '已获取产品首图', 'ok');
 
-      // 先删除外包装旧图片
       var pkgImgs = document.querySelectorAll('#packageInfo .img-list .img-item a.icon_delete');
       if (pkgImgs.length > 0) {
-        log(14, '清空外包装旧图片...');
-        updateProgress(14, '清空外包装旧图片...', 'loading');
-        var delIdx = 0;
+        var s14 = nextStepNum();
+        log(s14, '清空外包装旧图片...');
+        updateProgress(s14, '清空外包装旧图片...', 'loading');
         (function deleteNext() {
           var btn = document.querySelector('#packageInfo .img-list .img-item a.icon_delete');
           if (!btn) {
-            log(14, '✅ 已清空外包装旧图片');
-            updateProgress(14, '已清空外包装旧图片', 'ok');
+            log(s14, '✅ 已清空外包装旧图片');
+            updateProgress(s14, '已清空外包装旧图片', 'ok');
             openPkgSelect(imgUrl);
             return;
           }
-          delIdx++;
           btn.click();
           setTimeout(deleteNext, 50);
         })();
@@ -1194,43 +1193,44 @@
     }
 
     function openPkgSelect(imgUrl) {
-      log(14, '正在打开外包装选择图片...');
-      updateProgress(14, '正在打开外包装选择图片...', 'loading');
+      var s = nextStepNum();
+      log(s, '正在打开外包装选择图片...');
+      updateProgress(s, '正在打开外包装选择图片...', 'loading');
 
-      var pkgBtn = document.querySelector('#packageInfo .header button'); // #packageInfo .header button: 包裹信息区域顶部的”选择图片”按钮
+      var pkgBtn = document.querySelector('#packageInfo .header button');
       if (!pkgBtn || (pkgBtn.textContent || '').indexOf('选择图片') === -1) {
-        log(14, '❌ 未找到外包装选择图片按钮');
-        updateProgress(14, '未找到选择图片按钮', 'err');
+        log(s, '❌ 未找到外包装选择图片按钮');
+        updateProgress(s, '未找到选择图片按钮', 'err');
         finishWork();
         return;
       }
       hoverElement(pkgBtn);
 
-      Config.waitForVisibleLi('网络图片', 3000, function (webImgItem) { // 外包装选择图片下拉菜单中的”网络图片”菜单项
+      Config.waitForVisibleLi('网络图片', 3000, function (webImgItem) {
         if (!webImgItem) {
-          log(14, '❌ 未找到网络图片选项');
-          updateProgress(14, '未找到网络图片选项', 'err');
+          log(s, '❌ 未找到网络图片选项');
+          updateProgress(s, '未找到网络图片选项', 'err');
           finishWork();
           return;
         }
-        log(14, '✅ 已打开选择图片菜单');
-        updateProgress(14, '已打开选择图片菜单', 'ok');
+        log(s, '✅ 已打开选择图片菜单');
+        updateProgress(s, '已打开选择图片菜单', 'ok');
 
-        // Step 14: 点击网络图片，填入URL
-        log(15, '正在更新外包装图片...');
-        updateProgress(15, '正在更新外包装图片...', 'loading');
+        var s2 = nextStepNum();
+        log(s2, '正在更新外包装图片...');
+        updateProgress(s2, '正在更新外包装图片...', 'loading');
         webImgItem.click();
 
         var start = Date.now();
         (function checkModal() {
-          var modal = Config.findVisibleModal('从网络地址'); // 通过标题文字+可见性双重判断定位弹窗
+          var modal = Config.findVisibleModal('从网络地址');
           if (modal) {
             fillPackageImage(modal, imgUrl);
             return;
           }
           if (Date.now() - start > 5000) {
-            log(15, '❌ 未找到网络图片弹窗');
-            updateProgress(15, '未找到网络图片弹窗', 'err');
+            log(s2, '❌ 未找到网络图片弹窗');
+            updateProgress(s2, '未找到网络图片弹窗', 'err');
             finishWork();
             return;
           }
@@ -1239,50 +1239,50 @@
       });
     }
 
-    // Step 14 helper: 填入URL
     function fillPackageImage(modal, imgUrl) {
-      var textarea = modal.querySelector('textarea.ant-input'); // 网络图片弹窗中的图片 URL 输入框
+      var s = nextStepNum();
+      var textarea = modal.querySelector('textarea.ant-input');
       if (!textarea) {
-        log(15, '❌ 未找到输入框');
-        updateProgress(15, '未找到输入框', 'err');
+        log(s, '❌ 未找到输入框');
+        updateProgress(s, '未找到输入框', 'err');
         finishWork();
         return;
       }
       Config.setInputValue(textarea, imgUrl);
 
       setTimeout(function () {
-        // Step 15: 点击添加
-        log(16, '正在确认外包装图片...');
-        updateProgress(16, '正在确认外包装图片...', 'loading');
+        var s2 = nextStepNum();
+        log(s2, '正在确认外包装图片...');
+        updateProgress(s2, '正在确认外包装图片...', 'loading');
 
-        var addBtn = modal.querySelector('.ant-modal-footer .ant-btn-primary'); // 网络图片弹窗底部的”添加”按钮
+        var addBtn = modal.querySelector('.ant-modal-footer .ant-btn-primary');
         if (!addBtn) {
-          log(16, '❌ 未找到添加按钮');
-          updateProgress(16, '未找到添加按钮', 'err');
+          log(s2, '❌ 未找到添加按钮');
+          updateProgress(s2, '未找到添加按钮', 'err');
           finishWork();
           return;
         }
         addBtn.click();
-        log(16, '✅ 外包装图片已更新');
-        updateProgress(16, '外包装图片已更新', 'ok');
+        log(s2, '✅ 外包装图片已更新');
+        updateProgress(s2, '外包装图片已更新', 'ok');
         setTimeout(doStep16, 150);
       }, 180);
     }
 
-    // Step 16: 检查标题长度
+    // Step: 检查标题长度
     function doStep16() {
-      log(17, '正在检查标题长度...');
-      updateProgress(17, '正在检查标题长度...', 'loading');
+      var s = nextStepNum();
+      log(s, '正在检查标题长度...');
+      updateProgress(s, '正在检查标题长度...', 'loading');
       var input = document.querySelector('#productProductInfo form .ant-form-item input');
-      log(17, '标题输入框', input);
       if (!input || !input.value) {
-        log(17, '⚠️ 未找到标题输入框或值为空，跳过截取');
-        updateProgress(17, '标题无需截取', 'ok');
+        log(s, '⚠️ 未找到标题输入框或值为空，跳过截取');
+        updateProgress(s, '标题无需截取', 'ok');
         doStep17();
         return;
       }
 
-      var container = input.closest('.inputContainer'); // .inputContainer: 标题输入框的外层容器
+      var container = input.closest('.inputContainer');
       var limitEl = container ? container.querySelector('.color-gray') : null;
       var limit = 200;
       if (limitEl) {
@@ -1291,17 +1291,17 @@
       }
 
       var title = input.value;
-      log(17, '标题长度: ' + title.length + ', 限制: ' + limit + ', 标题内容: "' + title.substring(0, 60) + (title.length > 60 ? '...' : '"'));
+      log(s, '标题长度: ' + title.length + ', 限制: ' + limit);
 
       if (title.length <= limit) {
-        log(17, '✅ 标题长度 ' + title.length + ' ≤ ' + limit + '，无需截取');
-        updateProgress(17, '标题长度 ' + title.length + '，无需截取', 'ok');
+        log(s, '✅ 标题长度 ' + title.length + ' ≤ ' + limit + '，无需截取');
+        updateProgress(s, '标题长度 ' + title.length + '，无需截取', 'ok');
         doStep17();
         return;
       }
 
-      log(17, '标题超限 ' + title.length + ' > ' + limit + '，开始截取...');
-      updateProgress(17, '标题超过' + limit + '，正在截取...', 'loading');
+      log(s, '标题超限 ' + title.length + ' > ' + limit + '，开始截取...');
+      updateProgress(s, '标题超过' + limit + '，正在截取...', 'loading');
       var t = title.substring(0, limit);
       var bps = ['。','，',',','.','!','!','?','?','；',';','、',' ','-','–','—','(',')','[',']','/','\\','&','+'];
       var cutIdx = -1;
@@ -1310,36 +1310,34 @@
       }
       if (cutIdx > 0) t = t.substring(0, cutIdx);
 
-      log(17, '截取后长度: ' + t.length + ', 内容: "' + t.substring(0, 60) + (t.length > 60 ? '...' : '"'));
       Config.setInputValue(input, t);
-      log(17, '✅ 标题已截取至 ' + t.length + ' 字符');
-      updateProgress(17, '标题已截取至 ' + t.length + ' 字符', 'ok');
+      log(s, '✅ 标题已截取至 ' + t.length + ' 字符');
+      updateProgress(s, '标题已截取至 ' + t.length + ' 字符', 'ok');
       doStep17();
     }
 
-    // Step 17: 悬浮发布按钮（根据自动发布配置决定是否执行）
+    // Step: 悬浮发布按钮
     function doStep17() {
+      var s = nextStepNum();
       if (!Config.loadAutoPublish()) {
-        log(18, '⏭️ 自动发布已关闭，跳过发布步骤');
-        updateProgress(18, '自动发布已关闭，跳过', 'ok');
+        log(s, '⏭️ 自动发布已关闭，跳过发布步骤');
+        updateProgress(s, '自动发布已关闭，跳过', 'ok');
         window.scrollTo({ top: 0, behavior: 'smooth' });
         finishWork();
         return;
       }
-      step(17, '正在触发发布菜单...', '已悬浮发布按钮', function () {
-        var btn = document.querySelector('.footer .btn-box button.btn-green'); // 页面底部操作栏的绿色“发布”按钮(悬浮展开发布下拉)
-        log(18, '发布按钮', btn);
+      step('正在触发发布菜单...', '已悬浮发布按钮', function () {
+        var btn = document.querySelector('.footer .btn-box button.btn-green');
         if (!btn || !btn.textContent.includes('发布')) return false;
         hoverElement(btn);
         return true;
       }, doStep18);
     }
 
-    // Step 18: 立即发布
+    // Step: 立即发布
     function doStep18() {
-      step(19, '正在点击立即发布...', '全部操作完成！', function () {
-        var o = document.querySelector('.ant-dropdown-menu-item[data-menu-id="2"]'); // 发布下拉菜单中的“立即发布”选项
-        log(19, '立即发布菜单项', o);
+      step('正在点击立即发布...', '全部操作完成！', function () {
+        var o = document.querySelector('.ant-dropdown-menu-item[data-menu-id=”2”]');
         if (!o || !o.textContent.includes('立即发布')) return false;
         o.click();
         return true;
