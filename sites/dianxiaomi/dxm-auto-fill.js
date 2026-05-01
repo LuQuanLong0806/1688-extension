@@ -842,8 +842,9 @@
 
   // ========== Step 3: 外包装图片 ==========
   function updatePackageImage(data, cb) {
-    // 使用主图第一张作为外包装图片
-    var imgUrl = (data.main_images && data.main_images.length) ? data.main_images[0] : null;
+    // 使用主图第一张作为外包装图片（兼容 string 和 {url,_selected} 格式）
+    var firstImg = (data.main_images && data.main_images.length) ? data.main_images[0] : null;
+    var imgUrl = typeof firstImg === 'string' ? firstImg : (firstImg && firstImg.url);
     if (!imgUrl) { autoLog('无主图，跳过外包装'); cb(); return; }
 
     autoLog('打开外包装选择图片...');

@@ -6,3 +6,4 @@ server/1688-server/
 *.zip
 server/data.db
 server/dxm_tree.db
+server/dxm_tree.db.bak
