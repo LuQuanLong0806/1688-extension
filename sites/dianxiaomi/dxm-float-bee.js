@@ -1103,14 +1103,17 @@
       updateProgress(s, '正在选择外包装类型...', 'loading');
       waitForAntSelect('外包装类型', function (sel) {
         if (!sel) { updateProgress(s, '未找到外包装类型', 'err'); finishWork(); return; }
-        forceOpenAntSelect(sel);
-        waitForElement('.ant-select-item-option[title=”软包装+硬物”]', 3000, function (opt) {
-          if (!opt) { updateProgress(s, '未找到软包装+硬物', 'err'); finishWork(); return; }
-          opt.click();
-          log(s, '✅ 已选择软包装+硬物');
-          updateProgress(s, '已选择软包装+硬物', 'ok');
-          setTimeout(doStep10, 300);
-        });
+        sel.scrollIntoView({ block: 'center' });
+        setTimeout(function () {
+          forceOpenAntSelect(sel);
+          waitForElement('.ant-select-item-option[title=”软包装+硬物”]', 3000, function (opt) {
+            if (!opt) { updateProgress(s, '未找到软包装+硬物', 'err'); finishWork(); return; }
+            opt.click();
+            log(s, '✅ 已选择软包装+硬物');
+            updateProgress(s, '已选择软包装+硬物', 'ok');
+            setTimeout(doStep10, 300);
+          });
+        }, 300);
       });
     }
 
