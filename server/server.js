@@ -794,7 +794,7 @@ app.get('/api/product/dxm-category-top', (req, res) => {
   try {
     const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 15));
     const rows = getAll(
-      "SELECT custom_category as name, COUNT(*) as count FROM products WHERE custom_category IS NOT NULL AND custom_category != '' GROUP BY custom_category ORDER BY count DESC LIMIT ?",
+      "SELECT cm.custom_category as name, COUNT(*) as count FROM products p INNER JOIN category_mappings cm ON JSON_EXTRACT(p.category, '$.leafCategoryName') = cm.category_name WHERE cm.custom_category IS NOT NULL AND cm.custom_category != '' GROUP BY cm.custom_category ORDER BY count DESC LIMIT ?",
       [limit]
     );
     res.json(rows);
