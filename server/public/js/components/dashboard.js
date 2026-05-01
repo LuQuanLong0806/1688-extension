@@ -71,12 +71,17 @@ Vue.component('page-dashboard', {
       this.charts.status = chart;
       fetch('/api/product/dxm-category-top?limit=15').then(function (r) { return r.json(); })
         .then(function (data) {
+          if (!Array.isArray(data) || !data.length) {
+            chart.setOption({
+              title: { text: '暂无数据', left: 'center', top: 'center', textStyle: { color: '#ccc', fontSize: 14, fontWeight: 'normal' } }
+            });
+            return;
+          }
           data.sort(function (a, b) { return a.count - b.count; });
           var names = data.map(function (d) { return d.name; });
           var counts = data.map(function (d) { return d.count; });
-          // 排行榜前三名用不同颜色
           var colors = data.map(function (d, i) {
-            var rank = data.length - i; // 排名（从高到低）
+            var rank = data.length - i;
             if (rank === 1) return '#ff4500';
             if (rank === 2) return '#ff6a00';
             if (rank === 3) return '#ff9a4d';
@@ -97,6 +102,11 @@ Vue.component('page-dashboard', {
             }]
           });
           chart.resize();
+        })
+        .catch(function () {
+          chart.setOption({
+            title: { text: '暂无数据', left: 'center', top: 'center', textStyle: { color: '#ccc', fontSize: 14, fontWeight: 'normal' } }
+          });
         });
     },
     initUsageChart: function () {

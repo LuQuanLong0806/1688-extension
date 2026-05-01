@@ -791,12 +791,16 @@ app.post('/api/category-mappings', (req, res) => {
 
 // DXM类目统计 Top N（基于 custom_category 字段）
 app.get('/api/product/dxm-category-top', (req, res) => {
-  const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 15));
-  const rows = getAll(
-    "SELECT custom_category as name, COUNT(*) as count FROM products WHERE custom_category IS NOT NULL AND custom_category != '' GROUP BY custom_category ORDER BY count DESC LIMIT ?",
-    [limit]
-  );
-  res.json(rows);
+  try {
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 15));
+    const rows = getAll(
+      "SELECT custom_category as name, COUNT(*) as count FROM products WHERE custom_category IS NOT NULL AND custom_category != '' GROUP BY custom_category ORDER BY count DESC LIMIT ?",
+      [limit]
+    );
+    res.json(rows);
+  } catch (e) {
+    res.json([]);
+  }
 });
 
 // Start

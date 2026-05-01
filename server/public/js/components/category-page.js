@@ -12,11 +12,24 @@ Vue.component('page-categories', {
       modalPath: '',
       modalList: [],
       modalLoading: false,
-      // 新增映射
+      // 维护弹窗 - 新增映射
       addKeyword: '',
       addOptions: [],
       addLoading: false,
-      _addTimer: null
+      _addTimer: null,
+      // 新增映射弹窗（顶栏）
+      addVisible: false,
+      addDxmKeyword: '',
+      addDxmOptions: [],
+      addDxmLoading: false,
+      addDxmSelected: '',
+      addDxmPath: '',
+      addAliKeyword: '',
+      addAliOptions: [],
+      addAliLoading: false,
+      addAliSelected: [],
+      _dxmTimer: null,
+      _aliTimer: null
     };
   },
   mounted: function () {
@@ -95,14 +108,11 @@ Vue.component('page-categories', {
         }
       });
     },
-    // 新增映射搜索
+    // 维护弹窗 - 新增映射搜索
     onAddInput: function () {
       var vm = this;
       var kw = (vm.addKeyword || '').trim();
-      if (!kw) {
-        vm.addOptions = [];
-        return;
-      }
+      if (!kw) { vm.addOptions = []; return; }
       clearTimeout(vm._addTimer);
       vm._addTimer = setTimeout(function () {
         vm.addLoading = true;
@@ -115,7 +125,7 @@ Vue.component('page-categories', {
           .catch(function () { vm.addLoading = false; });
       }, 300);
     },
-    // 选中1688类目绑定
+    // 维护弹窗 - 选中1688类目绑定
     addMapping: function (cat) {
       var vm = this;
       fetch('/api/category-mappings', {
@@ -127,6 +137,82 @@ Vue.component('page-categories', {
         vm.addKeyword = '';
         vm.addOptions = [];
         vm.loadModalList();
+        vm.loadList();
+      });
+    },
+    // === 新增映射弹窗（顶栏按钮）===
+    openAddDialog: function () {
+      this.addVisible = true;
+      this.addDxmKeyword = '';
+      this.addDxmOptions = [];
+      this.addDxmSelected = '';
+      this.addDxmPath = '';
+      this.addAliKeyword = '';
+      this.addAliOptions = [];
+      this.addAliSelected = [];
+    },
+    onDxmInput: function () {
+      var vm = this;
+      var kw = (vm.addDxmKeyword || '').trim();
+      if (!kw) { vm.addDxmOptions = []; return; }
+      clearTimeout(vm._dxmTimer);
+      vm._dxmTimer = setTimeout(function () {
+        vm.addDxmLoading = true;
+        fetch('/api/dxm-tree/search?keyword=' + encodeURIComponent(kw))
+          .then(function (r) { return r.json(); })
+          .then(function (list) {
+            vm.addDxmOptions = list;
+            vm.addDxmLoading = false;
+          })
+          .catch(function () { vm.addDxmLoading = false; });
+      }, 300);
+    },
+    selectDxm: function (item) {
+      this.addDxmSelected = item.catName;
+      this.addDxmKeyword = item.catName;
+      this.addDxmPath = item.path || '';
+      this.addDxmOptions = [];
+    },
+    onAliInput: function () {
+      var vm = this;
+      var kw = (vm.addAliKeyword || '').trim();
+      if (!kw) { vm.addAliOptions = []; return; }
+      clearTimeout(vm._aliTimer);
+      vm._aliTimer = setTimeout(function () {
+        vm.addAliLoading = true;
+        fetch('/api/categories?keyword=' + encodeURIComponent(kw))
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            vm.addAliOptions = d.list || [];
+            vm.addAliLoading = false;
+          })
+          .catch(function () { vm.addAliLoading = false; });
+      }, 300);
+    },
+    selectAli: function (cat) {
+      var exists = this.addAliSelected.some(function (s) { return s.name === cat.name; });
+      if (!exists) {
+        this.addAliSelected.push({ name: cat.name, count: cat.count });
+      }
+      this.addAliKeyword = '';
+      this.addAliOptions = [];
+    },
+    removeAliSelected: function (name) {
+      this.addAliSelected = this.addAliSelected.filter(function (s) { return s.name !== name; });
+    },
+    submitAddMapping: function () {
+      var vm = this;
+      if (!vm.addDxmSelected) { vm.$Message.warning('请选择店小秘类目'); return; }
+      if (!vm.addAliSelected.length) { vm.$Message.warning('请选择1688类目'); return; }
+      Promise.all(vm.addAliSelected.map(function (s) {
+        return fetch('/api/category-mappings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ categoryName: s.name, customCategory: vm.addDxmSelected })
+        });
+      })).then(function () {
+        vm.$Message.success('已创建 ' + vm.addAliSelected.length + ' 条映射');
+        vm.addVisible = false;
         vm.loadList();
       });
     }
@@ -164,13 +250,12 @@ Vue.component('page-categories', {
         },
         {
           title: '操作',
-          width: 180,
+          width: 200,
           align: 'center',
           render: function (h, params) {
-            return h('div', [
+            return h('div', { style: { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' } }, [
               h('Button', {
                 props: { type: 'primary', size: 'small', icon: 'md-settings' },
-                style: { marginRight: '8px' },
                 on: { click: function () { vm.openModal(params.row); } }
               }, '维护映射'),
               h('Button', {
@@ -202,6 +287,7 @@ Vue.component('page-categories', {
         </div>
         <div class="action-bar-right">
           <span style="font-size:13px;color:#888">共 <strong style="color:#333">{{ list.length }}</strong> 个已映射类目</span>
+          <i-button type="success" icon="md-add" @click="openAddDialog">新增映射</i-button>
           <i-button icon="md-refresh" @click="loadList">刷新</i-button>
         </div>
       </div>
@@ -248,6 +334,53 @@ Vue.component('page-categories', {
             </tr>
           </tbody>
         </table>
+      </modal>
+      <!-- 新增映射弹窗（顶栏） -->
+      <modal v-model="addVisible" title="新增类目映射" :mask-closable="false" width="520">
+        <div style="margin-bottom:16px">
+          <div style="font-size:13px;color:#666;margin-bottom:8px">店小秘类目</div>
+          <div style="position:relative">
+            <i-input v-model="addDxmKeyword" placeholder="搜索店小秘类目..." @on-input="onDxmInput">
+              <icon type="ios-search" slot="prefix"></icon>
+            </i-input>
+            <div v-if="addDxmSelected" style="font-size:12px;color:#999;margin-top:4px;word-break:break-all">{{ addDxmPath }}</div>
+            <div v-if="addDxmOptions.length" style="position:absolute;top:34px;left:0;right:0;z-index:1050;background:#fff;border:1px solid #dcdee2;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.15);max-height:200px;overflow-y:auto">
+              <div v-for="item in addDxmOptions" :key="item.catId"
+                style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #f5f5f5"
+                @mouseenter="$event.target.style.background='#f0f7ff'"
+                @mouseleave="$event.target.style.background=''"
+                @mousedown.prevent="selectDxm(item)">
+                <div style="font-size:13px;color:#333">{{ item.catName }}</div>
+                <div v-if="item.path" style="font-size:12px;color:#999;margin-top:2px;word-break:break-all">{{ item.path }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="margin-bottom:16px">
+          <div style="font-size:13px;color:#666;margin-bottom:8px">1688类目（可多选）</div>
+          <div v-if="addAliSelected.length" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+            <tag v-for="s in addAliSelected" :key="s.name" closable @on-close="removeAliSelected(s.name)">{{ s.name }}</tag>
+          </div>
+          <div style="position:relative">
+            <i-input v-model="addAliKeyword" placeholder="搜索1688类目..." @on-input="onAliInput">
+              <icon type="ios-search" slot="prefix"></icon>
+            </i-input>
+            <div v-if="addAliOptions.length" style="position:absolute;top:34px;left:0;right:0;z-index:1050;background:#fff;border:1px solid #dcdee2;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.15);max-height:200px;overflow-y:auto">
+              <div v-for="cat in addAliOptions" :key="cat.name"
+                style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #f5f5f5;display:flex;justify-content:space-between;align-items:center"
+                @mouseenter="$event.target.style.background='#f0f7ff'"
+                @mouseleave="$event.target.style.background=''"
+                @mousedown.prevent="selectAli(cat)">
+                <span style="font-size:13px;color:#333">{{ cat.name }}</span>
+                <span style="font-size:11px;color:#999">{{ cat.count }}件商品</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div slot="footer">
+          <i-button @click="addVisible = false">取消</i-button>
+          <i-button type="primary" @click="submitAddMapping">确认映射</i-button>
+        </div>
       </modal>
     </div>`
 });
