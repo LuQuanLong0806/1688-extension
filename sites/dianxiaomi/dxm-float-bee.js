@@ -1362,24 +1362,18 @@
         sel.scrollIntoView({ block: 'center' });
         setTimeout(function () {
           forceOpenAntSelect(sel);
-          setTimeout(function () {
-            var opt = document.querySelector('.ant-select-item-option[title="不规则"]');
+          waitForElement('.ant-select-item-option[title="不规则"]', 3000, function (opt) {
             if (!opt) { showBubble('❌ 未找到不规则选项', 'err'); setTimeout(hideBubble, 2000); return; }
-            if (!opt.classList.contains('ant-select-item-option-selected')) {
-              opt.click();
-            }
+            opt.click();
 
             setTimeout(function () {
               pkgLog('选择外包装类型...');
               waitForAntSelect('外包装类型', function (sel2) {
                 if (!sel2) { showBubble('❌ 未找到外包装类型', 'err'); setTimeout(hideBubble, 2000); return; }
                 forceOpenAntSelect(sel2);
-                setTimeout(function () {
-                  var opt2 = document.querySelector('.ant-select-item-option[title="软包装+硬物"]');
+                waitForElement('.ant-select-item-option[title="软包装+硬物"]', 3000, function (opt2) {
                   if (!opt2) { showBubble('❌ 未找到软包装+硬物', 'err'); setTimeout(hideBubble, 2000); return; }
-                  if (!opt2.classList.contains('ant-select-item-option-selected')) {
-                    opt2.click();
-                  }
+                  opt2.click();
 
                   setTimeout(function () {
                     doUpdatePkgImage(pkgLog, function () {
@@ -1387,10 +1381,10 @@
                       setTimeout(hideBubble, 2000);
                     });
                   }, 300);
-                }, 300);
+                });
               });
             }, 300);
-          }, 300);
+          });
         }, 300);
       });
     }
