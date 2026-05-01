@@ -69,7 +69,7 @@ Vue.component('page-dashboard', {
       if (this.charts.status) this.charts.status.dispose();
       var chart = echarts.init(el);
       this.charts.status = chart;
-      fetch('/api/product/dxm-category-top?limit=15').then(function (r) { return r.json(); })
+      fetch('/api/product/dxm-category-top?limit=10').then(function (r) { return r.json(); })
         .then(function (data) {
           if (!Array.isArray(data) || !data.length) {
             chart.setOption({
@@ -165,7 +165,7 @@ Vue.component('page-dashboard', {
           <div class="chart-card-body" id="chart-trend"></div>
         </div>
         <div class="chart-card">
-          <div class="chart-card-header">偏好分布（店小秘类目 Top15）</div>
+          <div class="chart-card-header">偏好分布（店小秘类目 Top10）</div>
           <div class="chart-card-body" id="chart-status"></div>
         </div>
       </div>

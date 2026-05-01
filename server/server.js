@@ -349,7 +349,7 @@ app.get('/api/product/category-top', (req, res) => {
 // DXM类目统计 Top N（通过 category_mappings JOIN products）
 app.get('/api/product/dxm-category-top', (req, res) => {
   try {
-    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 15));
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 10));
     const rows = getAll(
       "SELECT cm.custom_category as name, COUNT(*) as count FROM products p INNER JOIN category_mappings cm ON JSON_EXTRACT(p.category, '$.leafCategoryName') = cm.category_name WHERE cm.custom_category IS NOT NULL AND cm.custom_category != '' GROUP BY cm.custom_category ORDER BY count DESC LIMIT ?",
       [limit]
@@ -747,6 +747,20 @@ app.get('/api/category-mappings/by-dxm', (req, res) => {
   res.json(rows.map(r => ({ id: r.id, categoryName: r.category_name })));
 });
 
+// 删除整个DXM类目映射（解除所有1688类目绑定）+ 更新关联商品的custom_category
+app.delete('/api/category-mappings/dxm/:name', (req, res) => {
+  const dxmName = decodeURIComponent(req.params.name);
+  // 获取被解绑的1688类目列表
+  const bound = getAll("SELECT category_name FROM category_mappings WHERE custom_category = ?", [dxmName]);
+  // 删除映射
+  run("DELETE FROM category_mappings WHERE custom_category = ?", [dxmName]);
+  // 清除关联商品的 custom_category
+  bound.forEach(r => {
+    run("UPDATE products SET custom_category = '' WHERE category LIKE ?", ['%"' + r.category_name + '"%']);
+  });
+  res.json({ ok: true });
+});
+
 app.delete('/api/category-mappings/:id', (req, res) => {
   run('DELETE FROM category_mappings WHERE id = ?', [parseInt(req.params.id)]);
   res.json({ ok: true });
@@ -775,20 +789,6 @@ app.get('/api/category-mappings/grouped', (req, res) => {
     g.path = treeRow ? treeRow.path : g.customCategory;
   });
   res.json(result);
-});
-
-// 删除整个DXM类目映射（解除所有1688类目绑定）+ 更新关联商品的custom_category
-app.delete('/api/category-mappings/dxm/:name', (req, res) => {
-  const dxmName = decodeURIComponent(req.params.name);
-  // 获取被解绑的1688类目列表
-  const bound = getAll("SELECT category_name FROM category_mappings WHERE custom_category = ?", [dxmName]);
-  // 删除映射
-  run("DELETE FROM category_mappings WHERE custom_category = ?", [dxmName]);
-  // 清除关联商品的 custom_category
-  bound.forEach(r => {
-    run("UPDATE products SET custom_category = '' WHERE category LIKE ?", ['%"' + r.category_name + '"%']);
-  });
-  res.json({ ok: true });
 });
 
 // 新增映射（绑定1688类目到DXM类目）
