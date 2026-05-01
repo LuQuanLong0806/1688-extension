@@ -21,11 +21,51 @@ function sseBroadcast(event, data) {
 
 // ========== 主库操作 ==========
 
+const MAX_BACKUP = 3;
+
+function rotateBackup(filePath) {
+  // .bak.3 → 删除, .bak.2 → .bak.3, .bak.1 → .bak.2, .bak → .bak.1
+  try {
+    const oldest = filePath + '.bak.' + MAX_BACKUP;
+    if (fs.existsSync(oldest)) fs.unlinkSync(oldest);
+  } catch (e) {}
+  // 从最老的开始往高编号移，避免覆盖
+  for (let i = MAX_BACKUP; i >= 2; i--) {
+    const src = filePath + '.bak.' + (i - 1);
+    const dst = filePath + '.bak.' + i;
+    try {
+      if (fs.existsSync(src)) fs.renameSync(src, dst);
+    } catch (e) {}
+  }
+  try {
+    if (fs.existsSync(filePath + '.bak')) fs.renameSync(filePath + '.bak', filePath + '.bak.1');
+  } catch (e) {}
+}
+
+function writeWithBackup(filePath, buffer) {
+  if (!buffer || buffer.length === 0) return; // 不写入空数据
+  const tmp = filePath + '.tmp';
+  fs.writeFileSync(tmp, buffer);
+  // 校验临时文件大小
+  if (fs.statSync(tmp).size === 0) {
+    fs.unlinkSync(tmp);
+    return;
+  }
+  // 轮转备份（基于旧主文件）
+  try {
+    if (fs.existsSync(filePath) && fs.statSync(filePath).size > 0) {
+      rotateBackup(filePath);
+      fs.copyFileSync(filePath, filePath + '.bak');
+    }
+  } catch (e) {}
+  fs.renameSync(tmp, filePath);
+}
+
 function saveDb() {
   if (!db) return;
   const data = db.export();
   const buffer = Buffer.from(data);
-  fs.writeFileSync(DB_FILE, buffer);
+  writeWithBackup(DB_FILE, buffer);
 }
 
 function scheduleSave() {
@@ -65,8 +105,7 @@ function saveTreeDb() {
   if (!treeDb) return;
   const data = treeDb.export();
   const buffer = Buffer.from(data);
-  fs.writeFileSync(TREE_DB_FILE, buffer);
-  try { fs.writeFileSync(TREE_DB_FILE + '.bak', buffer); } catch (e) {}
+  writeWithBackup(TREE_DB_FILE, buffer);
 }
 
 function scheduleTreeSave() {
