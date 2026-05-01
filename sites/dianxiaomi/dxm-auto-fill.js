@@ -39,63 +39,13 @@
     }
   }
 
-  // ========== DOM Helpers ==========
-  function setInputValue(input, val) {
-    if (C && C.setInputValue) {
-      C.setInputValue(input, val);
-      return;
-    }
-    var proto = input.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
-    var nativeSetter = Object.getOwnPropertyDescriptor(proto, 'value').set;
-    nativeSetter.call(input, val);
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-  }
-
-  function hoverElement(el) {
-    if (C && C.hoverElement) { C.hoverElement(el); return; }
-    el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-    el.dispatchEvent(new MouseEvent('mouseenter', { bubbles: false }));
-    el.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
-  }
-
-  function waitForElement(selector, timeout, cb) {
-    if (C && C.waitForElement) { C.waitForElement(selector, timeout, cb); return; }
-    var start = Date.now();
-    (function check() {
-      var el = document.querySelector(selector);
-      if (el) return cb(el);
-      if (Date.now() - start > timeout) return cb(null);
-      requestAnimationFrame(check);
-    })();
-  }
-
-  function waitForVisibleLi(textFragment, timeout, cb) {
-    if (C && C.waitForVisibleLi) { C.waitForVisibleLi(textFragment, timeout, cb); return; }
-    var start = Date.now();
-    (function check() {
-      var allLi = document.querySelectorAll('li');
-      for (var i = 0; i < allLi.length; i++) {
-        if (allLi[i].offsetParent === null) continue;
-        if ((allLi[i].textContent || '').indexOf(textFragment) !== -1) return cb(allLi[i]);
-      }
-      if (Date.now() - start > timeout) return cb(null);
-      requestAnimationFrame(check);
-    })();
-  }
-
-  function findVisibleModal(titleText) {
-    if (C && C.findVisibleModal) return C.findVisibleModal(titleText);
-    var titles = document.querySelectorAll('.ant-modal-title');
-    for (var t = 0; t < titles.length; t++) {
-      if ((titles[t].textContent || '').indexOf(titleText) !== -1) {
-        var wrap = titles[t];
-        while (wrap && !wrap.classList.contains('ant-modal-wrap')) { wrap = wrap.parentElement; }
-        if (wrap && getComputedStyle(wrap).display !== 'none') return wrap;
-      }
-    }
-    return null;
-  }
+  // ========== DOM Helpers (shared via BeeConfig) ==========
+  var setInputValue = C.setInputValue;
+  var hoverElement = C.hoverElement;
+  var waitForElement = C.waitForElement;
+  var waitForVisibleLi = C.waitForVisibleLi;
+  var findVisibleModal = C.findVisibleModal;
+  var forceOpenAntSelect = C.forceOpenAntSelect;
 
   function focusSetBlur(input, val) {
     input.focus();
@@ -727,18 +677,6 @@
       if (Date.now() - start > 5000) { cb(null); return; }
       requestAnimationFrame(check);
     })();
-  }
-
-  function forceOpenAntSelect(selector) {
-    var rect = selector.getBoundingClientRect();
-    var cx = rect.left + rect.width / 2;
-    var cy = rect.top + rect.height / 2;
-    var opts = { bubbles: true, cancelable: true, view: window, clientX: cx, clientY: cy };
-    selector.dispatchEvent(new PointerEvent('pointerdown', opts));
-    selector.dispatchEvent(new MouseEvent('mousedown', opts));
-    selector.dispatchEvent(new PointerEvent('pointerup', opts));
-    selector.dispatchEvent(new MouseEvent('mouseup', opts));
-    selector.dispatchEvent(new MouseEvent('click', opts));
   }
 
   // ========== Step 1: 填入标题 ==========

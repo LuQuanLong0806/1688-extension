@@ -490,32 +490,13 @@
     }
   });
 
-  // ========== DOM Helpers ==========
-  function hoverElement(el) {
-    el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-    el.dispatchEvent(new MouseEvent('mouseenter', { bubbles: false }));
-    el.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
-  }
-
-  function unhoverElement(el) {
-    el.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
-    el.dispatchEvent(new MouseEvent('mouseleave', { bubbles: false }));
-  }
-
-  function waitForElement(selector, timeout, cb) {
-    var start = Date.now();
-    (function check() {
-      var el = document.querySelector(selector);
-      if (el) return cb(el);
-      if (Date.now() - start > timeout) return cb(null);
-      requestAnimationFrame(check);
-    })();
-  }
+  // ========== DOM Helpers (shared via BeeConfig) ==========
+  var hoverElement = Config.hoverElement;
+  var unhoverElement = Config.unhoverElement;
+  var waitForElement = Config.waitForElement;
+  var forceOpenAntSelect = Config.forceOpenAntSelect;
 
   // 暴露给其他脚本使用
-  Config.hoverElement = hoverElement;
-  Config.unhoverElement = unhoverElement;
-  Config.waitForElement = waitForElement;
   Config.showBubble = showBubble;
   Config.hideBubble = hideBubble;
 
@@ -538,18 +519,6 @@
       if (Date.now() - start > 5000) return cb(null);
       requestAnimationFrame(check);
     })();
-  }
-
-  function forceOpenAntSelect(selector) {
-    var rect = selector.getBoundingClientRect();
-    var cx = rect.left + rect.width / 2;
-    var cy = rect.top + rect.height / 2;
-    var opts = { bubbles: true, cancelable: true, view: window, clientX: cx, clientY: cy };
-    selector.dispatchEvent(new PointerEvent('pointerdown', opts));
-    selector.dispatchEvent(new MouseEvent('mousedown', opts));
-    selector.dispatchEvent(new PointerEvent('pointerup', opts));
-    selector.dispatchEvent(new MouseEvent('mouseup', opts));
-    selector.dispatchEvent(new MouseEvent('click', opts));
   }
 
   function waitForAntSelect(labelText, cb) {

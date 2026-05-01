@@ -392,6 +392,53 @@
     return null;
   }
 
+  function waitForElement(selector, timeout, cb) {
+    var start = Date.now();
+    (function check() {
+      var el = document.querySelector(selector);
+      if (el) return cb(el);
+      if (Date.now() - start > timeout) return cb(null);
+      requestAnimationFrame(check);
+    })();
+  }
+
+  function hoverElement(el) {
+    el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+    el.dispatchEvent(new MouseEvent('mouseenter', { bubbles: false }));
+    el.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+  }
+
+  function unhoverElement(el) {
+    el.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
+    el.dispatchEvent(new MouseEvent('mouseleave', { bubbles: false }));
+  }
+
+  function forceOpenAntSelect(selector) {
+    var rect = selector.getBoundingClientRect();
+    var cx = rect.left + rect.width / 2;
+    var cy = rect.top + rect.height / 2;
+    var opts = { bubbles: true, cancelable: true, view: window, clientX: cx, clientY: cy };
+    selector.dispatchEvent(new PointerEvent('pointerdown', opts));
+    selector.dispatchEvent(new MouseEvent('mousedown', opts));
+    selector.dispatchEvent(new PointerEvent('pointerup', opts));
+    selector.dispatchEvent(new MouseEvent('mouseup', opts));
+    selector.dispatchEvent(new MouseEvent('click', opts));
+  }
+
+  function hoverWithCoords(el) {
+    var rect = el.getBoundingClientRect();
+    var cx = rect.left + rect.width / 2;
+    var cy = rect.top + rect.height / 2;
+    var pOpts = { bubbles: true, cancelable: true, clientX: cx, clientY: cy, pointerId: 1, pointerType: 'mouse', isPrimary: true };
+    var mOpts = { bubbles: true, cancelable: true, view: window, clientX: cx, clientY: cy };
+    el.dispatchEvent(new PointerEvent('pointerover', pOpts));
+    el.dispatchEvent(new PointerEvent('pointerenter', { bubbles: false, clientX: cx, clientY: cy, pointerId: 1, pointerType: 'mouse' }));
+    el.dispatchEvent(new PointerEvent('pointermove', pOpts));
+    el.dispatchEvent(new MouseEvent('mouseover', mOpts));
+    el.dispatchEvent(new MouseEvent('mouseenter', { bubbles: false, clientX: cx, clientY: cy }));
+    el.dispatchEvent(new MouseEvent('mousemove', mOpts));
+  }
+
   window.BeeConfig = {
     FILTER_KEY: FILTER_KEY,
     AUTO_PUBLISH_KEY: AUTO_PUBLISH_KEY,
@@ -435,7 +482,12 @@
     applyFilters: applyFilters,
     findVisibleModal: findVisibleModal,
     findVisibleLi: findVisibleLi,
-    waitForVisibleLi: waitForVisibleLi
+    waitForVisibleLi: waitForVisibleLi,
+    waitForElement: waitForElement,
+    hoverElement: hoverElement,
+    unhoverElement: unhoverElement,
+    forceOpenAntSelect: forceOpenAntSelect,
+    hoverWithCoords: hoverWithCoords
   };
 
   // 启动时从服务器同步配置到 localStorage

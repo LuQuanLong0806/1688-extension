@@ -12,20 +12,8 @@
     doEditDesc();
   });
 
-  // ========== Helper: hover with coords ==========
-  function hoverWithCoords(el) {
-    var rect = el.getBoundingClientRect();
-    var cx = rect.left + rect.width / 2;
-    var cy = rect.top + rect.height / 2;
-    var pOpts = { bubbles: true, cancelable: true, clientX: cx, clientY: cy, pointerId: 1, pointerType: 'mouse', isPrimary: true };
-    var mOpts = { bubbles: true, cancelable: true, view: window, clientX: cx, clientY: cy };
-    el.dispatchEvent(new PointerEvent('pointerover', pOpts));
-    el.dispatchEvent(new PointerEvent('pointerenter', { bubbles: false, clientX: cx, clientY: cy, pointerId: 1, pointerType: 'mouse' }));
-    el.dispatchEvent(new PointerEvent('pointermove', pOpts));
-    el.dispatchEvent(new MouseEvent('mouseover', mOpts));
-    el.dispatchEvent(new MouseEvent('mouseenter', { bubbles: false, clientX: cx, clientY: cy }));
-    el.dispatchEvent(new MouseEvent('mousemove', mOpts));
-  }
+  // ========== DOM Helpers (shared via BeeConfig) ==========
+  var hoverWithCoords = C.hoverWithCoords;
 
   // ========== Step log ==========
   var editStep = 0;
