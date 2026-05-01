@@ -67,11 +67,6 @@ Vue.component('page-products', {
           slot: 'manualCat'
         },
         {
-          title: '推荐类目',
-          minWidth: 200,
-          slot: 'recommendedCats'
-        },
-        {
           title: '来源地址',
           width: 120,
           slot: 'sourceUrl'
@@ -115,22 +110,6 @@ Vue.component('page-products', {
       var names = skus.map(function (s) { return s.name || s.sku || ''; }).filter(Boolean);
       if (!names.length) names = skus.map(function (s, i) { return 'SKU' + (i + 1); });
       return names.join('、');
-    },
-    getRecommendedCats: function (row) {
-      var cats = row.recommendedCustomCategories || [];
-      var current = row.customCategory || '';
-      return cats.filter(function (c) { return c !== current; });
-    },
-    setRecommendedCat: function (row, cat) {
-      var vm = this;
-      fetch('/api/product/' + row.id, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customCategory: cat })
-      }).then(function () {
-        vm.$Message.success('已设为: ' + cat);
-        vm.loadList();
-      });
     },
     saveCategory: function (row, val) {
       if (val === undefined) return;
@@ -343,26 +322,6 @@ Vue.component('page-products', {
             placeholder="手动填写分类"
             size="small"
             @on-enter="saveManualCategory(row, $event)" />
-        </template>
-        <template slot="recommendedCats" slot-scope="{ row }">
-          <template v-if="!getRecommendedCats(row).length">
-            <span style="color:#ccc">-</span>
-          </template>
-          <template v-else>
-            <div style="line-height:1.6">
-              <div v-for="(cat, ci) in getRecommendedCats(row)" :key="ci" style="margin-bottom:2px">
-                <span style="display:inline">
-                  <Tooltip :content="cat" placement="top" transfer :max-width="400">
-                    <span style="font-size:13px;color:#ff6a00;cursor:pointer">{{ cat }}</span>
-                  </Tooltip><Icon type="md-checkmark-circle-outline" size="16" title="设为自定义类目"
-                    style="color:#bbb;cursor:pointer;vertical-align:middle;margin-left:4px;position:relative;top:-1px"
-                    @mouseenter.native="$event.target.style.color='#1890ff'"
-                    @mouseleave.native="$event.target.style.color='#bbb'"
-                    @click.native.stop="setRecommendedCat(row, cat)" />
-                </span>
-              </div>
-            </div>
-          </template>
         </template>
         <template slot="sourceUrl" slot-scope="{ row }">
           <template v-if="!row.source_url">
