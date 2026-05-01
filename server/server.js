@@ -346,6 +346,20 @@ app.get('/api/product/category-top', (req, res) => {
   res.json(rows);
 });
 
+// DXM类目统计 Top N（通过 category_mappings JOIN products）
+app.get('/api/product/dxm-category-top', (req, res) => {
+  try {
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 15));
+    const rows = getAll(
+      "SELECT cm.custom_category as name, COUNT(*) as count FROM products p INNER JOIN category_mappings cm ON JSON_EXTRACT(p.category, '$.leafCategoryName') = cm.category_name WHERE cm.custom_category IS NOT NULL AND cm.custom_category != '' GROUP BY cm.custom_category ORDER BY count DESC LIMIT ?",
+      [limit]
+    );
+    res.json(rows);
+  } catch (e) {
+    res.json([]);
+  }
+});
+
 // 保存采集数据
 app.post('/api/product', (req, res) => {
   const { sourceUrl, title, category, mainImages, descImages, detailImages, attrs, skus } = req.body;
@@ -786,20 +800,6 @@ app.post('/api/category-mappings', (req, res) => {
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
-  }
-});
-
-// DXM类目统计 Top N（基于 custom_category 字段）
-app.get('/api/product/dxm-category-top', (req, res) => {
-  try {
-    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 15));
-    const rows = getAll(
-      "SELECT cm.custom_category as name, COUNT(*) as count FROM products p INNER JOIN category_mappings cm ON JSON_EXTRACT(p.category, '$.leafCategoryName') = cm.category_name WHERE cm.custom_category IS NOT NULL AND cm.custom_category != '' GROUP BY cm.custom_category ORDER BY count DESC LIMIT ?",
-      [limit]
-    );
-    res.json(rows);
-  } catch (e) {
-    res.json([]);
   }
 });
 
