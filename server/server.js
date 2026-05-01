@@ -334,13 +334,10 @@ app.get('/api/product/categories', (req, res) => {
   res.json(rows.map(r => r.name));
 });
 
-// 获取店小秘类目列表（去重）
+// 获取已映射的店小秘类目列表（去重）
 app.get('/api/product/dxm-categories', (req, res) => {
-  const rows = getAll("SELECT DISTINCT dxm_category FROM products WHERE dxm_category IS NOT NULL AND dxm_category != '' ORDER BY dxm_category");
-  const list = rows.map(r => {
-    try { return JSON.parse(r.dxm_category); } catch (e) { return null; }
-  }).filter(Boolean);
-  res.json(list);
+  const rows = getAll("SELECT DISTINCT custom_category FROM category_mappings WHERE custom_category IS NOT NULL AND custom_category != '' ORDER BY custom_category");
+  res.json(rows.map(r => r.custom_category));
 });
 
 // 类目偏好 Top20
@@ -473,10 +470,10 @@ app.get('/api/product', (req, res) => {
     params.push(`%${category}%`);
   }
   if (dxmCategory === '_none') {
-    where.push('(dxm_category IS NULL OR dxm_category = \'\')');
+    where.push('(custom_category IS NULL OR custom_category = \'\')');
   } else if (dxmCategory) {
-    where.push('dxm_category LIKE ?');
-    params.push(`%${dxmCategory}%`);
+    where.push('custom_category = ?');
+    params.push(dxmCategory);
   }
 
   const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';

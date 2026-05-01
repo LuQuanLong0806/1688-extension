@@ -268,17 +268,20 @@ Vue.component('page-products', {
         <i-input v-model="keyword" placeholder="搜索标题..." clearable style="width:220px" @on-enter="loadList(1)" @on-clear="loadList(1)">
           <icon type="ios-search" slot="prefix"></icon>
         </i-input>
+        <span style="font-size:13px;color:#666;white-space:nowrap">状态</span>
         <i-select v-model="statusFilter" clearable placeholder="全部状态" style="width:130px" @on-change="loadList(1)">
           <i-option value="all">全部状态</i-option>
           <i-option value="0">未使用</i-option>
           <i-option value="1">已使用</i-option>
         </i-select>
+        <span style="font-size:13px;color:#666;white-space:nowrap">类目</span>
         <i-select v-model="categoryFilter" clearable filterable placeholder="全部类目" style="width:150px" @on-change="loadList(1)">
           <i-option v-for="c in categoryList" :key="c" :value="c">{{ c }}</i-option>
         </i-select>
+        <span style="font-size:13px;color:#666;white-space:nowrap">店小秘类目</span>
         <i-select v-model="dxmCategoryFilter" clearable filterable placeholder="店小秘类目" style="width:160px" @on-change="loadList(1)">
           <i-option value="_none">未映射</i-option>
-          <i-option v-for="d in dxmCategoryList" :key="d.path" :value="d.leafName">{{ d.leafName }}</i-option>
+          <i-option v-for="d in dxmCategoryList" :key="d" :value="d">{{ d }}</i-option>
         </i-select>
         <i-button type="primary" icon="ios-search" @click="loadList(1)">搜索</i-button>
       </div>
