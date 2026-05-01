@@ -279,9 +279,9 @@ app.post('/api/clear-signal', (req, res) => {
 
 // 获取所有配置
 app.get('/api/settings', (req, res) => {
-  const rows = getAll('SELECT key, value FROM settings');
+  const rows = getAll('SELECT key, value, updated_at FROM settings');
   const result = {};
-  rows.forEach(r => { result[r.key] = r.value; });
+  rows.forEach(r => { result[r.key] = { value: r.value, updated_at: r.updated_at }; });
   res.json(result);
 });
 

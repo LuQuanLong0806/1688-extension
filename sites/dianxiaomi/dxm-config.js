@@ -27,6 +27,8 @@
     return localStorage.getItem(SERVER_URL_KEY) || 'http://localhost:3000';
   }
 
+  var SYNC_TS_KEY = '__dxm_bee_sync_ts';
+
   function syncToServer(key, value) {
     pendingSyncs[key] = String(value);
     clearTimeout(syncTimer);
@@ -37,6 +39,7 @@
       }
       pendingSyncs = {};
       if (!items.length) return;
+      localStorage.setItem(SYNC_TS_KEY, new Date().toISOString());
       fetch(getServerUrl() + '/api/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -46,11 +49,15 @@
   }
 
   function loadFromServer() {
+    var localTs = localStorage.getItem(SYNC_TS_KEY) || '';
     fetch(getServerUrl() + '/api/settings')
       .then(function (r) { return r.json(); })
       .then(function (settings) {
         for (var key in settings) {
-          localStorage.setItem(key, settings[key]);
+          var entry = settings[key];
+          if (!entry) continue;
+          if (localTs && entry.updated_at && entry.updated_at <= localTs) continue;
+          localStorage.setItem(key, typeof entry === 'string' ? entry : entry.value);
         }
       })
       .catch(function () {});
