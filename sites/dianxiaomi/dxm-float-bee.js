@@ -810,7 +810,13 @@
         return;
       }
       step('正在点击分类按钮...', '已点击分类按钮', function () {
-        var btn = document.querySelector('#productBasicInfo .category-item .ant-form-item-control button');
+        var btns = document.querySelectorAll('#productBasicInfo .category-item .ant-form-item-control button');
+        var btn = null;
+        for (var i = 0; i < btns.length; i++) {
+          var t = (btns[i].textContent || '').trim();
+          if (t === '选择' || t.indexOf('分类') !== -1) { btn = btns[i]; break; }
+        }
+        if (!btn && btns.length) btn = btns[0];
         if (!btn) return false;
         btn.click();
         return true;

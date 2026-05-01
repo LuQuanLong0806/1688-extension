@@ -101,7 +101,6 @@
   menu.id = '__dxm_bee_menu';
   var autoPublishOn = Config.loadAutoPublish();
   var currentStore = Config.loadSelectedStore();
-  var useWebImage = Config.loadUseWebImage();
   var filterEnabled = Config.loadFilterEnabled();
   var skuFilterEnabled = Config.loadSkuFilterEnabled();
   var autoCategory = Config.loadAutoCategory();
@@ -119,7 +118,6 @@
     '<div class="menu-item"><span class="menu-label">🎬 删除产品视频</span><div class="switch ' + (delVideo ? 'on' : '') + '" id="__dxm_bee_menu_del_video_switch"></div><div class="menu-desc">开启后工作流自动删除产品视频</div></div>' +
     '<div class="menu-item"><span class="menu-label">🔊 自动翻译</span><div class="switch ' + (autoTranslate ? 'on' : '') + '" id="__dxm_bee_menu_translate_switch"></div><div class="menu-desc">开启后工作流自动触发一键翻译</div></div>' +
     '<div class="menu-item"><span class="menu-label">📍 省份选择</span><input type="text" class="menu-input" id="__dxm_bee_menu_province_input" value="' + province + '" maxlength="10" placeholder="广东省"><div class="menu-desc">工作流填写的省份，须以省/市/自治区结尾</div></div>' +
-    '<div class="menu-item"><span class="menu-label">🌐 网络图片</span><div class="switch ' + (useWebImage ? 'on' : '') + '" id="__dxm_bee_menu_webimg_switch"></div><div class="menu-desc">编字流程使用网络图片URL上传</div></div>' +
     '<div class="menu-item"><span class="menu-label">🚀 自动发布</span><div class="switch ' + (autoPublishOn ? 'on' : '') + '" id="__dxm_bee_menu_publish_switch"></div><div class="menu-desc">开启后工作流完成所有步骤自动发布</div></div>' +
     '<div class="menu-item"><span class="menu-label">🔑 店铺ID</span><input type="text" class="menu-input" id="__dxm_bee_menu_shopid_input" value="' + shopId + '" maxlength="20" placeholder="输入店铺ID"><div class="menu-desc">同步类目所需的店铺ID</div></div>' +
     '<div class="menu-item clickable" id="__dxm_bee_menu_sync_cat"><span class="menu-label clickable">🌳 同步类目树</span><span class="menu-arrow">▸</span><div class="menu-desc">从店小秘递归采集全部分类，保存到独立数据库</div></div>' +
@@ -244,14 +242,6 @@
     console.log('%c[小蜜蜂] 自动发布: ' + (on ? '开启' : '关闭'), 'color:#FFA000;font-weight:bold');
   });
 
-  var webimgSwitch = document.getElementById('__dxm_bee_menu_webimg_switch');
-  webimgSwitch.addEventListener('click', function () {
-    var on = !this.classList.contains('on');
-    this.classList.toggle('on', on);
-    Config.saveUseWebImage(on);
-    console.log('%c[小蜜蜂] 网络图片: ' + (on ? '开启' : '关闭'), 'color:#FFA000;font-weight:bold');
-  });
-
   var provinceInput = document.getElementById('__dxm_bee_menu_province_input');
   var provinceTimer = null;
   provinceInput.addEventListener('input', function () {
@@ -274,6 +264,7 @@
   provinceInput.addEventListener('click', function (e) {
     e.stopPropagation();
   });
+
 
   // ========== ShopId Input ==========
   var shopIdInput = document.getElementById('__dxm_bee_menu_shopid_input');
