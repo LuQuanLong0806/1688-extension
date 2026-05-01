@@ -3,55 +3,76 @@ Vue.component('page-categories', {
   data: function () {
     return {
       loading: false,
-      mappings: [],
+      list: [],
+      total: 0,
+      page: 1,
+      pageSize: 20,
       keyword: '',
-      treeStatus: { total: 0, lastSync: null, levels: 0 }
+      treeStatus: { total: 0, lastSync: null, levels: 0 },
+      // 映射弹窗
+      mapVisible: false,
+      mapCategoryName: '',
+      mapList: [],
+      mapLoading: false
     };
   },
-  computed: {
-    aliCategoryCount: function () {
-      var set = {};
-      this.mappings.forEach(function (m) { set[m.categoryName] = true; });
-      return Object.keys(set).length;
-    }
-  },
   mounted: function () {
-    this.loadMappings();
+    this.loadCategories();
     this.loadTreeStatus();
   },
   methods: {
-    loadMappings: function () {
+    loadCategories: function () {
       var vm = this;
       vm.loading = true;
-      var url = '/api/category-mappings';
-      if (vm.keyword.trim()) url += '?keyword=' + encodeURIComponent(vm.keyword.trim());
-      fetch(url)
+      var params = new URLSearchParams({ page: vm.page, pageSize: vm.pageSize });
+      if (vm.keyword.trim()) params.set('keyword', vm.keyword.trim());
+      fetch('/api/categories?' + params.toString())
         .then(function (r) { return r.json(); })
-        .then(function (data) {
-          vm.mappings = data;
+        .then(function (d) {
+          vm.list = d.list;
+          vm.total = d.total;
           vm.loading = false;
         })
         .catch(function () { vm.loading = false; });
     },
-    doSearch: function () { this.loadMappings(); },
-    clearSearch: function () { this.keyword = ''; this.loadMappings(); },
-    deleteMapping: function (id) {
-      var vm = this;
-      this.$Modal.confirm({
-        title: '确认删除',
-        content: '确认删除该映射关系？',
-        onOk: function () {
-          fetch('/api/category-mappings/' + id, { method: 'DELETE' }).then(function () {
-            vm.$Message.success('已删除');
-            vm.loadMappings();
-          });
-        }
-      });
-    },
+    onPageChange: function (p) { this.page = p; this.loadCategories(); },
+    onPageSizeChange: function (s) { this.pageSize = s; this.loadCategories(1); },
+    doSearch: function () { this.page = 1; this.loadCategories(); },
+    clearSearch: function () { this.keyword = ''; this.page = 1; this.loadCategories(); },
     loadTreeStatus: function () {
       var vm = this;
       fetch('/api/dxm-tree/status').then(function (r) { return r.json(); }).then(function (s) {
         vm.treeStatus = s;
+      });
+    },
+    // 打开映射弹窗
+    openMapDialog: function (catName) {
+      this.mapCategoryName = catName;
+      this.mapVisible = true;
+      this.loadMapList(catName);
+    },
+    loadMapList: function (catName) {
+      var vm = this;
+      vm.mapLoading = true;
+      fetch('/api/category-mappings/by-name?name=' + encodeURIComponent(catName))
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          vm.mapList = data;
+          vm.mapLoading = false;
+        })
+        .catch(function () { vm.mapLoading = false; });
+    },
+    deleteMapItem: function (item) {
+      var vm = this;
+      this.$Modal.confirm({
+        title: '确认删除',
+        content: '确认删除映射：' + item.customCategory + '？',
+        onOk: function () {
+          fetch('/api/category-mappings/' + item.id, { method: 'DELETE' }).then(function () {
+            vm.$Message.success('已删除');
+            vm.loadMapList(vm.mapCategoryName);
+          });
+        }
       });
     }
   },
@@ -66,39 +87,63 @@ Vue.component('page-categories', {
       </div>
       <div class="action-bar">
         <div class="action-bar-left">
-          <span style="font-weight:500;color:#333">类目映射</span>
-          <i-input v-model="keyword" placeholder="搜索1688类目或店小秘类目" style="width:260px" @on-enter="doSearch" @on-clear="clearSearch" clearable>
+          <span style="font-weight:500;color:#333">1688类目</span>
+          <i-input v-model="keyword" placeholder="搜索类目名称" style="width:220px" @on-enter="doSearch" @on-clear="clearSearch" clearable>
             <icon type="ios-search" slot="prefix"></icon>
           </i-input>
           <i-button type="primary" icon="ios-search" @click="doSearch">搜索</i-button>
         </div>
         <div class="action-bar-right">
-          <i-button icon="md-refresh" @click="loadMappings">刷新</i-button>
+          <span style="font-size:13px;color:#888">共 <strong style="color:#333">{{ total }}</strong> 个类目</span>
+          <i-button icon="md-refresh" @click="loadCategories">刷新</i-button>
         </div>
       </div>
-      <div style="padding:8px 20px;border-bottom:1px solid #f0f0f0;font-size:13px;color:#888;display:flex;gap:20px">
-        <span>共 <strong style="color:#333">{{ aliCategoryCount }}</strong> 个1688类目</span>
-        <span>共 <strong style="color:#333">{{ mappings.length }}</strong> 条映射</span>
+      <i-table :columns="columns" :data="list" :loading="loading" stripe style="margin-bottom:0;">
+        <template slot="name" slot-scope="{ row }">
+          <span style="color:#333">{{ row.name }}</span>
+        </template>
+        <template slot="count" slot-scope="{ row }">
+          <span style="color:#888">{{ row.count }}</span>
+        </template>
+        <template slot="actions" slot-scope="{ row }">
+          <i-button type="primary" size="small" icon="md-settings" @click="openMapDialog(row.name)">维护映射</i-button>
+        </template>
+      </i-table>
+      <div class="pagination-wrap">
+        <page :total="total" :current="page" :page-size="pageSize"
+          :page-size-opts="[10,20,50,100]" show-total show-elevator show-sizer
+          @on-change="onPageChange" @on-page-size-change="onPageSizeChange" />
       </div>
-      <div v-if="loading" style="text-align:center;padding:40px;color:#999">加载中...</div>
-      <div v-else-if="!mappings.length" style="text-align:center;padding:40px;color:#999">暂无映射数据</div>
-      <table v-else style="width:100%;border-collapse:collapse;font-size:13px">
-        <thead>
-          <tr style="background:#f6f8fa">
-            <th style="padding:10px 12px;text-align:left;border-bottom:1px solid #e8e8e8;width:50%">1688类目</th>
-            <th style="padding:10px 12px;text-align:left;border-bottom:1px solid #e8e8e8;width:40%">店小秘类目</th>
-            <th style="padding:10px 12px;text-align:center;border-bottom:1px solid #e8e8e8;width:60px">操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="item in mappings" :key="item.id" style="border-bottom:1px solid #f5f5f5">
-            <td style="padding:8px 12px;color:#333">{{ item.categoryName }}</td>
-            <td style="padding:8px 12px;color:#1890ff">{{ item.customCategory }}</td>
-            <td style="padding:8px 12px;text-align:center">
-              <i-button type="error" size="small" icon="ios-trash" @click="deleteMapping(item.id)"></i-button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>`
+      <!-- 映射弹窗 -->
+      <modal v-model="mapVisible" :title="'映射管理 - ' + mapCategoryName" :mask-closable="false" width="520" footer-hide>
+        <div v-if="mapLoading" style="text-align:center;padding:20px;color:#999">加载中...</div>
+        <div v-else-if="!mapList.length" style="text-align:center;padding:20px;color:#999">暂无映射数据</div>
+        <table v-else style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead>
+            <tr style="background:#f6f8fa">
+              <th style="padding:8px 12px;text-align:left;border-bottom:1px solid #e8e8e8">店小秘类目</th>
+              <th style="padding:8px 12px;text-align:center;border-bottom:1px solid #e8e8e8;width:60px">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="item in mapList" :key="item.id" style="border-bottom:1px solid #f5f5f5">
+              <td style="padding:8px 12px;color:#1890ff">{{ item.customCategory }}</td>
+              <td style="padding:8px 12px;text-align:center">
+                <i-button type="error" size="small" icon="ios-trash" @click="deleteMapItem(item)"></i-button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </modal>
+    </div>`,
+  computed: {
+    columns: function () {
+      return [
+        { title: '1688类目', key: 'name', minWidth: 200, slot: 'name' },
+        { title: '类目ID', key: 'catId', width: 160, slot: 'catId' },
+        { title: '商品数', key: 'count', width: 100, align: 'center', slot: 'count' },
+        { title: '操作', width: 120, align: 'center', slot: 'actions' }
+      ];
+    }
+  }
 });

@@ -360,7 +360,7 @@ app.post('/api/product', (req, res) => {
     const catName = category.leafCategoryName || category.categoryPath;
     if (catName) {
       // 优先查 category_mappings，fallback 到 categories.custom_name
-      const mappingRow = getOne('SELECT custom_category FROM category_mappings WHERE category_name = ? LIMIT 1', [catName]);
+      const mappingRow = getOne('SELECT custom_category FROM category_mappings WHERE category_name = ? ORDER BY id DESC LIMIT 1', [catName]);
       if (mappingRow && mappingRow.custom_category) {
         customCategory = mappingRow.custom_category;
       } else {
@@ -700,6 +700,32 @@ app.get('/api/category-mappings', (req, res) => {
     rows = getAll('SELECT id, category_name, custom_category FROM category_mappings ORDER BY category_name');
   }
   res.json(rows.map(r => ({ id: r.id, categoryName: r.category_name, customCategory: r.custom_category })));
+});
+
+// 1688类目列表（带搜索、分页）
+app.get('/api/categories', (req, res) => {
+  const keyword = (req.query.keyword || '').trim();
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize) || 20));
+  let where = '';
+  let params = [];
+  if (keyword) {
+    where = 'WHERE name LIKE ?';
+    params.push('%' + keyword + '%');
+  }
+  const countRow = getOne('SELECT COUNT(*) as cnt FROM categories ' + where, params);
+  const total = countRow ? countRow.cnt : 0;
+  const offset = (page - 1) * pageSize;
+  const rows = getAll('SELECT name, cat_id, count FROM categories ' + where + ' ORDER BY count DESC, name LIMIT ? OFFSET ?', [...params, pageSize, offset]);
+  res.json({ total, page, pageSize, list: rows.map(r => ({ name: r.name, catId: r.cat_id || '', count: r.count || 0 })) });
+});
+
+// 查询指定1688类目下的映射
+app.get('/api/category-mappings/by-name', (req, res) => {
+  const categoryName = (req.query.name || '').trim();
+  if (!categoryName) return res.json([]);
+  const rows = getAll('SELECT id, custom_category FROM category_mappings WHERE category_name = ? ORDER BY id', [categoryName]);
+  res.json(rows.map(r => ({ id: r.id, customCategory: r.custom_category })));
 });
 
 app.delete('/api/category-mappings/:id', (req, res) => {
