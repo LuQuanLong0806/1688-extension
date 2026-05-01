@@ -69,13 +69,11 @@ Vue.component('page-dashboard', {
       if (this.charts.status) this.charts.status.dispose();
       var chart = echarts.init(el);
       this.charts.status = chart;
-      fetch('/api/product/category-top').then(function (r) { return r.json(); })
+      fetch('/api/product/dxm-category-top?limit=15').then(function (r) { return r.json(); })
         .then(function (data) {
-          // 按数量从小到大排，echarts Y轴从下到上
           data.sort(function (a, b) { return a.count - b.count; });
           var names = data.map(function (d) { return d.name; });
           var counts = data.map(function (d) { return d.count; });
-          var maxCount = counts.length ? counts[counts.length - 1] : 1;
           // 排行榜前三名用不同颜色
           var colors = data.map(function (d, i) {
             var rank = data.length - i; // 排名（从高到低）
@@ -157,7 +155,7 @@ Vue.component('page-dashboard', {
           <div class="chart-card-body" id="chart-trend"></div>
         </div>
         <div class="chart-card">
-          <div class="chart-card-header">偏好分布（类目 Top10）</div>
+          <div class="chart-card-header">偏好分布（店小秘类目 Top15）</div>
           <div class="chart-card-body" id="chart-status"></div>
         </div>
       </div>

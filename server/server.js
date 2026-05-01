@@ -725,9 +725,78 @@ app.get('/api/category-mappings/by-name', (req, res) => {
   res.json(rows.map(r => ({ id: r.id, customCategory: r.custom_category })));
 });
 
+// 按店小秘类目查询已绑定的1688类目
+app.get('/api/category-mappings/by-dxm', (req, res) => {
+  const dxmName = (req.query.name || '').trim();
+  if (!dxmName) return res.json([]);
+  const rows = getAll('SELECT id, category_name FROM category_mappings WHERE custom_category = ? ORDER BY id', [dxmName]);
+  res.json(rows.map(r => ({ id: r.id, categoryName: r.category_name })));
+});
+
 app.delete('/api/category-mappings/:id', (req, res) => {
   run('DELETE FROM category_mappings WHERE id = ?', [parseInt(req.params.id)]);
   res.json({ ok: true });
+});
+
+// DXM类目分组列表（按店小秘类目分组，含完整路径和绑定的1688类目）
+app.get('/api/category-mappings/grouped', (req, res) => {
+  const keyword = (req.query.keyword || '').trim();
+  let rows;
+  if (keyword) {
+    rows = getAll('SELECT id, category_name, custom_category FROM category_mappings WHERE custom_category LIKE ? ORDER BY custom_category, category_name', ['%' + keyword + '%']);
+  } else {
+    rows = getAll('SELECT id, category_name, custom_category FROM category_mappings ORDER BY custom_category, category_name');
+  }
+  // 按 custom_category 分组
+  const groups = {};
+  rows.forEach(r => {
+    const key = r.custom_category;
+    if (!groups[key]) groups[key] = { customCategory: key, path: '', aliCategories: [] };
+    groups[key].aliCategories.push({ id: r.id, categoryName: r.category_name });
+  });
+  // 查询完整路径
+  const result = Object.values(groups);
+  result.forEach(g => {
+    const treeRow = treeGetOne('SELECT path FROM dxm_category_tree WHERE cat_name = ? AND is_leaf = 1 LIMIT 1', [g.customCategory]);
+    g.path = treeRow ? treeRow.path : g.customCategory;
+  });
+  res.json(result);
+});
+
+// 删除整个DXM类目映射（解除所有1688类目绑定）+ 更新关联商品的custom_category
+app.delete('/api/category-mappings/dxm/:name', (req, res) => {
+  const dxmName = decodeURIComponent(req.params.name);
+  // 获取被解绑的1688类目列表
+  const bound = getAll("SELECT category_name FROM category_mappings WHERE custom_category = ?", [dxmName]);
+  // 删除映射
+  run("DELETE FROM category_mappings WHERE custom_category = ?", [dxmName]);
+  // 清除关联商品的 custom_category
+  bound.forEach(r => {
+    run("UPDATE products SET custom_category = '' WHERE category LIKE ?", ['%"' + r.category_name + '"%']);
+  });
+  res.json({ ok: true });
+});
+
+// 新增映射（绑定1688类目到DXM类目）
+app.post('/api/category-mappings', (req, res) => {
+  const { categoryName, customCategory } = req.body;
+  if (!categoryName || !customCategory) return res.status(400).json({ error: '参数不完整' });
+  try {
+    run('INSERT OR IGNORE INTO category_mappings (category_name, custom_category) VALUES (?, ?)', [categoryName, customCategory]);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// DXM类目统计 Top N（基于 custom_category 字段）
+app.get('/api/product/dxm-category-top', (req, res) => {
+  const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 15));
+  const rows = getAll(
+    "SELECT custom_category as name, COUNT(*) as count FROM products WHERE custom_category IS NOT NULL AND custom_category != '' GROUP BY custom_category ORDER BY count DESC LIMIT ?",
+    [limit]
+  );
+  res.json(rows);
 });
 
 // Start
