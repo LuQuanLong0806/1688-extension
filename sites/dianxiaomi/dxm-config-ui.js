@@ -99,32 +99,23 @@
   // ========== Context Menu ==========
   var menu = document.createElement('div');
   menu.id = '__dxm_bee_menu';
-  var autoPublishOn = Config.loadAutoPublish();
   var currentStore = Config.loadSelectedStore();
   var filterEnabled = Config.loadFilterEnabled();
   var skuFilterEnabled = Config.loadSkuFilterEnabled();
-  var autoCategory = Config.loadAutoCategory();
   var province = Config.loadProvince();
-  var autoTranslate = Config.loadAutoTranslate();
   var autoSkuNo = Config.loadAutoSkuNo();
-  var delVideo = Config.loadDelVideo();
   var shopId = Config.loadShopId();
   menu.innerHTML =
     '<div class="menu-item clickable" id="__dxm_bee_menu_filter"><span class="menu-label clickable" id="__dxm_bee_menu_filter_text">📝 标题过滤</span><div class="switch ' + (filterEnabled ? 'on' : '') + '" id="__dxm_bee_menu_filter_switch"></div><div class="menu-desc">点击文字打开配置弹窗，开启后自动过滤标题违规文字</div></div>' +
     '<div class="menu-item clickable" id="__dxm_bee_menu_sku_filter"><span class="menu-label clickable" id="__dxm_bee_menu_sku_filter_text">🏷️ SKU变种属性过滤</span><div class="switch ' + (skuFilterEnabled ? 'on' : '') + '" id="__dxm_bee_menu_sku_filter_switch"></div><div class="menu-desc">点击文字打开配置弹窗，开启后自动过滤SKU变种属性违规文字</div></div>' +
     '<div class="menu-item"><span class="menu-label">🔢 自动SKU高级</span><div class="switch ' + (autoSkuNo ? 'on' : '') + '" id="__dxm_bee_menu_sku_no_switch"></div><div class="menu-desc">开启后SKU工作流自动执行高级SKU货号生成</div></div>' +
     '<div class="menu-item clickable" id="__dxm_bee_menu_store"><span class="menu-label">🏪 选择店铺</span><span class="menu-value" id="__dxm_bee_menu_store_name">' + (currentStore || '未选择') + '</span><span class="menu-arrow">▸</span><div class="menu-desc">选择工作流自动填写的店铺名称</div></div>' +
-    '<div class="menu-item"><span class="menu-label">📂 自动点击分类</span><div class="switch ' + (autoCategory ? 'on' : '') + '" id="__dxm_bee_menu_category_switch"></div><div class="menu-desc">开启后工作流自动点击确认分类按钮</div></div>' +
-    '<div class="menu-item"><span class="menu-label">🎬 删除产品视频</span><div class="switch ' + (delVideo ? 'on' : '') + '" id="__dxm_bee_menu_del_video_switch"></div><div class="menu-desc">开启后工作流自动删除产品视频</div></div>' +
-    '<div class="menu-item"><span class="menu-label">🔊 自动翻译</span><div class="switch ' + (autoTranslate ? 'on' : '') + '" id="__dxm_bee_menu_translate_switch"></div><div class="menu-desc">开启后工作流自动触发一键翻译</div></div>' +
     '<div class="menu-item"><span class="menu-label">📍 省份选择</span><input type="text" class="menu-input" id="__dxm_bee_menu_province_input" value="' + province + '" maxlength="10" placeholder="广东省"><div class="menu-desc">工作流填写的省份，须以省/市/自治区结尾</div></div>' +
-    '<div class="menu-item"><span class="menu-label">🚀 自动发布</span><div class="switch ' + (autoPublishOn ? 'on' : '') + '" id="__dxm_bee_menu_publish_switch"></div><div class="menu-desc">开启后工作流完成所有步骤自动发布</div></div>' +
     '<div class="menu-item"><span class="menu-label">🔑 店铺ID</span><input type="text" class="menu-input" id="__dxm_bee_menu_shopid_input" value="' + shopId + '" maxlength="20" placeholder="输入店铺ID"><div class="menu-desc">同步类目所需的店铺ID</div></div>' +
     '<div class="menu-item clickable" id="__dxm_bee_menu_sync_cat"><span class="menu-label clickable">🌳 同步类目树</span><span class="menu-arrow">▸</span><div class="menu-desc">从店小秘递归采集全部分类，保存到独立数据库</div></div>' +
     '<div class="menu-item"><span class="menu-label">🔗 服务器地址</span><input type="text" class="menu-input" id="__dxm_bee_menu_server_input" value="' + (Config.getServerUrl() || 'http://localhost:3000') + '" placeholder="http://localhost:3000"><div class="menu-desc">管理端服务器地址，局域网内可填写IP地址</div></div>';
   document.body.appendChild(menu);
 
-  var publishSwitch = document.getElementById('__dxm_bee_menu_publish_switch');
   var menuStoreName = document.getElementById('__dxm_bee_menu_store_name');
 
   function showMenu(x, y) {
@@ -206,40 +197,6 @@
     this.classList.toggle('on', on);
     Config.saveAutoSkuNo(on);
     console.log('%c[小蜜蜂] 自动SKU高级: ' + (on ? '开启' : '关闭'), 'color:#FFA000;font-weight:bold');
-  });
-
-  var categorySwitch = document.getElementById('__dxm_bee_menu_category_switch');
-  categorySwitch.addEventListener('click', function (e) {
-    e.stopPropagation();
-    var on = !this.classList.contains('on');
-    this.classList.toggle('on', on);
-    Config.saveAutoCategory(on);
-    console.log('%c[小蜜蜂] 自动点击分类: ' + (on ? '开启' : '关闭'), 'color:#FFA000;font-weight:bold');
-  });
-
-  var delVideoSwitch = document.getElementById('__dxm_bee_menu_del_video_switch');
-  delVideoSwitch.addEventListener('click', function (e) {
-    e.stopPropagation();
-    var on = !this.classList.contains('on');
-    this.classList.toggle('on', on);
-    Config.saveDelVideo(on);
-    console.log('%c[小蜜蜂] 删除产品视频: ' + (on ? '开启' : '关闭'), 'color:#FFA000;font-weight:bold');
-  });
-
-  var translateSwitch = document.getElementById('__dxm_bee_menu_translate_switch');
-  translateSwitch.addEventListener('click', function (e) {
-    e.stopPropagation();
-    var on = !this.classList.contains('on');
-    this.classList.toggle('on', on);
-    Config.saveAutoTranslate(on);
-    console.log('%c[小蜜蜂] 自动翻译: ' + (on ? '开启' : '关闭'), 'color:#FFA000;font-weight:bold');
-  });
-
-  publishSwitch.addEventListener('click', function () {
-    var on = !this.classList.contains('on');
-    this.classList.toggle('on', on);
-    Config.saveAutoPublish(on);
-    console.log('%c[小蜜蜂] 自动发布: ' + (on ? '开启' : '关闭'), 'color:#FFA000;font-weight:bold');
   });
 
   var provinceInput = document.getElementById('__dxm_bee_menu_province_input');

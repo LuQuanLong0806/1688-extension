@@ -291,10 +291,11 @@
   }
 
   function updateProgress(stepNum, text, type) {
-    var pct = Math.round((stepNum / 19) * 100);
+    var totalSteps = 3;
+    var pct = Math.round((stepNum / totalSteps) * 100);
     var prefix = type === 'err' ? '❌ ' : type === 'ok' ? '✅ ' : '⏳ ';
     var bar = isWorking ? '<div id="__dxm_bee_bar"><div id="__dxm_bee_bar_fill" style="width:' + pct + '%"></div></div>' : '';
-    showBubble(prefix + text + ' <span style="color:#bbb;font-size:10px">' + stepNum + '/' + 19 + '</span>' + bar, type);
+    showBubble(prefix + text + ' <span style="color:#bbb;font-size:10px">' + stepNum + '/' + totalSteps + '</span>' + bar, type);
   }
 
   function log(stepNum, msg, el) {
@@ -500,27 +501,6 @@
   Config.showBubble = showBubble;
   Config.hideBubble = hideBubble;
 
-  function waitForProvinceSelect(cb) {
-    var start = Date.now();
-    (function check() {
-      var labels = document.querySelectorAll('#productProductInfo .ant-form-item-label label'); // #productProductInfo: 产品信息区域; 通过 label "产地" 定位省份下拉
-      for (var i = 0; i < labels.length; i++) {
-        if (labels[i].textContent.includes('产地')) {
-          var formItem = labels[i].closest('.ant-form-item');
-          if (formItem) {
-            var origin = formItem.querySelector('.productOrigin'); // .productOrigin: 产地表单项内的 Select 容器(国家+省份两个下拉)
-            if (origin) {
-              var selects = origin.querySelectorAll('.ant-select-selector');
-              if (selects.length >= 2) return cb(selects[1]); // 第二个 .ant-select-selector 即为省份下拉
-            }
-          }
-        }
-      }
-      if (Date.now() - start > 5000) return cb(null);
-      requestAnimationFrame(check);
-    })();
-  }
-
   function waitForAntSelect(labelText, cb) {
     var start = Date.now();
     (function check() {
@@ -540,22 +520,6 @@
   }
 
   // ========== Step Chain ==========
-  function step(loadingText, okText, action, nextFn) {
-    var s = nextStepNum();
-    log(s, loadingText);
-    updateProgress(s, loadingText, 'loading');
-    var result = action();
-    if (result === false) {
-      log(s, '❌ 失败 - ' + okText.replace('已', '未找到'));
-      updateProgress(s, okText.replace('已', '未找到'), 'err');
-      finishWork();
-      return;
-    }
-    log(s, '✅ ' + okText);
-    updateProgress(s, okText, 'ok');
-    if (nextFn) setTimeout(nextFn, 150);
-  }
-
   function finishWork() {
     isWorking = false;
     wrapper.classList.remove('flying');
@@ -571,7 +535,7 @@
       _stepCounter = 0;
       wrapper.classList.add('flying');
       console.log('%c[小蜜蜂] ===== 开始工作 =====', 'color:#FFCA28;font-weight:bold;font-size:14px');
-      doStep1();
+      doStep4();
     });
 
     // 译 按钮：单独触发翻译
@@ -702,106 +666,6 @@
       })();
     }
 
-    // Step 1: 检查店铺名称
-    function doStep1() {
-      var s = nextStepNum();
-      log(s, '正在检查店铺名称...');
-      updateProgress(s, '正在检查店铺名称...', 'loading');
-
-      var labels = document.querySelectorAll('#productBasicInfo .ant-form-item-label label');
-      var storeFormItem = null;
-      for (var i = 0; i < labels.length; i++) {
-        if (labels[i].textContent.includes('店铺名称')) {
-          storeFormItem = labels[i].closest('.ant-form-item');
-          break;
-        }
-      }
-      log(s, '店铺表单项', storeFormItem);
-
-      if (!storeFormItem) {
-        log(s, '⚠️ 未找到店铺表单项，跳过');
-        updateProgress(s, '未找到店铺选择', 'ok');
-        doStep2();
-        return;
-      }
-
-      var selectionItem = storeFormItem.querySelector('.ant-select-selection-item');
-      var currentStore = selectionItem ? (selectionItem.getAttribute('title') || selectionItem.textContent.trim()) : '';
-      log(s, '当前店铺: "' + currentStore + '"');
-
-      if (currentStore) {
-        log(s, '✅ 店铺已选择: ' + currentStore);
-        updateProgress(s, '店铺: ' + currentStore, 'ok');
-        doStep2();
-        return;
-      }
-
-      var configStore = Config.loadSelectedStore();
-      log(s, '配置店铺: "' + configStore + '"');
-      if (!configStore) {
-        log(s, '⚠️ 未配置店铺，跳过');
-        updateProgress(s, '未配置店铺，跳过', 'ok');
-        doStep2();
-        return;
-      }
-
-      log(s, '店铺为空，正在选择: ' + configStore);
-      updateProgress(s, '正在选择店铺 ' + configStore + '...', 'loading');
-
-      var storeSelector = storeFormItem.querySelector('.ant-select-selector');
-      log(s, '店铺下拉框', storeSelector);
-      var searchInput = storeFormItem.querySelector('.ant-select-selection-search-input');
-      if (searchInput) searchInput.focus();
-      forceOpenAntSelect(storeSelector);
-
-      waitForElement('.ant-select-item-option[title="' + configStore + '"]', 3000, function (opt) {
-        log(s, '店铺选项', opt);
-        if (!opt) {
-          log(s, '❌ 未找到店铺选项: ' + configStore);
-          updateProgress(s, '未找到店铺 ' + configStore, 'err');
-          doStep2();
-          return;
-        }
-        opt.click();
-        log(s, '✅ 已选择店铺: ' + configStore + '（跳过分类步骤）');
-        updateProgress(s, '已选择店铺: ' + configStore, 'ok');
-        setTimeout(doStep4, 150);
-      });
-    }
-
-    // Step 2: 点击「确认分类」按钮
-    function doStep2() {
-      if (!Config.loadAutoCategory()) {
-        var s = nextStepNum();
-        log(s, '⏭️ 自动点击分类已关闭，跳过');
-        updateProgress(s, '跳过分类步骤', 'ok');
-        doStep4();
-        return;
-      }
-      step('正在点击分类按钮...', '已点击分类按钮', function () {
-        var btns = document.querySelectorAll('#productBasicInfo .category-item .ant-form-item-control button');
-        var btn = null;
-        for (var i = 0; i < btns.length; i++) {
-          var t = (btns[i].textContent || '').trim();
-          if (t === '选择' || t.indexOf('分类') !== -1) { btn = btns[i]; break; }
-        }
-        if (!btn && btns.length) btn = btns[0];
-        if (!btn) return false;
-        btn.click();
-        return true;
-      }, function () {
-
-      // Step 3: 点击弹窗「确认」按钮
-      step('正在点击确认按钮...', '分类确认完成！', function () {
-        var btn = document.querySelector('.ant-modal-wrap:not([style*="display: none"]) .ant-modal-content .ant-modal-footer button.ant-btn-primary');
-        if (!btn) return false;
-        btn.click();
-        return true;
-      }, doStep4);
-
-      }); // end step 2
-    }
-
     // Step 4: 过滤标题违规字样
     function doStep4() {
       var s = nextStepNum();
@@ -812,7 +676,7 @@
       if (!input || !input.value) {
         log(s, '⚠️ 未找到标题输入框或值为空，跳过过滤');
         updateProgress(s, '标题为空，跳过过滤', 'ok');
-        setTimeout(doStep5, 150);
+        setTimeout(doStep11, 150);
         return;
       }
       var title = input.value;
@@ -851,7 +715,7 @@
           updateProgress(s, '标题无违规字样', 'ok');
         }
       }
-      setTimeout(doStep5, 200);
+      setTimeout(doStep11, 200);
     }
 
     // 标题气泡：显示在产品标题上方
@@ -894,346 +758,6 @@
       return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
-    // Step 5: 悬浮「一键翻译」，点击「中文→英文」
-    function doStep5() {
-      var s = nextStepNum();
-      if (!Config.loadAutoTranslate()) {
-        log(s, '⏭️ 自动翻译已关闭，跳过');
-        updateProgress(s, '自动翻译已关闭，跳过', 'ok');
-        doStep6();
-        return;
-      }
-      log(s, '正在触发一键翻译...');
-      updateProgress(s, '正在触发一键翻译...', 'loading');
-      var translateBtn = document.querySelector('#app .product-add-layout .header .btn-box button.translation-btn');
-      log(s, '翻译按钮', translateBtn);
-      if (!translateBtn) { updateProgress(s, '未找到一键翻译按钮', 'err'); finishWork(); return; }
-      hoverElement(translateBtn);
-
-      function findTranslateMenuItem() {
-        var items = document.querySelectorAll('.ant-dropdown:not(.ant-dropdown-hidden) li.menu-item');
-        for (var i = 0; i < items.length; i++) {
-          var t = items[i].textContent || '';
-          if (t.indexOf('中文') !== -1 && t.indexOf('英文') !== -1) return items[i];
-        }
-        return null;
-      }
-
-      var start = Date.now();
-      (function tryMenu() {
-        var item = findTranslateMenuItem();
-        if (item) {
-          item.click();
-          unhoverElement(translateBtn);
-          log(s, '✅ 已点击中文→英文');
-          updateProgress(s, '已点击中文→英文', 'ok');
-          var input5 = document.querySelector('#productProductInfo form .ant-form-item input');
-          if (input5) watchTitleChange(input5);
-          setTimeout(doStep6, 300);
-          return;
-        }
-        if (Date.now() - start > 3000) {
-          translateBtn.click();
-          var start2 = Date.now();
-          (function tryMenu2() {
-            var item2 = findTranslateMenuItem();
-            if (item2) {
-              item2.click();
-              unhoverElement(translateBtn);
-              log(s, '✅ 已点击中文→英文');
-              updateProgress(s, '已点击中文→英文', 'ok');
-              var input5b = document.querySelector('#productProductInfo form .ant-form-item input');
-              if (input5b) watchTitleChange(input5b);
-              setTimeout(doStep6, 200);
-              return;
-            }
-            if (Date.now() - start2 > 3000) {
-              unhoverElement(translateBtn);
-              log(s, '❌ 未找到翻译菜单');
-              updateProgress(s, '未找到翻译菜单', 'err');
-              finishWork();
-              return;
-            }
-            requestAnimationFrame(tryMenu2);
-          })();
-          return;
-        }
-        requestAnimationFrame(tryMenu);
-      })();
-    }
-
-    // Step 6: 省份下拉框
-    function doStep6() {
-      var s = nextStepNum();
-      log(s, '正在打开省份选择...');
-      updateProgress(s, '正在打开省份选择...', 'loading');
-      waitForProvinceSelect(function (sel) {
-        log(s, '省份下拉框', sel);
-        if (!sel) { updateProgress(s, '未找到省份下拉框', 'err'); finishWork(); return; }
-        var input = sel.querySelector('.ant-select-selection-search-input');
-        if (input) input.focus();
-        forceOpenAntSelect(sel);
-        log(s, '✅ 已打开省份下拉框');
-        updateProgress(s, '已打开省份下拉框', 'ok');
-        setTimeout(doStep7, 200);
-      });
-    }
-
-    // Step 7: 选择配置的省份
-    function doStep7() {
-      var province = Config.loadProvince();
-      step('正在选择' + province + '...', '已选择' + province, function () {
-        var o = document.querySelector('.ant-select-item-option[title="' + province + '"]');
-        if (!o) return false;
-        if (!o.classList.contains('ant-select-item-option-selected')) {
-          o.click();
-        }
-        return true;
-      }, doStepDelVideo);
-    }
-
-    // Step 8: 删除产品视频
-    function doStepDelVideo() {
-      var s = nextStepNum();
-      if (!Config.loadDelVideo()) {
-        log(s, '⏭️ 删除产品视频已关闭，跳过');
-        updateProgress(s, '删除视频已关闭，跳过', 'ok');
-        setTimeout(doStep8, 150);
-        return;
-      }
-
-      log(s, '正在检查产品视频...');
-      updateProgress(s, '正在检查产品视频...', 'loading');
-
-      var labels = document.querySelectorAll('#productProductInfo .ant-form-item-label label');
-      var videoLabel = null;
-      for (var vi = 0; vi < labels.length; vi++) {
-        if ((labels[vi].textContent || '').indexOf('产品视频') !== -1) {
-          videoLabel = labels[vi];
-          break;
-        }
-      }
-
-      if (!videoLabel) {
-        log(s, '⚠️ 未找到产品视频区域，跳过');
-        updateProgress(s, '无产品视频，跳过', 'ok');
-        setTimeout(doStep8, 150);
-        return;
-      }
-
-      var videoFormItem = videoLabel.closest('.ant-form-item');
-      deleteNextVideo(videoFormItem, 0, s);
-    }
-
-    function deleteNextVideo(formItem, count, s) {
-      var videoImgs = formItem.querySelectorAll('.video-operate-img');
-      var visibleBox = null;
-      for (var v = 0; v < videoImgs.length; v++) {
-        if (videoImgs[v].offsetParent !== null && videoImgs[v].querySelector('.video-operate-img-box')) {
-          visibleBox = videoImgs[v];
-          break;
-        }
-      }
-
-      if (!visibleBox) {
-        if (count > 0) {
-          log(s, '✅ 已删除 ' + count + ' 个产品视频');
-          updateProgress(s, '已删除 ' + count + ' 个产品视频', 'ok');
-        } else {
-          log(s, '✅ 无产品视频，跳过');
-          updateProgress(s, '无产品视频，跳过', 'ok');
-        }
-        setTimeout(doStep8, 150);
-        return;
-      }
-
-      var delLinks = visibleBox.querySelectorAll('.video-operate-box a.link');
-      var delBtn = null;
-      for (var d = 0; d < delLinks.length; d++) {
-        if ((delLinks[d].textContent || '').indexOf('删除') !== -1) {
-          delBtn = delLinks[d];
-          break;
-        }
-      }
-
-      if (!delBtn) {
-        log(s, '✅ 无可删除的视频');
-        updateProgress(s, '无产品视频，跳过', 'ok');
-        setTimeout(doStep8, 150);
-        return;
-      }
-
-      count++;
-      log(s, '正在删除产品视频 ' + count + '...');
-      updateProgress(s, '正在删除产品视频 ' + count + '...', 'loading');
-      delBtn.click();
-
-      setTimeout(function () {
-        var confirmBtn = document.querySelector('.ant-popconfirm-buttons .ant-btn-primary');
-        if (confirmBtn) confirmBtn.click();
-        setTimeout(function () { deleteNextVideo(formItem, count, s); }, 200);
-      }, 150);
-    }
-
-    // Step: 外包装形状（不规则）
-    function doStep8() {
-      var s = nextStepNum();
-      log(s, '正在选择外包装形状...');
-      updateProgress(s, '正在选择外包装形状...', 'loading');
-      waitForAntSelect('外包装形状', function (sel) {
-        if (!sel) { updateProgress(s, '未找到外包装形状', 'err'); finishWork(); return; }
-        sel.scrollIntoView({ block: 'center' });
-        setTimeout(function () {
-          forceOpenAntSelect(sel);
-          waitForElement('.ant-select-item-option[title=”不规则”]', 3000, function (opt) {
-            if (!opt) { updateProgress(s, '未找到不规则选项', 'err'); finishWork(); return; }
-            opt.click();
-            log(s, '✅ 已选择不规则');
-            updateProgress(s, '已选择不规则', 'ok');
-            setTimeout(doStep9, 300);
-          });
-        }, 300);
-      });
-    }
-
-    // Step: 外包装类型（软包装+硬物）
-    function doStep9() {
-      var s = nextStepNum();
-      log(s, '正在选择外包装类型...');
-      updateProgress(s, '正在选择外包装类型...', 'loading');
-      waitForAntSelect('外包装类型', function (sel) {
-        if (!sel) { updateProgress(s, '未找到外包装类型', 'err'); finishWork(); return; }
-        sel.scrollIntoView({ block: 'center' });
-        setTimeout(function () {
-          forceOpenAntSelect(sel);
-          waitForElement('.ant-select-item-option[title=”软包装+硬物”]', 3000, function (opt) {
-            if (!opt) { updateProgress(s, '未找到软包装+硬物', 'err'); finishWork(); return; }
-            opt.click();
-            log(s, '✅ 已选择软包装+硬物');
-            updateProgress(s, '已选择软包装+硬物', 'ok');
-            setTimeout(doStep10, 300);
-          });
-        }, 300);
-      });
-    }
-
-    // Step 13-16: 获取产品轮播图首图 + 打开外包装选择图片
-    function doStep10() {
-      var s13 = nextStepNum();
-      log(s13, '正在获取产品首图...');
-      updateProgress(s13, '正在获取产品首图...', 'loading');
-
-      var firstImg = document.querySelector('#productProductInfo .mainImage .img-list .img-item img.img-css');
-      if (!firstImg || !firstImg.src) {
-        log(s13, '⚠️ 未找到产品轮播图图片，跳过外包装');
-        updateProgress(s13, '无产品图片，跳过外包装', 'ok');
-        doStep11();
-        return;
-      }
-
-      var imgUrl = firstImg.src;
-      log(s13, '✅ 产品首图: ' + imgUrl.substring(0, 60));
-      updateProgress(s13, '已获取产品首图', 'ok');
-
-      var pkgImgs = document.querySelectorAll('#packageInfo .img-list .img-item a.icon_delete');
-      if (pkgImgs.length > 0) {
-        var s14 = nextStepNum();
-        log(s14, '清空外包装旧图片...');
-        updateProgress(s14, '清空外包装旧图片...', 'loading');
-        (function deleteNext() {
-          var btn = document.querySelector('#packageInfo .img-list .img-item a.icon_delete');
-          if (!btn) {
-            log(s14, '✅ 已清空外包装旧图片');
-            updateProgress(s14, '已清空外包装旧图片', 'ok');
-            openPkgSelect(imgUrl);
-            return;
-          }
-          btn.click();
-          setTimeout(deleteNext, 50);
-        })();
-        return;
-      }
-
-      openPkgSelect(imgUrl);
-    }
-
-    function openPkgSelect(imgUrl) {
-      var s = nextStepNum();
-      log(s, '正在打开外包装选择图片...');
-      updateProgress(s, '正在打开外包装选择图片...', 'loading');
-
-      var pkgBtn = document.querySelector('#packageInfo .header button');
-      if (!pkgBtn || (pkgBtn.textContent || '').indexOf('选择图片') === -1) {
-        log(s, '❌ 未找到外包装选择图片按钮');
-        updateProgress(s, '未找到选择图片按钮', 'err');
-        finishWork();
-        return;
-      }
-      hoverElement(pkgBtn);
-
-      Config.waitForVisibleLi('网络图片', 3000, function (webImgItem) {
-        if (!webImgItem) {
-          log(s, '❌ 未找到网络图片选项');
-          updateProgress(s, '未找到网络图片选项', 'err');
-          finishWork();
-          return;
-        }
-        log(s, '✅ 已打开选择图片菜单');
-        updateProgress(s, '已打开选择图片菜单', 'ok');
-
-        var s2 = nextStepNum();
-        log(s2, '正在更新外包装图片...');
-        updateProgress(s2, '正在更新外包装图片...', 'loading');
-        webImgItem.click();
-
-        var start = Date.now();
-        (function checkModal() {
-          var modal = Config.findVisibleModal('从网络地址');
-          if (modal) {
-            fillPackageImage(modal, imgUrl);
-            return;
-          }
-          if (Date.now() - start > 5000) {
-            log(s2, '❌ 未找到网络图片弹窗');
-            updateProgress(s2, '未找到网络图片弹窗', 'err');
-            finishWork();
-            return;
-          }
-          requestAnimationFrame(checkModal);
-        })();
-      });
-    }
-
-    function fillPackageImage(modal, imgUrl) {
-      var s = nextStepNum();
-      var textarea = modal.querySelector('textarea.ant-input');
-      if (!textarea) {
-        log(s, '❌ 未找到输入框');
-        updateProgress(s, '未找到输入框', 'err');
-        finishWork();
-        return;
-      }
-      Config.setInputValue(textarea, imgUrl);
-
-      setTimeout(function () {
-        var s2 = nextStepNum();
-        log(s2, '正在确认外包装图片...');
-        updateProgress(s2, '正在确认外包装图片...', 'loading');
-
-        var addBtn = modal.querySelector('.ant-modal-footer .ant-btn-primary');
-        if (!addBtn) {
-          log(s2, '❌ 未找到添加按钮');
-          updateProgress(s2, '未找到添加按钮', 'err');
-          finishWork();
-          return;
-        }
-        addBtn.click();
-        log(s2, '✅ 外包装图片已更新');
-        updateProgress(s2, '外包装图片已更新', 'ok');
-        setTimeout(doStep11, 150);
-      }, 180);
-    }
-
     // Step: 检查标题长度
     function doStep11() {
       var s = nextStepNum();
@@ -1243,7 +767,7 @@
       if (!input || !input.value) {
         log(s, '⚠️ 未找到标题输入框或值为空，跳过截取');
         updateProgress(s, '标题无需截取', 'ok');
-        doStep12();
+        finishWork();
         return;
       }
 
@@ -1261,7 +785,7 @@
       if (title.length <= limit) {
         log(s, '✅ 标题长度 ' + title.length + ' ≤ ' + limit + '，无需截取');
         updateProgress(s, '标题长度 ' + title.length + '，无需截取', 'ok');
-        doStep12();
+        finishWork();
         return;
       }
 
@@ -1278,35 +802,6 @@
       Config.setInputValue(input, t);
       log(s, '✅ 标题已截取至 ' + t.length + ' 字符');
       updateProgress(s, '标题已截取至 ' + t.length + ' 字符', 'ok');
-      doStep12();
-    }
-
-    // Step: 悬浮发布按钮
-    function doStep12() {
-      var s = nextStepNum();
-      if (!Config.loadAutoPublish()) {
-        log(s, '⏭️ 自动发布已关闭，跳过发布步骤');
-        updateProgress(s, '自动发布已关闭，跳过', 'ok');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-        finishWork();
-        return;
-      }
-      step('正在触发发布菜单...', '已悬浮发布按钮', function () {
-        var btn = document.querySelector('.footer .btn-box button.btn-green');
-        if (!btn || !btn.textContent.includes('发布')) return false;
-        hoverElement(btn);
-        return true;
-      }, doStep13);
-    }
-
-    // Step: 立即发布
-    function doStep13() {
-      step('正在点击立即发布...', '全部操作完成！', function () {
-        var o = document.querySelector('.ant-dropdown-menu-item[data-menu-id=”2”]');
-        if (!o || !o.textContent.includes('立即发布')) return false;
-        o.click();
-        return true;
-      }, null);
       finishWork();
     }
   }
