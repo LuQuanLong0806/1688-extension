@@ -114,11 +114,9 @@ Vue.component('detail-modal', {
       return this.selectedMainIndexes.length === this.editable.main_images.length;
     },
     removeMainImage: function (idx) {
-      var pos = this.selectedMainIndexes.indexOf(idx);
-      if (pos >= 0) this.selectedMainIndexes.splice(pos, 1);
-      for (var i = 0; i < this.selectedMainIndexes.length; i++) {
-        if (this.selectedMainIndexes[i] > idx) this.selectedMainIndexes[i]--;
-      }
+      this.selectedMainIndexes = this.selectedMainIndexes
+        .filter(function (n) { return n !== idx; })
+        .map(function (n) { return n > idx ? n - 1 : n; });
       this.editable.main_images.splice(idx, 1);
     },
     openAdd: function () {
@@ -181,11 +179,9 @@ Vue.component('detail-modal', {
       return this.selectedDetailIndexes.length === this.editable.detail_images.length;
     },
     removeDetailImage: function (idx) {
-      var pos = this.selectedDetailIndexes.indexOf(idx);
-      if (pos >= 0) this.selectedDetailIndexes.splice(pos, 1);
-      for (var i = 0; i < this.selectedDetailIndexes.length; i++) {
-        if (this.selectedDetailIndexes[i] > idx) this.selectedDetailIndexes[i]--;
-      }
+      this.selectedDetailIndexes = this.selectedDetailIndexes
+        .filter(function (n) { return n !== idx; })
+        .map(function (n) { return n > idx ? n - 1 : n; });
       this.editable.detail_images.splice(idx, 1);
     },
     toggleStatus: function () {
@@ -208,7 +204,7 @@ Vue.component('detail-modal', {
       var url = location.origin + '/api/product/' + vm.editable.id;
       navigator.clipboard.writeText(url).then(function () {
         vm.$Message.success('已复制');
-      });
+      }).catch(function () { vm.$Message.error('复制失败'); });
     },
     saveProduct: function () {
       var vm = this;
@@ -329,7 +325,7 @@ Vue.component('detail-modal', {
           <div class="detail-section-title">基本信息</div>
           <div class="info-grid">
             <span class="label">选择分类</span><span class="value">
-              <category-picker v-model="editable.customCategory" placeholder="搜索或选择分类" style="width:600px" />
+              <category-picker :value="editable.customCategory" @input="function(v) { editable.customCategory = v }" @path="function(p) { editable.manualCategory = p }" placeholder="搜索或选择分类" style="width:600px" />
             </span>
             <span class="label">手动分类</span><span class="value">
               <i-input v-model="editable.manualCategory" placeholder="手动填写分类" style="width:600px" />
