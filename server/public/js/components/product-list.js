@@ -14,7 +14,6 @@ Vue.component('page-products', {
       dxmCategoryFilter: '',
       dxmCategoryList: [],
       selectedIds: [],
-      quoteProductId: localStorage.getItem('dxm_quote_product_id') || '',
       batchCatVisible: false,
       batchCatValue: '',
       batchCatPath: '',
@@ -76,7 +75,7 @@ Vue.component('page-products', {
         { title: '采集时间', key: 'created_at', width: 200 },
         {
           title: '操作',
-          width: 240,
+          width: 280,
           align: 'center',
           className: 'col-actions',
           fixed: 'right',
@@ -93,13 +92,24 @@ Vue.component('page-products', {
     },
     getCategoryName: function (row) {
       var cat = row.category;
-      return row.customCategory || (cat && (cat.leafCategoryName || cat.categoryPath)) || '';
+      return (
+        row.customCategory ||
+        (cat && (cat.leafCategoryName || cat.categoryPath)) ||
+        ''
+      );
     },
     getSkuText: function (row) {
       var skus = JSON.parse(row.skus || '[]');
       if (!skus.length) return '';
-      var names = skus.map(function (s) { return s.name || s.sku || ''; }).filter(Boolean);
-      if (!names.length) names = skus.map(function (s, i) { return 'SKU' + (i + 1); });
+      var names = skus
+        .map(function (s) {
+          return s.name || s.sku || '';
+        })
+        .filter(Boolean);
+      if (!names.length)
+        names = skus.map(function (s, i) {
+          return 'SKU' + (i + 1);
+        });
       return names.join('、');
     },
     saveCategory: function (row, val) {
@@ -110,7 +120,13 @@ Vue.component('page-products', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ customCategory: val || '' })
-      }).then(function () { vm.$Message.success('已保存'); }).catch(function () { vm.$Message.error('保存失败'); });
+      })
+        .then(function () {
+          vm.$Message.success('已保存');
+        })
+        .catch(function () {
+          vm.$Message.error('保存失败');
+        });
     },
     saveCategoryPath: function (row, path) {
       row.manualCategory = path || '';
@@ -131,63 +147,88 @@ Vue.component('page-products', {
       });
       es.onerror = function () {
         es.close();
-        setTimeout(function () { vm.startPoll(); }, 3000);
+        setTimeout(function () {
+          vm.startPoll();
+        }, 3000);
       };
       vm._pollTimer = es;
     },
     loadCategories: function () {
       var vm = this;
       fetch('/api/product/categories')
-        .then(function (r) { return r.json(); })
-        .then(function (list) { vm.categoryList = list; }).catch(function () {});
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (list) {
+          vm.categoryList = list;
+        })
+        .catch(function () {});
     },
     loadDxmCategories: function () {
       var vm = this;
       fetch('/api/product/dxm-categories')
-        .then(function (r) { return r.json(); })
-        .then(function (list) { vm.dxmCategoryList = list; }).catch(function () {});
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (list) {
+          vm.dxmCategoryList = list;
+        })
+        .catch(function () {});
     },
     loadList: function (p) {
       var vm = this;
       if (p) vm.page = p;
       vm.loading = true;
-      var params = new URLSearchParams({ page: vm.page, pageSize: vm.pageSize });
+      var params = new URLSearchParams({
+        page: vm.page,
+        pageSize: vm.pageSize
+      });
       if (vm.keyword.trim()) params.set('keyword', vm.keyword.trim());
-      if (vm.statusFilter && vm.statusFilter !== 'all') params.set('status', vm.statusFilter);
+      if (vm.statusFilter && vm.statusFilter !== 'all')
+        params.set('status', vm.statusFilter);
       if (vm.categoryFilter) params.set('category', vm.categoryFilter);
       if (vm.dxmCategoryFilter) params.set('dxmCategory', vm.dxmCategoryFilter);
       fetch('/api/product?' + params.toString())
-        .then(function (r) { return r.json(); })
+        .then(function (r) {
+          return r.json();
+        })
         .then(function (d) {
           vm.list = d.list;
           vm.total = d.total;
           vm.loading = false;
         })
-        .catch(function () { vm.loading = false; });
+        .catch(function () {
+          vm.loading = false;
+        });
     },
-    onPageChange: function (p) { this.loadList(p); },
-    onPageSizeChange: function (s) { this.pageSize = s; this.loadList(1); },
+    onPageChange: function (p) {
+      this.loadList(p);
+    },
+    onPageSizeChange: function (s) {
+      this.pageSize = s;
+      this.loadList(1);
+    },
     onSelectionChange: function (sel) {
-      this.selectedIds = sel.map(function (i) { return i.id; });
+      this.selectedIds = sel.map(function (i) {
+        return i.id;
+      });
     },
     openAdd: function (id) {
-      window.open('https://www.dianxiaomi.com/web/temu/add?collectId=' + id, '_blank');
+      window.open(
+        'https://www.dianxiaomi.com/web/temu/add?collectId=' + id,
+        '_blank'
+      );
     },
     openQuoteEdit: function (id) {
-      var pid = this.quoteProductId || '166827730497622099';
-      window.open('https://www.dianxiaomi.com/web/temu/quoteEdit?id=' + pid + '&collectId=' + id, '_blank');
-    },
-    saveQuoteId: function () {
-      var vm = this;
-      var val = (vm.quoteProductId || '').trim();
-      if (!val) return;
-      if (!/^\d{15,20}$/.test(val)) {
-        vm.$Message.warning('请输入正确的店小秘ID');
-        vm.quoteProductId = '';
-        return;
-      }
-      localStorage.setItem('dxm_quote_product_id', val);
-      vm.$Message.success('已保存');
+      var pid =
+        localStorage.getItem('dxm_quote_product_id') || '166827730497622097';
+      window.open(
+        'https://www.dianxiaomi.com/web/temu/quoteEdit?id=' +
+          pid +
+          '&collectId=' +
+          id,
+        '_blank'
+      );
     },
     deleteProduct: function (id) {
       var vm = this;
@@ -195,10 +236,14 @@ Vue.component('page-products', {
         title: '确认删除',
         content: '确认删除此商品？',
         onOk: function () {
-          fetch('/api/product/' + id, { method: 'DELETE' }).then(function () {
-            vm.loadList();
-            vm.$root.loadStats();
-          }).catch(function () { vm.$Message.error('删除失败'); });
+          fetch('/api/product/' + id, { method: 'DELETE' })
+            .then(function () {
+              vm.loadList();
+              vm.$root.loadStats();
+            })
+            .catch(function () {
+              vm.$Message.error('删除失败');
+            });
         }
       });
     },
@@ -213,11 +258,15 @@ Vue.component('page-products', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ids: vm.selectedIds })
-          }).then(function () {
-            vm.selectedIds = [];
-            vm.loadList();
-            vm.$root.loadStats();
-          }).catch(function () { vm.$Message.error('批量删除失败'); });
+          })
+            .then(function () {
+              vm.selectedIds = [];
+              vm.loadList();
+              vm.$root.loadStats();
+            })
+            .catch(function () {
+              vm.$Message.error('批量删除失败');
+            });
         }
       });
     },
@@ -239,18 +288,26 @@ Vue.component('page-products', {
       }
       var body = { customCategory: catValue };
       if (vm.batchCatPath) body.manualCategory = vm.batchCatPath;
-      Promise.all(vm.selectedIds.map(function (id) {
-        return fetch('/api/product/' + id, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body)
+      Promise.all(
+        vm.selectedIds.map(function (id) {
+          return fetch('/api/product/' + id, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+          });
+        })
+      )
+        .then(function () {
+          vm.$Message.success(
+            '已批量设置 ' + vm.selectedIds.length + ' 条商品的类目'
+          );
+          vm.batchCatVisible = false;
+          vm.selectedIds = [];
+          vm.loadList();
+        })
+        .catch(function () {
+          vm.$Message.error('批量设置失败');
         });
-      })).then(function () {
-        vm.$Message.success('已批量设置 ' + vm.selectedIds.length + ' 条商品的类目');
-        vm.batchCatVisible = false;
-        vm.selectedIds = [];
-        vm.loadList();
-      }).catch(function () { vm.$Message.error('批量设置失败'); });
     }
   },
   template: `
@@ -278,11 +335,7 @@ Vue.component('page-products', {
       </div>
       <div class="action-bar">
         <div class="action-bar-left">共采集 <strong>{{ total }}</strong> 条数据</div>
-        <div class="action-bar-right" style="position:relative">
-          <div style="position:relative;margin-right:8px">
-            <i-input v-model="quoteProductId" placeholder="店小秘引用产品ID" search enter-button="保存" style="width:240px" @on-search="saveQuoteId" />
-            <span style="position:absolute;left:2px;top:100%;font-size:11px;color:#999;white-space:nowrap">输入店小秘产品ID后点击保存</span>
-          </div>
+        <div class="action-bar-right">
           <i-button type="error" icon="ios-trash" :disabled="selectedIds.length === 0" @click="batchDelete">
             批量删除{{ selectedIds.length ? ' (' + selectedIds.length + ')' : '' }}
           </i-button>
@@ -327,18 +380,9 @@ Vue.component('page-products', {
         </template>
         <template slot="actions" slot-scope="{ row }">
           <div class="action-btns">
-            <Tooltip content="查看/编辑" placement="top" transfer>
-              <Button type="primary" size="small" icon="ios-eye" style="min-width:36px" @click="$root.openDetail(row.id)"></Button>
-            </Tooltip>
-            <Tooltip content="新建打开" placement="top" transfer>
-              <Button size="small" icon="md-add" style="min-width:36px" @click="openAdd(row.id)"></Button>
-            </Tooltip>
-            <Tooltip content="引用打开" placement="top" transfer>
-              <Button size="small" icon="ios-link" style="min-width:36px" @click="openQuoteEdit(row.id)"></Button>
-            </Tooltip>
-            <Tooltip content="删除" placement="top" transfer>
-              <Button type="error" size="small" icon="ios-trash" style="min-width:36px" @click="deleteProduct(row.id)"></Button>
-            </Tooltip>
+            <Button type="primary" size="small" icon="ios-eye" @click="$root.openDetail(row.id)">详情</Button>
+            <Button type="success" size="small" icon="md-paper-plane" @click="openAdd(row.id)">发布</Button>
+            <Button type="error" size="small" icon="ios-trash" @click="deleteProduct(row.id)">删除</Button>
           </div>
         </template>
       </i-table>
