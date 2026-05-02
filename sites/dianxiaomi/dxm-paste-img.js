@@ -42,8 +42,10 @@
   // ========== Main flow ==========
   function doPasteImg() {
     pasteStep = 0;
-    pasteTotal = 3;
+    pasteTotal = 7;
     console.log('%c[小蜜蜂-粘] 一键粘贴图片URL 开始', 'color:#AB47BC;font-weight:bold;font-size:14px');
+
+    var initialImgCount = document.querySelectorAll('#productProductInfo .mainImage .img-list .img-item').length;
 
     pasteLog('读取剪贴板...');
     navigator.clipboard.readText().then(function (clipText) {
@@ -99,9 +101,7 @@
           var modal = C.findVisibleModal('从网络地址');
           if (modal) {
             fillAndAdd(modal, clipText, function () {
-              console.log('%c[小蜜蜂-粘] ✅ 粘图完成', 'color:#AB47BC;font-weight:bold;font-size:14px');
-              C.showBubble('✅ 粘图完成', 'ok');
-              setTimeout(C.hideBubble, 2000);
+              waitForImagesUploaded(initialImgCount);
             });
             return;
           }
@@ -142,6 +142,118 @@
       addBtn.click();
       if (callback) callback();
     }, 250);
+  }
+
+  // ========== Batch resize after paste ==========
+  function waitForImagesUploaded(initialCount) {
+    pasteLog('等待图片上传...');
+    var start = Date.now();
+    (function check() {
+      var currentCount = document.querySelectorAll('#productProductInfo .mainImage .img-list .img-item').length;
+      if (currentCount > initialCount) {
+        doBatchResize();
+        return;
+      }
+      if (Date.now() - start > 15000) {
+        console.log('%c[小蜜蜂-粘] ⚠️ 等待图片上传超时，跳过批量修改', 'color:#AB47BC;font-weight:bold');
+        C.showBubble('✅ 粘图完成（未检测到新图片）', 'ok');
+        setTimeout(C.hideBubble, 2000);
+        return;
+      }
+      setTimeout(check, 300);
+    })();
+  }
+
+  function doBatchResize() {
+    pasteLog('打开批量编辑...');
+    var actionItems = document.querySelectorAll('#productProductInfo .mainImage .img-options .action-item');
+    var editBtn = null;
+    for (var i = 0; i < actionItems.length; i++) {
+      var link = actionItems[i].querySelector('a.img-options-action-btn');
+      if (link && (link.textContent || '').indexOf('编辑图片') !== -1) {
+        editBtn = link;
+        break;
+      }
+    }
+    if (!editBtn) {
+      console.log('%c[小蜜蜂-粘] ⚠️ 未找到编辑图片按钮，跳过批量修改', 'color:#AB47BC;font-weight:bold');
+      C.showBubble('✅ 粘图完成', 'ok');
+      setTimeout(C.hideBubble, 2000);
+      return;
+    }
+    C.hoverElement(editBtn);
+
+    var start = Date.now();
+    (function checkDropdown() {
+      var items = document.querySelectorAll('li.ant-dropdown-menu-item');
+      var resizeItem = null;
+      for (var i = 0; i < items.length; i++) {
+        if ((items[i].textContent || '').indexOf('批量改图片尺寸') !== -1 && items[i].offsetParent !== null) {
+          resizeItem = items[i];
+          break;
+        }
+      }
+      if (resizeItem) {
+        resizeItem.click();
+        waitForResizeModal();
+        return;
+      }
+      if (Date.now() - start > 3000) {
+        console.log('%c[小蜜蜂-粘] ⚠️ 未找到批量改图片尺寸选项', 'color:#AB47BC;font-weight:bold');
+        C.showBubble('✅ 粘图完成', 'ok');
+        setTimeout(C.hideBubble, 2000);
+        return;
+      }
+      requestAnimationFrame(checkDropdown);
+    })();
+  }
+
+  function waitForResizeModal() {
+    pasteLog('设置图片尺寸...');
+    var start = Date.now();
+    (function check() {
+      var modal = C.findVisibleModal('批量改图片尺寸');
+      if (modal) {
+        doSetResizeAndGenerate(modal);
+        return;
+      }
+      if (Date.now() - start > 5000) {
+        console.log('%c[小蜜蜂-粘] ⚠️ 未找到批量改图片尺寸弹窗', 'color:#AB47BC;font-weight:bold');
+        C.showBubble('✅ 粘图完成', 'ok');
+        setTimeout(C.hideBubble, 2000);
+        return;
+      }
+      requestAnimationFrame(check);
+    })();
+  }
+
+  function doSetResizeAndGenerate(modal) {
+    var widthInput = modal.querySelector('input[name="valueW"]');
+    if (widthInput && !widthInput.value) {
+      C.setInputValue(widthInput, '800');
+    }
+
+    setTimeout(function () {
+      pasteLog('生成JPG图片...');
+      var btns = modal.querySelectorAll('button');
+      var jpgBtn = null;
+      for (var i = 0; i < btns.length; i++) {
+        if ((btns[i].textContent || '').indexOf('生成JPG图片') !== -1) {
+          jpgBtn = btns[i];
+          break;
+        }
+      }
+      if (jpgBtn) {
+        jpgBtn.click();
+        console.log('%c[小蜜蜂-粘] ✅ 粘图+批量修改完成', 'color:#AB47BC;font-weight:bold;font-size:14px');
+        C.showBubble('✅ 粘图+批量修改完成', 'ok');
+        setTimeout(C.hideBubble, 2000);
+      } else {
+        console.log('%c[小蜜蜂-粘] ⚠️ 未找到生成JPG图片按钮', 'color:#AB47BC;font-weight:bold');
+        C.showBubble('✅ 粘图完成', 'ok');
+        setTimeout(C.hideBubble, 2000);
+      }
+    }, 300);
   }
 
   // ========== Delete workflow ==========
