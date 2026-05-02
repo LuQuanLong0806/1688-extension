@@ -4,15 +4,5 @@ dist/
 server/dist/
 server/1688-server/
 *.zip
-server/data.db
-server/data.db.bak
-server/data.db.bak.1
-server/data.db.bak.2
-server/data.db.bak.3
-
-server/dxm_tree.db
-server/dxm_tree.db.bak
-server/dxm_tree.db.bak.1
-server/dxm_tree.db.bak.2
-
-server/dxm_tree.db.bak
+server/*.db
+server/*.db.*
