@@ -203,8 +203,6 @@
       { from: '}', to: ' ', enabled: true },
       { from: ',', to: ' ', enabled: true },
       { from: '，', to: ' ', enabled: true },
-      { from: '.', to: ' ', enabled: true },
-      { from: '。', to: ' ', enabled: true },
       { from: ';', to: ' ', enabled: true },
       { from: '；', to: ' ', enabled: true },
       { from: '?', to: ' ', enabled: true },
@@ -312,8 +310,20 @@
 
       for (var fi = 0; fi < grp.froms.length; fi++) {
         var from = grp.froms[fi];
+        var to = grp.to;
         var pos = text.indexOf(from);
         while (pos !== -1) {
+          // 跳过已经是替换结果的区域：文本在 from 位置后面紧跟着 to 的剩余部分
+          // 例如 from="金色" to="金色调"，文本"金色调" → "金色调" 已包含，跳过
+          var alreadyReplaced = false;
+          if (to && to.length > from.length) {
+            var suffix = to.substring(from.length);
+            if (text.substring(pos + from.length, pos + from.length + suffix.length) === suffix) {
+              alreadyReplaced = true;
+            }
+          } else if (to === from) {
+            alreadyReplaced = true;
+          }
           var overlaps = false;
           for (var m = 0; m < marked.length; m++) {
             if (pos < marked[m].end && pos + from.length > marked[m].start) {
@@ -321,7 +331,7 @@
               break;
             }
           }
-          if (!overlaps) {
+          if (!overlaps && !alreadyReplaced) {
             marked.push({ start: pos, end: pos + from.length, from: from });
             hitFroms.push(from);
           }
