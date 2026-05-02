@@ -273,32 +273,29 @@
     }
 
     function doPasteMainImages(data) {
-      // Step 2: 贴主图（主图 + 已选SKU图片，最多10张）
       var allImages = buildCarouselImages(data);
+      var initialImgCount = document.querySelectorAll('#productProductInfo .mainImage .img-list .img-item').length;
       if (allImages.length) {
         pasteMainImages(allImages, function () {
-          // Step 2.5: 删除产品视频
-          deleteProductVideos(function () {
-            // Step 3: 选择省份
-            autoSelectProvince(function () {
-              // Step 4: 外包装形状+类型+图片
-              var pkgArea = document.querySelector('#packageInfo');
-              if (pkgArea) pkgArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              autoSelectPackageShape(function () {
-                autoSelectPackageType(function () {
-                  updatePackageImage(data, function () {
-                    // Step 5: 描述图（存储到全局，供描述按钮使用）
-                    if (data.desc_images && data.desc_images.length) {
-                      autoLog('描述图已加载 (' + data.desc_images.length + '张)');
-                    }
-                    // Step 6: SKU 填充
-                    if (data.skus && data.skus.length) {
-                      fillSkuTable(data.skus, function () {
-                        autoFinish('自动填表完成');
-                      });
-                    } else {
-                      autoFinish('自动填表完成（无SKU数据）');
-                    }
+          waitForImagesUploaded(initialImgCount, function () {
+            deleteProductVideos(function () {
+              autoSelectProvince(function () {
+                var pkgArea = document.querySelector('#packageInfo');
+                if (pkgArea) pkgArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                autoSelectPackageShape(function () {
+                  autoSelectPackageType(function () {
+                    updatePackageImage(data, function () {
+                      if (data.desc_images && data.desc_images.length) {
+                        autoLog('描述图已加载 (' + data.desc_images.length + '张)');
+                      }
+                      if (data.skus && data.skus.length) {
+                        fillSkuTable(data.skus, function () {
+                          autoFinish('自动填表完成');
+                        });
+                      } else {
+                        autoFinish('自动填表完成（无SKU数据）');
+                      }
+                    });
                   });
                 });
               });
@@ -309,6 +306,96 @@
         autoFinish('自动填表完成（无主图数据）');
       }
     }
+  }
+
+  // ========== 批量修改图片尺寸（贴图后） ==========
+  function waitForImagesUploaded(initialCount, cb) {
+    autoLog('等待图片上传...');
+    var start = Date.now();
+    (function check() {
+      var currentCount = document.querySelectorAll('#productProductInfo .mainImage .img-list .img-item').length;
+      if (currentCount > initialCount) {
+        doBatchResize(cb);
+        return;
+      }
+      if (Date.now() - start > 6000) {
+        autoLog('图片上传超时，跳过批量修改');
+        cb();
+        return;
+      }
+      setTimeout(check, 300);
+    })();
+  }
+
+  function doBatchResize(cb) {
+    autoLog('打开批量编辑...');
+    var actionItems = document.querySelectorAll('#productProductInfo .mainImage .img-options .action-item');
+    var editBtn = null;
+    for (var i = 0; i < actionItems.length; i++) {
+      var link = actionItems[i].querySelector('a.img-options-action-btn');
+      if (link && (link.textContent || '').indexOf('编辑图片') !== -1) {
+        editBtn = link;
+        break;
+      }
+    }
+    if (!editBtn) {
+      autoLog('未找到编辑图片按钮，跳过批量修改');
+      cb();
+      return;
+    }
+
+    hoverElement(editBtn);
+    waitForVisibleLi('批量改图片尺寸', 3000, function (resizeItem) {
+      if (!resizeItem) {
+        autoLog('未找到批量改图片尺寸选项');
+        cb();
+        return;
+      }
+      resizeItem.click();
+
+      var start = Date.now();
+      (function checkModal() {
+        var modal = findVisibleModal('批量改图片尺寸');
+        if (modal) {
+          doSetResizeAndGenerate(modal, cb);
+          return;
+        }
+        if (Date.now() - start > 5000) {
+          autoLog('未找到批量改图片尺寸弹窗');
+          cb();
+          return;
+        }
+        requestAnimationFrame(checkModal);
+      })();
+    });
+  }
+
+  function doSetResizeAndGenerate(modal, cb) {
+    autoLog('设置图片尺寸...');
+    var widthInput = modal.querySelector('input[name="valueW"]');
+    if (widthInput && !widthInput.value) {
+      setInputValue(widthInput, '800');
+    }
+
+    setTimeout(function () {
+      autoLog('生成JPG图片...');
+      var btns = modal.querySelectorAll('button');
+      var jpgBtn = null;
+      for (var i = 0; i < btns.length; i++) {
+        if ((btns[i].textContent || '').indexOf('生成JPG图片') !== -1) {
+          jpgBtn = btns[i];
+          break;
+        }
+      }
+      if (jpgBtn) {
+        jpgBtn.click();
+        autoLog('图片尺寸已批量修改');
+        setTimeout(cb, 500);
+      } else {
+        autoLog('未找到生成JPG图片按钮');
+        cb();
+      }
+    }, 300);
   }
 
   // ========== Step 3: 选择省份 ==========
