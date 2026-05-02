@@ -38,8 +38,12 @@
     console.log('%c[小蜜蜂-SKU] 一键SKU变种属性过滤 开始', 'color:#00838F;font-weight:bold;font-size:14px');
 
     if (!C.loadSkuFilterEnabled()) {
-      C.showBubble('SKU过滤未开启', 'ok');
-      setTimeout(C.hideBubble, 2000);
+      if (C.loadAutoSkuNo()) {
+        setTimeout(doAutoSkuNo, 300);
+      } else {
+        C.showBubble('SKU过滤未开启', 'ok');
+        setTimeout(C.hideBubble, 2000);
+      }
       return;
     }
 
