@@ -12,13 +12,12 @@
 
   // ========== Step log ==========
   var autoStep = 0;
-  var autoTotal = 0;
   function autoLog(msg) {
     autoStep++;
-    var tag = '[自动填表] ' + autoStep + '/' + autoTotal + ' ' + msg;
+    var tag = '[自动填表] Step ' + autoStep + ': ' + msg;
     console.log('%c' + tag, 'color:#E65100;font-weight:bold');
     if (C && C.showBubble) {
-      C.showBubble(autoStep + '/' + autoTotal + ' ' + msg, 'loading');
+      C.showBubble('⏳ ' + autoStep + ' ' + msg, 'loading');
     }
   }
 
@@ -234,22 +233,6 @@
 
   // ========== 自动填表主流程 ==========
   function startAutoFill(data) {
-    // 计算总步骤
-    autoTotal = 1; // 选店铺
-    autoTotal += 1; // 填标题
-    if (data.source_url) autoTotal += 1; // 填来源URL
-    // 自动选择类目（只要有可用的类目名就尝试）
-    var catInfo = resolveCategory(data);
-    if (catInfo) autoTotal += 1;
-    if (data.main_images && data.main_images.length) autoTotal += 3; // 贴主图（打开菜单+网络图片+填入添加）
-    autoTotal += 1; // 删除产品视频
-    autoTotal += 1; // 选择省份
-    autoTotal += 1; // 外包装形状
-    autoTotal += 1; // 外包装类型
-    if (data.desc_images && data.desc_images.length) autoTotal += 1; // 描述图（仅存储到全局）
-    if (data.skus && data.skus.length) autoTotal += 2; // SKU表格填充
-    autoTotal += 1; // 外包装图片
-
     autoStep = 0;
     console.log('%c[自动填表] ===== 开始自动填表 =====', 'color:#E65100;font-weight:bold;font-size:14px');
 
