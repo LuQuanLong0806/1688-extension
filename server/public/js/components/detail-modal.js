@@ -324,26 +324,23 @@ Vue.component('detail-modal', {
         <div class="detail-section">
           <div class="detail-section-title">基本信息</div>
           <div class="info-grid">
-            <span class="label">选择分类</span><span class="value">
-              <category-picker :value="editable.customCategory" @input="function(v) { editable.customCategory = v }" @path="function(p) { editable.manualCategory = p }" placeholder="搜索或选择分类" style="width:600px" />
-            </span>
-            <span class="label">手动分类</span><span class="value">
-              <i-input v-model="editable.manualCategory" placeholder="手动填写分类" style="width:600px" />
-            </span>
-            <span class="label">标题</span><span class="value">
-              <i-input v-model="editable.title" type="textarea" :rows="2" style="width:600px;font-size:14px" />
-            </span>
             <span class="label">来源</span><span class="value">
               <a v-if="editable.source_url" :href="editable.source_url" target="_blank">{{ editable.source_url }}</a>
               <span v-else>-</span>
             </span>
+            <span class="label">标题</span><span class="value">
+              <i-input v-model="editable.title" type="textarea" :rows="2" style="width:600px;font-size:14px" />
+            </span>
+            <span class="label">选择分类</span><span class="value">
+              <category-picker :value="editable.customCategory" @input="function(v) { editable.customCategory = v }" @path="function(p) { editable.manualCategory = p }" placeholder="搜索或选择分类" style="width:600px" />
+            </span>
             <span class="label">1688类目</span><span class="value">
               <span style="color:#666;font-size:14px">{{ originCategory }}</span>
             </span>
-            <span class="label">采集时间</span><span class="value">{{ editable.created_at || '-' }}</span>
             <span class="label">状态</span><span class="value">
               <span :class="'status-tag ' + (editable.status === 0 ? 'status-unused' : 'status-used')">{{ editable.status === 0 ? '未使用' : '已使用' }}</span>
             </span>
+            <span class="label">采集时间</span><span class="value">{{ editable.created_at || '-' }}</span>
           </div>
         </div>
 
@@ -399,7 +396,7 @@ Vue.component('detail-modal', {
         <!-- 底部固定操作栏 -->
         <div class="detail-footer-fixed">
           <i-button type="primary" icon="md-checkmark" @click="saveProduct">保存</i-button>
-          <i-button type="success" icon="md-add" @click="openAdd">新建打开</i-button>
+          <i-button type="success" icon="md-paper-plane" @click="openAdd">发布</i-button>
           <i-button :type="editable.status === 0 ? 'success' : 'error'" @click="toggleStatus">
             {{ editable.status === 0 ? '标记已使用' : '标记未使用' }}
           </i-button>
