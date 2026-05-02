@@ -4,6 +4,8 @@
 
   var Config = window.BeeConfig;
 
+  var POS_KEY = '__dxm_bee_pos';
+
   // ========== SVG ==========
   var beeSVG =
     '<svg viewBox="0 0 80 96" fill="none" xmlns="http://www.w3.org/2000/svg">' +
@@ -67,7 +69,7 @@
   // ========== Styles ==========
   var s = document.createElement('style');
   s.textContent =
-    '#__dxm_bee{position:fixed;z-index:2147483647;left:0;top:45%;user-select:none;display:flex;flex-direction:column;align-items:center}' +
+    '#__dxm_bee{position:fixed;z-index:2147483647;left:0;top:35%;user-select:none;display:flex;flex-direction:column;align-items:center}' +
     '#__dxm_bee *{margin:0;padding:0;box-sizing:border-box}' +
     '#__dxm_bee_icon{width:56px;height:56px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .2s;overflow:visible;position:relative;z-index:2}' +
     '#__dxm_bee_icon:hover{transform:scale(1.1)}' +
@@ -125,6 +127,15 @@
 
   document.head.appendChild(s);
   document.body.appendChild(wrapper);
+
+  // 恢复上次拖动位置
+  try {
+    var savedPos = JSON.parse(localStorage.getItem(POS_KEY));
+    if (savedPos && typeof savedPos.left === 'number' && typeof savedPos.top === 'number') {
+      wrapper.style.left = savedPos.left + 'px';
+      wrapper.style.top = savedPos.top + 'px';
+    }
+  } catch (e) {}
 
   // ========== 检查便签（仅工作页面） ==========
   if (isWorkPage) {
@@ -423,10 +434,16 @@
 
   startIdleSwing();
 
+  function savePos() {
+    var rect = wrapper.getBoundingClientRect();
+    try { localStorage.setItem(POS_KEY, JSON.stringify({ left: rect.left, top: rect.top })); } catch (e) {}
+  }
+
   function setPosition(x, y) {
     wrapper.style.left = x + 'px';
     wrapper.style.right = 'auto';
     wrapper.style.top = y + 'px';
+    savePos();
   }
 
   function snapToEdge() {
@@ -487,7 +504,10 @@
     if (swingRAF && swingMode === 'drag') stopDrag();
     if (dragMoved) {
       snapToEdge();
-      setTimeout(function () { dragMoved = false; }, 300);
+      setTimeout(function () {
+        savePos();
+        dragMoved = false;
+      }, 300);
     }
   });
 

@@ -154,7 +154,7 @@
         doBatchResize();
         return;
       }
-      if (Date.now() - start > 15000) {
+      if (Date.now() - start > 6000) {
         console.log('%c[小蜜蜂-粘] ⚠️ 等待图片上传超时，跳过批量修改', 'color:#AB47BC;font-weight:bold');
         C.showBubble('✅ 粘图完成（未检测到新图片）', 'ok');
         setTimeout(C.hideBubble, 2000);
