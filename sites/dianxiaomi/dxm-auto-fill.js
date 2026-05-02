@@ -240,33 +240,36 @@
     autoSelectShop(function () {
       // 选店铺后等待页面 loading 消失
       waitPageReady(function () {
-        // Step 1: 填入标题
-        fillTitle(data, function () {
-          // Step 1.5: 填入来源URL
-          if (data.source_url) {
-            fillSourceUrl(data.source_url, function () {
-              doCategorySelect(data);
-            });
-          } else {
-            doCategorySelect(data);
-          }
-        });
+        // Step 1: 自动选择类目
+        doCategorySelect(data);
       });
     });
 
     function doCategorySelect(data) {
-      // Step 1.6: 自动选择类目（等待类目按钮出现）
       var catInfo = resolveCategory(data);
       if (catInfo) {
-        // 等待类目选择按钮渲染
         waitForElement('#productBasicInfo .category-item button', 5000, function () {
           autoSelectCategory(catInfo, collectId, function () {
-            doPasteMainImages(data);
+            doFillTitleAndNext(data);
           });
         });
       } else {
-        doPasteMainImages(data);
+        doFillTitleAndNext(data);
       }
+    }
+
+    function doFillTitleAndNext(data) {
+      // 填入标题
+      fillTitle(data, function () {
+        // 填入来源URL
+        if (data.source_url) {
+          fillSourceUrl(data.source_url, function () {
+            doPasteMainImages(data);
+          });
+        } else {
+          doPasteMainImages(data);
+        }
+      });
     }
 
     function doPasteMainImages(data) {
