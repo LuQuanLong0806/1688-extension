@@ -1,0 +1,148 @@
+/* 图片编辑器弹窗 */
+.editor-modal-fullscreen .ivu-modal-body {
+  padding: 0 !important;
+  position: relative !important;
+  top: 0;
+  background: #1e1e1e;
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 55px);
+  overflow: hidden;
+}
+
+.editor-canvas-area {
+  flex: 1;
+  min-height: 0;
+  height: 0;
+}
+
+.editor-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  background: rgba(30, 30, 30, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.editor-loading-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.editor-spin-icon {
+  animation: editor-spin 1s linear infinite;
+}
+
+@keyframes editor-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.editor-footer-fixed {
+  display: flex;
+  gap: 10px;
+  padding: 12px 20px;
+  background: #2c2c2c;
+  border-top: 1px solid #444;
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+}
+
+/* TUI Image Editor 样式覆盖 */
+.tui-image-editor-container {
+  background: #1e1e1e !important;
+}
+
+.tui-image-editor-container .tui-image-editor-menu {
+  background: #2c2c2c !important;
+}
+
+.tui-image-editor-container .tui-image-editor-submenu {
+  background: #1e1e1e !important;
+}
+
+/* 详情弹窗图片编辑按钮 */
+.img-edit-btn {
+  position: absolute;
+  top: auto;
+  bottom: 4px;
+  left: 4px;
+  width: 22px;
+  height: 22px;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: #666;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s, background 0.15s;
+  z-index: 2;
+}
+
+.img-item:hover .img-edit-btn {
+  opacity: 1;
+}
+
+.img-edit-btn:hover {
+  background: #2d8cf0;
+  color: #fff;
+}
+
+/* 图片编辑器独立页面 */
+.page-editor-wrap {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #1e1e1e;
+}
+
+.page-editor-header {
+  flex-shrink: 0;
+  background: #2c2c2c;
+  border-bottom: 1px solid #444;
+  padding: 12px 20px;
+}
+
+.page-editor-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.page-editor-body {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.page-editor-body .editor-canvas-area {
+  width: 100%;
+  height: 100%;
+}
+
+.page-editor-body .editor-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  background: rgba(30, 30, 30, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.page-editor-body .editor-loading-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}

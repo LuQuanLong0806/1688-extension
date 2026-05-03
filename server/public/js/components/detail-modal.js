@@ -249,6 +249,22 @@ Vue.component('detail-modal', {
     },
     onSkuImgLeave: function () {
       this.$root.$refs.thumbPreview.close();
+    },
+    editImage: function (url, field, index) {
+      this.$emit('open-image-editor', {
+        url: url,
+        productId: this.editable ? this.editable.id : '',
+        field: field,
+        index: index
+      });
+    },
+    updateImageUrl: function (field, index, newUrl) {
+      if (!this.editable) return;
+      if (field === 'main_images' && this.editable.main_images) {
+        this.$set(this.editable.main_images, index, newUrl);
+      } else if (field === 'detail_images' && this.editable.detail_images) {
+        this.$set(this.editable.detail_images, index, newUrl);
+      }
     }
   },
   template: `
@@ -274,6 +290,7 @@ Vue.component('detail-modal', {
               <div class="sku-img-check">
                 <checkbox :value="isMainImageChecked(i)" @click.native.stop></checkbox>
               </div>
+              <div class="img-edit-btn" @click.stop="editImage(url, 'main_images', i)" title="编辑图片">&#9998;</div>
               <div class="img-del" @click.stop="removeMainImage(i)">&times;</div>
             </div>
           </div>
@@ -297,6 +314,7 @@ Vue.component('detail-modal', {
               <div class="sku-img-check">
                 <checkbox :value="isDetailImageChecked(i)" @click.native.stop></checkbox>
               </div>
+              <div class="img-edit-btn" @click.stop="editImage(url, 'detail_images', i)" title="编辑图片">&#9998;</div>
               <div class="img-del" @click.stop="removeDetailImage(i)">&times;</div>
             </div>
           </div>

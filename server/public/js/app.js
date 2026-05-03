@@ -11,7 +11,13 @@ new Vue({
     // image preview
     previewVisible: false,
     previewList: [],
-    previewIdx: 0
+    previewIdx: 0,
+    // image editor
+    showImageEditor: false,
+    editorImageUrl: '',
+    editorProductId: '',
+    editorField: 'main_images',
+    editorIndex: 0
   },
   mounted: function () {
     this.loadStats();
@@ -42,6 +48,19 @@ new Vue({
       this.previewIdx = idx;
       this.previewVisible = true;
     },
-    closePreview: function () { this.previewVisible = false; }
+    closePreview: function () { this.previewVisible = false; },
+    // image editor
+    openImageEditor: function (opts) {
+      this.editorImageUrl = opts.url || '';
+      this.editorProductId = opts.productId || '';
+      this.editorField = opts.field || 'main_images';
+      this.editorIndex = opts.index || 0;
+      this.showImageEditor = true;
+    },
+    onImageEditorSaved: function (data) {
+      if (data.url && this.$refs.detailModal) {
+        this.$refs.detailModal.updateImageUrl(data.field, data.index, data.url);
+      }
+    }
   }
 });

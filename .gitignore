@@ -6,3 +6,4 @@ server/1688-server/
 *.zip
 server/*.db
 server/*.db.*
+server/public/uploads/

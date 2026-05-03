@@ -44,6 +44,10 @@
               <i class="menu-icon">🏷️</i>
               <span class="menu-text">类目映射</span>
             </li>
+            <li class="menu-item" :class="{ active: currentView === 'page-editor' }" @click="switchView('page-editor')">
+              <i class="menu-icon">🖼️</i>
+              <span class="menu-text">图片编辑</span>
+            </li>
             <li class="menu-item" :class="{ active: currentView === 'page-dashboard' }" @click="switchView('page-dashboard')">
               <i class="menu-icon">📊</i>
               <span class="menu-text">仪表盘</span>
@@ -65,7 +69,13 @@
     </div>
 
     <!-- Detail Modal -->
-    <detail-modal :visible.sync="showDetail" :detail="detailData" @status-changed="onDetailStatusChanged"></detail-modal>
+    <detail-modal ref="detailModal" :visible.sync="showDetail" :detail="detailData" @status-changed="onDetailStatusChanged"
+      @open-image-editor="openImageEditor"></detail-modal>
+
+    <!-- Image Editor Modal -->
+    <image-editor-modal :visible.sync="showImageEditor" :image-url="editorImageUrl"
+      :product-id="editorProductId" :field="editorField" :index="editorIndex"
+      @saved="onImageEditorSaved"></image-editor-modal>
 
     <!-- Thumb Hover Preview -->
     <thumb-preview ref="thumbPreview"></thumb-preview>
@@ -84,13 +94,21 @@
   <script src="https://cdn.jsdelivr.net/npm/vue@2.7.16/dist/vue.min.js"></script>
   <script src="https://unpkg.com/view-design@4.7.0/dist/iview.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fabric@4.6.0/dist/fabric.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tui-code-snippet@1.3.0/dist/tui-code-snippet.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tui-color-picker@2.2.8/dist/tui-color-picker.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tui-image-editor@3.15.3/dist/tui-image-editor.css">
+  <script src="https://cdn.jsdelivr.net/npm/tui-image-editor@3.15.3/dist/tui-image-editor.min.js"></script>
+  <link rel="stylesheet" href="css/image-editor.css">
   <!-- Components (must load before app.js) -->
   <script src="js/components/thumb-preview.js"></script>
   <script src="js/components/category-picker.js"></script>
+  <script src="js/components/image-editor-modal.js"></script>
   <script src="js/components/detail-modal.js"></script>
   <script src="js/components/dashboard.js"></script>
   <script src="js/components/product-list.js"></script>
   <script src="js/components/category-page.js"></script>
+  <script src="js/components/page-editor.js"></script>
   <!-- Main app -->
   <script src="js/app.js"></script>
 </body>

@@ -10,8 +10,50 @@ const PORT = 3000;
 
 // Middleware
 app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '50mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Uploads directory
+const UPLOADS_DIR = path.join(__dirname, 'public', 'uploads');
+if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+
+// Image proxy (solve CORS for external images)
+app.get('/api/proxy-image', function (req, res) {
+  var url = req.query.url;
+  if (!url) return res.status(400).send('Missing url');
+  var http = url.startsWith('https') ? require('https') : require('http');
+  http.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, function (upstream) {
+    if (upstream.statusCode >= 300 && upstream.statusCode < 400 && upstream.headers.location) {
+      return res.redirect('/api/proxy-image?url=' + encodeURIComponent(upstream.headers.location));
+    }
+    res.setHeader('Content-Type', upstream.headers['content-type'] || 'image/jpeg');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    upstream.pipe(res);
+  }).on('error', function (err) {
+    res.status(502).send('Proxy error: ' + err.message);
+  });
+});
+
+// Upload edited image
+app.post('/api/upload-image', express.json({ limit: '50mb' }), function (req, res) {
+  var dataUrl = req.body.dataUrl;
+  var productId = req.body.productId;
+  var field = req.body.field || 'main_images';
+  var index = req.body.index || 0;
+  if (!dataUrl) return res.status(400).json({ error: 'Missing dataUrl' });
+
+  var matches = dataUrl.match(/^data:image\/(\w+);base64,/);
+  var ext = matches ? matches[1] : 'jpg';
+  if (ext === 'jpeg') ext = 'jpg';
+  var base64Data = dataUrl.replace(/^data:image\/\w+;base64,/, '');
+  var filename = (productId || 'img') + '_' + field + '_' + index + '_' + Date.now() + '.' + ext;
+  var filepath = path.join(UPLOADS_DIR, filename);
+
+  fs.writeFile(filepath, Buffer.from(base64Data, 'base64'), function (err) {
+    if (err) return res.status(500).json({ error: 'Save failed' });
+    res.json({ url: '/uploads/' + filename });
+  });
+});
 
 // 路由
 app.use('/api', require('./routes/settings'));

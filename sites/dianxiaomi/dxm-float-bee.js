@@ -107,6 +107,8 @@
     '#__dxm_bee_line_after_sku_table{display:none}' +
     '#__dxm_bee_package{margin-top:3px;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#8D6E63,#4E342E);color:#fff;font:bold 12px/1 "楷体","KaiTi","STKaiti",serif;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(78,52,46,.35);transition:box-shadow .2s;user-select:none;text-shadow:0 1px 2px rgba(0,0,0,.15)}' +
     '#__dxm_bee_package:hover{transform:scale(1.15)!important;box-shadow:0 4px 12px rgba(78,52,46,.5)}' +
+    '#__dxm_bee_resize{margin-top:3px;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#FF7043,#D84315);color:#fff;font:bold 12px/1 "楷体","KaiTi","STKaiti",serif;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(216,67,21,.35);transition:box-shadow .2s;user-select:none;text-shadow:0 1px 2px rgba(0,0,0,.15)}' +
+    '#__dxm_bee_resize:hover{transform:scale(1.15)!important;box-shadow:0 4px 12px rgba(216,67,21,.5)}' +
     // ========== 便签样式 ==========
     '#__dxm_bee_note{position:fixed;z-index:2147483646;font:12px/1.6 "Microsoft YaHei",Arial,sans-serif}' +
     '#__dxm_bee_note_drag{display:flex;align-items:center;justify-content:space-between;cursor:move;padding:4px}' +
