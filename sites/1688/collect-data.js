@@ -396,7 +396,29 @@
     return clone.textContent.trim();
   }
 
+  // 等待页面关键元素就绪
+  function waitForPageReady(callback) {
+    if (document.querySelector('#gallery .od-gallery-preview')) {
+      callback();
+      return;
+    }
+    var tries = 0;
+    (function poll() {
+      if (document.querySelector('#gallery .od-gallery-preview')) {
+        callback();
+        return;
+      }
+      tries++;
+      if (tries > 30) { // 最多等 6 秒
+        callback();
+        return;
+      }
+      setTimeout(poll, 200);
+    })();
+  }
+
   function collectProductData(callback) {
+    waitForPageReady(function () {
     preloadGalleryImages(function () {
       var imgs = collectImages();
       var attrs = collectAttrs();
@@ -413,6 +435,7 @@
           skus: skus
         });
       });
+    });
     });
   }
 
