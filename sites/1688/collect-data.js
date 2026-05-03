@@ -467,4 +467,7 @@
     getServerUrl: getServerUrl,
     collectAttrs: collectAttrs
   };
+  // 暴露给小鹦鹉抓图使用
+  window.waitForPageReady = waitForPageReady;
+  window.preloadGalleryImages = preloadGalleryImages;
 })();

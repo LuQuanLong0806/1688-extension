@@ -238,46 +238,63 @@
     showBubble('⏳ 滚动加载中...', 'loading');
 
     autoScroll(function () {
-      showBubble('⏳ 抓取中...', 'loading');
-      setTimeout(function () {
-        var count = GrabCore.scanImages();
-        isWorking = false;
-        if (count) {
-          showBubble('✅ 抓取 ' + count + ' 张图片！', 'ok');
-        } else {
-          showBubble('❌ 未找到图片', 'err');
-        }
-        setTimeout(hideBubble, 3000);
-      }, 200);
+      showBubble('⏳ 预加载图片...', 'loading');
+      // 等待页面就绪 + 预加载主图（悬浮缩略图触发懒加载）
+      if (typeof waitForPageReady === 'function') {
+        waitForPageReady(function () {
+          if (typeof preloadGalleryImages === 'function') {
+            preloadGalleryImages(function () {
+              doGrab();
+            });
+          } else {
+            doGrab();
+          }
+        });
+      } else {
+        doGrab();
+      }
     });
   });
 
-  function autoScroll(cb) {
-    var maxRounds = 4;
-    var round = 0;
-    var lastH = 0;
-    var stableCount = 0;
-    function doRound() {
-      round++;
-      var h = document.documentElement.scrollHeight;
-      if (h === lastH) {
-        stableCount++;
+  function doGrab() {
+    showBubble('⏳ 抓取中...', 'loading');
+    setTimeout(function () {
+      var count = GrabCore.scanImages();
+      isWorking = false;
+      if (count) {
+        showBubble('✅ 抓取 ' + count + ' 张图片！', 'ok');
       } else {
-        stableCount = 0;
-        lastH = h;
+        showBubble('❌ 未找到图片', 'err');
       }
-      if (stableCount >= 2 || round >= maxRounds) {
-        window.scrollTo({ top: 0, behavior: 'auto' });
-        setTimeout(cb, 300);
+      setTimeout(hideBubble, 3000);
+    }, 200);
+  }
+
+  function autoScroll(cb) {
+    var step = window.innerHeight;
+    var pos = 0;
+    var maxH = document.documentElement.scrollHeight;
+    var stableCount = 0;
+    function doStep() {
+      pos += step;
+      if (pos >= maxH) {
+        stableCount++;
+        if (stableCount >= 2) {
+          window.scrollTo({ top: 0, behavior: 'auto' });
+          setTimeout(cb, 300);
+          return;
+        }
+        // 再等一屏看看页面有没有变高
+        setTimeout(function () {
+          maxH = document.documentElement.scrollHeight;
+          doStep();
+        }, 400);
         return;
       }
-      window.scrollTo({
-        top: document.documentElement.scrollHeight,
-        behavior: 'smooth'
-      });
-      setTimeout(doRound, 500);
+      window.scrollTo({ top: pos, behavior: 'auto' });
+      setTimeout(doStep, 200);
     }
-    doRound();
+    doStep();
   }
 
   // ========== Settings button ==========

@@ -161,7 +161,7 @@
         })
       )
         return;
-      if (/\.gif(\?|$)/i.test(normalized)) return;
+      if (/\.gif(\?|$)/i.test(normalized) && !/\/img\/ibank\//i.test(normalized)) return;
       if (/\.svg(\?|$)/i.test(normalized)) return;
 
       if (urlMap.has(normalized)) {
