@@ -25,6 +25,35 @@
 
   // ========== 数据采集 ==========
 
+  // 预加载主图：逐个悬浮缩略图，触发懒加载
+  function preloadGalleryImages(callback) {
+    var items = document.querySelectorAll('#gallery .od-scroller-module .od-scroller-item');
+    var validItems = [];
+    items.forEach(function (item) {
+      var cover = item.querySelector('.v-image-cover');
+      if (!cover) return;
+      var bg = cover.style.backgroundImage || '';
+      // 跳过"参数"等非图片项
+      if (bg.indexOf('undefined') !== -1 || bg.indexOf('url') === -1) return;
+      validItems.push(item);
+    });
+
+    if (validItems.length <= 1) { callback(); return; }
+
+    var idx = 0;
+    (function hoverNext() {
+      if (idx >= validItems.length) {
+        callback();
+        return;
+      }
+      var item = validItems[idx];
+      item.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+      item.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+      idx++;
+      setTimeout(hoverNext, 100);
+    })();
+  }
+
   function collectTitle() {
     var el = document.querySelector('#productTitle h1') || document.querySelector('.title-content h1') ||
       document.querySelector('.d-title') || document.querySelector('.title-text');
@@ -48,7 +77,7 @@
       return false;
     }
 
-    // 主图：只从 od-gallery-list 内的 img 采集
+    // 主图：从 od-gallery-list 内的 img 采集
     var galleryList = document.querySelector('#gallery .od-gallery-preview .od-gallery-list');
     if (galleryList) {
       galleryList.querySelectorAll('li img').forEach(function (img) {
@@ -368,19 +397,21 @@
   }
 
   function collectProductData(callback) {
-    var imgs = collectImages();
-    var attrs = collectAttrs();
-    var cat = collectCategory();
-    collectSkusAsync(function (skus) {
-      callback({
-        sourceUrl: location.href,
-        title: collectTitle(),
-        category: cat,
-        mainImages: imgs.mainImages,
-        descImages: imgs.descImages,
-        detailImages: imgs.detailImages,
-        attrs: attrs,
-        skus: skus
+    preloadGalleryImages(function () {
+      var imgs = collectImages();
+      var attrs = collectAttrs();
+      var cat = collectCategory();
+      collectSkusAsync(function (skus) {
+        callback({
+          sourceUrl: location.href,
+          title: collectTitle(),
+          category: cat,
+          mainImages: imgs.mainImages,
+          descImages: imgs.descImages,
+          detailImages: imgs.detailImages,
+          attrs: attrs,
+          skus: skus
+        });
       });
     });
   }
