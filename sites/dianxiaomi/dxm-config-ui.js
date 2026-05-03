@@ -104,11 +104,13 @@
   var skuFilterEnabled = Config.loadSkuFilterEnabled();
   var province = Config.loadProvince();
   var autoSkuNo = Config.loadAutoSkuNo();
+  var autoResize = Config.loadAutoResize();
   var shopId = Config.loadShopId();
   menu.innerHTML =
     '<div class="menu-item clickable" id="__dxm_bee_menu_filter"><span class="menu-label clickable" id="__dxm_bee_menu_filter_text">📝 标题过滤</span><div class="switch ' + (filterEnabled ? 'on' : '') + '" id="__dxm_bee_menu_filter_switch"></div><div class="menu-desc">点击文字打开配置弹窗，开启后自动过滤标题违规文字</div></div>' +
     '<div class="menu-item clickable" id="__dxm_bee_menu_sku_filter"><span class="menu-label clickable" id="__dxm_bee_menu_sku_filter_text">🏷️ SKU变种属性过滤</span><div class="switch ' + (skuFilterEnabled ? 'on' : '') + '" id="__dxm_bee_menu_sku_filter_switch"></div><div class="menu-desc">点击文字打开配置弹窗，开启后自动过滤SKU变种属性违规文字</div></div>' +
     '<div class="menu-item"><span class="menu-label">🔢 自动SKU高级</span><div class="switch ' + (autoSkuNo ? 'on' : '') + '" id="__dxm_bee_menu_sku_no_switch"></div><div class="menu-desc">开启后SKU工作流自动执行高级SKU货号生成</div></div>' +
+    '<div class="menu-item"><span class="menu-label">📐 自动批量修改图片尺寸</span><div class="switch ' + (autoResize ? 'on' : '') + '" id="__dxm_bee_menu_auto_resize_switch"></div><div class="menu-desc">开启后自动填充和贴图完成后自动批量修改图片尺寸</div></div>' +
     '<div class="menu-item clickable" id="__dxm_bee_menu_store"><span class="menu-label">🏪 选择店铺</span><span class="menu-value" id="__dxm_bee_menu_store_name">' + (currentStore || '未选择') + '</span><span class="menu-arrow">▸</span><div class="menu-desc">选择工作流自动填写的店铺名称</div></div>' +
     '<div class="menu-item"><span class="menu-label">📍 省份选择</span><input type="text" class="menu-input" id="__dxm_bee_menu_province_input" value="' + province + '" maxlength="10" placeholder="广东省"><div class="menu-desc">工作流填写的省份，须以省/市/自治区结尾</div></div>' +
     '<div class="menu-item"><span class="menu-label">🔑 店铺ID</span><input type="text" class="menu-input" id="__dxm_bee_menu_shopid_input" value="' + shopId + '" maxlength="20" placeholder="输入店铺ID"><div class="menu-desc">同步类目所需的店铺ID</div></div>' +
@@ -197,6 +199,15 @@
     this.classList.toggle('on', on);
     Config.saveAutoSkuNo(on);
     console.log('%c[小蜜蜂] 自动SKU高级: ' + (on ? '开启' : '关闭'), 'color:#FFA000;font-weight:bold');
+  });
+
+  var autoResizeSwitch = document.getElementById('__dxm_bee_menu_auto_resize_switch');
+  autoResizeSwitch.addEventListener('click', function (e) {
+    e.stopPropagation();
+    var on = !this.classList.contains('on');
+    this.classList.toggle('on', on);
+    Config.saveAutoResize(on);
+    console.log('%c[小蜜蜂] 自动批量修改图片尺寸: ' + (on ? '开启' : '关闭'), 'color:#FFA000;font-weight:bold');
   });
 
   var provinceInput = document.getElementById('__dxm_bee_menu_province_input');

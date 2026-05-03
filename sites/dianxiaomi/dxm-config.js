@@ -16,6 +16,7 @@
   var DEL_VIDEO_KEY = '__dxm_bee_del_video';
   var AUTO_FILL_KEY = '__dxm_bee_auto_fill';
   var SHOP_ID_KEY = '__dxm_bee_shop_id';
+  var AUTO_RESIZE_KEY = '__dxm_bee_auto_resize';
 
   var SERVER_URL_KEY = '1688_server_url';
 
@@ -278,6 +279,16 @@
     syncToServer(SHOP_ID_KEY, val);
   }
 
+  function loadAutoResize() {
+    return localStorage.getItem(AUTO_RESIZE_KEY) === 'true';
+  }
+
+  function saveAutoResize(val) {
+    var v = val ? 'true' : 'false';
+    localStorage.setItem(AUTO_RESIZE_KEY, v);
+    syncToServer(AUTO_RESIZE_KEY, v);
+  }
+
 
   // 分组一次性过滤：同替换目标归为一组，组内按匹配长度降序，最长优先，避免二次替换
   // 支持 / 分隔多个关键词，如 "黄金/金色/金" → 三个独立匹配
@@ -486,6 +497,8 @@
     saveAutoFill: saveAutoFill,
     loadShopId: loadShopId,
     saveShopId: saveShopId,
+    loadAutoResize: loadAutoResize,
+    saveAutoResize: saveAutoResize,
     loadFromServer: loadFromServer,
     getServerUrl: getServerUrl,
     setInputValue: setInputValue,

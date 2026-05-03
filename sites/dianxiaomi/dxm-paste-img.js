@@ -101,7 +101,13 @@
           var modal = C.findVisibleModal('从网络地址');
           if (modal) {
             fillAndAdd(modal, clipText, function () {
-              waitForImagesUploaded(initialImgCount);
+              if (C.loadAutoResize()) {
+                waitForImagesUploaded(initialImgCount);
+              } else {
+                console.log('%c[小蜜蜂-粘] ✅ 粘图完成', 'color:#AB47BC;font-weight:bold;font-size:14px');
+                C.showBubble('✅ 粘图完成', 'ok');
+                setTimeout(C.hideBubble, 2000);
+              }
             });
             return;
           }

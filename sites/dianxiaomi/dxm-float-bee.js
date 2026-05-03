@@ -56,6 +56,8 @@
     '<div id="__dxm_bee_delete" title="一键清空图片+视频">删图</div>' +
     '<div class="__dxm_bee_line"></div>' +
     '<div id="__dxm_bee_paste" title="一键粘贴图片URL">贴图</div>' +
+    '<div class="__dxm_bee_line"></div>' +
+    '<div id="__dxm_bee_resize" title="批量修改图片尺寸">尺寸</div>' +
     '<div class="__dxm_bee_line" id="__dxm_bee_line_sku_table"></div>' +
     '<div id="__dxm_bee_sku_table" title="SKU表格填充">填表</div>' +
     '<div class="__dxm_bee_line" id="__dxm_bee_line_after_sku_table"></div>' +
@@ -840,6 +842,91 @@
     if (!document.hidden) notifyClearResult();
   });
 
+
+  // ========== 尺寸按钮（批量修改图片尺寸） ==========
+  if (isWorkPage) {
+    var resizeEl = document.getElementById('__dxm_bee_resize');
+    if (resizeEl) {
+      resizeEl.addEventListener('click', function () {
+        var mainImg = document.querySelector('#productProductInfo .mainImage');
+        if (mainImg) mainImg.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        doResizeImages();
+      });
+    }
+
+    function doResizeImages() {
+      var rsStep = 0;
+      var rsTotal = 3;
+      function rsLog(msg) {
+        rsStep++;
+        showBubble(rsStep + '/' + rsTotal + ' ' + msg, 'loading');
+      }
+
+      rsLog('打开批量编辑...');
+      var actionItems = document.querySelectorAll('#productProductInfo .mainImage .img-options .action-item');
+      var editBtn = null;
+      for (var i = 0; i < actionItems.length; i++) {
+        var link = actionItems[i].querySelector('a.img-options-action-btn');
+        if (link && (link.textContent || '').indexOf('编辑图片') !== -1) {
+          editBtn = link;
+          break;
+        }
+      }
+      if (!editBtn) {
+        showBubble('❌ 未找到编辑图片按钮', 'err');
+        setTimeout(hideBubble, 2000);
+        return;
+      }
+
+      Config.hoverElement(editBtn);
+      Config.waitForVisibleLi('批量改图片尺寸', 3000, function (resizeItem) {
+        if (!resizeItem) {
+          showBubble('❌ 未找到批量改图片尺寸', 'err');
+          setTimeout(hideBubble, 2000);
+          return;
+        }
+        resizeItem.click();
+
+        var start = Date.now();
+        (function checkModal() {
+          var modal = Config.findVisibleModal('批量改图片尺寸');
+          if (modal) {
+            rsLog('设置图片尺寸...');
+            var widthInput = modal.querySelector('input[name="valueW"]');
+            if (widthInput && !widthInput.value) {
+              Config.setInputValue(widthInput, '800');
+            }
+            setTimeout(function () {
+              rsLog('生成JPG图片...');
+              var btns = modal.querySelectorAll('button');
+              var jpgBtn = null;
+              for (var b = 0; b < btns.length; b++) {
+                if ((btns[b].textContent || '').indexOf('生成JPG图片') !== -1) {
+                  jpgBtn = btns[b];
+                  break;
+                }
+              }
+              if (jpgBtn) {
+                jpgBtn.click();
+                showBubble('✅ 图片尺寸已修改', 'ok');
+                setTimeout(hideBubble, 2000);
+              } else {
+                showBubble('❌ 未找到生成按钮', 'err');
+                setTimeout(hideBubble, 2000);
+              }
+            }, 300);
+            return;
+          }
+          if (Date.now() - start > 5000) {
+            showBubble('❌ 未找到弹窗', 'err');
+            setTimeout(hideBubble, 2000);
+            return;
+          }
+          requestAnimationFrame(checkModal);
+        })();
+      });
+    }
+  }
 
   // ========== 包装按钮 ==========
   if (isWorkPage) {

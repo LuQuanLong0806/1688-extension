@@ -277,7 +277,32 @@
       var initialImgCount = document.querySelectorAll('#productProductInfo .mainImage .img-list .img-item').length;
       if (allImages.length) {
         pasteMainImages(allImages, function () {
-          waitForImagesUploaded(initialImgCount, function () {
+          if (C.loadAutoResize()) {
+            waitForImagesUploaded(initialImgCount, function () {
+              deleteProductVideos(function () {
+                autoSelectProvince(function () {
+                  var pkgArea = document.querySelector('#packageInfo');
+                  if (pkgArea) pkgArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  autoSelectPackageShape(function () {
+                    autoSelectPackageType(function () {
+                      updatePackageImage(data, function () {
+                        if (data.desc_images && data.desc_images.length) {
+                          autoLog('描述图已加载 (' + data.desc_images.length + '张)');
+                        }
+                        if (data.skus && data.skus.length) {
+                          fillSkuTable(data.skus, function () {
+                            autoFinish('自动填表完成');
+                          });
+                        } else {
+                          autoFinish('自动填表完成（无SKU数据）');
+                        }
+                      });
+                    });
+                  });
+                });
+              });
+            });
+          } else {
             deleteProductVideos(function () {
               autoSelectProvince(function () {
                 var pkgArea = document.querySelector('#packageInfo');
@@ -300,7 +325,7 @@
                 });
               });
             });
-          });
+          }
         });
       } else {
         autoFinish('自动填表完成（无主图数据）');
