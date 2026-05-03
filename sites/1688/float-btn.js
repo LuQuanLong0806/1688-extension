@@ -271,30 +271,19 @@
   }
 
   function autoScroll(cb) {
-    var step = window.innerHeight;
-    var pos = 0;
-    var maxH = document.documentElement.scrollHeight;
-    var stableCount = 0;
-    function doStep() {
-      pos += step;
-      if (pos >= maxH) {
-        stableCount++;
-        if (stableCount >= 2) {
-          window.scrollTo({ top: 0, behavior: 'auto' });
-          setTimeout(cb, 300);
-          return;
-        }
-        // 再等一屏看看页面有没有变高
-        setTimeout(function () {
-          maxH = document.documentElement.scrollHeight;
-          doStep();
-        }, 400);
+    var rounds = 4;
+    var i = 0;
+    function doRound() {
+      if (i >= rounds) {
+        window.scrollTo(0, 0);
+        setTimeout(cb, 300);
         return;
       }
-      window.scrollTo({ top: pos, behavior: 'auto' });
-      setTimeout(doStep, 200);
+      window.scrollTo(0, document.documentElement.scrollHeight);
+      i++;
+      setTimeout(doRound, 500);
     }
-    doStep();
+    doRound();
   }
 
   // ========== Settings button ==========
