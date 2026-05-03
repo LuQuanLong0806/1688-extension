@@ -271,19 +271,41 @@
   }
 
   function autoScroll(cb) {
-    var rounds = 4;
+    var maxRounds = 4;
     var i = 0;
+    var lastH = 0;
+    var stableCount = 0;
     function doRound() {
-      if (i >= rounds) {
+      if (i >= maxRounds || stableCount >= 2) {
         window.scrollTo(0, 0);
         setTimeout(cb, 300);
         return;
       }
-      window.scrollTo(0, document.documentElement.scrollHeight);
       i++;
-      setTimeout(doRound, 500);
+      smoothTo(document.documentElement.scrollHeight, 250, function () {
+        var curH = document.documentElement.scrollHeight;
+        if (curH === lastH) stableCount++;
+        else stableCount = 0;
+        lastH = curH;
+        setTimeout(doRound, 200);
+      });
     }
     doRound();
+  }
+
+  function smoothTo(target, duration, done) {
+    var start = window.scrollY;
+    var distance = target - start;
+    var startTime = null;
+    function frame(time) {
+      if (!startTime) startTime = time;
+      var progress = Math.min((time - startTime) / duration, 1);
+      var eased = 1 - (1 - progress) * (1 - progress);
+      window.scrollTo(0, start + distance * eased);
+      if (progress < 1) requestAnimationFrame(frame);
+      else done();
+    }
+    requestAnimationFrame(frame);
   }
 
   // ========== Settings button ==========
