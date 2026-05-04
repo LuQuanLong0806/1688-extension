@@ -87,6 +87,8 @@ Vue.component('page-products', {
   methods: {
     // -- 列辅助方法 --
     getSkuImage: function (row) {
+      var mainImages = JSON.parse(row.main_images || '[]');
+      if (mainImages.length) return mainImages[0];
       var skus = JSON.parse(row.skus || '[]');
       return skus.length && skus[0].image ? skus[0].image : null;
     },
