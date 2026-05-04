@@ -263,6 +263,22 @@
     return !!el;
   }
 
+  // 等待图片切换完成（通过 body 的 loading 类判断）
+  async function waitForImageLoad(maxMs) {
+    maxMs = maxMs || 5000;
+    var start = Date.now();
+    // 先等 loading 出现
+    while (!document.body.classList.contains('el-loading-parent--hidden')) {
+      if (Date.now() - start > 1000) break; // 最多等1秒loading出现
+      await wait(50);
+    }
+    // 再等 loading 消失
+    while (document.body.classList.contains('el-loading-parent--hidden')) {
+      if (Date.now() - start > maxMs) break;
+      await wait(50);
+    }
+  }
+
   function findModuleByName(name) {
     var modules = $$('.side_tools .content .module');
     for (var i = 0; i < modules.length; i++) {
@@ -339,7 +355,7 @@
       // 点击第i张图片
       console.log(LOG, '[' + (i + 1) + '/' + total + '] 点击图片');
       click(currentImgs[i]);
-      await wait(600);
+      await waitForImageLoad(5000);
 
       // 等待"裁剪/旋转"出现
       var cropModule = await waitForModule('裁剪/旋转', 3000);
