@@ -15,6 +15,16 @@
         <circle cx="4" cy="11" r="1.5"/><circle cx="10" cy="11" r="1.5"/>
       </svg>
     </div>
+    <div class="__dxm_editor_btn" data-action="crop" title="裁剪/旋转">
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 1v12h12M13 15V3H1"/></svg>
+      <span>裁剪</span>
+    </div>
+    <div class="__dxm_editor_sep"></div>
+    <div class="__dxm_editor_btn" data-action="resize" title="调整尺寸">
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 1h6v6H1zM9 9h6v6H9z"/><path d="M7 4h5v5"/></svg>
+      <span>调整尺寸</span>
+    </div>
+    <div class="__dxm_editor_sep"></div>
     <div class="__dxm_editor_btn" data-action="erase" title="AI消除笔 - 涂抹去除水印/文字">
       <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 14l2-2L13 3l1 1L5 13l-2 1z"/><path d="M11 2l2 2"/></svg>
       <span>消除笔</span>
@@ -463,8 +473,11 @@
       var action = btn.getAttribute('data-action');
 
       switch (action) {
-        case 'flip':
-          doBatchFlip();
+        case 'crop':
+          clickAdjustTool('裁剪/旋转');
+          break;
+        case 'resize':
+          clickAdjustTool('调整尺寸');
           break;
         case 'erase':
           clickAdjustTool('消除笔');
@@ -474,6 +487,9 @@
           break;
         case 'watermark':
           doMyWatermark();
+          break;
+        case 'flip':
+          doBatchFlip();
           break;
       }
     });
