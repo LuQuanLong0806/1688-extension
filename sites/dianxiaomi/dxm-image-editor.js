@@ -339,7 +339,7 @@
       // 点击第i张图片
       console.log(LOG, '[' + (i + 1) + '/' + total + '] 点击图片');
       click(currentImgs[i]);
-      await wait(300);
+      await wait(600);
 
       // 等待"裁剪/旋转"出现
       var cropModule = await waitForModule('裁剪/旋转', 3000);
@@ -347,6 +347,8 @@
       var cropOpen = cropModule.querySelector('.open');
       console.log(LOG, '[' + (i + 1) + '/' + total + '] 点击裁剪/旋转');
       click(cropOpen);
+
+      // 等待翻转按钮出现
 
       // 等待翻转按钮出现
       var flipIcon = await waitFor('.icon_btns .icon-flip_h', 3000);
@@ -362,7 +364,7 @@
       if (flipIcon) {
         console.log(LOG, '[' + (i + 1) + '/' + total + '] 点击翻转');
         click(flipIcon);
-        await wait(500);
+        await wait(300);
       } else {
         console.warn(LOG, '[' + (i + 1) + '/' + total + '] 未找到翻转按钮');
       }
