@@ -356,6 +356,7 @@
       console.log(LOG, '[' + (i + 1) + '/' + total + '] 点击图片');
       click(currentImgs[i]);
       await waitForImageLoad(5000);
+      await wait(100);
 
       // 等待"裁剪/旋转"出现
       var cropModule = await waitForModule('裁剪/旋转', 3000);
@@ -380,14 +381,17 @@
       if (flipIcon) {
         console.log(LOG, '[' + (i + 1) + '/' + total + '] 点击翻转');
         click(flipIcon);
-        await wait(300);
+        await wait(200);
       } else {
         console.warn(LOG, '[' + (i + 1) + '/' + total + '] 未找到翻转按钮');
       }
+    }
 
-      // 关闭裁剪面板
-      click(cropOpen);
-      await wait(200);
+    // 全部完成后关闭裁剪面板
+    var lastCropModule = findModuleByName('裁剪/旋转');
+    if (lastCropModule) {
+      var lastCropOpen = lastCropModule.querySelector('.open');
+      if (lastCropOpen) click(lastCropOpen);
     }
 
     updateFlipProgress();
