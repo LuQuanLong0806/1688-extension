@@ -15,11 +15,6 @@
         <circle cx="4" cy="11" r="1.5"/><circle cx="10" cy="11" r="1.5"/>
       </svg>
     </div>
-    <div class="__dxm_editor_btn" data-action="flip" title="批量水平翻转图片">
-      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1v14M5 4L2 8l3 4M11 4l3 4-3 4"/></svg>
-      <span>批量翻转</span>
-    </div>
-    <div class="__dxm_editor_sep"></div>
     <div class="__dxm_editor_btn" data-action="erase" title="AI消除笔 - 涂抹去除水印/文字">
       <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 14l2-2L13 3l1 1L5 13l-2 1z"/><path d="M11 2l2 2"/></svg>
       <span>消除笔</span>
@@ -33,6 +28,11 @@
     <div class="__dxm_editor_btn" data-action="watermark" title="我的水印 - 批量添加水印">
       <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2C5 2 2 5 2 8s3 6 6 6 6-3 6-6-3-6-6-6z"/><path d="M6 8h4M8 6v4"/></svg>
       <span>我的水印</span>
+    </div>
+    <div class="__dxm_editor_sep"></div>
+    <div class="__dxm_editor_btn" data-action="flip" title="批量水平翻转图片">
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1v14M5 4L2 8l3 4M11 4l3 4-3 4"/></svg>
+      <span>批量翻转</span>
     </div>`;
 
   // ========== Styles ==========
