@@ -7,3 +7,4 @@ server/1688-server/
 server/*.db
 server/*.db.*
 server/public/uploads/
+server/models/*.onnx

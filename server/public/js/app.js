@@ -17,7 +17,13 @@ new Vue({
     editorImageUrl: '',
     editorProductId: '',
     editorField: 'main_images',
-    editorIndex: 0
+    editorIndex: 0,
+    // meitu editor modal
+    showMeituEditor: false,
+    meituImageUrl: '',
+    meituProductId: '',
+    meituField: 'main_images',
+    meituIndex: 0
   },
   mounted: function () {
     this.loadStats();
@@ -58,6 +64,18 @@ new Vue({
       this.showImageEditor = true;
     },
     onImageEditorSaved: function (data) {
+      if (data.url && this.$refs.detailModal) {
+        this.$refs.detailModal.updateImageUrl(data.field, data.index, data.url);
+      }
+    },
+    openMeituEditor: function (opts) {
+      this.meituImageUrl = opts.url || '';
+      this.meituProductId = opts.productId || '';
+      this.meituField = opts.field || 'main_images';
+      this.meituIndex = opts.index || 0;
+      this.showMeituEditor = true;
+    },
+    onMeituEditorSaved: function (data) {
       if (data.url && this.$refs.detailModal) {
         this.$refs.detailModal.updateImageUrl(data.field, data.index, data.url);
       }

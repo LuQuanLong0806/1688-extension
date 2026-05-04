@@ -48,6 +48,10 @@
               <i class="menu-icon">🖼️</i>
               <span class="menu-text">图片编辑</span>
             </li>
+            <li class="menu-item" :class="{ active: currentView === 'page-meitu' }" @click="switchView('page-meitu')">
+              <i class="menu-icon">🎨</i>
+              <span class="menu-text">小秘美图</span>
+            </li>
             <li class="menu-item" :class="{ active: currentView === 'page-dashboard' }" @click="switchView('page-dashboard')">
               <i class="menu-icon">📊</i>
               <span class="menu-text">仪表盘</span>
@@ -77,6 +81,14 @@
       :product-id="editorProductId" :field="editorField" :index="editorIndex"
       @saved="onImageEditorSaved"></image-editor-modal>
 
+    <!-- Meitu Editor Modal -->
+    <modal v-model="showMeituEditor" class="meitu-modal-fullscreen" fullscreen footer-hide
+      title="小秘美图" @on-cancel="showMeituEditor=false">
+      <meitu-editor v-if="showMeituEditor" :image-url="meituImageUrl"
+        :product-id="meituProductId" :field="meituField" :index="meituIndex"
+        mode="modal" @saved="onMeituEditorSaved" @close="showMeituEditor=false"></meitu-editor>
+    </modal>
+
     <!-- Thumb Hover Preview -->
     <thumb-preview ref="thumbPreview"></thumb-preview>
 
@@ -100,6 +112,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tui-image-editor@3.15.3/dist/tui-image-editor.css">
   <script src="https://cdn.jsdelivr.net/npm/tui-image-editor@3.15.3/dist/tui-image-editor.min.js"></script>
   <link rel="stylesheet" href="css/image-editor.css">
+  <link rel="stylesheet" href="css/meitu-editor.css">
   <!-- Components (must load before app.js) -->
   <script src="js/components/thumb-preview.js"></script>
   <script src="js/components/category-picker.js"></script>
@@ -109,6 +122,8 @@
   <script src="js/components/product-list.js"></script>
   <script src="js/components/category-page.js"></script>
   <script src="js/components/page-editor.js"></script>
+  <script src="js/components/meitu-editor.js"></script>
+  <script src="js/components/page-meitu.js"></script>
   <!-- Main app -->
   <script src="js/app.js"></script>
 </body>
