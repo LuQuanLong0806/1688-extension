@@ -7,121 +7,119 @@
   // ========== DOM ==========
   var toolbar = document.createElement('div');
   toolbar.id = '__dxm_editor_toolbar';
-  toolbar.innerHTML =
-    '<div class="__dxm_editor_drag" title="拖动移动位置">' +
-      '<svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">' +
-        '<circle cx="4" cy="3" r="1.5"/><circle cx="10" cy="3" r="1.5"/>' +
-        '<circle cx="4" cy="7" r="1.5"/><circle cx="10" cy="7" r="1.5"/>' +
-        '<circle cx="4" cy="11" r="1.5"/><circle cx="10" cy="11" r="1.5"/>' +
-      '</svg>' +
-    '</div>' +
-    '<div class="__dxm_editor_btn" data-action="flip" title="批量水平翻转图片">' +
-      '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1v14M5 4L2 8l3 4M11 4l3 4-3 4"/></svg>' +
-      '<span>批量翻转</span>' +
-    '</div>' +
-    '<div class="__dxm_editor_sep"></div>' +
-    '<div class="__dxm_editor_btn" data-action="erase" title="AI消除笔 - 涂抹去除水印/文字">' +
-      '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 14l2-2L13 3l1 1L5 13l-2 1z"/><path d="M11 2l2 2"/></svg>' +
-      '<span>消除笔</span>' +
-    '</div>' +
-    '<div class="__dxm_editor_sep"></div>' +
-    '<div class="__dxm_editor_btn" data-action="ruler" title="显示/隐藏标尺参考线">' +
-      '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="4" width="14" height="8" rx="1"/><path d="M4 4v3M7 4v5M10 4v3M13 4v5"/></svg>' +
-      '<span>标尺</span>' +
-    '</div>' +
-    '<div class="__dxm_editor_sep"></div>' +
-    '<div class="__dxm_editor_btn" data-action="watermark" title="我的水印 - 批量添加水印">' +
-      '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2C5 2 2 5 2 8s3 6 6 6 6-3 6-6-3-6-6-6z"/><path d="M6 8h4M8 6v4"/></svg>' +
-      '<span>我的水印</span>' +
-    '</div>';
+  toolbar.innerHTML = `
+    <div class="__dxm_editor_drag" title="拖动移动位置">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
+        <circle cx="4" cy="3" r="1.5"/><circle cx="10" cy="3" r="1.5"/>
+        <circle cx="4" cy="7" r="1.5"/><circle cx="10" cy="7" r="1.5"/>
+        <circle cx="4" cy="11" r="1.5"/><circle cx="10" cy="11" r="1.5"/>
+      </svg>
+    </div>
+    <div class="__dxm_editor_btn" data-action="flip" title="批量水平翻转图片">
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1v14M5 4L2 8l3 4M11 4l3 4-3 4"/></svg>
+      <span>批量翻转</span>
+    </div>
+    <div class="__dxm_editor_sep"></div>
+    <div class="__dxm_editor_btn" data-action="erase" title="AI消除笔 - 涂抹去除水印/文字">
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 14l2-2L13 3l1 1L5 13l-2 1z"/><path d="M11 2l2 2"/></svg>
+      <span>消除笔</span>
+    </div>
+    <div class="__dxm_editor_sep"></div>
+    <div class="__dxm_editor_btn" data-action="ruler" title="显示/隐藏标尺参考线">
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="4" width="14" height="8" rx="1"/><path d="M4 4v3M7 4v5M10 4v3M13 4v5"/></svg>
+      <span>标尺</span>
+    </div>
+    <div class="__dxm_editor_sep"></div>
+    <div class="__dxm_editor_btn" data-action="watermark" title="我的水印 - 批量添加水印">
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2C5 2 2 5 2 8s3 6 6 6 6-3 6-6-3-6-6-6z"/><path d="M6 8h4M8 6v4"/></svg>
+      <span>我的水印</span>
+    </div>`;
 
   // ========== Styles ==========
   var style = document.createElement('style');
-  style.textContent =
-    '#__dxm_editor_toolbar{' +
-      'position:fixed;z-index:2147483647;' +
-      'display:flex;align-items:center;gap:2px;' +
-      'padding:6px 8px;' +
-      'background:rgba(255,255,255,0.88);' +
-      'backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);' +
-      'border:1px solid rgba(0,0,0,0.08);' +
-      'border-radius:28px;' +
-      'box-shadow:0 4px 24px rgba(0,0,0,0.10),0 1px 4px rgba(0,0,0,0.06);' +
-      'font-family:-apple-system,"Microsoft YaHei","PingFang SC",sans-serif;' +
-      'font-size:13px;color:#333;' +
-      'user-select:none;' +
-      'transition:box-shadow .2s,transform .15s' +
-    '}' +
-    '#__dxm_editor_toolbar:hover{' +
-      'box-shadow:0 6px 28px rgba(0,0,0,0.14),0 2px 6px rgba(0,0,0,0.08)' +
-    '}' +
-    '#__dxm_editor_toolbar.__dxm_dragging{' +
-      'box-shadow:0 8px 32px rgba(0,0,0,0.18);' +
-      'transform:scale(1.02);' +
-      'cursor:grabbing' +
-    '}' +
-    '#__dxm_editor_toolbar *{margin:0;padding:0;box-sizing:border-box}' +
-    // 拖拽手柄
-    '.__dxm_editor_drag{' +
-      'display:flex;align-items:center;justify-content:center;' +
-      'width:28px;height:28px;' +
-      'border-radius:50%;' +
-      'color:#aaa;' +
-      'cursor:grab;' +
-      'transition:background .15s,color .15s;' +
-      'flex-shrink:0' +
-    '}' +
-    '.__dxm_editor_drag:hover{background:rgba(0,0,0,0.06);color:#666}' +
-    // 按钮
-    '.__dxm_editor_btn{' +
-      'display:flex;align-items:center;gap:5px;' +
-      'padding:7px 14px;' +
-      'border-radius:20px;' +
-      'cursor:pointer;' +
-      'white-space:nowrap;' +
-      'transition:background .15s,transform .15s,color .15s;' +
-      'font-size:13px;font-weight:500;' +
-      'color:#555' +
-    '}' +
-    '.__dxm_editor_btn:hover{' +
-      'background:rgba(0,0,0,0.05);' +
-      'color:#222;' +
-      'transform:scale(1.04)' +
-    '}' +
-    '.__dxm_editor_btn:active{' +
-      'transform:scale(0.97);' +
-      'background:rgba(0,0,0,0.08)' +
-    '}' +
-    '.__dxm_editor_btn.__active{' +
-      'background:rgba(64,158,255,0.12);' +
-      'color:#409eff' +
-    '}' +
-    '.__dxm_editor_btn.__working{' +
-      'background:rgba(255,160,0,0.12);' +
-      'color:#e6a23c;' +
-      'pointer-events:none' +
-    '}' +
-    // 分隔线
-    '.__dxm_editor_sep{' +
-      'width:1px;height:18px;' +
-      'background:rgba(0,0,0,0.10);' +
-      'margin:0 6px;' +
-      'flex-shrink:0' +
-    '}' +
-    // Toast
-    '.__dxm_editor_toast{' +
-      'position:fixed;top:60px;left:50%;transform:translateX(-50%);' +
-      'z-index:2147483647;' +
-      'padding:10px 24px;' +
-      'background:rgba(48,48,48,0.88);' +
-      'backdrop-filter:blur(8px);' +
-      'color:#fff;font-size:13px;' +
-      'border-radius:20px;' +
-      'box-shadow:0 4px 12px rgba(0,0,0,0.15);' +
-      'opacity:0;transition:opacity .3s,top .3s;' +
-      'pointer-events:none' +
-    '}' +
-    '.__dxm_editor_toast.show{opacity:1;top:52px}';
+  style.textContent = `
+    #__dxm_editor_toolbar {
+      position: fixed; z-index: 2147483647;
+      display: flex; align-items: center; gap: 2px;
+      padding: 6px 8px;
+      background: rgba(255,255,255,0.88);
+      backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(0,0,0,0.08);
+      border-radius: 28px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.06);
+      font-family: -apple-system, "Microsoft YaHei", "PingFang SC", sans-serif;
+      font-size: 13px; color: #333;
+      user-select: none;
+      transition: box-shadow .2s, transform .15s;
+    }
+    #__dxm_editor_toolbar:hover {
+      box-shadow: 0 6px 28px rgba(0,0,0,0.14), 0 2px 6px rgba(0,0,0,0.08);
+    }
+    #__dxm_editor_toolbar.__dxm_dragging {
+      box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+      transform: scale(1.02);
+      cursor: grabbing;
+    }
+    #__dxm_editor_toolbar * { margin: 0; padding: 0; box-sizing: border-box; }
+    #__dxm_editor_toolbar .__dxm_editor_sep { margin: 0 6px; }
+    .__dxm_editor_drag {
+      display: flex; align-items: center; justify-content: center;
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      color: #aaa;
+      cursor: grab;
+      transition: background .15s, color .15s;
+      flex-shrink: 0;
+    }
+    .__dxm_editor_drag:hover { background: rgba(0,0,0,0.06); color: #666; }
+    .__dxm_editor_btn {
+      display: flex; align-items: center; gap: 5px;
+      padding: 7px 14px;
+      border-radius: 20px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background .15s, transform .15s, color .15s;
+      font-size: 13px; font-weight: 500;
+      color: #555;
+    }
+    .__dxm_editor_btn:hover {
+      background: rgba(0,0,0,0.05);
+      color: #222;
+      transform: scale(1.04);
+    }
+    .__dxm_editor_btn:active {
+      transform: scale(0.97);
+      background: rgba(0,0,0,0.08);
+    }
+    .__dxm_editor_btn.__active {
+      background: rgba(64,158,255,0.12);
+      color: #409eff;
+    }
+    .__dxm_editor_btn.__working {
+      background: rgba(255,160,0,0.12);
+      color: #e6a23c;
+      pointer-events: none;
+    }
+    .__dxm_editor_sep {
+      width: 1px; height: 18px;
+      background: rgba(0,0,0,0.10);
+      margin: 0 6px;
+      flex-shrink: 0;
+    }
+    .__dxm_editor_toast {
+      position: fixed; top: 60px; left: 50%; transform: translateX(-50%);
+      z-index: 2147483647;
+      padding: 10px 24px;
+      background: rgba(48,48,48,0.88);
+      backdrop-filter: blur(8px);
+      color: #fff; font-size: 13px;
+      border-radius: 20px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      opacity: 0; transition: opacity .3s, top .3s;
+      pointer-events: none;
+    }
+    .__dxm_editor_toast.show { opacity: 1; top: 52px; }
+  `;
 
   document.head.appendChild(style);
   document.body.appendChild(toolbar);
