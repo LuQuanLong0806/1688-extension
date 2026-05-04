@@ -105,7 +105,7 @@
     '.__dxm_editor_sep{' +
       'width:1px;height:18px;' +
       'background:rgba(0,0,0,0.10);' +
-      'margin:0 2px;' +
+      'margin:0 6px;' +
       'flex-shrink:0' +
     '}' +
     // Toast
@@ -414,6 +414,7 @@
     if (!watermarkTab || !watermarkTab.classList.contains('selected')) {
       click(watermarkTab);
       await waitFor('.side_tools .content .el-radio-button', 3000);
+      await wait(50);
     }
 
     // 2. 点击"我的" radio
@@ -431,6 +432,7 @@
     if (myRadio && !myRadio.classList.contains('is-active')) {
       console.log(LOG, '点击"我的"radio');
       click(myRadio.querySelector('.el-radio-button__inner'));
+      await wait(50);
     } else {
       console.log(LOG, '"我的"已选中或未找到');
     }
@@ -445,12 +447,14 @@
     if (!adjustTab || !adjustTab.classList.contains('selected')) {
       click(adjustTab);
       await waitFor('.side_tools .content .module', 3000);
+      await wait(50);
     }
     var mod = await waitForModule(toolName, 3000);
     console.log(LOG, toolName + '模块:', mod ? '找到' : '未找到');
     if (!mod) { toast('未找到 ' + toolName); return; }
     var openEl = mod.querySelector('.open');
     click(openEl);
+    await wait(50);
     console.log(LOG, '已点击 ' + toolName);
   }
 
