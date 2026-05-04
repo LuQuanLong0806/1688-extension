@@ -460,6 +460,15 @@
     var mod = await waitForModule(toolName, 3000);
     console.log(LOG, toolName + '模块:', mod ? '找到' : '未找到');
     if (!mod) { toast('未找到 ' + toolName); return; }
+    // 滚动到对应模块
+    var content = $('.side_tools .content');
+    if (content && mod) {
+      var contentRect = content.getBoundingClientRect();
+      var modRect = mod.getBoundingClientRect();
+      if (modRect.top < contentRect.top || modRect.bottom > contentRect.bottom) {
+        mod.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
     var openEl = mod.querySelector('.open');
     click(openEl);
     await wait(50);
