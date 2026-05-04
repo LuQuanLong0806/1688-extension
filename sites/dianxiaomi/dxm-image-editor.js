@@ -464,7 +464,11 @@
     click(openEl);
     await wait(50);
     var content = $('.side_tools .content');
-    if (content) content.scrollTop = 0;
+    if (content) {
+      var contentTop = content.getBoundingClientRect().top;
+      var modTop = mod.getBoundingClientRect().top;
+      content.scrollTop += modTop - contentTop;
+    }
     console.log(LOG, '已点击 ' + toolName);
   }
 
