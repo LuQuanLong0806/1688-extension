@@ -255,6 +255,14 @@
     return true;
   }
 
+  // 等待编辑器页面渲染完成
+  async function waitForEditor(maxMs) {
+    maxMs = maxMs || 10000;
+    var el = await waitFor('.side_tools .tools .tool', maxMs);
+    if (!el) console.error(LOG, '等待编辑器超时(' + maxMs + 'ms)');
+    return !!el;
+  }
+
   function findModuleByName(name) {
     var modules = $$('.side_tools .content .module');
     for (var i = 0; i < modules.length; i++) {
@@ -279,6 +287,21 @@
     var flipBtn = toolbar.querySelector('[data-action="flip"]');
     flipBtn.classList.add('__working');
     console.log(LOG, '===== 批量翻转开始 =====');
+
+    if (!(await waitForEditor())) {
+      toast('编辑器未加载完成');
+      flipBtn.classList.remove('__working');
+      isWorking = false;
+      return;
+    }
+
+    // 调试：测试各种选择器
+    console.log(LOG, 'querySelectorAll .side_tools:', document.querySelectorAll('.side_tools').length);
+    console.log(LOG, 'querySelectorAll .side_tools .tools:', document.querySelectorAll('.side_tools .tools').length);
+    console.log(LOG, 'querySelectorAll .side_tools .tools .tool:', document.querySelectorAll('.side_tools .tools .tool').length);
+    console.log(LOG, 'querySelectorAll .tool.Adjust:', document.querySelectorAll('.tool.Adjust').length);
+    console.log(LOG, 'querySelector .img_list:', document.querySelector('.img_list'));
+    console.log(LOG, 'querySelectorAll .img_list img:', document.querySelectorAll('.img_list img').length);
 
     // 1. 点击左侧"调整"tab
     var adjustTab = $('.side_tools .tools .tool.Adjust');
@@ -362,6 +385,7 @@
   // ========== 我的水印 ==========
   async function doMyWatermark() {
     console.log(LOG, '===== 我的水印 =====');
+    if (!(await waitForEditor())) { toast('编辑器未加载完成'); return; }
     // 1. 点击"水印"tab
     var watermarkTab = $('.side_tools .tools .tool.Watermark');
     console.log(LOG, '水印tab:', watermarkTab ? '找到' : '未找到');
@@ -393,6 +417,7 @@
   // ========== 通用：点击左侧tab再点击子工具 ==========
   async function clickAdjustTool(toolName) {
     console.log(LOG, '===== ' + toolName + ' =====');
+    if (!(await waitForEditor())) { toast('编辑器未加载完成'); return; }
     var adjustTab = $('.side_tools .tools .tool.Adjust');
     console.log(LOG, '调整tab:', adjustTab ? '找到' : '未找到');
     if (!adjustTab || !adjustTab.classList.contains('selected')) {
