@@ -201,7 +201,7 @@ router.get('/product', (req, res) => {
   const list = getAll(
     `SELECT id, source_url, title, category, custom_category, dxm_category, attrs, skus, main_images, status, created_at, updated_at
      FROM products ${whereClause}
-     ORDER BY status ASC, created_at DESC, id DESC
+     ORDER BY created_at DESC, id DESC
      LIMIT ? OFFSET ?`,
     [...params, pageSize, offset]
   );
