@@ -463,6 +463,14 @@
     if (!mod) { toast('未找到 ' + toolName); return; }
     var isOpen = !!mod.querySelector('.parameter');
     var toolbarBtn = toolbar.querySelector('[data-action="' + action + '"]');
+    // 清除其他调整工具按钮的选中状态
+    var adjustActions = ['crop', 'resize', 'erase', 'ruler'];
+    adjustActions.forEach(function (a) {
+      if (a !== action) {
+        var otherBtn = toolbar.querySelector('[data-action="' + a + '"]');
+        if (otherBtn) otherBtn.classList.remove('__active');
+      }
+    });
     var openEl = mod.querySelector('.open');
     click(openEl);
     if (isOpen) {
