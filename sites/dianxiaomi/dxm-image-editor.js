@@ -447,7 +447,8 @@
   }
 
   // ========== 通用：点击左侧tab再点击子工具 ==========
-  async function clickAdjustTool(toolName) {
+  // toolName 模块名, action 按钮的 data-action
+  async function clickAdjustTool(toolName, action) {
     console.log(LOG, '===== ' + toolName + ' =====');
     if (!(await waitForEditor())) { toast('编辑器未加载完成'); return; }
     var adjustTab = $('.side_tools .tools .tool.Adjust');
@@ -460,8 +461,15 @@
     var mod = await waitForModule(toolName, 3000);
     console.log(LOG, toolName + '模块:', mod ? '找到' : '未找到');
     if (!mod) { toast('未找到 ' + toolName); return; }
+    var isOpen = !!mod.querySelector('.parameter');
+    var toolbarBtn = toolbar.querySelector('[data-action="' + action + '"]');
     var openEl = mod.querySelector('.open');
     click(openEl);
+    if (isOpen) {
+      if (toolbarBtn) toolbarBtn.classList.remove('__active');
+    } else {
+      if (toolbarBtn) toolbarBtn.classList.add('__active');
+    }
     await wait(50);
     var content = $('.side_tools .content');
     if (content) {
@@ -480,16 +488,16 @@
 
       switch (action) {
         case 'crop':
-          clickAdjustTool('裁剪/旋转');
+          clickAdjustTool('裁剪/旋转', 'crop');
           break;
         case 'resize':
-          clickAdjustTool('调整尺寸');
+          clickAdjustTool('调整尺寸', 'resize');
           break;
         case 'erase':
-          clickAdjustTool('消除笔');
+          clickAdjustTool('消除笔', 'erase');
           break;
         case 'ruler':
-          clickAdjustTool('标尺');
+          clickAdjustTool('标尺', 'ruler');
           break;
         case 'watermark':
           doMyWatermark();
