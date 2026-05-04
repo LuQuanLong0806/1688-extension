@@ -30,8 +30,9 @@
       "js": ["sites/dianxiaomi/dxm-config.js", "sites/dianxiaomi/dxm-float-bee.js", "sites/dianxiaomi/dxm-config-ui.js", "sites/dianxiaomi/dxm-auto-fill.js", "sites/dianxiaomi/dxm-edit-desc.js", "sites/dianxiaomi/dxm-paste-img.js", "sites/dianxiaomi/dxm-sku.js", "sites/dianxiaomi/dxm-sku-table.js"]
     },
     {
-      "matches": ["*://www.dianxiaomi.com/web/newImageEditor*"],
-      "js": ["sites/dianxiaomi/dxm-image-editor.js"]
+      "matches": ["*://www.dianxiaomi.com/imageEditor/*"],
+      "js": ["sites/dianxiaomi/dxm-image-editor.js"],
+      "all_frames": true
     }
   ]
 }
