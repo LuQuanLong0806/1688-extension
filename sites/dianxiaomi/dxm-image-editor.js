@@ -266,6 +266,7 @@
 
   // ========== 批量翻转 ==========
   var isWorking = false;
+  var LOG = '[小秘美图]';
 
   function updateFlipProgress(current, total) {
     var btn = toolbar.querySelector('[data-action="flip"] span');
@@ -277,18 +278,31 @@
     isWorking = true;
     var flipBtn = toolbar.querySelector('[data-action="flip"]');
     flipBtn.classList.add('__working');
+    console.log(LOG, '===== 批量翻转开始 =====');
 
     // 1. 点击左侧"调整"tab
     var adjustTab = $('.side_tools .tools .tool.Adjust');
+    console.log(LOG, '调整tab:', adjustTab ? '找到' : '未找到', adjustTab && adjustTab.classList.contains('selected') ? '(已选中)' : '(未选中)');
     if (!adjustTab || !adjustTab.classList.contains('selected')) {
       click(adjustTab);
+      console.log(LOG, '点击调整tab, 等待内容加载...');
       await waitFor('.side_tools .content .module', 3000);
     }
 
-    // 2. 获取右侧图片列表
+    // 2. 等待右侧图片列表出现
+    console.log(LOG, '等待图片列表...');
+    await waitFor('.img_list img', 5000);
+
+    // 3. 获取右侧图片列表
     var imgs = $$('.img_list .type .value img');
     var total = imgs.length;
-    if (!total) { toast('未找到图片'); flipBtn.classList.remove('__working'); isWorking = false; return; }
+    console.log(LOG, '图片列表:', total, '张', imgs.length > 0 ? '第一张src=' + (imgs[0].src || '').substring(0, 60) + '...' : '');
+    if (!total) {
+      toast('未找到图片');
+      flipBtn.classList.remove('__working');
+      isWorking = false;
+      return;
+    }
 
     toast('开始批量翻转 ' + total + ' 张图片');
 
@@ -297,33 +311,37 @@
 
       // 重新获取图片列表（DOM可能刷新）
       var currentImgs = $$('.img_list .type .value img');
-      if (i >= currentImgs.length) break;
+      if (i >= currentImgs.length) { console.warn(LOG, '图片列表变短, 跳出'); break; }
 
       // 点击第i张图片
+      console.log(LOG, '[' + (i + 1) + '/' + total + '] 点击图片');
       click(currentImgs[i]);
       await wait(300);
 
       // 等待"裁剪/旋转"出现
       var cropModule = await waitForModule('裁剪/旋转', 3000);
-      if (!cropModule) { toast('未找到裁剪/旋转'); break; }
+      if (!cropModule) { console.error(LOG, '未找到裁剪/旋转模块'); toast('未找到裁剪/旋转'); break; }
       var cropOpen = cropModule.querySelector('.open');
+      console.log(LOG, '[' + (i + 1) + '/' + total + '] 点击裁剪/旋转');
       click(cropOpen);
 
       // 等待翻转按钮出现
       var flipIcon = await waitFor('.icon_btns .icon-flip_h', 3000);
       if (!flipIcon) {
-        // 兜底：取 .icon_btns 下第3个span
-        var iconBtns = cropModule.querySelector('.icon_btns');
+        console.warn(LOG, 'icon-flip_h未找到, 尝试兜底');
+        var iconBtns = $('.icon_btns');
         if (iconBtns) {
           var spans = iconBtns.querySelectorAll('span');
+          console.log(LOG, 'icon_btns下span数量:', spans.length);
           if (spans.length >= 3) flipIcon = spans[2];
         }
       }
       if (flipIcon) {
+        console.log(LOG, '[' + (i + 1) + '/' + total + '] 点击翻转');
         click(flipIcon);
         await wait(500);
       } else {
-        console.warn('[批量翻转] 第' + (i + 1) + '张未找到翻转按钮');
+        console.warn(LOG, '[' + (i + 1) + '/' + total + '] 未找到翻转按钮');
       }
 
       // 关闭裁剪面板
@@ -335,6 +353,7 @@
     var flipBtnSpan = toolbar.querySelector('[data-action="flip"] span');
     if (flipBtnSpan) flipBtnSpan.textContent = '批量翻转';
 
+    console.log(LOG, '===== 批量翻转完成 =====');
     toast('批量翻转完成 ' + total + ' 张');
     flipBtn.classList.remove('__working');
     isWorking = false;
@@ -342,8 +361,10 @@
 
   // ========== 我的水印 ==========
   async function doMyWatermark() {
+    console.log(LOG, '===== 我的水印 =====');
     // 1. 点击"水印"tab
     var watermarkTab = $('.side_tools .tools .tool.Watermark');
+    console.log(LOG, '水印tab:', watermarkTab ? '找到' : '未找到');
     if (!watermarkTab || !watermarkTab.classList.contains('selected')) {
       click(watermarkTab);
       await waitFor('.side_tools .content .el-radio-button', 3000);
@@ -351,32 +372,39 @@
 
     // 2. 点击"我的" radio
     var radios = $$('.side_tools .content .el-radio-button');
+    console.log(LOG, 'radio按钮数量:', radios.length);
     var myRadio = null;
     for (var i = 0; i < radios.length; i++) {
       var inner = radios[i].querySelector('.el-radio-button__inner');
+      console.log(LOG, 'radio[' + i + ']:', inner ? inner.textContent.trim() : '(空)');
       if (inner && inner.textContent.trim() === '我的') {
         myRadio = radios[i];
         break;
       }
     }
     if (myRadio && !myRadio.classList.contains('is-active')) {
+      console.log(LOG, '点击"我的"radio');
       click(myRadio.querySelector('.el-radio-button__inner'));
+    } else {
+      console.log(LOG, '"我的"已选中或未找到');
     }
   }
 
   // ========== 通用：点击左侧tab再点击子工具 ==========
   async function clickAdjustTool(toolName) {
-    // 点击"调整"tab
+    console.log(LOG, '===== ' + toolName + ' =====');
     var adjustTab = $('.side_tools .tools .tool.Adjust');
+    console.log(LOG, '调整tab:', adjustTab ? '找到' : '未找到');
     if (!adjustTab || !adjustTab.classList.contains('selected')) {
       click(adjustTab);
       await waitFor('.side_tools .content .module', 3000);
     }
-    // 等待目标模块出现
     var mod = await waitForModule(toolName, 3000);
+    console.log(LOG, toolName + '模块:', mod ? '找到' : '未找到');
     if (!mod) { toast('未找到 ' + toolName); return; }
     var openEl = mod.querySelector('.open');
     click(openEl);
+    console.log(LOG, '已点击 ' + toolName);
   }
 
   // ========== 按钮事件 ==========
