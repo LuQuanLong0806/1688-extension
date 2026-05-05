@@ -58,12 +58,12 @@ Vue.component('page-products', {
         },
         {
           title: '选择分类',
-          width: 300,
+          width: 240,
           slot: 'category'
         },
         {
           title: 'SKU',
-          width: 200,
+          width: 180,
           slot: 'sku'
         },
         {
