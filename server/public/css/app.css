@@ -135,7 +135,7 @@ body {
   color: rgba(255,255,255,.65);
   cursor: pointer;
   transition: all .15s;
-  font-size: 16px;
+  font-size: 14px;
   white-space: nowrap;
 }
 
@@ -382,7 +382,7 @@ body {
 
 .action-btns {
   display: inline-flex;
-  gap: 4px;
+  gap: 8px;
   align-items: center;
 }
 .action-btns .ivu-btn {
