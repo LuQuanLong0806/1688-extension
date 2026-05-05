@@ -22,7 +22,10 @@
   }
 
   function autoFinish(msg) {
-    console.log('%c[自动填表] ✅ ' + msg, 'color:#52c41a;font-weight:bold;font-size:14px');
+    console.log(
+      '%c[自动填表] ✅ ' + msg,
+      'color:#52c41a;font-weight:bold;font-size:14px'
+    );
     window.scrollTo({ top: 0, behavior: 'smooth' });
     if (C && C.showBubble) {
       C.showBubble('✅ ' + msg, 'ok');
@@ -31,7 +34,10 @@
   }
 
   function autoError(msg) {
-    console.log('%c[自动填表] ❌ ' + msg, 'color:#ff4444;font-weight:bold;font-size:14px');
+    console.log(
+      '%c[自动填表] ❌ ' + msg,
+      'color:#ff4444;font-weight:bold;font-size:14px'
+    );
     if (C && C.showBubble) {
       C.showBubble('❌ ' + msg, 'err');
       setTimeout(C.hideBubble, 3000);
@@ -56,7 +62,10 @@
   function fetchCollectedData(cb) {
     var serverUrl = localStorage.getItem(SERVER_KEY) || 'http://localhost:3000';
 
-    console.log('%c[自动填表] 检测到 collectId=' + collectId + '，正在获取数据...', 'color:#E65100;font-weight:bold;font-size:14px');
+    console.log(
+      '%c[自动填表] 检测到 collectId=' + collectId + '，正在获取数据...',
+      'color:#E65100;font-weight:bold;font-size:14px'
+    );
 
     fetch(serverUrl + '/api/product/' + collectId)
       .then(function (r) {
@@ -65,8 +74,20 @@
       })
       .then(function (data) {
         window.__collectedProduct = data;
-        console.log('%c[自动填表] 数据获取成功: ' + (data.title || '无标题'), 'color:#52c41a;font-weight:bold');
-        console.log('%c[自动填表] 主图: ' + (data.main_images || []).length + '张, 描述图: ' + (data.desc_images || []).length + '张, SKU: ' + (data.skus || []).length + '个', 'color:#52c41a;font-weight:bold');
+        console.log(
+          '%c[自动填表] 数据获取成功: ' + (data.title || '无标题'),
+          'color:#52c41a;font-weight:bold'
+        );
+        console.log(
+          '%c[自动填表] 主图: ' +
+            (data.main_images || []).length +
+            '张, 描述图: ' +
+            (data.desc_images || []).length +
+            '张, SKU: ' +
+            (data.skus || []).length +
+            '个',
+          'color:#52c41a;font-weight:bold'
+        );
         cb(data);
       })
       .catch(function (err) {
@@ -82,7 +103,11 @@
 
     // 选中的主图
     if (data.main_images) {
-      for (var i = 0; i < data.main_images.length && images.length < limit; i++) {
+      for (
+        var i = 0;
+        i < data.main_images.length && images.length < limit;
+        i++
+      ) {
         var item = data.main_images[i];
         var isSelected = typeof item === 'string' || item._selected !== false;
         var url = typeof item === 'string' ? item : item.url;
@@ -95,7 +120,11 @@
 
     // 选中的详情图
     if (images.length < limit && data.detail_images) {
-      for (var i = 0; i < data.detail_images.length && images.length < limit; i++) {
+      for (
+        var i = 0;
+        i < data.detail_images.length && images.length < limit;
+        i++
+      ) {
         var item = data.detail_images[i];
         var isSelected = typeof item === 'string' || item._selected !== false;
         var url = typeof item === 'string' ? item : item.url;
@@ -108,7 +137,9 @@
 
     // 已选SKU图片
     if (images.length < limit && data.skus) {
-      var selected = data.skus.filter(function (s) { return s._selected !== false; });
+      var selected = data.skus.filter(function (s) {
+        return s._selected !== false;
+      });
       for (var j = 0; j < selected.length && images.length < limit; j++) {
         var skuImg = selected[j].image;
         if (skuImg && !seen[skuImg]) {
@@ -118,7 +149,10 @@
       }
     }
 
-    console.log('%c[自动填表] 轮播图: ' + images.length + '张', 'color:#E65100;font-weight:bold');
+    console.log(
+      '%c[自动填表] 轮播图: ' + images.length + '张',
+      'color:#E65100;font-weight:bold'
+    );
     return images;
   }
 
@@ -126,12 +160,21 @@
   function waitPageReady(cb) {
     var loading = document.getElementById('dPageLoading');
     if (!loading || loading.classList.contains('hidden')) return cb();
-    console.log('%c[自动填表] 等待页面加载...', 'color:#E65100;font-weight:bold');
+    console.log(
+      '%c[自动填表] 等待页面加载...',
+      'color:#E65100;font-weight:bold'
+    );
     var start = Date.now();
     (function check() {
       var el = document.getElementById('dPageLoading');
-      if (!el || el.classList.contains('hidden')) { cb(); return; }
-      if (Date.now() - start > 3000) { cb(); return; }
+      if (!el || el.classList.contains('hidden')) {
+        cb();
+        return;
+      }
+      if (Date.now() - start > 3000) {
+        cb();
+        return;
+      }
       setTimeout(check, 200);
     })();
   }
@@ -140,7 +183,10 @@
   function autoSelectShop(cb) {
     var shopName = C.loadSelectedStore ? C.loadSelectedStore() : '';
     if (!shopName) {
-      console.log('%c[自动填表] 未配置店铺，跳过', 'color:#E65100;font-weight:bold');
+      console.log(
+        '%c[自动填表] 未配置店铺，跳过',
+        'color:#E65100;font-weight:bold'
+      );
       cb();
       return;
     }
@@ -162,13 +208,18 @@
     }
 
     if (!storeSelector) {
-      console.log('%c[自动填表] 未找到店铺选择器，跳过', 'color:#E65100;font-weight:bold');
+      console.log(
+        '%c[自动填表] 未找到店铺选择器，跳过',
+        'color:#E65100;font-weight:bold'
+      );
       cb();
       return;
     }
 
     // 检查是否已选中正确店铺
-    var selectedText = storeSelector.querySelector('.ant-select-selection-item');
+    var selectedText = storeSelector.querySelector(
+      '.ant-select-selection-item'
+    );
     if (selectedText && (selectedText.textContent || '').trim() === shopName) {
       autoLog('店铺已正确选择');
       cb();
@@ -192,7 +243,10 @@
 
       if (!visibleDropdown) {
         if (Date.now() - start > 5000) {
-          console.log('%c[自动填表] 店铺下拉未出现，跳过', 'color:#E65100;font-weight:bold');
+          console.log(
+            '%c[自动填表] 店铺下拉未出现，跳过',
+            'color:#E65100;font-weight:bold'
+          );
           cb();
           return;
         }
@@ -201,7 +255,9 @@
       }
 
       // 通过 title 属性精确匹配店铺
-      var targetItem = visibleDropdown.querySelector('.ant-select-item-option[title="' + shopName + '"]');
+      var targetItem = visibleDropdown.querySelector(
+        '.ant-select-item-option[title="' + shopName + '"]'
+      );
       if (targetItem) {
         targetItem.click();
         autoLog('店铺已选择: ' + shopName);
@@ -223,7 +279,10 @@
           autoLog('店铺已选择: ' + shopName);
           setTimeout(cb, 300);
         } else {
-          console.log('%c[自动填表] 下拉中未找到店铺 "' + shopName + '"，跳过', 'color:#E65100;font-weight:bold');
+          console.log(
+            '%c[自动填表] 下拉中未找到店铺 "' + shopName + '"，跳过',
+            'color:#E65100;font-weight:bold'
+          );
           storeSelector.click();
           setTimeout(cb, 200);
         }
@@ -234,7 +293,10 @@
   // ========== 自动填表主流程 ==========
   function startAutoFill(data) {
     autoStep = 0;
-    console.log('%c[自动填表] ===== 开始自动填表 =====', 'color:#E65100;font-weight:bold;font-size:14px');
+    console.log(
+      '%c[自动填表] ===== 开始自动填表 =====',
+      'color:#E65100;font-weight:bold;font-size:14px'
+    );
 
     // Step 0: 选择店铺
     autoSelectShop(function () {
@@ -248,11 +310,15 @@
     function doCategorySelect(data) {
       var catInfo = resolveCategory(data);
       if (catInfo) {
-        waitForElement('#productBasicInfo .category-item button', 5000, function () {
-          autoSelectCategory(catInfo, collectId, function () {
-            doFillTitleAndNext(data);
-          });
-        });
+        waitForElement(
+          '#productBasicInfo .category-item button',
+          5000,
+          function () {
+            autoSelectCategory(catInfo, collectId, function () {
+              doFillTitleAndNext(data);
+            });
+          }
+        );
       } else {
         doFillTitleAndNext(data);
       }
@@ -274,7 +340,9 @@
 
     function doPasteMainImages(data) {
       var allImages = buildCarouselImages(data);
-      var initialImgCount = document.querySelectorAll('#productProductInfo .mainImage .img-list .img-item').length;
+      var initialImgCount = document.querySelectorAll(
+        '#productProductInfo .mainImage .img-list .img-item'
+      ).length;
       if (allImages.length) {
         pasteMainImages(allImages, function () {
           if (C.loadAutoResize()) {
@@ -282,12 +350,18 @@
               deleteProductVideos(function () {
                 autoSelectProvince(function () {
                   var pkgArea = document.querySelector('#packageInfo');
-                  if (pkgArea) pkgArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  if (pkgArea)
+                    pkgArea.scrollIntoView({
+                      behavior: 'smooth',
+                      block: 'start'
+                    });
                   autoSelectPackageShape(function () {
                     autoSelectPackageType(function () {
                       updatePackageImage(data, function () {
                         if (data.desc_images && data.desc_images.length) {
-                          autoLog('描述图已加载 (' + data.desc_images.length + '张)');
+                          autoLog(
+                            '描述图已加载 (' + data.desc_images.length + '张)'
+                          );
                         }
                         if (data.skus && data.skus.length) {
                           fillSkuTable(data.skus, function () {
@@ -306,12 +380,18 @@
             deleteProductVideos(function () {
               autoSelectProvince(function () {
                 var pkgArea = document.querySelector('#packageInfo');
-                if (pkgArea) pkgArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                if (pkgArea)
+                  pkgArea.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start'
+                  });
                 autoSelectPackageShape(function () {
                   autoSelectPackageType(function () {
                     updatePackageImage(data, function () {
                       if (data.desc_images && data.desc_images.length) {
-                        autoLog('描述图已加载 (' + data.desc_images.length + '张)');
+                        autoLog(
+                          '描述图已加载 (' + data.desc_images.length + '张)'
+                        );
                       }
                       if (data.skus && data.skus.length) {
                         fillSkuTable(data.skus, function () {
@@ -338,7 +418,9 @@
     autoLog('等待图片上传...');
     var start = Date.now();
     (function check() {
-      var currentCount = document.querySelectorAll('#productProductInfo .mainImage .img-list .img-item').length;
+      var currentCount = document.querySelectorAll(
+        '#productProductInfo .mainImage .img-list .img-item'
+      ).length;
       if (currentCount > initialCount) {
         doBatchResize(cb);
         return;
@@ -354,7 +436,9 @@
 
   function doBatchResize(cb) {
     autoLog('打开批量编辑...');
-    var actionItems = document.querySelectorAll('#productProductInfo .mainImage .img-options .action-item');
+    var actionItems = document.querySelectorAll(
+      '#productProductInfo .mainImage .img-options .action-item'
+    );
     var editBtn = null;
     for (var i = 0; i < actionItems.length; i++) {
       var link = actionItems[i].querySelector('a.img-options-action-btn');
@@ -426,11 +510,16 @@
   // ========== Step 3: 选择省份 ==========
   function autoSelectProvince(cb) {
     var province = C && C.loadProvince ? C.loadProvince() : '';
-    if (!province) { cb(); return; }
+    if (!province) {
+      cb();
+      return;
+    }
 
     autoLog('选择省份: ' + province + '...');
 
-    var labels = document.querySelectorAll('#productProductInfo .ant-form-item-label label');
+    var labels = document.querySelectorAll(
+      '#productProductInfo .ant-form-item-label label'
+    );
     var originEl = null;
     for (var i = 0; i < labels.length; i++) {
       if ((labels[i].textContent || '').indexOf('产地') !== -1) {
@@ -439,10 +528,17 @@
         break;
       }
     }
-    if (!originEl) { autoLog('未找到产地区域，跳过省份'); cb(); return; }
+    if (!originEl) {
+      autoLog('未找到产地区域，跳过省份');
+      cb();
+      return;
+    }
 
     var selects = originEl.querySelectorAll('.ant-select-selector');
-    if (selects.length < 2) { cb(); return; }
+    if (selects.length < 2) {
+      cb();
+      return;
+    }
 
     var provSel = selects[1];
     // 检查是否已选正确省份
@@ -458,7 +554,9 @@
     forceOpenAntSelect(provSel);
 
     setTimeout(function () {
-      var opt = document.querySelector('.ant-select-item-option[title="' + province + '"]');
+      var opt = document.querySelector(
+        '.ant-select-item-option[title="' + province + '"]'
+      );
       if (opt) {
         opt.click();
         autoLog('省份已选择: ' + province);
@@ -473,11 +571,17 @@
   function autoSelectPackageShape(cb) {
     autoLog('选择外包装形状...');
     waitForAntSelect('外包装形状', function (sel) {
-      if (!sel) { autoLog('未找到外包装形状，跳过'); cb(); return; }
+      if (!sel) {
+        autoLog('未找到外包装形状，跳过');
+        cb();
+        return;
+      }
       setTimeout(function () {
         forceOpenAntSelect(sel);
         setTimeout(function () {
-          var opt = document.querySelector('.ant-select-item-option[title="不规则"]');
+          var opt = document.querySelector(
+            '.ant-select-item-option[title="不规则"]'
+          );
           if (opt) {
             if (!opt.classList.contains('ant-select-item-option-selected')) {
               opt.click();
@@ -496,11 +600,17 @@
   function autoSelectPackageType(cb) {
     autoLog('选择外包装类型...');
     waitForAntSelect('外包装类型', function (sel) {
-      if (!sel) { autoLog('未找到外包装类型，跳过'); cb(); return; }
+      if (!sel) {
+        autoLog('未找到外包装类型，跳过');
+        cb();
+        return;
+      }
       setTimeout(function () {
         forceOpenAntSelect(sel);
         setTimeout(function () {
-          var opt = document.querySelector('.ant-select-item-option[title="软包装+硬物"]');
+          var opt = document.querySelector(
+            '.ant-select-item-option[title="软包装+硬物"]'
+          );
           if (opt) {
             if (!opt.classList.contains('ant-select-item-option-selected')) {
               opt.click();
@@ -518,7 +628,9 @@
   function waitForAntSelect(labelText, cb) {
     var start = Date.now();
     (function check() {
-      var labels = document.querySelectorAll('#packageInfo .ant-form-item-label label');
+      var labels = document.querySelectorAll(
+        '#packageInfo .ant-form-item-label label'
+      );
       for (var i = 0; i < labels.length; i++) {
         if ((labels[i].textContent || '').indexOf(labelText) !== -1) {
           var formItem = labels[i].closest('.ant-form-item');
@@ -528,7 +640,10 @@
           }
         }
       }
-      if (Date.now() - start > 5000) { cb(null); return; }
+      if (Date.now() - start > 5000) {
+        cb(null);
+        return;
+      }
       requestAnimationFrame(check);
     })();
   }
@@ -536,7 +651,9 @@
   // ========== Step 2.5: 删除产品视频 ==========
   function deleteProductVideos(cb) {
     autoLog('检查产品视频...');
-    var labels = document.querySelectorAll('#productProductInfo .ant-form-item-label label');
+    var labels = document.querySelectorAll(
+      '#productProductInfo .ant-form-item-label label'
+    );
     var videoLabel = null;
     for (var vi = 0; vi < labels.length; vi++) {
       if ((labels[vi].textContent || '').indexOf('产品视频') !== -1) {
@@ -546,7 +663,10 @@
     }
 
     if (!videoLabel) {
-      console.log('%c[自动填表] 无产品视频区域，跳过', 'color:#E65100;font-weight:bold');
+      console.log(
+        '%c[自动填表] 无产品视频区域，跳过',
+        'color:#E65100;font-weight:bold'
+      );
       cb();
       return;
     }
@@ -559,7 +679,10 @@
     var videoImgs = formItem.querySelectorAll('.video-operate-img');
     var visibleBox = null;
     for (var v = 0; v < videoImgs.length; v++) {
-      if (videoImgs[v].offsetParent !== null && videoImgs[v].querySelector('.video-operate-img-box')) {
+      if (
+        videoImgs[v].offsetParent !== null &&
+        videoImgs[v].querySelector('.video-operate-img-box')
+      ) {
         visibleBox = videoImgs[v];
         break;
       }
@@ -567,9 +690,15 @@
 
     if (!visibleBox) {
       if (count > 0) {
-        console.log('%c[自动填表] 已删除 ' + count + ' 个产品视频', 'color:#E65100;font-weight:bold');
+        console.log(
+          '%c[自动填表] 已删除 ' + count + ' 个产品视频',
+          'color:#E65100;font-weight:bold'
+        );
       } else {
-        console.log('%c[自动填表] 无产品视频，跳过', 'color:#E65100;font-weight:bold');
+        console.log(
+          '%c[自动填表] 无产品视频，跳过',
+          'color:#E65100;font-weight:bold'
+        );
       }
       cb();
       return;
@@ -593,9 +722,13 @@
     delBtn.click();
 
     setTimeout(function () {
-      var confirmBtn = document.querySelector('.ant-popconfirm-buttons .ant-btn-primary');
+      var confirmBtn = document.querySelector(
+        '.ant-popconfirm-buttons .ant-btn-primary'
+      );
       if (confirmBtn) confirmBtn.click();
-      setTimeout(function () { deleteNextVideo(formItem, count, cb); }, 200);
+      setTimeout(function () {
+        deleteNextVideo(formItem, count, cb);
+      }, 200);
     }, 150);
   }
 
@@ -603,7 +736,11 @@
   function fillSourceUrl(url, cb) {
     autoLog('填入来源URL...');
     waitForElement('#dxmInfo input[name="sourceUrl"]', 5000, function (input) {
-      if (!input) { autoError('未找到来源URL输入框'); cb(); return; }
+      if (!input) {
+        autoError('未找到来源URL输入框');
+        cb();
+        return;
+      }
 
       input.focus();
       C.setInputValue(input, url);
@@ -672,21 +809,32 @@
 
   // 方法A: 下拉快选
   function tryQuickSelect(leafName, cb) {
-    var selector = document.querySelector('#productBasicInfo .category-item .ant-select-selector');
-    if (!selector) { cb(false); return; }
+    var selector = document.querySelector(
+      '#productBasicInfo .category-item .ant-select-selector'
+    );
+    if (!selector) {
+      cb(false);
+      return;
+    }
 
     forceOpenAntSelect(selector);
 
-    waitForElement('#productBasicInfo .category-item .ant-select-item-option[title="' + leafName + '"]', 2000, function (opt) {
-      if (opt) {
-        opt.click();
-        cb(true);
-      } else {
-        // 关闭下拉
-        selector.click();
-        cb(false);
+    waitForElement(
+      '#productBasicInfo .category-item .ant-select-item-option[title="' +
+        leafName +
+        '"]',
+      2000,
+      function (opt) {
+        if (opt) {
+          opt.click();
+          cb(true);
+        } else {
+          // 关闭下拉
+          selector.click();
+          cb(false);
+        }
       }
-    });
+    );
   }
 
   // 方法B: 弹窗搜索选择
@@ -695,17 +843,28 @@
     var path = catInfo.path || '';
 
     // 点击"选择分类"按钮
-    var btn = document.querySelector('#productBasicInfo .category-item button.ant-btn-primary');
-    if (!btn) { cb(false); return; }
+    var btn = document.querySelector(
+      '#productBasicInfo .category-item button.ant-btn-primary'
+    );
+    if (!btn) {
+      cb(false);
+      return;
+    }
     btn.click();
 
     // 等待弹窗
     waitForCategoryModal(function (modal) {
-      if (!modal) { cb(false); return; }
+      if (!modal) {
+        cb(false);
+        return;
+      }
 
       // 找到搜索输入框
       var searchInput = modal.querySelector('input[name="searchCategory"]');
-      if (!searchInput) { cb(false); return; }
+      if (!searchInput) {
+        cb(false);
+        return;
+      }
 
       // 输入叶子类目名搜索
       searchInput.focus();
@@ -713,7 +872,10 @@
 
       // 点击搜索按钮
       var searchBtn = modal.querySelector('.ant-input-search-button');
-      if (!searchBtn) { cb(false); return; }
+      if (!searchBtn) {
+        cb(false);
+        return;
+      }
       searchBtn.click();
 
       // 等待搜索结果
@@ -731,8 +893,15 @@
             if (normalizedPath.indexOf('/') !== -1) {
               // path 是完整路径（如"美容和个人护理/美发护发/美发工具/梳子"）
               for (var i = 0; i < results.length; i++) {
-                var resultPath = (results[i].textContent || '').replace(/\s+/g, '');
-                if (resultPath === normalizedPath || resultPath.indexOf(normalizedPath) !== -1 || normalizedPath.indexOf(resultPath) !== -1) {
+                var resultPath = (results[i].textContent || '').replace(
+                  /\s+/g,
+                  ''
+                );
+                if (
+                  resultPath === normalizedPath ||
+                  resultPath.indexOf(normalizedPath) !== -1 ||
+                  normalizedPath.indexOf(resultPath) !== -1
+                ) {
                   target = results[i];
                   break;
                 }
@@ -741,7 +910,10 @@
             // 回退：用叶子名匹配
             if (!target) {
               for (var j = 0; j < results.length; j++) {
-                var resultText = (results[j].textContent || '').replace(/\s+/g, '');
+                var resultText = (results[j].textContent || '').replace(
+                  /\s+/g,
+                  ''
+                );
                 if (resultText.indexOf(leafName) !== -1) {
                   target = results[j];
                   break;
@@ -754,7 +926,9 @@
 
           // 点击"选择"按钮确认
           setTimeout(function () {
-            var confirmBtn = modal.querySelector('.ant-modal-footer .ant-btn-primary');
+            var confirmBtn = modal.querySelector(
+              '.ant-modal-footer .ant-btn-primary'
+            );
             if (confirmBtn) confirmBtn.click();
             cb(true);
           }, 300);
@@ -779,7 +953,9 @@
     if (btn) btn.click();
     setTimeout(function () {
       if (modal && getComputedStyle(modal).display !== 'none') {
-        var btn2 = modal.querySelector('.ant-modal-close') || modal.querySelector('.ant-modal-footer .ant-btn-default');
+        var btn2 =
+          modal.querySelector('.ant-modal-close') ||
+          modal.querySelector('.ant-modal-footer .ant-btn-default');
         if (btn2) btn2.click();
       }
     }, 300);
@@ -789,41 +965,67 @@
     var start = Date.now();
     (function check() {
       var modal = findVisibleModal('选择类目');
-      if (modal) { cb(modal); return; }
-      if (Date.now() - start > 5000) { cb(null); return; }
+      if (modal) {
+        cb(modal);
+        return;
+      }
+      if (Date.now() - start > 5000) {
+        cb(null);
+        return;
+      }
       requestAnimationFrame(check);
     })();
   }
 
   // ========== Step 1: 填入标题 ==========
   function fillTitle(data, cb) {
-    if (!data.title) { cb(); return; }
+    if (!data.title) {
+      cb();
+      return;
+    }
 
     autoLog('填入标题...');
-    waitForElement('#productProductInfo form .ant-form-item input', 5000, function (input) {
-      if (!input) { autoError('未找到标题输入框'); cb(); return; }
+    waitForElement(
+      '#productProductInfo form .ant-form-item input',
+      5000,
+      function (input) {
+        if (!input) {
+          autoError('未找到标题输入框');
+          cb();
+          return;
+        }
 
-      // 标题为空时才填入，有内容则覆盖
-      if (!input.value.trim()) {
-        setInputValue(input, data.title);
-        autoLog('标题已填入');
-      } else {
-        setInputValue(input, data.title);
-        autoLog('标题已更新');
+        // 标题为空时才填入，有内容则覆盖
+        if (!input.value.trim()) {
+          setInputValue(input, data.title);
+          autoLog('标题已填入');
+        } else {
+          setInputValue(input, data.title);
+          autoLog('标题已更新');
+        }
+        setTimeout(cb, 200);
       }
-      setTimeout(cb, 200);
-    });
+    );
   }
 
   // ========== Step 2: 贴主图 ==========
   function pasteMainImages(urls, cb) {
     // 先删除已有轮播图
-    var existingImgs = document.querySelectorAll('#productProductInfo .mainImage .img-list .img-item a.icon_delete');
+    var existingImgs = document.querySelectorAll(
+      '#productProductInfo .mainImage .img-list .img-item a.icon_delete'
+    );
     if (existingImgs.length > 0) {
       autoLog('删除已有轮播图...');
       (function deleteNext() {
-        var btn = document.querySelector('#productProductInfo .mainImage .img-list .img-item a.icon_delete');
-        if (!btn) { setTimeout(function () { doPasteMainImages(urls, cb); }, 300); return; }
+        var btn = document.querySelector(
+          '#productProductInfo .mainImage .img-list .img-item a.icon_delete'
+        );
+        if (!btn) {
+          setTimeout(function () {
+            doPasteMainImages(urls, cb);
+          }, 300);
+          return;
+        }
         btn.click();
         setTimeout(deleteNext, 50);
       })();
@@ -835,7 +1037,9 @@
   function doPasteMainImages(urls, cb) {
     autoLog('打开选择图片菜单...');
 
-    var labels = document.querySelectorAll('#productProductInfo .ant-form-item-label label');
+    var labels = document.querySelectorAll(
+      '#productProductInfo .ant-form-item-label label'
+    );
     var mainImageLabel = null;
     for (var i = 0; i < labels.length; i++) {
       if ((labels[i].textContent || '').indexOf('产品轮播图') !== -1) {
@@ -843,7 +1047,11 @@
         break;
       }
     }
-    if (!mainImageLabel) { autoError('未找到产品轮播图'); cb(); return; }
+    if (!mainImageLabel) {
+      autoError('未找到产品轮播图');
+      cb();
+      return;
+    }
 
     var formItem = mainImageLabel.closest('.ant-form-item');
     var selectBtn = null;
@@ -854,12 +1062,20 @@
         break;
       }
     }
-    if (!selectBtn) { autoError('未找到选择图片按钮'); cb(); return; }
+    if (!selectBtn) {
+      autoError('未找到选择图片按钮');
+      cb();
+      return;
+    }
 
     hoverElement(selectBtn);
 
     waitForVisibleLi('网络图片', 3000, function (webImgItem) {
-      if (!webImgItem) { autoError('未找到网络图片选项'); cb(); return; }
+      if (!webImgItem) {
+        autoError('未找到网络图片选项');
+        cb();
+        return;
+      }
 
       autoLog('点击网络图片');
       webImgItem.click();
@@ -871,7 +1087,11 @@
           fillImageModal(modal, urls.join('\n'), cb);
           return;
         }
-        if (Date.now() - start > 5000) { autoError('未找到网络图片弹窗'); cb(); return; }
+        if (Date.now() - start > 5000) {
+          autoError('未找到网络图片弹窗');
+          cb();
+          return;
+        }
         requestAnimationFrame(checkModal);
       })();
     });
@@ -881,14 +1101,22 @@
     autoLog('填入图片地址');
 
     var textarea = modal.querySelector('textarea.ant-input');
-    if (!textarea) { autoError('未找到图片输入框'); cb(); return; }
+    if (!textarea) {
+      autoError('未找到图片输入框');
+      cb();
+      return;
+    }
 
     setInputValue(textarea, urlText);
 
     setTimeout(function () {
       autoLog('添加图片');
       var addBtn = modal.querySelector('.ant-modal-footer .ant-btn-primary');
-      if (!addBtn) { autoError('未找到添加按钮'); cb(); return; }
+      if (!addBtn) {
+        autoError('未找到添加按钮');
+        cb();
+        return;
+      }
       addBtn.click();
       setTimeout(cb, 500);
     }, 250);
@@ -897,18 +1125,31 @@
   // ========== Step 3: 外包装图片 ==========
   function updatePackageImage(data, cb) {
     // 使用主图第一张作为外包装图片（兼容 string 和 {url,_selected} 格式）
-    var firstImg = (data.main_images && data.main_images.length) ? data.main_images[0] : null;
-    var imgUrl = typeof firstImg === 'string' ? firstImg : (firstImg && firstImg.url);
-    if (!imgUrl) { autoLog('无主图，跳过外包装'); cb(); return; }
+    var firstImg =
+      data.main_images && data.main_images.length ? data.main_images[0] : null;
+    var imgUrl =
+      typeof firstImg === 'string' ? firstImg : firstImg && firstImg.url;
+    if (!imgUrl) {
+      autoLog('无主图，跳过外包装');
+      cb();
+      return;
+    }
 
     autoLog('打开外包装选择图片...');
 
     // 先删除外包装旧图片
-    var pkgImgs = document.querySelectorAll('#packageInfo .img-list .img-item a.icon_delete');
+    var pkgImgs = document.querySelectorAll(
+      '#packageInfo .img-list .img-item a.icon_delete'
+    );
     if (pkgImgs.length > 0) {
       (function deleteNext() {
-        var btn = document.querySelector('#packageInfo .img-list .img-item a.icon_delete');
-        if (!btn) { openPkgSelect(imgUrl, cb); return; }
+        var btn = document.querySelector(
+          '#packageInfo .img-list .img-item a.icon_delete'
+        );
+        if (!btn) {
+          openPkgSelect(imgUrl, cb);
+          return;
+        }
         btn.click();
         setTimeout(deleteNext, 50);
       })();
@@ -928,7 +1169,11 @@
     hoverElement(pkgBtn);
 
     waitForVisibleLi('网络图片', 3000, function (webImgItem) {
-      if (!webImgItem) { autoLog('未找到外包装网络图片选项'); cb(); return; }
+      if (!webImgItem) {
+        autoLog('未找到外包装网络图片选项');
+        cb();
+        return;
+      }
 
       webImgItem.click();
 
@@ -939,7 +1184,11 @@
           fillPkgImageModal(modal, imgUrl, cb);
           return;
         }
-        if (Date.now() - start > 5000) { autoLog('外包装图片弹窗超时'); cb(); return; }
+        if (Date.now() - start > 5000) {
+          autoLog('外包装图片弹窗超时');
+          cb();
+          return;
+        }
         requestAnimationFrame(checkModal);
       })();
     });
@@ -949,7 +1198,10 @@
     autoLog('填入外包装图片地址');
 
     var textarea = modal.querySelector('textarea.ant-input');
-    if (!textarea) { cb(); return; }
+    if (!textarea) {
+      cb();
+      return;
+    }
 
     setInputValue(textarea, imgUrl);
 
@@ -968,8 +1220,14 @@
     if (skuArea) skuArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
     // 筛选已勾选的 SKU
-    var selectedSkus = skus.filter(function (s) { return s._selected !== false; });
-    if (!selectedSkus.length) { autoLog('无已选SKU，跳过'); cb(); return; }
+    var selectedSkus = skus.filter(function (s) {
+      return s._selected !== false;
+    });
+    if (!selectedSkus.length) {
+      autoLog('无已选SKU，跳过');
+      cb();
+      return;
+    }
 
     // 提取自定义名称作为变种属性值，并清洗
     var attrValues = [];
@@ -979,7 +1237,15 @@
       if (name) {
         var result = sanitizeAttrValue(name);
         if (result.changed || result.value !== name) {
-          changeLogs.push('"' + name + '" → "' + result.value + '" (' + result.reasons.join(', ') + ')');
+          changeLogs.push(
+            '"' +
+              name +
+              '" → "' +
+              result.value +
+              '" (' +
+              result.reasons.join(', ') +
+              ')'
+          );
         }
         attrValues.push(result.value);
       }
@@ -987,25 +1253,37 @@
 
     // 有清洗变更时提醒
     if (changeLogs.length > 0) {
-      console.log('%c[自动填表] ⚠️ 属性值被自动修改:\n' + changeLogs.join('\n'), 'color:#FF9800;font-weight:bold');
-      C.showBubble('⚠️ ' + changeLogs.length + '个属性值被自动过滤，请检查', 'warn');
+      console.log(
+        '%c[自动填表] ⚠️ 属性值被自动修改:\n' + changeLogs.join('\n'),
+        'color:#FF9800;font-weight:bold'
+      );
+      C.showBubble(
+        '⚠️ ' + changeLogs.length + '个属性值被自动过滤，请检查',
+        'warn'
+      );
     }
 
     autoLog('检查已有变种属性...');
-    setTimeout(function () {
-      smartFillAttrs(attrValues, function () {
-        // 等待表格重新渲染后填充数据
-        setTimeout(function () {
-          fillSkuTableRows(selectedSkus, cb);
-        }, 500);
-      });
-    }, changeLogs.length > 0 ? 1000 : 300);
+    setTimeout(
+      function () {
+        smartFillAttrs(attrValues, function () {
+          // 等待表格重新渲染后填充数据
+          setTimeout(function () {
+            fillSkuTableRows(selectedSkus, cb);
+          }, 500);
+        });
+      },
+      changeLogs.length > 0 ? 1000 : 300
+    );
   }
 
   // 智能复用已有属性：编辑现有 → 取消多余 → 补充添加
   function smartFillAttrs(targetValues, cb) {
     var form = document.querySelector('#skuAttrsInfo form');
-    if (!form) { cb(); return; }
+    if (!form) {
+      cb();
+      return;
+    }
 
     // 获取所有现有属性标签
     var allLabels = form.querySelectorAll('.options-module label.d-checkbox');
@@ -1018,7 +1296,9 @@
       // 无已有属性，直接添加
       if (targetCount > 0) {
         autoLog('添加 ' + targetCount + ' 个变种属性...');
-        doAddAttrValues(targetValues, function () { cb(); });
+        doAddAttrValues(targetValues, function () {
+          cb();
+        });
       } else {
         cb();
       }
@@ -1042,7 +1322,9 @@
         // 已有 < 需要：添加剩余属性
         var remainValues = targetValues.slice(reuseCount);
         autoLog('添加 ' + remainValues.length + ' 个剩余属性...');
-        doAddAttrValues(remainValues, function () { cb(); });
+        doAddAttrValues(remainValues, function () {
+          cb();
+        });
       } else {
         cb();
       }
@@ -1051,14 +1333,19 @@
 
   // 逐个编辑已有属性值并勾选
   function renameAndCheckAttrs(labels, values, idx, cb) {
-    if (idx >= values.length) { cb(); return; }
+    if (idx >= values.length) {
+      cb();
+      return;
+    }
 
     var label = labels[idx];
     var targetText = values[idx];
 
     // 读取当前文本
     var textEl = label.querySelector('.theme-value-text');
-    var currentText = textEl ? (textEl.getAttribute('title') || textEl.textContent || '') : '';
+    var currentText = textEl
+      ? textEl.getAttribute('title') || textEl.textContent || ''
+      : '';
 
     function afterEdit() {
       // 勾选此属性
@@ -1075,19 +1362,32 @@
     } else {
       // 需要编辑文本：点击编辑按钮 → 修改输入框 → 保存
       var editBtn = label.querySelector('.btn-edit');
-      if (!editBtn) { afterEdit(); return; }
+      if (!editBtn) {
+        afterEdit();
+        return;
+      }
 
       editBtn.click();
       setTimeout(function () {
         var input = label.querySelector('.edit-inp');
-        if (!input) { afterEdit(); return; }
+        if (!input) {
+          afterEdit();
+          return;
+        }
 
         C.setInputValue(input, targetText);
 
         setTimeout(function () {
           var saveBtn = label.querySelector('.btn-save');
           if (saveBtn) saveBtn.click();
-          console.log('%c[自动填表] 属性编辑: "' + currentText + '" → "' + targetText + '"', 'color:#E65100;font-weight:bold');
+          console.log(
+            '%c[自动填表] 属性编辑: "' +
+              currentText +
+              '" → "' +
+              targetText +
+              '"',
+            'color:#E65100;font-weight:bold'
+          );
           setTimeout(afterEdit, 65);
         }, 65);
       }, 65);
@@ -1102,11 +1402,17 @@
       if (checkbox && checkbox.checked) toUncheck.push(checkbox);
     }
 
-    if (!toUncheck.length) { cb(); return; }
+    if (!toUncheck.length) {
+      cb();
+      return;
+    }
 
     var idx = 0;
     (function next() {
-      if (idx >= toUncheck.length) { setTimeout(cb, 200); return; }
+      if (idx >= toUncheck.length) {
+        setTimeout(cb, 200);
+        return;
+      }
       toUncheck[idx].click();
       idx++;
       setTimeout(next, 50);
@@ -1133,14 +1439,23 @@
 
   // 动态添加新的变种属性值（通过输入框添加）
   function doAddAttrValues(values, cb) {
-    if (!values.length) { cb(); return; }
+    if (!values.length) {
+      cb();
+      return;
+    }
 
     var addBox = document.querySelector('#skuAttrsInfo form .theme-value-add');
-    if (!addBox) { cb(); return; }
+    if (!addBox) {
+      cb();
+      return;
+    }
 
     var input = addBox.querySelector('input[type="text"]');
     var addBtn = addBox.querySelector('button');
-    if (!input || !addBtn) { cb(); return; }
+    if (!input || !addBtn) {
+      cb();
+      return;
+    }
 
     var idx = 0;
     (function next() {
@@ -1169,10 +1484,18 @@
     autoLog('定位SKU表格...');
 
     var table = document.querySelector('#skuDataInfo table');
-    if (!table) { autoError('未找到SKU表格'); cb(); return; }
+    if (!table) {
+      autoError('未找到SKU表格');
+      cb();
+      return;
+    }
 
     var rows = table.querySelectorAll('tbody tr');
-    if (!rows.length) { autoError('SKU表格无数据行'); cb(); return; }
+    if (!rows.length) {
+      autoError('SKU表格无数据行');
+      cb();
+      return;
+    }
 
     var total = Math.min(rows.length, selectedSkus.length);
     var idx = 0;
@@ -1217,7 +1540,10 @@
     var triggerEl = hasImage
       ? tr.querySelector('.sku-image-box')
       : tr.querySelector('td.min-w-70 .img-box');
-    if (!triggerEl) { cb(); return; }
+    if (!triggerEl) {
+      cb();
+      return;
+    }
 
     triggerEl.scrollIntoView({ behavior: 'instant', block: 'center' });
 
@@ -1232,7 +1558,10 @@
           var style = getComputedStyle(dropdowns[d]);
           if (style.display === 'none') continue;
           var item = dropdowns[d].querySelector('li[data-menu-id="net"]');
-          if (item) { netItem = item; break; }
+          if (item) {
+            netItem = item;
+            break;
+          }
         }
 
         if (netItem) {
@@ -1245,19 +1574,27 @@
               var textarea = modal.querySelector('textarea.ant-input');
               if (textarea) setInputValue(textarea, imgUrl);
               setTimeout(function () {
-                var addBtn = modal.querySelector('.ant-modal-footer .ant-btn-primary');
+                var addBtn = modal.querySelector(
+                  '.ant-modal-footer .ant-btn-primary'
+                );
                 if (addBtn) addBtn.click();
                 setTimeout(cb, 300);
               }, 200);
               return;
             }
-            if (Date.now() - modalStart > 5000) { cb(); return; }
+            if (Date.now() - modalStart > 5000) {
+              cb();
+              return;
+            }
             requestAnimationFrame(checkModal);
           })();
           return;
         }
 
-        if (Date.now() - start > 3000) { cb(); return; }
+        if (Date.now() - start > 3000) {
+          cb();
+          return;
+        }
         requestAnimationFrame(checkDropdown);
       })();
     }, 300);
@@ -1265,14 +1602,16 @@
 
   function fillSkuFields(tr, skuData) {
     // 申报价格
-    if (skuData.price) {
-      var priceInput = tr.querySelector('input[name="price"]');
-      if (priceInput) focusSetBlur(priceInput, String(skuData.price));
-    }
+    // if (skuData.price) {
+    //   var priceInput = tr.querySelector('input[name="price"]');
+    //   if (priceInput) focusSetBlur(priceInput, String(skuData.price));
+    // }
 
     // 尺寸
     if (skuData.dimensions && skuData.dimensions.length === 3) {
-      var sorted = skuData.dimensions.slice().sort(function (a, b) { return b - a; });
+      var sorted = skuData.dimensions.slice().sort(function (a, b) {
+        return b - a;
+      });
       var lenInput = tr.querySelector('input[name="skuLength"]');
       var widInput = tr.querySelector('input[name="skuWidth"]');
       var heiInput = tr.querySelector('input[name="skuHeight"]');
@@ -1292,7 +1631,10 @@
   // 等待页面加载完成后开始
   waitForElement('#productProductInfo', 10000, function (el) {
     if (!el) {
-      console.log('%c[自动填表] 页面未就绪，放弃自动填表', 'color:#ff4444;font-weight:bold');
+      console.log(
+        '%c[自动填表] 页面未就绪，放弃自动填表',
+        'color:#ff4444;font-weight:bold'
+      );
       return;
     }
 
@@ -1304,5 +1646,4 @@
       }, 1000);
     });
   });
-
 })();
