@@ -126,7 +126,7 @@ Vue.component('page-dashboard', {
           pointer: { show: false },
           title: { offsetCenter: [0, '30%'], fontSize: 13, color: '#999' },
           detail: { offsetCenter: [0, '0%'], fontSize: 32, fontWeight: 700, color: '#333', formatter: '{value}%' },
-          data: [{ value: pct, name: '使用率' }]
+          data: [{ value: pct, name: '发布率' }]
         }]
       });
     }
@@ -144,13 +144,13 @@ Vue.component('page-dashboard', {
           <div class="icon-wrap green">
             <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8z"/></svg>
           </div>
-          <div class="stat-body"><div class="stat-val">{{ stats.unused }}</div><div class="stat-label">未使用</div></div>
+          <div class="stat-body"><div class="stat-val">{{ stats.unused }}</div><div class="stat-label">未发布</div></div>
         </div>
         <div class="stat-card">
           <div class="icon-wrap gray">
             <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
           </div>
-          <div class="stat-body"><div class="stat-val">{{ stats.used }}</div><div class="stat-label">已使用</div></div>
+          <div class="stat-body"><div class="stat-val">{{ stats.used }}</div><div class="stat-label">已发布</div></div>
         </div>
         <div class="stat-card">
           <div class="icon-wrap orange">
@@ -185,7 +185,7 @@ Vue.component('page-dashboard', {
                   <div class="recent-time">{{ item.created_at }}</div>
                 </div>
                 <span :class="'recent-badge ' + (item.status === 0 ? 'unused' : 'used')">
-                  {{ item.status === 0 ? '未使用' : '已使用' }}
+                  {{ item.status === 0 ? '未发布' : '已发布' }}
                 </span>
               </li>
               <li v-if="!recentList.length" style="justify-content:center;color:#ccc;padding:20px 0;">暂无数据</li>
@@ -193,7 +193,7 @@ Vue.component('page-dashboard', {
           </div>
         </div>
         <div class="chart-card">
-          <div class="chart-card-header">使用率</div>
+          <div class="chart-card-header">发布率</div>
           <div class="chart-card-body" id="chart-usage"></div>
         </div>
       </div>

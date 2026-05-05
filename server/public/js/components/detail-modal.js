@@ -356,7 +356,7 @@ Vue.component('detail-modal', {
               <span style="color:#666;font-size:14px">{{ originCategory }}</span>
             </span>
             <span class="label">状态</span><span class="value">
-              <span :class="'status-tag ' + (editable.status === 0 ? 'status-unused' : 'status-used')">{{ editable.status === 0 ? '未使用' : '已使用' }}</span>
+              <span :class="'status-tag ' + (editable.status === 0 ? 'status-unused' : 'status-used')">{{ editable.status === 0 ? '未发布' : '已发布' }}</span>
             </span>
             <span class="label">采集时间</span><span class="value">{{ editable.created_at || '-' }}</span>
           </div>
@@ -416,7 +416,7 @@ Vue.component('detail-modal', {
           <i-button type="primary" icon="md-checkmark" @click="saveProduct">保存</i-button>
           <i-button type="success" icon="md-paper-plane" @click="openAdd">发布</i-button>
           <i-button :type="editable.status === 0 ? 'success' : 'error'" @click="toggleStatus">
-            {{ editable.status === 0 ? '标记已使用' : '标记未使用' }}
+            {{ editable.status === 0 ? '标记已发布' : '标记未发布' }}
           </i-button>
           <i-button icon="md-close" @click="close">关闭</i-button>
         </div>

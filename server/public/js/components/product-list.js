@@ -69,7 +69,7 @@ Vue.component('page-products', {
         { title: '采集时间', key: 'created_at', width: 200 },
         {
           title: '操作',
-          width: 200,
+          width: 220,
           align: 'center',
           className: 'col-actions',
           fixed: 'right',
@@ -246,6 +246,29 @@ Vue.component('page-products', {
         }
       });
     },
+    batchToggleStatus: function () {
+      var vm = this;
+      if (!vm.selectedIds.length) return;
+      this.$Modal.confirm({
+        title: '批量修改状态',
+        content: '确认将 ' + vm.selectedIds.length + ' 条商品的状态反转？',
+        onOk: function () {
+          fetch('/api/product/batch-status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids: vm.selectedIds, status: -1 })
+          })
+            .then(function () {
+              vm.selectedIds = [];
+              vm.loadList();
+              vm.$Message.success('状态已修改');
+            })
+            .catch(function () {
+              vm.$Message.error('批量修改状态失败');
+            });
+        }
+      });
+    },
     batchDelete: function () {
       var vm = this;
       if (!vm.selectedIds.length) return;
@@ -318,8 +341,8 @@ Vue.component('page-products', {
         <span style="font-size:13px;color:#666;white-space:nowrap">状态</span>
         <i-select v-model="statusFilter" clearable placeholder="全部状态" style="width:130px" @on-change="loadList(1)">
           <i-option value="all">全部状态</i-option>
-          <i-option value="0">未使用</i-option>
-          <i-option value="1">已使用</i-option>
+          <i-option value="0">未发布</i-option>
+          <i-option value="1">已发布</i-option>
         </i-select>
         <span style="font-size:13px;color:#666;white-space:nowrap">类目</span>
         <i-select v-model="categoryFilter" clearable filterable placeholder="全部类目" style="width:150px" @on-change="loadList(1)">
@@ -335,11 +358,14 @@ Vue.component('page-products', {
       <div class="action-bar">
         <div class="action-bar-left">共采集 <strong>{{ total }}</strong> 条数据</div>
         <div class="action-bar-right">
+          <i-button type="warning" icon="md-pricetag" :disabled="selectedIds.length === 0" @click="openBatchCategory">
+            批量设置类目{{ selectedIds.length ? ' (' + selectedIds.length + ')' : '' }}
+          </i-button>
           <i-button type="error" icon="ios-trash" :disabled="selectedIds.length === 0" @click="batchDelete">
             批量删除{{ selectedIds.length ? ' (' + selectedIds.length + ')' : '' }}
           </i-button>
-          <i-button type="warning" icon="md-pricetag" :disabled="selectedIds.length === 0" @click="openBatchCategory">
-            批量设置类目{{ selectedIds.length ? ' (' + selectedIds.length + ')' : '' }}
+          <i-button type="info" icon="md-swap" :disabled="selectedIds.length === 0" @click="batchToggleStatus">
+            批量修改状态{{ selectedIds.length ? ' (' + selectedIds.length + ')' : '' }}
           </i-button>
           <tooltip content="刷新" placement="top"><i-button icon="md-refresh" shape="circle" @click="loadList()"></i-button></tooltip>
         </div>

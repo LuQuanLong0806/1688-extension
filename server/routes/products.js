@@ -292,4 +292,17 @@ router.post('/product/batch-delete', (req, res) => {
   res.json({ ok: true, deleted: before ? before.count : 0 });
 });
 
+router.post('/product/batch-status', (req, res) => {
+  const { ids, status } = req.body;
+  if (!Array.isArray(ids) || !ids.length) return res.json({ ok: true, updated: 0 });
+  if (status === -1) {
+    const placeholders = ids.map(() => '?').join(',');
+    run(`UPDATE products SET status = CASE WHEN status = 1 THEN 0 ELSE 1 END, updated_at = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`, ids);
+  } else {
+    const placeholders = ids.map(() => '?').join(',');
+    run(`UPDATE products SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`, [status, ...ids]);
+  }
+  res.json({ ok: true, updated: ids.length });
+});
+
 module.exports = router;

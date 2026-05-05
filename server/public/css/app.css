@@ -17,7 +17,7 @@ body {
 }
 
 .admin-header {
-  height: 72px;
+  height: 52px;
   background: linear-gradient(135deg, #ff6a00, #ff4000);
   display: flex;
   align-items: center;
@@ -35,8 +35,8 @@ body {
 }
 
 .header-toggle-btn {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -50,8 +50,8 @@ body {
 }
 
 .header-logo {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   background: rgba(255,255,255,.2);
   border-radius: 8px;
   display: flex;
@@ -62,7 +62,7 @@ body {
 .header-logo svg { width: 18px; height: 18px; fill: #fff; }
 
 .header-title {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
   color: #fff;
   letter-spacing: .5px;
