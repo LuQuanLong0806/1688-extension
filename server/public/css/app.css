@@ -333,23 +333,23 @@ body {
 
 .status-tag {
   display: inline-block;
-  padding: 2px 12px;
-  border-radius: 10px;
+  padding: 1px 8px;
+  border-radius: 9px;
   font-size: 12px;
   font-weight: 500;
-  letter-spacing: 0.5px;
-  line-height: 20px;
+  line-height: 18px;
   white-space: nowrap;
+  vertical-align: middle;
 }
 .status-unused {
-  background: rgba(82, 196, 26, 0.1);
+  background: #f6ffed;
   color: #52c41a;
-  border: 1px solid rgba(82, 196, 26, 0.3);
+  border: 1px solid #b7eb8f;
 }
 .status-used {
-  background: rgba(255, 77, 79, 0.08);
-  color: #ff4d4f;
-  border: 1px solid rgba(255, 77, 79, 0.25);
+  background: #fff2f0;
+  color: #ff7875;
+  border: 1px solid #ffccc7;
 }
 
 .action-bar-left strong {
@@ -382,23 +382,24 @@ body {
 
 .action-btns {
   display: inline-flex;
-  gap: 6px;
+  gap: 4px;
   align-items: center;
 }
 .action-btns .ivu-btn {
-  padding: 0 14px;
+  padding: 0 9px;
   width: auto;
-  height: 30px;
+  height: 24px;
+  font-size: 11px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  border-radius: 15px;
+  gap: 3px;
+  border-radius: 12px;
   border: none;
   transition: all .2s;
   box-shadow: 0 2px 6px rgba(0,0,0,.1);
 }
-.action-btns .ivu-btn .ivu-icon { font-size: 16px; color: #fff; }
+.action-btns .ivu-btn .ivu-icon { font-size: 12px; color: #fff; }
 .action-btns .ivu-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,.15); }
 .action-btns .ivu-btn.ivu-btn-primary { background: linear-gradient(135deg, #4facfe, #00f2fe); }
 .action-btns .ivu-btn.ivu-btn-error { background: linear-gradient(135deg, #f5576c, #ff6b6b); }

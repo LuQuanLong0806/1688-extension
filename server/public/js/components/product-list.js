@@ -8,7 +8,7 @@ Vue.component('page-products', {
       page: 1,
       pageSize: 20,
       keyword: '',
-      statusFilter: 'all',
+      statusFilter: '0',
       categoryFilter: '',
       categoryList: [],
       dxmCategoryFilter: '',
@@ -66,16 +66,10 @@ Vue.component('page-products', {
           width: 180,
           slot: 'sku'
         },
-        {
-          title: '使用状态',
-          width: 100,
-          align: 'center',
-          slot: 'status'
-        },
         { title: '采集时间', key: 'created_at', width: 200 },
         {
           title: '操作',
-          width: 280,
+          width: 200,
           align: 'center',
           className: 'col-actions',
           fixed: 'right',
@@ -360,10 +354,11 @@ Vue.component('page-products', {
         </template>
         <template slot="title" slot-scope="{ row }">
           <a v-if="row.source_url" :href="row.source_url" target="_blank"
-            style="word-break:break-all;line-height:1.4;color:#333;text-decoration:none;cursor:pointer;display:inline-block"
+            style="word-break:break-all;line-height:1.4;color:#333;text-decoration:none;cursor:pointer;display:inline"
             @mouseenter="$event.target.style.color='#ff6a00';$event.target.style.textDecoration='underline'"
             @mouseleave="$event.target.style.color='#333';$event.target.style.textDecoration='none'">{{ row.title || '-' }}</a>
-          <span v-else style="word-break:break-all;line-height:1.4">{{ row.title || '-' }}</span>
+          <span v-else style="word-break:break-all;line-height:1.4;display:inline">{{ row.title || '-' }}</span>
+          <span :class="row.status === 1 ? 'status-tag status-used' : 'status-tag status-unused'" style="margin-left:6px;vertical-align:middle">{{ row.status === 1 ? '已发布' : '未发布' }}</span>
         </template>
         <template slot="aliCategory" slot-scope="{ row }">
           <span style="font-size:12px;color:#666;word-break:break-all">{{ (row.category && (row.category.leafCategoryName || row.category.categoryPath)) || '-' }}</span>
@@ -379,9 +374,6 @@ Vue.component('page-products', {
             <span style="color:#ccc">-</span>
           </template>
           <span v-else style="font-size:12px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-all">{{ getSkuText(row) }}</span>
-        </template>
-        <template slot="status" slot-scope="{ row }">
-          <span :class="row.status === 1 ? 'status-tag status-used' : 'status-tag status-unused'">{{ row.status === 1 ? '已使用' : '未使用' }}</span>
         </template>
         <template slot="actions" slot-scope="{ row }">
           <div class="action-btns">
