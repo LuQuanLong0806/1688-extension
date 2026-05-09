@@ -34,6 +34,24 @@
       <span>框选消除</span>
     </div>
     <div class="__dxm_editor_sep"></div>
+    <div class="__dxm_editor_btn" data-action="pad" title="图片补白">
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="1"/><rect x="5" y="5" width="6" height="6" rx=".5"/></svg>
+      <span>图片补白</span>
+    </div>
+    <div class="__dxm_editor_sep"></div>
+    <div class="__dxm_editor_btn" data-action="mosaic" title="马赛克笔 - 涂抹添加马赛克">
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="1" width="6" height="6" rx=".5"/><rect x="9" y="1" width="6" height="6" rx=".5"/><rect x="1" y="9" width="6" height="6" rx=".5"/><rect x="9" y="9" width="6" height="6" rx=".5"/></svg>
+      <span>马赛克笔</span>
+    </div>
+    <div class="__dxm_editor_btn" data-action="mosaicRect" title="马赛克矩形 - 框选区域添加马赛克">
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="1"/><rect x="5" y="5" width="6" height="6" rx=".5"/></svg>
+      <span>马赛克矩形</span>
+    </div>
+    <div class="__dxm_editor_btn" data-action="mosaicCircle" title="马赛克圆形 - 圆形区域添加马赛克">
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="1"/><circle cx="8" cy="8" r="3.5"/></svg>
+      <span>马赛克圆形</span>
+    </div>
+    <div class="__dxm_editor_sep"></div>
     <div class="__dxm_editor_btn" data-action="ruler" title="显示/隐藏标尺参考线">
       <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="4" width="14" height="8" rx="1"/><path d="M4 4v3M7 4v5M10 4v3M13 4v5"/></svg>
       <span>标尺</span>
@@ -221,16 +239,20 @@
   }
 
   // ========== 工具分类 ==========
-  // 调整 tab: 裁剪/旋转、调整尺寸、消除笔/框选消除、标尺、批量翻转
+  // 调整 tab: 裁剪/旋转、调整尺寸、消除笔/框选消除、图片补白、马赛克(笔/矩形/圆形)、标尺、批量翻转
   // 水印 tab: 我的水印
   var TOOL_TAB = {
-    crop:      { tab: 'Adjust',   module: '裁剪/旋转' },
-    resize:    { tab: 'Adjust',   module: '调整尺寸' },
-    erase:     { tab: 'Adjust',   module: '消除笔', shapeIcon: '.icon-shape_5' },
-    eraseRect: { tab: 'Adjust',   module: '消除笔', shapeIcon: '.icon-shape_1' },
-    ruler:     { tab: 'Adjust',   module: '标尺' },
-    flip:      { tab: 'Adjust',   module: null },        // 批量翻转走独立流程
-    watermark: { tab: 'Watermark', module: null }         // 我的水印走独立流程
+    crop:         { tab: 'Adjust',   module: '裁剪/旋转' },
+    resize:       { tab: 'Adjust',   module: '调整尺寸' },
+    erase:        { tab: 'Adjust',   module: '消除笔',   shapeIcon: '.icon-shape_5' },
+    eraseRect:    { tab: 'Adjust',   module: '消除笔',   shapeIcon: '.icon-shape_1' },
+    pad:          { tab: 'Adjust',   module: '图片补白' },
+    mosaic:       { tab: 'Adjust',   module: '马赛克',   shapeIcon: '.icon-shape_5' },
+    mosaicRect:   { tab: 'Adjust',   module: '马赛克',   shapeIcon: '.icon-shape_1' },
+    mosaicCircle: { tab: 'Adjust',   module: '马赛克',   shapeIcon: '.icon-shape_2' },
+    ruler:        { tab: 'Adjust',   module: '标尺' },
+    flip:         { tab: 'Adjust',   module: null },        // 批量翻转走独立流程
+    watermark:    { tab: 'Watermark', module: null }         // 我的水印走独立流程
   };
 
   // ========== Helpers ==========
@@ -465,8 +487,9 @@
     }
   }
 
-  // ========== 消除笔/框选消除（共享模块，需要先判断展开状态再点击子元素） ==========
-  async function clickEraseTool(action) {
+  // ========== 消除笔/框选消除/马赛克（共享模块，需要先判断展开状态再点击子元素） ==========
+  var SHAPE_ACTIONS = ['erase', 'eraseRect', 'mosaic', 'mosaicRect', 'mosaicCircle'];
+  async function clickShapeTool(action) {
     console.log(LOG, '===== ' + action + ' =====');
     if (!(await waitForEditor())) { toast('编辑器未加载完成'); return; }
     var adjustTab = $('.side_tools .tools .tool.Adjust');
@@ -475,11 +498,11 @@
       await waitFor('.side_tools .content .module', 3000);
       await wait(50);
     }
-    var mod = await waitForModule('消除笔', 3000);
-    if (!mod) { toast('未找到消除笔模块'); return; }
-
     var info = TOOL_TAB[action];
+    var moduleName = info ? info.module : '';
     var shapeIcon = info ? info.shapeIcon : '';
+    var mod = await waitForModule(moduleName, 3000);
+    if (!mod) { toast('未找到' + moduleName + '模块'); return; }
     var isOpen = !!mod.querySelector('.parameter');
     var toolbarBtn = toolbar.querySelector('[data-action="' + action + '"]');
 
@@ -491,12 +514,20 @@
     });
 
     if (isOpen) {
-      // 模块已展开，直接点击子元素，不 toggle 模块
-      if (shapeIcon) {
-        var shapeBtn = mod.querySelector('.shape_btns ' + shapeIcon);
-        if (shapeBtn) click(shapeBtn);
+      // 模块已展开
+      if (toolbarBtn && toolbarBtn.classList.contains('__active')) {
+        // 当前按钮已是选中状态，再次点击则关闭模块、取消选中
+        var openEl = mod.querySelector('.open');
+        click(openEl);
+        toolbarBtn.classList.remove('__active');
+      } else {
+        // 切换到当前工具的子元素
+        if (shapeIcon) {
+          var shapeBtn = mod.querySelector('.shape_btns ' + shapeIcon);
+          if (shapeBtn) click(shapeBtn);
+        }
+        if (toolbarBtn) toolbarBtn.classList.add('__active');
       }
-      if (toolbarBtn) toolbarBtn.classList.add('__active');
     } else {
       // 模块未展开，先展开再点击子元素
       var openEl = mod.querySelector('.open');
@@ -568,8 +599,8 @@
       var info = TOOL_TAB[action];
       if (!info) return;
 
-      if (action === 'erase' || action === 'eraseRect') {
-        clickEraseTool(action);
+      if (SHAPE_ACTIONS.indexOf(action) !== -1) {
+        clickShapeTool(action);
       } else if (info.module) {
         clickAdjustTool(info.module, action);
       } else if (action === 'flip') {
@@ -582,10 +613,16 @@
 
   // ========== 图片列表点击：切换图片时清除工具栏选中状态 ==========
   document.addEventListener('click', function (e) {
-    var imgEl = e.target.closest('.img_list .type .value img');
-    if (imgEl) {
+    // 切换图片时清除选中
+    if (e.target.closest('.img_list .type .value img')) {
+      btns.forEach(function (b) { b.classList.remove('__active'); });
+      return;
+    }
+    // 切换侧边tab时清除选中（捕获阶段，在编辑器更新selected之前检测）
+    var tabEl = e.target.closest('.tools .tool');
+    if (tabEl && !tabEl.classList.contains('selected')) {
       btns.forEach(function (b) { b.classList.remove('__active'); });
     }
-  });
+  }, true);
 
 })();
