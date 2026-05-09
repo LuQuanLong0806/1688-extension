@@ -163,7 +163,7 @@
     }
     .__dxm_editor_toast.show { opacity: 1; top: 52px; }
     .__dxm_editor_dropdown {
-      position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+      position: absolute; top: calc(100% + 8px); left: 0;
       min-width: 150px;
       background: #fff;
       border: 1px solid rgba(0,0,0,0.06);
@@ -179,7 +179,7 @@
     }
     .__dxm_editor_dropdown label {
       display: flex; align-items: center; gap: 8px;
-      padding: 5px 8px;
+      padding: 6px 8px;
       border-radius: 6px;
       font-size: 13px; color: #333;
       cursor: pointer;
@@ -328,6 +328,10 @@
       dropdownOpen = false;
     } else {
       buildDropdown();
+      // 定位到拖动按钮下方
+      var handleRect = handle.getBoundingClientRect();
+      var tbRect = toolbar.getBoundingClientRect();
+      dropdown.style.left = (handleRect.left - tbRect.left) + 'px';
       dropdown.classList.add('show');
       dropdownOpen = true;
     }
