@@ -111,9 +111,10 @@
     '#__dxm_bee_resize:hover{transform:scale(1.15)!important;box-shadow:0 4px 12px rgba(216,67,21,.5)}' +
     // ========== 便签样式 ==========
     '#__dxm_bee_btns>div[id]{position:relative}' +
-    '.__dxm_bee_check{display:none;position:absolute;bottom:-2px;right:-3px;width:12px;height:12px;background:#52c41a;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.15)}' +
-    '.__dxm_bee_check.show{display:flex;align-items:center;justify-content:center}' +
-    '.__dxm_bee_check::after{content:\'\';width:4px;height:6px;border:solid #fff;border-width:0 1.5px 1.5px 0;transform:rotate(45deg);margin-bottom:-1px}' +
+    '.__dxm_bee_check{display:none;position:absolute;bottom:-3px;right:-3px;width:13px;height:13px;background:linear-gradient(135deg,#52c41a,#73d13d);border-radius:50%;border:1.5px solid #fff;box-shadow:0 1px 4px rgba(82,196,26,.4);transition:transform .2s}' +
+    '.__dxm_bee_check.show{display:flex;align-items:center;justify-content:center;animation:__dxm_check_pop .3s ease}' +
+    '@keyframes __dxm_check_pop{0%{transform:scale(0)}60%{transform:scale(1.2)}100%{transform:scale(1)}}' +
+    '.__dxm_bee_check::after{content:\'\';width:4px;height:6px;border:solid #fff;border-width:0 1.5px 1.5px 0;transform:rotate(45deg);margin-top:-0.5px}' +
     '.__dxm_bee_disabled{opacity:.5;pointer-events:none}' +
     '#__dxm_bee_note{position:fixed;z-index:2147483646;font:12px/1.6 "Microsoft YaHei",Arial,sans-serif}' +
     '#__dxm_bee_note_drag{display:flex;align-items:center;justify-content:space-between;cursor:move;padding:4px}' +
