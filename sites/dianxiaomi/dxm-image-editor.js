@@ -411,8 +411,8 @@
   // 调整 tab: 裁剪/旋转、调整尺寸、消除笔/框选消除、图片补白、马赛克(笔/矩形/圆形)、标尺、批量翻转
   // 水印 tab: 我的水印
   var TOOL_TAB = {
-    crop:         { tab: 'Adjust',   module: '裁剪/旋转' },
-    resize:       { tab: 'Adjust',   module: '调整尺寸' },
+    crop:         { tab: 'Adjust',   module: '裁剪/旋转', defaultSize: '1000 x 1000' },
+    resize:       { tab: 'Adjust',   module: '调整尺寸', defaultSize: '800 x 800' },
     erase:        { tab: 'Adjust',   module: '消除笔',   shapeIcon: '.icon-shape_5' },
     eraseRect:    { tab: 'Adjust',   module: '消除笔',   shapeIcon: '.icon-shape_1' },
     pad:          { tab: 'Adjust',   module: '图片补白' },
@@ -718,6 +718,76 @@
     }
   }
 
+  // ========== 裁剪/调整尺寸（打开后自动选择默认尺寸） ==========
+  var BLOCK_ACTIONS = ['crop', 'resize'];
+  async function clickBlockTool(action) {
+    var info = TOOL_TAB[action];
+    var moduleName = info ? info.module : '';
+    var defaultSize = info ? info.defaultSize : '';
+    console.log(LOG, '===== ' + moduleName + ' =====');
+    if (!(await waitForEditor())) { toast('编辑器未加载完成'); return; }
+    var adjustTab = $('.side_tools .tools .tool.Adjust');
+    if (!adjustTab || !adjustTab.classList.contains('selected')) {
+      click(adjustTab);
+      await waitFor('.side_tools .content .module', 3000);
+      await wait(50);
+    }
+    var mod = await waitForModule(moduleName, 3000);
+    if (!mod) { toast('未找到' + moduleName + '模块'); return; }
+    var isOpen = !!mod.querySelector('.parameter');
+    var toolbarBtn = toolbar.querySelector('[data-action="' + action + '"]');
+
+    // 清除其他调整工具按钮的选中状态
+    var adjustActions = Object.keys(TOOL_TAB).filter(function (a) { return TOOL_TAB[a].tab === 'Adjust' && a !== action; });
+    adjustActions.forEach(function (a) {
+      var otherBtn = toolbar.querySelector('[data-action="' + a + '"]');
+      if (otherBtn) otherBtn.classList.remove('__active');
+    });
+
+    if (isOpen) {
+      if (toolbarBtn && toolbarBtn.classList.contains('__active')) {
+        var openEl = mod.querySelector('.open');
+        click(openEl);
+        toolbarBtn.classList.remove('__active');
+      } else {
+        if (toolbarBtn) toolbarBtn.classList.add('__active');
+        if (defaultSize) await clickBlockSize(mod, defaultSize);
+      }
+    } else {
+      var openEl = mod.querySelector('.open');
+      click(openEl);
+      await wait(100);
+      if (toolbarBtn) toolbarBtn.classList.add('__active');
+      if (defaultSize) await clickBlockSize(mod, defaultSize);
+    }
+
+    // 滚动到模块可见
+    var content = $('.side_tools .content');
+    if (content) {
+      var contentTop = content.getBoundingClientRect().top;
+      var modTop = mod.getBoundingClientRect().top;
+      content.scrollTop += modTop - contentTop;
+    }
+  }
+
+  async function clickBlockSize(mod, sizeText) {
+    // 等待 block 元素渲染
+    var start = Date.now();
+    var blocks;
+    while (true) {
+      blocks = mod.querySelectorAll('.block_form .block');
+      if (blocks.length > 0) break;
+      if (Date.now() - start > 2000) return;
+      await wait(50);
+    }
+    for (var i = 0; i < blocks.length; i++) {
+      if ((blocks[i].textContent || '').indexOf(sizeText) !== -1) {
+        if (!blocks[i].classList.contains('selected')) click(blocks[i]);
+        break;
+      }
+    }
+  }
+
   // ========== 通用：点击左侧tab再点击子工具 ==========
   // toolName 模块名, action 按钮的 data-action
   async function clickAdjustTool(toolName, action) {
@@ -768,7 +838,9 @@
       var info = TOOL_TAB[action];
       if (!info) return;
 
-      if (SHAPE_ACTIONS.indexOf(action) !== -1) {
+      if (BLOCK_ACTIONS.indexOf(action) !== -1) {
+        clickBlockTool(action);
+      } else if (SHAPE_ACTIONS.indexOf(action) !== -1) {
         clickShapeTool(action);
       } else if (info.module) {
         clickAdjustTool(info.module, action);
