@@ -659,21 +659,24 @@
   // ========== 消除笔/框选消除/马赛克（共享模块，需要先判断展开状态再点击子元素） ==========
   var SHAPE_ACTIONS = ['erase', 'eraseRect', 'mosaic', 'mosaicRect', 'mosaicCircle'];
   async function clickShapeTool(action) {
-    console.log(LOG, '===== ' + action + ' =====');
+    var info = TOOL_TAB[action];
+    var moduleName = info ? info.module : '';
+    var shapeIcon = info ? info.shapeIcon : '';
+    console.log(LOG, '===== ' + BTN_LABELS[action] + ' =====');
     if (!(await waitForEditor())) { toast('编辑器未加载完成'); return; }
     var adjustTab = $('.side_tools .tools .tool.Adjust');
     if (!adjustTab || !adjustTab.classList.contains('selected')) {
+      console.log(LOG, '点击Adjust tab');
       click(adjustTab);
       await waitFor('.side_tools .content .module', 3000);
       await wait(50);
     }
-    var info = TOOL_TAB[action];
-    var moduleName = info ? info.module : '';
-    var shapeIcon = info ? info.shapeIcon : '';
     var mod = await waitForModule(moduleName, 3000);
+    console.log(LOG, '模块:', mod ? '找到' : '未找到', '| 子元素:', shapeIcon || '无');
     if (!mod) { toast('未找到' + moduleName + '模块'); return; }
     var isOpen = !!mod.querySelector('.parameter');
     var toolbarBtn = toolbar.querySelector('[data-action="' + action + '"]');
+    console.log(LOG, 'isOpen:', isOpen, 'toolbarBtn active:', toolbarBtn ? toolbarBtn.classList.contains('__active') : 'N/A');
 
     // 清除其他调整工具按钮的选中状态
     var adjustActions = Object.keys(TOOL_TAB).filter(function (a) { return TOOL_TAB[a].tab === 'Adjust' && a !== action; });
@@ -682,40 +685,48 @@
       if (otherBtn) otherBtn.classList.remove('__active');
     });
 
+    var needScroll = true;
     if (isOpen) {
-      // 模块已展开
       if (toolbarBtn && toolbarBtn.classList.contains('__active')) {
-        // 当前按钮已是选中状态，再次点击则关闭模块、取消选中
+        console.log(LOG, '收起模块');
         var openEl = mod.querySelector('.open');
         click(openEl);
         toolbarBtn.classList.remove('__active');
+        needScroll = false;
       } else {
-        // 切换到当前工具的子元素
+        console.log(LOG, '模块已开，点击子元素:', shapeIcon);
         if (shapeIcon) {
           var shapeBtn = mod.querySelector('.shape_btns ' + shapeIcon);
+          console.log(LOG, '子元素:', shapeBtn ? '找到，点击' : '未找到');
           if (shapeBtn) click(shapeBtn);
         }
         if (toolbarBtn) toolbarBtn.classList.add('__active');
       }
     } else {
-      // 模块未展开，先展开再点击子元素
+      console.log(LOG, '模块未开，展开后点击子元素:', shapeIcon);
       var openEl = mod.querySelector('.open');
       click(openEl);
-      await wait(100);
-      if (shapeIcon) {
+      await wait(150);
+      mod = await waitForModule(moduleName, 3000);
+      console.log(LOG, '重新获取模块:', mod ? '找到' : '未找到');
+      if (mod && shapeIcon) {
         var shapeBtn = mod.querySelector('.shape_btns ' + shapeIcon);
+        console.log(LOG, '子元素:', shapeBtn ? '找到，点击' : '未找到');
         if (shapeBtn) click(shapeBtn);
       }
       if (toolbarBtn) toolbarBtn.classList.add('__active');
     }
 
     // 滚动到模块可见
-    var content = $('.side_tools .content');
-    if (content) {
-      var contentTop = content.getBoundingClientRect().top;
-      var modTop = mod.getBoundingClientRect().top;
-      content.scrollTop += modTop - contentTop;
+    if (needScroll) {
+      var content = $('.side_tools .content');
+      if (content && mod) {
+        var contentTop = content.getBoundingClientRect().top;
+        var modTop = mod.getBoundingClientRect().top;
+        content.scrollTop += modTop - contentTop;
+      }
     }
+    console.log(LOG, '完成');
   }
 
   // ========== 裁剪/调整尺寸（打开后自动选择默认尺寸） ==========
@@ -728,14 +739,17 @@
     if (!(await waitForEditor())) { toast('编辑器未加载完成'); return; }
     var adjustTab = $('.side_tools .tools .tool.Adjust');
     if (!adjustTab || !adjustTab.classList.contains('selected')) {
+      console.log(LOG, '点击Adjust tab');
       click(adjustTab);
       await waitFor('.side_tools .content .module', 3000);
       await wait(50);
     }
     var mod = await waitForModule(moduleName, 3000);
+    console.log(LOG, '模块:', mod ? '找到' : '未找到', mod);
     if (!mod) { toast('未找到' + moduleName + '模块'); return; }
     var isOpen = !!mod.querySelector('.parameter');
     var toolbarBtn = toolbar.querySelector('[data-action="' + action + '"]');
+    console.log(LOG, 'isOpen:', isOpen, 'toolbarBtn active:', toolbarBtn ? toolbarBtn.classList.contains('__active') : 'N/A');
 
     // 清除其他调整工具按钮的选中状态
     var adjustActions = Object.keys(TOOL_TAB).filter(function (a) { return TOOL_TAB[a].tab === 'Adjust' && a !== action; });
@@ -744,67 +758,97 @@
       if (otherBtn) otherBtn.classList.remove('__active');
     });
 
+    var needScroll = true;
     if (isOpen) {
       if (toolbarBtn && toolbarBtn.classList.contains('__active')) {
+        console.log(LOG, '收起模块');
         var openEl = mod.querySelector('.open');
         click(openEl);
         toolbarBtn.classList.remove('__active');
+        needScroll = false;
       } else {
+        console.log(LOG, '模块已开，点击尺寸:', defaultSize);
         if (toolbarBtn) toolbarBtn.classList.add('__active');
         if (defaultSize) await clickBlockSize(mod, defaultSize);
+        if (action === 'resize') await clickResizeApply(mod);
       }
     } else {
+      console.log(LOG, '模块未开，展开后点击尺寸:', defaultSize);
       var openEl = mod.querySelector('.open');
       click(openEl);
-      await wait(100);
+      await wait(150);
+      mod = await waitForModule(moduleName, 3000);
+      console.log(LOG, '重新获取模块:', mod ? '找到' : '未找到');
       if (toolbarBtn) toolbarBtn.classList.add('__active');
-      if (defaultSize) await clickBlockSize(mod, defaultSize);
+      if (mod && defaultSize) await clickBlockSize(mod, defaultSize);
+      if (mod && action === 'resize') await clickResizeApply(mod);
     }
 
     // 滚动到模块可见
-    var content = $('.side_tools .content');
-    if (content) {
-      var contentTop = content.getBoundingClientRect().top;
-      var modTop = mod.getBoundingClientRect().top;
-      content.scrollTop += modTop - contentTop;
+    if (needScroll) {
+      var content = $('.side_tools .content');
+      if (content && mod) {
+        var contentTop = content.getBoundingClientRect().top;
+        var modTop = mod.getBoundingClientRect().top;
+        content.scrollTop += modTop - contentTop;
+      }
     }
   }
 
   async function clickBlockSize(mod, sizeText) {
-    // 等待 block 元素渲染
     var start = Date.now();
     var blocks;
     while (true) {
       blocks = mod.querySelectorAll('.block_form .block');
       if (blocks.length > 0) break;
-      if (Date.now() - start > 2000) return;
+      if (Date.now() - start > 2000) {
+        console.log(LOG, 'clickBlockSize: 超时，未找到block');
+        return;
+      }
       await wait(50);
     }
+    console.log(LOG, 'clickBlockSize: 找到', blocks.length, '个block');
     for (var i = 0; i < blocks.length; i++) {
-      if ((blocks[i].textContent || '').indexOf(sizeText) !== -1) {
-        if (!blocks[i].classList.contains('selected')) click(blocks[i]);
+      var txt = (blocks[i].textContent || '');
+      console.log(LOG, 'block[' + i + ']:', txt.trim().substring(0, 30), 'selected:', blocks[i].classList.contains('selected'));
+      if (txt.indexOf(sizeText) !== -1) {
+        if (!blocks[i].classList.contains('selected')) {
+          console.log(LOG, '点击block:', sizeText);
+          click(blocks[i]);
+        } else {
+          console.log(LOG, 'block已选中，跳过:', sizeText);
+        }
         break;
       }
     }
   }
 
+  async function clickResizeApply(mod) {
+    await wait(200);
+    var applyBtn = mod.querySelector('.footer_btns .el-button--primary');
+    console.log(LOG, '应用按钮:', applyBtn ? '找到，点击' : '未找到');
+    if (applyBtn) click(applyBtn);
+  }
+
   // ========== 通用：点击左侧tab再点击子工具 ==========
   // toolName 模块名, action 按钮的 data-action
   async function clickAdjustTool(toolName, action) {
-    console.log(LOG, '===== ' + toolName + ' =====');
+    console.log(LOG, '===== ' + (BTN_LABELS[action] || toolName) + ' =====');
     if (!(await waitForEditor())) { toast('编辑器未加载完成'); return; }
     var adjustTab = $('.side_tools .tools .tool.Adjust');
-    console.log(LOG, '调整tab:', adjustTab ? '找到' : '未找到');
     if (!adjustTab || !adjustTab.classList.contains('selected')) {
+      console.log(LOG, '点击Adjust tab');
       click(adjustTab);
       await waitFor('.side_tools .content .module', 3000);
       await wait(50);
     }
     var mod = await waitForModule(toolName, 3000);
-    console.log(LOG, toolName + '模块:', mod ? '找到' : '未找到');
+    console.log(LOG, '模块:', mod ? '找到' : '未找到');
     if (!mod) { toast('未找到 ' + toolName); return; }
     var isOpen = !!mod.querySelector('.parameter');
     var toolbarBtn = toolbar.querySelector('[data-action="' + action + '"]');
+    console.log(LOG, 'isOpen:', isOpen, 'toolbarBtn active:', toolbarBtn ? toolbarBtn.classList.contains('__active') : 'N/A');
+
     // 清除其他调整工具按钮的选中状态
     var adjustActions = Object.keys(TOOL_TAB).filter(function (a) { return TOOL_TAB[a].tab === 'Adjust' && a !== action; });
     adjustActions.forEach(function (a) {
@@ -816,18 +860,22 @@
     var openEl = mod.querySelector('.open');
     click(openEl);
     if (isOpen) {
+      console.log(LOG, '收起模块');
       if (toolbarBtn) toolbarBtn.classList.remove('__active');
     } else {
+      console.log(LOG, '展开模块');
       if (toolbarBtn) toolbarBtn.classList.add('__active');
     }
     await wait(50);
+    // 重新获取模块（点击.open后DOM可能重新渲染）
+    mod = await waitForModule(toolName, 1000);
     var content = $('.side_tools .content');
-    if (content) {
+    if (content && mod) {
       var contentTop = content.getBoundingClientRect().top;
       var modTop = mod.getBoundingClientRect().top;
       content.scrollTop += modTop - contentTop;
     }
-    console.log(LOG, '已点击 ' + toolName);
+    console.log(LOG, '完成');
   }
 
   // ========== 按钮事件 ==========
@@ -835,6 +883,8 @@
   btns.forEach(function (btn) {
     btn.addEventListener('click', function () {
       var action = btn.getAttribute('data-action');
+      var label = BTN_LABELS[action] || action;
+      console.log(LOG, '>>> 点击按钮:', label);
       var info = TOOL_TAB[action];
       if (!info) return;
 
