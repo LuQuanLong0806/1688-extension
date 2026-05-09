@@ -163,38 +163,41 @@
     }
     .__dxm_editor_toast.show { opacity: 1; top: 52px; }
     .__dxm_editor_dropdown {
-      position: absolute; top: calc(100% + 8px); left: 0;
-      min-width: 150px;
+      position: absolute; top: calc(100% + 10px); left: 0;
+      min-width: 160px;
       background: #fff;
       border: 1px solid rgba(0,0,0,0.06);
-      border-radius: 10px;
-      box-shadow: 0 8px 30px rgba(0,0,0,0.12);
-      padding: 6px;
+      border-radius: 12px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.13), 0 1px 4px rgba(0,0,0,0.06);
+      padding: 8px 6px;
       display: none;
       z-index: 10;
     }
     .__dxm_editor_dropdown.show { display: block; }
     .__dxm_editor_dropdown .dd-title {
-      font-size: 11px; color: #999; padding: 4px 8px 6px; letter-spacing: .5px;
+      font-size: 11px; color: #aaa; padding: 2px 10px 8px;
+      letter-spacing: .3px; font-weight: 500;
     }
     .__dxm_editor_dropdown label {
-      display: flex; align-items: center; gap: 8px;
-      padding: 6px 8px;
-      border-radius: 6px;
+      display: flex; align-items: center; gap: 10px;
+      padding: 7px 10px;
+      margin-bottom: 2px;
+      border-radius: 8px;
       font-size: 13px; color: #333;
       cursor: pointer;
       transition: background .12s;
     }
-    .__dxm_editor_dropdown label:hover { background: #f5f5f5; }
+    .__dxm_editor_dropdown label:last-child { margin-bottom: 0; }
+    .__dxm_editor_dropdown label:hover { background: #f0f5ff; }
     .__dxm_editor_dropdown .ck-box {
       width: 16px; height: 16px;
-      border: 1.5px solid #d0d0d0;
+      border: 1.5px solid #ccc;
       border-radius: 4px;
       display: flex; align-items: center; justify-content: center;
       transition: all .15s;
       flex-shrink: 0;
     }
-    .__dxm_editor_dropdown label:hover .ck-box { border-color: #b0b0b0; }
+    .__dxm_editor_dropdown label:hover .ck-box { border-color: #409eff; }
     .__dxm_editor_dropdown input:checked + .ck-box {
       background: #409eff; border-color: #409eff;
     }
@@ -204,6 +207,7 @@
       transform: rotate(45deg); margin-top: -1px;
     }
     .__dxm_editor_dropdown input { display: none; }
+    .__dxm_editor_btn + .__dxm_editor_btn { margin-left: 2px; }
   `;
 
   document.head.appendChild(style);
