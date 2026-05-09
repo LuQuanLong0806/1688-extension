@@ -5,6 +5,17 @@
   var Config = window.BeeConfig;
 
   var POS_KEY = '__dxm_bee_pos';
+  var BTN_VIS_KEY = '__dxm_bee_btn_vis';
+  var BEE_BTN_LABELS = {
+    '__dxm_bee_translate': '翻译',
+    '__dxm_bee_delete': '删图',
+    '__dxm_bee_paste': '贴图',
+    '__dxm_bee_resize': '尺寸',
+    '__dxm_bee_sku_table': '填表',
+    '__dxm_bee_sku': 'SKU',
+    '__dxm_bee_package': '包装',
+    '__dxm_bee_edit': '描述'
+  };
 
   // ========== SVG ==========
   var beeSVG =
@@ -133,7 +144,8 @@
     '.note-tip{margin-top:8px;padding:8px 10px;background:#FFF8E1;border-radius:8px;font-size:11px;color:#795548;line-height:1.6}' +
     '.note-tip b{color:#E64A19}' +
     '.note-reset{display:block;margin:8px auto 4px;padding:4px 16px;border:1px solid #e0e0e0;border-radius:6px;background:#fff;color:#666;font-size:11px;cursor:pointer;transition:all .15s}' +
-    '.note-reset:hover{border-color:#E64A19;color:#E64A19}';
+    '.note-reset:hover{border-color:#E64A19;color:#E64A19}' +
+    '#__dxm_bee_btns>div[data-hidden="1"]{display:none!important}';
 
   document.head.appendChild(s);
   document.body.appendChild(wrapper);
@@ -330,6 +342,76 @@
       }
     }
   };
+
+  // ========== 按钮显示/隐藏逻辑（供 config-ui.js 调用） ==========
+  function getBtnVis() {
+    try { var saved = JSON.parse(localStorage.getItem(BTN_VIS_KEY)); if (saved) return saved; } catch (e) {}
+    return null;
+  }
+
+  function saveBtnVis(vis) {
+    try { localStorage.setItem(BTN_VIS_KEY, JSON.stringify(vis)); } catch (e) {}
+  }
+
+  function applyBtnVis(vis) {
+    Object.keys(BEE_BTN_LABELS).forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.setAttribute('data-hidden', vis[id] ? '' : '1');
+    });
+    updateBeeLines();
+    saveBtnVis(vis);
+  }
+
+  function isBtnVisible(el) {
+    if (!el || el.getAttribute('data-hidden') === '1') return false;
+    var s = getComputedStyle(el);
+    return s.display !== 'none';
+  }
+
+  function updateBeeLines() {
+    var btnsContainer = document.getElementById('__dxm_bee_btns');
+    if (!btnsContainer) return;
+    var children = Array.prototype.slice.call(btnsContainer.children);
+    children.forEach(function (el) {
+      if (el.classList.contains('__dxm_bee_line')) el.style.display = 'none';
+    });
+    var lastBtnIdx = -1;
+    for (var i = 0; i < children.length; i++) {
+      var el = children[i];
+      if (el.classList.contains('__dxm_bee_line')) continue;
+      if (!isBtnVisible(el)) continue;
+      if (lastBtnIdx >= 0) {
+        for (var j = lastBtnIdx + 1; j < i; j++) {
+          if (children[j].classList.contains('__dxm_bee_line')) {
+            children[j].style.display = '';
+            break;
+          }
+        }
+      }
+      lastBtnIdx = i;
+    }
+  }
+
+  function initBtnVis() {
+    var vis = getBtnVis();
+    if (!vis) return;
+    Object.keys(BEE_BTN_LABELS).forEach(function (id) {
+      if (!vis[id]) {
+        var el = document.getElementById(id);
+        if (el) el.setAttribute('data-hidden', '1');
+      }
+    });
+    updateBeeLines();
+  }
+
+  // 暴露给 config-ui.js 使用
+  Config.BEE_BTN_LABELS = BEE_BTN_LABELS;
+  Config.getBtnVis = getBtnVis;
+  Config.saveBtnVis = saveBtnVis;
+  Config.applyBtnVis = applyBtnVis;
+  Config.updateBeeLines = updateBeeLines;
+
+  initBtnVis();
 
   function safeCall(fn) {
     return function () {

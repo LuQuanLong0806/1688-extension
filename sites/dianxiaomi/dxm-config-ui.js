@@ -93,7 +93,19 @@
     '.sync-row-btn:hover{background:#FFA000;color:#fff}' +
     '.sync-row-btn:disabled{opacity:.5;cursor:not-allowed;background:#f5f5f0;color:#999;border-color:#e0e0e0}' +
     '#__dxm_bee_sync_footer{padding:12px 22px;border-top:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center}' +
-    '#__dxm_bee_sync_status{font-size:12px;color:#888}';
+    '#__dxm_bee_sync_status{font-size:12px;color:#888}' +
+    // --- Button visibility sub-panel ---
+    '#__dxm_bee_btn_vis_panel{display:none;position:fixed;z-index:2147483647;background:#fff;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.18);padding:6px 6px 8px;min-width:130px;font:12px/1.4 "Microsoft YaHei",Arial,sans-serif;color:#333}' +
+    '#__dxm_bee_btn_vis_panel.show{display:block}' +
+    '#__dxm_bee_btn_vis_panel .cfg-title{font-size:11px;color:#aaa;padding:2px 8px 6px;letter-spacing:.3px;font-weight:500}' +
+    '#__dxm_bee_btn_vis_panel label{display:flex;align-items:center;gap:8px;padding:6px 8px;margin-bottom:2px;border-radius:6px;font-size:12px;color:#333;cursor:pointer;transition:background .12s}' +
+    '#__dxm_bee_btn_vis_panel label:last-child{margin-bottom:0}' +
+    '#__dxm_bee_btn_vis_panel label:hover{background:#FFF8E1}' +
+    '#__dxm_bee_btn_vis_panel input{display:none}' +
+    '#__dxm_bee_btn_vis_panel .cfg-ck{width:14px;height:14px;border:1.5px solid #ccc;border-radius:3px;display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0}' +
+    '#__dxm_bee_btn_vis_panel label:hover .cfg-ck{border-color:#FFA000}' +
+    '#__dxm_bee_btn_vis_panel input:checked+.cfg-ck{background:#FFA000;border-color:#FFA000}' +
+    '#__dxm_bee_btn_vis_panel input:checked+.cfg-ck::after{content:\'\';width:3px;height:6px;border:solid #fff;border-width:0 1.5px 1.5px 0;transform:rotate(45deg);margin-top:-1px}';
   document.head.appendChild(s);
 
   // ========== Context Menu ==========
@@ -115,7 +127,8 @@
     '<div class="menu-item"><span class="menu-label">📍 省份选择</span><input type="text" class="menu-input" id="__dxm_bee_menu_province_input" value="' + province + '" maxlength="10" placeholder="广东省"><div class="menu-desc">工作流填写的省份，须以省/市/自治区结尾</div></div>' +
     '<div class="menu-item"><span class="menu-label">🔑 店铺ID</span><input type="text" class="menu-input" id="__dxm_bee_menu_shopid_input" value="' + shopId + '" maxlength="20" placeholder="输入店铺ID"><div class="menu-desc">同步类目所需的店铺ID</div></div>' +
     '<div class="menu-item clickable" id="__dxm_bee_menu_sync_cat"><span class="menu-label clickable">🌳 同步类目树</span><span class="menu-arrow">▸</span><div class="menu-desc">从店小秘递归采集全部分类，保存到独立数据库</div></div>' +
-    '<div class="menu-item"><span class="menu-label">🔗 服务器地址</span><input type="text" class="menu-input" id="__dxm_bee_menu_server_input" value="' + (Config.getServerUrl() || 'http://localhost:3000') + '" placeholder="http://localhost:3000"><div class="menu-desc">管理端服务器地址，局域网内可填写IP地址</div></div>';
+    '<div class="menu-item"><span class="menu-label">🔗 服务器地址</span><input type="text" class="menu-input" id="__dxm_bee_menu_server_input" value="' + (Config.getServerUrl() || 'http://localhost:3000') + '" placeholder="http://localhost:3000"><div class="menu-desc">管理端服务器地址，局域网内可填写IP地址</div></div>' +
+    '<div class="menu-item clickable" id="__dxm_bee_menu_btn_vis"><span class="menu-label">🎛️ 按钮显示方案</span><span class="menu-arrow">▸</span><div class="menu-desc">配置工具栏中显示哪些按钮</div></div>';
   document.body.appendChild(menu);
 
   var menuStoreName = document.getElementById('__dxm_bee_menu_store_name');
@@ -148,6 +161,7 @@
 
   function hideMenu() {
     menu.classList.remove('show');
+    if (typeof hideBtnVisPanel === 'function') hideBtnVisPanel();
   }
 
   // Attach to bee icon (created by float-bee.js which loads before this file)
@@ -270,6 +284,93 @@
   });
   serverInput.addEventListener('click', function (e) {
     e.stopPropagation();
+  });
+
+  // ========== Button Visibility Sub-Panel ==========
+  var btnVisPanel = document.createElement('div');
+  btnVisPanel.id = '__dxm_bee_btn_vis_panel';
+  document.body.appendChild(btnVisPanel);
+
+  var btnVisOpen = false;
+
+  function buildBtnVisPanel() {
+    var labels = Config.BEE_BTN_LABELS || {};
+    var vis = Config.getBtnVis ? Config.getBtnVis() : null;
+    var html = '<div class="cfg-title">显示按钮</div>';
+    var keys = Object.keys(labels);
+    keys.forEach(function (id) {
+      var checked = vis ? !!vis[id] : true;
+      html += '<label><input type="checkbox" data-btn="' + id + '"' + (checked ? ' checked' : '') + '><span class="cfg-ck"></span>' + labels[id] + '</label>';
+    });
+    btnVisPanel.innerHTML = html;
+    btnVisPanel.querySelectorAll('input[type="checkbox"]').forEach(function (cb) {
+      cb.addEventListener('change', function () {
+        var newVis = {};
+        btnVisPanel.querySelectorAll('input[type="checkbox"]').forEach(function (c) {
+          newVis[c.getAttribute('data-btn')] = c.checked;
+        });
+        if (Config.applyBtnVis) Config.applyBtnVis(newVis);
+      });
+    });
+  }
+
+  function showBtnVisPanel(menuItem) {
+    buildBtnVisPanel();
+    // 先在屏幕外显示以测量尺寸
+    btnVisPanel.style.left = '-9999px';
+    btnVisPanel.style.top = '-9999px';
+    btnVisPanel.classList.add('show');
+
+    var pw = btnVisPanel.offsetWidth;
+    var ph = btnVisPanel.offsetHeight;
+    var mr = menuItem.getBoundingClientRect();
+    var vw = window.innerWidth;
+    var vh = window.innerHeight;
+    var gap = 6;
+
+    // 水平方向：优先右侧，放不下则左侧
+    var left;
+    if (mr.right + pw + gap <= vw) {
+      left = mr.right + gap;
+    } else {
+      left = mr.left - pw - gap;
+    }
+    if (left < gap) left = gap;
+
+    // 垂直方向：与菜单项顶部对齐，超出则上移
+    var top = mr.top;
+    if (top + ph > vh - gap) top = vh - gap - ph;
+    if (top < gap) top = gap;
+
+    btnVisPanel.style.left = left + 'px';
+    btnVisPanel.style.top = top + 'px';
+    btnVisOpen = true;
+  }
+
+  function hideBtnVisPanel() {
+    btnVisPanel.classList.remove('show');
+    btnVisOpen = false;
+  }
+
+  document.getElementById('__dxm_bee_menu_btn_vis').addEventListener('click', function (e) {
+    e.stopPropagation();
+    if (btnVisOpen) {
+      hideBtnVisPanel();
+    } else {
+      showBtnVisPanel(this);
+    }
+  });
+
+  // 点击子面板内 checkbox 不关闭
+  btnVisPanel.addEventListener('click', function (e) {
+    e.stopPropagation();
+  });
+
+  // 点击外部关闭子面板
+  document.addEventListener('mousedown', function (e) {
+    if (btnVisOpen && !btnVisPanel.contains(e.target) && !document.getElementById('__dxm_bee_menu_btn_vis').contains(e.target)) {
+      hideBtnVisPanel();
+    }
   });
 
   // ========== Sync Categories Popup ==========
