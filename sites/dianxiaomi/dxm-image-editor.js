@@ -29,6 +29,10 @@
       <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 14l2-2L13 3l1 1L5 13l-2 1z"/><path d="M11 2l2 2"/></svg>
       <span>消除笔</span>
     </div>
+    <div class="__dxm_editor_btn" data-action="eraseRect" title="框选消除 - 框选区域自动去除">
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="1"/><path d="M5 5l6 6M11 5l-6 6"/></svg>
+      <span>框选消除</span>
+    </div>
     <div class="__dxm_editor_sep"></div>
     <div class="__dxm_editor_btn" data-action="ruler" title="显示/隐藏标尺参考线">
       <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="4" width="14" height="8" rx="1"/><path d="M4 4v3M7 4v5M10 4v3M13 4v5"/></svg>
@@ -215,6 +219,19 @@
     clearTimeout(toastTimer);
     toastTimer = setTimeout(function () { toastEl.classList.remove('show'); }, 2000);
   }
+
+  // ========== 工具分类 ==========
+  // 调整 tab: 裁剪/旋转、调整尺寸、消除笔/框选消除、标尺、批量翻转
+  // 水印 tab: 我的水印
+  var TOOL_TAB = {
+    crop:      { tab: 'Adjust',   module: '裁剪/旋转' },
+    resize:    { tab: 'Adjust',   module: '调整尺寸' },
+    erase:     { tab: 'Adjust',   module: '消除笔', shapeIcon: '.icon-shape_5' },
+    eraseRect: { tab: 'Adjust',   module: '消除笔', shapeIcon: '.icon-shape_1' },
+    ruler:     { tab: 'Adjust',   module: '标尺' },
+    flip:      { tab: 'Adjust',   module: null },        // 批量翻转走独立流程
+    watermark: { tab: 'Watermark', module: null }         // 我的水印走独立流程
+  };
 
   // ========== Helpers ==========
   function $(sel) { return document.querySelector(sel); }
@@ -446,6 +463,59 @@
     }
   }
 
+  // ========== 消除笔/框选消除（共享模块，需要先判断展开状态再点击子元素） ==========
+  async function clickEraseTool(action) {
+    console.log(LOG, '===== ' + action + ' =====');
+    if (!(await waitForEditor())) { toast('编辑器未加载完成'); return; }
+    var adjustTab = $('.side_tools .tools .tool.Adjust');
+    if (!adjustTab || !adjustTab.classList.contains('selected')) {
+      click(adjustTab);
+      await waitFor('.side_tools .content .module', 3000);
+      await wait(50);
+    }
+    var mod = await waitForModule('消除笔', 3000);
+    if (!mod) { toast('未找到消除笔模块'); return; }
+
+    var info = TOOL_TAB[action];
+    var shapeIcon = info ? info.shapeIcon : '';
+    var isOpen = !!mod.querySelector('.parameter');
+    var toolbarBtn = toolbar.querySelector('[data-action="' + action + '"]');
+
+    // 清除其他调整工具按钮的选中状态
+    var adjustActions = Object.keys(TOOL_TAB).filter(function (a) { return TOOL_TAB[a].tab === 'Adjust' && a !== action; });
+    adjustActions.forEach(function (a) {
+      var otherBtn = toolbar.querySelector('[data-action="' + a + '"]');
+      if (otherBtn) otherBtn.classList.remove('__active');
+    });
+
+    if (isOpen) {
+      // 模块已展开，直接点击子元素，不 toggle 模块
+      if (shapeIcon) {
+        var shapeBtn = mod.querySelector('.shape_btns ' + shapeIcon);
+        if (shapeBtn) click(shapeBtn);
+      }
+      if (toolbarBtn) toolbarBtn.classList.add('__active');
+    } else {
+      // 模块未展开，先展开再点击子元素
+      var openEl = mod.querySelector('.open');
+      click(openEl);
+      await wait(100);
+      if (shapeIcon) {
+        var shapeBtn = mod.querySelector('.shape_btns ' + shapeIcon);
+        if (shapeBtn) click(shapeBtn);
+      }
+      if (toolbarBtn) toolbarBtn.classList.add('__active');
+    }
+
+    // 滚动到模块可见
+    var content = $('.side_tools .content');
+    if (content) {
+      var contentTop = content.getBoundingClientRect().top;
+      var modTop = mod.getBoundingClientRect().top;
+      content.scrollTop += modTop - contentTop;
+    }
+  }
+
   // ========== 通用：点击左侧tab再点击子工具 ==========
   // toolName 模块名, action 按钮的 data-action
   async function clickAdjustTool(toolName, action) {
@@ -464,7 +534,7 @@
     var isOpen = !!mod.querySelector('.parameter');
     var toolbarBtn = toolbar.querySelector('[data-action="' + action + '"]');
     // 清除其他调整工具按钮的选中状态
-    var adjustActions = ['crop', 'resize', 'erase', 'ruler'];
+    var adjustActions = Object.keys(TOOL_TAB).filter(function (a) { return TOOL_TAB[a].tab === 'Adjust' && a !== action; });
     adjustActions.forEach(function (a) {
       if (a !== action) {
         var otherBtn = toolbar.querySelector('[data-action="' + a + '"]');
@@ -493,26 +563,17 @@
   btns.forEach(function (btn) {
     btn.addEventListener('click', function () {
       var action = btn.getAttribute('data-action');
+      var info = TOOL_TAB[action];
+      if (!info) return;
 
-      switch (action) {
-        case 'crop':
-          clickAdjustTool('裁剪/旋转', 'crop');
-          break;
-        case 'resize':
-          clickAdjustTool('调整尺寸', 'resize');
-          break;
-        case 'erase':
-          clickAdjustTool('消除笔', 'erase');
-          break;
-        case 'ruler':
-          clickAdjustTool('标尺', 'ruler');
-          break;
-        case 'watermark':
-          doMyWatermark();
-          break;
-        case 'flip':
-          doBatchFlip();
-          break;
+      if (action === 'erase' || action === 'eraseRect') {
+        clickEraseTool(action);
+      } else if (info.module) {
+        clickAdjustTool(info.module, action);
+      } else if (action === 'flip') {
+        doBatchFlip();
+      } else if (action === 'watermark') {
+        doMyWatermark();
       }
     });
   });
