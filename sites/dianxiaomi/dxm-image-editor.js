@@ -3,6 +3,16 @@
   window.__dxmImageEditor = true;
 
   var POS_KEY = '__dxm_editor_toolbar_pos';
+  var VIS_KEY = '__dxm_editor_btn_vis';
+
+  // 按钮标签配置（用于下拉菜单显示）
+  var BTN_LABELS = {
+    crop: '裁剪', resize: '调整尺寸',
+    erase: '消除笔', eraseRect: '框选消除',
+    pad: '图片补白',
+    mosaic: '马赛克笔', mosaicRect: '马赛克矩形', mosaicCircle: '马赛克圆形',
+    ruler: '标尺', watermark: '我的水印', flip: '批量翻转'
+  };
 
   // ========== DOM ==========
   var toolbar = document.createElement('div');
@@ -15,6 +25,7 @@
         <circle cx="4" cy="11" r="1.5"/><circle cx="10" cy="11" r="1.5"/>
       </svg>
     </div>
+    <div class="__dxm_editor_dropdown"></div>
     <div class="__dxm_editor_btn" data-action="crop" title="裁剪/旋转">
       <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 1v12h12M13 15V3H1"/></svg>
       <span>裁剪</span>
@@ -151,6 +162,48 @@
       pointer-events: none;
     }
     .__dxm_editor_toast.show { opacity: 1; top: 52px; }
+    .__dxm_editor_dropdown {
+      position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+      min-width: 150px;
+      background: #fff;
+      border: 1px solid rgba(0,0,0,0.06);
+      border-radius: 10px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+      padding: 6px;
+      display: none;
+      z-index: 10;
+    }
+    .__dxm_editor_dropdown.show { display: block; }
+    .__dxm_editor_dropdown .dd-title {
+      font-size: 11px; color: #999; padding: 4px 8px 6px; letter-spacing: .5px;
+    }
+    .__dxm_editor_dropdown label {
+      display: flex; align-items: center; gap: 8px;
+      padding: 5px 8px;
+      border-radius: 6px;
+      font-size: 13px; color: #333;
+      cursor: pointer;
+      transition: background .12s;
+    }
+    .__dxm_editor_dropdown label:hover { background: #f5f5f5; }
+    .__dxm_editor_dropdown .ck-box {
+      width: 16px; height: 16px;
+      border: 1.5px solid #d0d0d0;
+      border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+      transition: all .15s;
+      flex-shrink: 0;
+    }
+    .__dxm_editor_dropdown label:hover .ck-box { border-color: #b0b0b0; }
+    .__dxm_editor_dropdown input:checked + .ck-box {
+      background: #409eff; border-color: #409eff;
+    }
+    .__dxm_editor_dropdown input:checked + .ck-box::after {
+      content: ''; width: 4px; height: 7px;
+      border: solid #fff; border-width: 0 1.5px 1.5px 0;
+      transform: rotate(45deg); margin-top: -1px;
+    }
+    .__dxm_editor_dropdown input { display: none; }
   `;
 
   document.head.appendChild(style);
@@ -185,9 +238,11 @@
 
   restorePos();
 
-  // ========== 拖动 ==========
+  // ========== 拖动 + 下拉菜单 ==========
   var dragging = false, dragMoved = false;
   var startX, startY, origX, origY;
+  var dropdown = toolbar.querySelector('.__dxm_editor_dropdown');
+  var dropdownOpen = false;
 
   var handle = toolbar.querySelector('.__dxm_editor_drag');
 
@@ -210,7 +265,7 @@
     var dy = e.clientY - startY;
     if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dragMoved = true;
     if (!dragMoved) return;
-
+    if (dropdownOpen) { dropdown.classList.remove('show'); dropdownOpen = false; }
     var maxX = window.innerWidth - toolbar.offsetWidth;
     var maxY = window.innerHeight - toolbar.offsetHeight;
     var nx = Math.max(0, Math.min(maxX, origX + dx));
@@ -222,8 +277,114 @@
     if (!dragging) return;
     dragging = false;
     toolbar.classList.remove('__dxm_dragging');
-    if (dragMoved) savePos();
+    if (dragMoved) {
+      savePos();
+    } else {
+      toggleDropdown();
+    }
   });
+
+  // 点击外部关闭下拉
+  document.addEventListener('mousedown', function (e) {
+    if (dropdownOpen && !toolbar.contains(e.target)) {
+      dropdown.classList.remove('show');
+      dropdownOpen = false;
+    }
+  });
+
+  // ========== 下拉菜单 ==========
+  function getBtnVis() {
+    try {
+      var saved = JSON.parse(localStorage.getItem(VIS_KEY));
+      if (saved && typeof saved === 'object') return saved;
+    } catch (e) {}
+    return null;
+  }
+
+  function saveBtnVis(vis) {
+    try { localStorage.setItem(VIS_KEY, JSON.stringify(vis)); } catch (e) {}
+  }
+
+  function buildDropdown() {
+    var html = '<div class="dd-title">显示按钮</div>';
+    var keys = Object.keys(BTN_LABELS);
+    var vis = getBtnVis();
+    keys.forEach(function (key) {
+      var checked = vis ? !!vis[key] : true;
+      html += '<label><input type="checkbox" data-vis="' + key + '"' + (checked ? ' checked' : '') + '><span class="ck-box"></span>' + BTN_LABELS[key] + '</label>';
+    });
+    dropdown.innerHTML = html;
+    // 绑定 change 事件
+    dropdown.querySelectorAll('input[type="checkbox"]').forEach(function (cb) {
+      cb.addEventListener('change', function () {
+        applyBtnVisibility();
+      });
+    });
+  }
+
+  function toggleDropdown() {
+    if (dropdownOpen) {
+      dropdown.classList.remove('show');
+      dropdownOpen = false;
+    } else {
+      buildDropdown();
+      dropdown.classList.add('show');
+      dropdownOpen = true;
+    }
+  }
+
+  function applyBtnVisibility() {
+    var vis = {};
+    dropdown.querySelectorAll('input[type="checkbox"]').forEach(function (cb) {
+      var key = cb.getAttribute('data-vis');
+      vis[key] = cb.checked;
+      var btn = toolbar.querySelector('[data-action="' + key + '"]');
+      if (btn) btn.style.display = cb.checked ? '' : 'none';
+    });
+    updateSeparators();
+    saveBtnVis(vis);
+  }
+
+  // 分隔线：每对相邻可见按钮之间只显示第一个分隔线
+  function updateSeparators() {
+    var children = Array.prototype.slice.call(toolbar.children);
+    // 先隐藏所有分隔线
+    for (var i = 0; i < children.length; i++) {
+      if (children[i].classList.contains('__dxm_editor_sep')) children[i].style.display = 'none';
+    }
+    // 找到每对相邻可见按钮，显示它们之间的第一个分隔线
+    var lastBtnIdx = -1;
+    for (var i = 0; i < children.length; i++) {
+      var el = children[i];
+      if (el.classList.contains('__dxm_editor_drag') || el.classList.contains('__dxm_editor_dropdown') || el.classList.contains('__dxm_editor_sep')) continue;
+      if (el.style.display === 'none') continue;
+      if (lastBtnIdx >= 0) {
+        for (var j = lastBtnIdx + 1; j < i; j++) {
+          if (children[j].classList.contains('__dxm_editor_sep')) {
+            children[j].style.display = '';
+            break;
+          }
+        }
+      }
+      lastBtnIdx = i;
+    }
+  }
+
+  // 初始化按钮可见性
+  function initBtnVisibility() {
+    var vis = getBtnVis();
+    if (!vis) return;
+    var keys = Object.keys(BTN_LABELS);
+    keys.forEach(function (key) {
+      if (!vis[key]) {
+        var btn = toolbar.querySelector('[data-action="' + key + '"]');
+        if (btn) btn.style.display = 'none';
+      }
+    });
+    updateSeparators();
+  }
+
+  initBtnVisibility();
 
   // ========== Toast ==========
   var toastEl = document.createElement('div');
