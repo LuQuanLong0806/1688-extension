@@ -433,6 +433,8 @@
   async function doMyWatermark() {
     console.log(LOG, '===== 我的水印 =====');
     if (!(await waitForEditor())) { toast('编辑器未加载完成'); return; }
+    // 切换到水印tab，清除所有调整工具按钮的选中状态
+    toolbar.querySelectorAll('.__dxm_editor_btn.__active').forEach(function (b) { b.classList.remove('__active'); });
     // 1. 点击"水印"tab
     var watermarkTab = $('.side_tools .tools .tool.Watermark');
     console.log(LOG, '水印tab:', watermarkTab ? '找到' : '未找到');
@@ -576,6 +578,14 @@
         doMyWatermark();
       }
     });
+  });
+
+  // ========== 图片列表点击：切换图片时清除工具栏选中状态 ==========
+  document.addEventListener('click', function (e) {
+    var imgEl = e.target.closest('.img_list .type .value img');
+    if (imgEl) {
+      btns.forEach(function (b) { b.classList.remove('__active'); });
+    }
   });
 
 })();
