@@ -11,6 +11,7 @@
 
   if (pasteEl) {
     pasteEl.addEventListener('click', function () {
+      if (!C.startWorkflow('__dxm_bee_paste')) return;
       try { chrome.runtime.sendMessage({ action: 'clearResultSelections' }); } catch (e) {}
       try { fetch(_serverUrl() + '/api/clear-signal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientId: _clientId() }) }).catch(function () {}); } catch (e) {}
       var mainImg = document.querySelector('#productProductInfo .mainImage');
@@ -21,6 +22,7 @@
 
   if (deleteEl) {
     deleteEl.addEventListener('click', function () {
+      if (!C.startWorkflow('__dxm_bee_delete')) return;
       try { chrome.runtime.sendMessage({ action: 'clearResultSelections' }); } catch (e) {}
       try { fetch(_serverUrl() + '/api/clear-signal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientId: _clientId() }) }).catch(function () {}); } catch (e) {}
       var mainImg = document.querySelector('#productProductInfo .mainImage');
@@ -39,7 +41,11 @@
     C.showBubble(pasteStep + '/' + pasteTotal + ' ' + msg, 'loading');
   }
 
-  // ========== Main flow ==========
+  function pasteDone(msg, type) {
+    C.showBubble(msg, type);
+    setTimeout(C.hideBubble, 2000);
+    C.finishWorkflow(type === 'ok');
+  }
   function doPasteImg() {
     pasteStep = 0;
     pasteTotal = 7;
@@ -50,8 +56,7 @@
     pasteLog('读取剪贴板...');
     navigator.clipboard.readText().then(function (clipText) {
       if (!clipText || !clipText.trim()) {
-        C.showBubble('❌ 剪贴板为空', 'err');
-        setTimeout(C.hideBubble, 2000);
+        pasteDone('❌ 剪贴板为空', 'err');
         return;
       }
 
@@ -65,8 +70,7 @@
         }
       }
       if (!mainImageLabel) {
-        C.showBubble('❌ 未找到产品轮播图', 'err');
-        setTimeout(C.hideBubble, 2000);
+        pasteDone('❌ 未找到产品轮播图', 'err');
         return;
       }
 
@@ -80,8 +84,7 @@
         }
       }
       if (!selectBtn) {
-        C.showBubble('❌ 未找到选择图片按钮', 'err');
-        setTimeout(C.hideBubble, 2000);
+        pasteDone('❌ 未找到选择图片按钮', 'err');
         return;
       }
 
@@ -89,8 +92,7 @@
 
       C.waitForVisibleLi('网络图片', 3000, function (webImgItem) {
         if (!webImgItem) {
-          C.showBubble('❌ 未找到网络图片选项', 'err');
-          setTimeout(C.hideBubble, 2000);
+          pasteDone('❌ 未找到网络图片选项', 'err');
           return;
         }
 
@@ -105,15 +107,13 @@
                 waitForImagesUploaded(initialImgCount);
               } else {
                 console.log('%c[小蜜蜂-粘] ✅ 粘图完成', 'color:#AB47BC;font-weight:bold;font-size:14px');
-                C.showBubble('✅ 粘图完成', 'ok');
-                setTimeout(C.hideBubble, 2000);
+                pasteDone('✅ 粘图完成', 'ok');
               }
             });
             return;
           }
           if (Date.now() - start > 5000) {
-            C.showBubble('❌ 未找到网络图片弹窗', 'err');
-            setTimeout(C.hideBubble, 2000);
+            pasteDone('❌ 未找到网络图片弹窗', 'err');
             return;
           }
           requestAnimationFrame(checkModal);
@@ -121,8 +121,7 @@
       });
     }).catch(function (err) {
       console.log('%c[小蜜蜂-粘] ❌ 剪贴板读取失败: ' + err, 'color:#ff4444;font-weight:bold');
-      C.showBubble('❌ 无法读取剪贴板', 'err');
-      setTimeout(C.hideBubble, 2000);
+      pasteDone('❌ 无法读取剪贴板', 'err');
     });
   }
 
@@ -131,8 +130,7 @@
     pasteLog('添加图片');
     var textarea = modal.querySelector('textarea.ant-input');
     if (!textarea) {
-      C.showBubble('❌ 未找到输入框', 'err');
-      setTimeout(C.hideBubble, 2000);
+      pasteDone('❌ 未找到输入框', 'err');
       return;
     }
 
@@ -141,8 +139,7 @@
     setTimeout(function () {
       var addBtn = modal.querySelector('.ant-modal-footer .ant-btn-primary');
       if (!addBtn) {
-        C.showBubble('❌ 未找到添加按钮', 'err');
-        setTimeout(C.hideBubble, 2000);
+        pasteDone('❌ 未找到添加按钮', 'err');
         return;
       }
       addBtn.click();
@@ -162,8 +159,7 @@
       }
       if (Date.now() - start > 6000) {
         console.log('%c[小蜜蜂-粘] ⚠️ 等待图片上传超时，跳过批量修改', 'color:#AB47BC;font-weight:bold');
-        C.showBubble('✅ 粘图完成（未检测到新图片）', 'ok');
-        setTimeout(C.hideBubble, 2000);
+        pasteDone('✅ 粘图完成（未检测到新图片）', 'ok');
         return;
       }
       setTimeout(check, 300);
@@ -183,8 +179,7 @@
     }
     if (!editBtn) {
       console.log('%c[小蜜蜂-粘] ⚠️ 未找到编辑图片按钮，跳过批量修改', 'color:#AB47BC;font-weight:bold');
-      C.showBubble('✅ 粘图完成', 'ok');
-      setTimeout(C.hideBubble, 2000);
+      pasteDone('✅ 粘图完成', 'ok');
       return;
     }
     C.hoverElement(editBtn);
@@ -206,8 +201,7 @@
       }
       if (Date.now() - start > 3000) {
         console.log('%c[小蜜蜂-粘] ⚠️ 未找到批量改图片尺寸选项', 'color:#AB47BC;font-weight:bold');
-        C.showBubble('✅ 粘图完成', 'ok');
-        setTimeout(C.hideBubble, 2000);
+        pasteDone('✅ 粘图完成', 'ok');
         return;
       }
       requestAnimationFrame(checkDropdown);
@@ -225,8 +219,7 @@
       }
       if (Date.now() - start > 5000) {
         console.log('%c[小蜜蜂-粘] ⚠️ 未找到批量改图片尺寸弹窗', 'color:#AB47BC;font-weight:bold');
-        C.showBubble('✅ 粘图完成', 'ok');
-        setTimeout(C.hideBubble, 2000);
+        pasteDone('✅ 粘图完成', 'ok');
         return;
       }
       requestAnimationFrame(check);
@@ -252,12 +245,10 @@
       if (jpgBtn) {
         jpgBtn.click();
         console.log('%c[小蜜蜂-粘] ✅ 粘图+批量修改完成', 'color:#AB47BC;font-weight:bold;font-size:14px');
-        C.showBubble('✅ 粘图+批量修改完成', 'ok');
-        setTimeout(C.hideBubble, 2000);
+        pasteDone('✅ 粘图+批量修改完成', 'ok');
       } else {
         console.log('%c[小蜜蜂-粘] ⚠️ 未找到生成JPG图片按钮', 'color:#AB47BC;font-weight:bold');
-        C.showBubble('✅ 粘图完成', 'ok');
-        setTimeout(C.hideBubble, 2000);
+        pasteDone('✅ 粘图完成', 'ok');
       }
     }, 300);
   }
@@ -399,5 +390,6 @@
     console.log('%c[小蜜蜂-删] ✅ 全部清空完成', 'color:#C62828;font-weight:bold;font-size:14px');
     C.showBubble('✅ 轮播图+视频+外包装已清空', 'ok');
     setTimeout(C.hideBubble, 2000);
+    C.finishWorkflow(true);
   }
 })();

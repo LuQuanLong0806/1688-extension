@@ -276,6 +276,7 @@
     if (!table) {
       C.showBubble('❌ 未找到SKU表格', 'err');
       setTimeout(C.hideBubble, 2000);
+      C.finishWorkflow(false);
       return;
     }
 
@@ -283,6 +284,7 @@
     if (!rows.length) {
       C.showBubble('❌ SKU表格无数据行', 'err');
       setTimeout(C.hideBubble, 2000);
+      C.finishWorkflow(false);
       return;
     }
 
@@ -297,6 +299,7 @@
         console.log('%c[小蜜蜂-SKU表] ' + msg, 'color:#00838F;font-weight:bold;font-size:14px');
         C.showBubble(msg, 'ok');
         setTimeout(C.hideBubble, 2000);
+        C.finishWorkflow(true);
         return;
       }
 

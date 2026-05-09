@@ -7,10 +7,13 @@
   if (!editEl) return;
 
   editEl.addEventListener('click', function () {
+    if (!C.startWorkflow('__dxm_bee_edit')) return;
     var descSection = document.querySelector('#describeInfo');
     if (descSection) descSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
     doEditDesc();
   });
+
+  function editDone(msg, type) { C.showBubble(msg, type); setTimeout(C.hideBubble, 2000); C.finishWorkflow(type === 'ok'); }
 
   // ========== DOM Helpers (shared via BeeConfig) ==========
   var hoverWithCoords = C.hoverWithCoords;
@@ -45,8 +48,7 @@
 
     C.waitForVisibleLi('清空描述', 3000, function (clearDescItem) { // 批量操作下拉中的“清空描述”菜单项(悬浮展开子菜单)
       if (!clearDescItem) {
-        C.showBubble('❌ 未找到清空描述', 'err');
-        setTimeout(C.hideBubble, 2000);
+        editDone('❌ 未找到清空描述', 'err');
         return;
       }
       editLog('展开清空描述子菜单');
@@ -55,8 +57,7 @@
       setTimeout(function () {
         var item = C.findVisibleLi(moduleName);
         if (!item) {
-          C.showBubble('❌ 未找到' + moduleName, 'err');
-          setTimeout(C.hideBubble, 2000);
+          editDone('❌ 未找到' + moduleName, 'err');
           return;
         }
         editLog(moduleName);
@@ -65,8 +66,7 @@
 
         C.waitForElement('.ant-modal-confirm .ant-modal-confirm-btns .ant-btn-primary', 3000, function (confirmBtn) { // 清空确认弹窗中的“确定”按钮
           if (!confirmBtn) {
-            C.showBubble('❌ 未找到确定按钮', 'err');
-            setTimeout(C.hideBubble, 2000);
+            editDone('❌ 未找到确定按钮', 'err');
             return;
           }
           editLog('确认清空');
@@ -97,16 +97,14 @@
     var editBtn = document.querySelector('#baiduStatisticsSmtNewEditorEditClickNum > button'); // “编辑描述”按钮(在产品描述区域)
     if (!editBtn) {
       console.log('%c[小蜜蜂] ❌ 未找到编辑描述按钮', 'color:#ff4444;font-weight:bold');
-      C.showBubble('❌ 未找到编辑描述按钮', 'err');
-      setTimeout(C.hideBubble, 2000);
+      editDone('❌ 未找到编辑描述按钮', 'err');
       return;
     }
     editBtn.click();
 
     C.waitForElement('.smt-new-editor .menu-button.ant-dropdown-trigger', 5000, function (trigger) { // .smt-new-editor: TEMU产品描述编辑器弹窗; .menu-button.ant-dropdown-trigger: “批量操作”下拉触发器
       if (!trigger) {
-        C.showBubble('❌ 未找到批量操作', 'err');
-        setTimeout(C.hideBubble, 2000);
+        editDone('❌ 未找到批量操作', 'err');
         return;
       }
 
@@ -140,8 +138,7 @@
 
     C.waitForVisibleLi('批量传图', 3000, function (batchImgItem) { // 批量操作下拉中的“批量传图”菜单项
       if (!batchImgItem) {
-        C.showBubble('❌ 未找到批量传图', 'err');
-        setTimeout(C.hideBubble, 2000);
+        editDone('❌ 未找到批量传图', 'err');
         return;
       }
       editLog('打开批量传图');
@@ -150,8 +147,7 @@
 
       C.waitForElement('.batch-smt-image', 5000, function (batchPanel) { // .batch-smt-image: 批量传图弹窗面板
         if (!batchPanel) {
-          C.showBubble('❌ 未找到批量传图弹窗', 'err');
-          setTimeout(C.hideBubble, 2000);
+          editDone('❌ 未找到批量传图弹窗', 'err');
           return;
         }
         var selectBtn = null;
@@ -163,8 +159,7 @@
           }
         }
         if (!selectBtn) {
-          C.showBubble('❌ 未找到选择图片按钮', 'err');
-          setTimeout(C.hideBubble, 2000);
+          editDone('❌ 未找到选择图片按钮', 'err');
           return;
         }
         editLog('展开选择图片菜单');
@@ -197,14 +192,12 @@
       editLog('确认批量传图');
       var batchModal = C.findVisibleModal('批量传图'); // 通过标题文字+可见性双重判断定位批量传图弹窗
       if (!batchModal) {
-        C.showBubble('❌ 未找到批量传图弹窗', 'err');
-        setTimeout(C.hideBubble, 2000);
+        editDone('❌ 未找到批量传图弹窗', 'err');
         return;
       }
       var confirmBatchBtn = batchModal.querySelector('.ant-modal-footer .ant-btn-primary'); // 批量传图弹窗底部的”确定”主按钮
       if (!confirmBatchBtn) {
-        C.showBubble('❌ 未找到批量传图确定按钮', 'err');
-        setTimeout(C.hideBubble, 2000);
+        editDone('❌ 未找到批量传图确定按钮', 'err');
         return;
       }
       confirmBatchBtn.click();
@@ -213,14 +206,12 @@
         editLog('保存描述');
         var saveBtn = document.querySelector('.smt-new-editor .btn-orange'); // 编辑器弹窗右上角的”保存”按钮(橙色)
         if (!saveBtn) {
-          C.showBubble('❌ 未找到保存按钮', 'err');
-          setTimeout(C.hideBubble, 2000);
+          editDone('❌ 未找到保存按钮', 'err');
           return;
         }
         saveBtn.click();
         console.log('%c[小蜜蜂] ✅ 编辑描述完成', 'color:#43A047;font-weight:bold;font-size:14px');
-        C.showBubble('✅ 编辑描述完成', 'ok');
-        setTimeout(C.hideBubble, 2000);
+        editDone('✅ 编辑描述完成', 'ok');
         // 描述保存成功后标记已使用 + 收集类目
         var params = new URLSearchParams(location.search);
         var collectId = params.get('collectId');
@@ -240,8 +231,7 @@
   function doProductCarouselUpload() {
     C.waitForVisibleLi('引用产品轮播图', 5000, function (carouselItem) { // 选择图片下拉中的“引用产品轮播图”菜单项
       if (!carouselItem) {
-        C.showBubble('❌ 未找到引用产品轮播图', 'err');
-        setTimeout(C.hideBubble, 2000);
+        editDone('❌ 未找到引用产品轮播图', 'err');
         return;
       }
       editLog('引用产品轮播图');
@@ -256,8 +246,7 @@
             return;
           }
           if (Date.now() - start > 5000) {
-            C.showBubble('❌ 未找到引用产品图片弹窗', 'err');
-            setTimeout(C.hideBubble, 2000);
+            editDone('❌ 未找到引用产品图片弹窗', 'err');
             return;
           }
           requestAnimationFrame(check);
@@ -267,8 +256,7 @@
       function onImageModalReady(imgModal) {
         editLog('全选产品图片');
         if (!imgModal) {
-          C.showBubble('❌ 未找到引用产品图片弹窗', 'err');
-          setTimeout(C.hideBubble, 2000);
+          editDone('❌ 未找到引用产品图片弹窗', 'err');
           return;
         }
 
@@ -286,8 +274,7 @@
             if (allLabel) break;
           }
           if (!allLabel) {
-            C.showBubble('❌ 未找到全选', 'err');
-            setTimeout(C.hideBubble, 2000);
+            editDone('❌ 未找到全选', 'err');
             return;
           }
           var cb = allLabel.querySelector('.ant-checkbox');
@@ -299,8 +286,7 @@
             editLog('确认选择图片');
             var selectBtn2 = imgModal.querySelector('.ant-modal-footer .ant-btn-primary');
             if (!selectBtn2) {
-              C.showBubble('❌ 未找到选择按钮', 'err');
-              setTimeout(C.hideBubble, 2000);
+              editDone('❌ 未找到选择按钮', 'err');
               return;
             }
             selectBtn2.click();
@@ -315,8 +301,7 @@
   function doWebImageUpload() {
     C.waitForVisibleLi('网络上传', 5000, function (webUploadItem) { // 选择图片下拉中的“网络上传”菜单项
       if (!webUploadItem) {
-        C.showBubble('❌ 未找到网络上传', 'err');
-        setTimeout(C.hideBubble, 2000);
+        editDone('❌ 未找到网络上传', 'err');
         return;
       }
       editLog('网络上传');
@@ -331,8 +316,7 @@
             return;
           }
           if (Date.now() - start > 5000) {
-            C.showBubble('❌ 未找到网络图片弹窗', 'err');
-            setTimeout(C.hideBubble, 2000);
+            editDone('❌ 未找到网络图片弹窗', 'err');
             return;
           }
           requestAnimationFrame(check);
@@ -342,15 +326,13 @@
       function onWebImageModalReady(webModal) {
         editLog('填入图片地址');
         if (!webModal) {
-          C.showBubble('❌ 未找到网络图片弹窗', 'err');
-          setTimeout(C.hideBubble, 2000);
+          editDone('❌ 未找到网络图片弹窗', 'err');
           return;
         }
 
         var textarea = webModal.querySelector('textarea.ant-input'); // 网络图片弹窗中的图片 URL 输入框
         if (!textarea) {
-          C.showBubble('❌ 未找到图片地址输入框', 'err');
-          setTimeout(C.hideBubble, 2000);
+          editDone('❌ 未找到图片地址输入框', 'err');
           return;
         }
         // Scrape checked image URLs from product page (max 5)
@@ -361,8 +343,7 @@
           if (img && img.src) urls.push(img.src);
         }
         if (!urls.length) {
-          C.showBubble('❌ 未找到已选的产品图片', 'err');
-          setTimeout(C.hideBubble, 2000);
+          editDone('❌ 未找到已选的产品图片', 'err');
           return;
         }
         var urlStr = urls.join('\n');
@@ -372,8 +353,7 @@
           editLog('添加图片');
           var addBtn = webModal.querySelector('.ant-modal-footer .ant-btn-primary'); // 网络图片弹窗底部的“添加”按钮
           if (!addBtn) {
-            C.showBubble('❌ 未找到添加按钮', 'err');
-            setTimeout(C.hideBubble, 2000);
+            editDone('❌ 未找到添加按钮', 'err');
             return;
           }
           addBtn.click();

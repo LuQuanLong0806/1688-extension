@@ -10,12 +10,15 @@
   var filterSuccess = false;
 
   skuEl.addEventListener('click', function () {
+    if (!C.startWorkflow('__dxm_bee_sku')) return;
     var skuSection = document.querySelector('#skuAttrsInfo');
     if (skuSection) skuSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
     filterDone = false;
     filterSuccess = false;
     doSkuFilter();
   });
+
+  function skuDone(msg, type) { C.showBubble(msg, type); setTimeout(C.hideBubble, 2000); C.finishWorkflow(type === 'ok'); }
 
   // ========== 数字单位补全 ==========
   function addUnits(text) {
@@ -41,23 +44,20 @@
       if (C.loadAutoSkuNo()) {
         setTimeout(doAutoSkuNo, 300);
       } else {
-        C.showBubble('SKU过滤未开启', 'ok');
-        setTimeout(C.hideBubble, 2000);
+        skuDone('SKU过滤未开启', 'ok');
       }
       return;
     }
 
     var filters = C.loadSkuFilters().filter(function (f) { return f.enabled && f.from; });
     if (!filters.length) {
-      C.showBubble('无SKU过滤规则', 'ok');
-      setTimeout(C.hideBubble, 2000);
+      skuDone('无SKU过滤规则', 'ok');
       return;
     }
 
     var form = document.querySelector('#skuAttrsInfo form'); // #skuAttrsInfo: SKU变种属性区域; form: 属性表单
     if (!form) {
-      C.showBubble('❌ 未找到SKU变种属性', 'err');
-      setTimeout(C.hideBubble, 2000);
+      skuDone('❌ 未找到SKU变种属性', 'err');
       return;
     }
 
@@ -71,8 +71,7 @@
     }
 
     if (!labels.length) {
-      C.showBubble('无SKU属性', 'ok');
-      setTimeout(C.hideBubble, 2000);
+      skuDone('无SKU属性', 'ok');
       return;
     }
 
@@ -91,7 +90,7 @@
         if (C.loadAutoSkuNo()) {
           setTimeout(doAutoSkuNo, 300);
         } else {
-          setTimeout(C.hideBubble, 2000);
+          setTimeout(function () { C.hideBubble(); C.finishWorkflow(true); }, 2000);
         }
         return;
       }
@@ -147,8 +146,7 @@
 
     var table = document.querySelector('#skuDataInfo table');
     if (!table) {
-      C.showBubble('❌ 未找到SKU表格', 'err');
-      setTimeout(C.hideBubble, 2000);
+      skuDone('❌ 未找到SKU表格', 'err');
       return;
     }
 
@@ -161,8 +159,7 @@
       }
     }
     if (!skuNoTh) {
-      C.showBubble('❌ 未找到SKU货号列', 'err');
-      setTimeout(C.hideBubble, 2000);
+      skuDone('❌ 未找到SKU货号列', 'err');
       return;
     }
 
@@ -175,8 +172,7 @@
       }
     }
     if (!link) {
-      C.showBubble('❌ 未找到高级链接', 'err');
-      setTimeout(C.hideBubble, 2000);
+      skuDone('❌ 未找到高级链接', 'err');
       return;
     }
 
@@ -186,22 +182,19 @@
     setTimeout(function () {
       var modal = C.findVisibleModal('SKU高级生成规则');
       if (!modal) {
-        C.showBubble('❌ 未找到SKU高级生成规则弹窗', 'err');
-        setTimeout(C.hideBubble, 2000);
+        skuDone('❌ 未找到SKU高级生成规则弹窗', 'err');
         return;
       }
 
       var genBtn = modal.querySelector('.ant-modal-footer .ant-btn-primary');
       if (!genBtn) {
-        C.showBubble('❌ 未找到生成按钮', 'err');
-        setTimeout(C.hideBubble, 2000);
+        skuDone('❌ 未找到生成按钮', 'err');
         return;
       }
 
       genBtn.click();
       console.log('%c[小蜜蜂-SKU] 已点击生成', 'color:#00838F;font-weight:bold');
-      C.showBubble('✅ 高级SKU货号已生成', 'ok');
-      setTimeout(C.hideBubble, 2000);
+      skuDone('✅ 高级SKU货号已生成', 'ok');
     }, 200);
   }
 

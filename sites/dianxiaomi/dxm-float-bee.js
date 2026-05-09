@@ -51,21 +51,21 @@
     '<div id="__dxm_bee_bubble"></div>' +
     '<div id="__dxm_bee_icon" title="' + (isWorkPage ? '点击开始工作 / 拖动移动' : '小蜜蜂工具') + '">' + beeSVG + '</div>' +
     '<div id="__dxm_bee_btns">' +
-    '<div id="__dxm_bee_translate" title="一键翻译">翻译</div>' +
+    '<div id="__dxm_bee_translate" title="一键翻译">翻译<span class="__dxm_bee_check"></span></div>' +
     '<div class="__dxm_bee_line"></div>' +
-    '<div id="__dxm_bee_delete" title="一键清空图片+视频">删图</div>' +
+    '<div id="__dxm_bee_delete" title="一键清空图片+视频">删图<span class="__dxm_bee_check"></span></div>' +
     '<div class="__dxm_bee_line"></div>' +
-    '<div id="__dxm_bee_paste" title="一键粘贴图片URL">贴图</div>' +
+    '<div id="__dxm_bee_paste" title="一键粘贴图片URL">贴图<span class="__dxm_bee_check"></span></div>' +
     '<div class="__dxm_bee_line"></div>' +
-    '<div id="__dxm_bee_resize" title="批量修改图片尺寸">尺寸</div>' +
+    '<div id="__dxm_bee_resize" title="批量修改图片尺寸">尺寸<span class="__dxm_bee_check"></span></div>' +
     '<div class="__dxm_bee_line" id="__dxm_bee_line_sku_table"></div>' +
-    '<div id="__dxm_bee_sku_table" title="SKU表格填充">填表</div>' +
+    '<div id="__dxm_bee_sku_table" title="SKU表格填充">填表<span class="__dxm_bee_check"></span></div>' +
     '<div class="__dxm_bee_line" id="__dxm_bee_line_after_sku_table"></div>' +
-    '<div id="__dxm_bee_sku" title="一键SKU过滤">SKU</div>' +
+    '<div id="__dxm_bee_sku" title="一键SKU过滤">SKU<span class="__dxm_bee_check"></span></div>' +
     '<div class="__dxm_bee_line"></div>' +
-    '<div id="__dxm_bee_package" title="自动设置外包装">包装</div>' +
+    '<div id="__dxm_bee_package" title="自动设置外包装">包装<span class="__dxm_bee_check"></span></div>' +
     '<div class="__dxm_bee_line"></div>' +
-    '<div id="__dxm_bee_edit" title="一键编辑描述">描述</div>' +
+    '<div id="__dxm_bee_edit" title="一键编辑描述">描述<span class="__dxm_bee_check"></span></div>' +
     '</div>';
 
   // ========== Styles ==========
@@ -110,6 +110,11 @@
     '#__dxm_bee_resize{margin-top:3px;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#FF7043,#D84315);color:#fff;font:bold 12px/1 "楷体","KaiTi","STKaiti",serif;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(216,67,21,.35);transition:box-shadow .2s;user-select:none;text-shadow:0 1px 2px rgba(0,0,0,.15)}' +
     '#__dxm_bee_resize:hover{transform:scale(1.15)!important;box-shadow:0 4px 12px rgba(216,67,21,.5)}' +
     // ========== 便签样式 ==========
+    '#__dxm_bee_btns>div[id]{position:relative}' +
+    '.__dxm_bee_check{display:none;position:absolute;bottom:-2px;right:-3px;width:12px;height:12px;background:#52c41a;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.15)}' +
+    '.__dxm_bee_check.show{display:flex;align-items:center;justify-content:center}' +
+    '.__dxm_bee_check::after{content:\'\';width:4px;height:6px;border:solid #fff;border-width:0 1.5px 1.5px 0;transform:rotate(45deg);margin-bottom:-1px}' +
+    '.__dxm_bee_disabled{opacity:.5;pointer-events:none}' +
     '#__dxm_bee_note{position:fixed;z-index:2147483646;font:12px/1.6 "Microsoft YaHei",Arial,sans-serif}' +
     '#__dxm_bee_note_drag{display:flex;align-items:center;justify-content:space-between;cursor:move;padding:4px}' +
     '#__dxm_bee_note_toggle{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#FF8A65,#E64A19);color:#fff;font-size:14px;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(230,74,25,.4);transition:transform .2s,box-shadow .2s}' +
@@ -291,6 +296,49 @@
   var icon = document.getElementById('__dxm_bee_icon');
   var bubble = document.getElementById('__dxm_bee_bubble');
   var isWorking = false;
+  var activeWorkflowBtn = null;
+  var BEE_BTNS = ['__dxm_bee_translate', '__dxm_bee_delete', '__dxm_bee_paste',
+    '__dxm_bee_resize', '__dxm_bee_sku_table', '__dxm_bee_sku',
+    '__dxm_bee_package', '__dxm_bee_edit'];
+
+  // ========== Workflow Manager ==========
+  Config.startWorkflow = function (btnId) {
+    if (isWorking) return false;
+    isWorking = true;
+    activeWorkflowBtn = btnId;
+    BEE_BTNS.forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.classList.add('__dxm_bee_disabled');
+    });
+    return true;
+  };
+
+  Config.finishWorkflow = function (success) {
+    isWorking = false;
+    var btn = activeWorkflowBtn;
+    activeWorkflowBtn = null;
+    BEE_BTNS.forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.classList.remove('__dxm_bee_disabled');
+    });
+    if (success && btn) {
+      var el = document.getElementById(btn);
+      if (el) {
+        var check = el.querySelector('.__dxm_bee_check');
+        if (check) check.classList.add('show');
+      }
+    }
+  };
+
+  function safeCall(fn) {
+    return function () {
+      try { fn(); } catch (e) {
+        console.error('[小蜜蜂] 步骤异常:', e);
+        showBubble('❌ 执行出错', 'err');
+        finishWork();
+      }
+    };
+  }
 
   // ========== Bubble ==========
   function showBubble(text, type) {
@@ -543,10 +591,23 @@
     })();
   }
 
+  // ========== Guard listeners for external buttons ==========
+  ['__dxm_bee_delete', '__dxm_bee_paste', '__dxm_bee_sku', '__dxm_bee_edit'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('click', function (e) {
+        if (isWorking) {
+          e.stopImmediatePropagation();
+          e.preventDefault();
+        }
+      });
+    }
+  });
+
   // ========== Step Chain ==========
   function finishWork() {
-    isWorking = false;
     wrapper.classList.remove('flying');
+    Config.finishWorkflow(true);
     console.log('%c[小蜜蜂] ===== 工作结束 =====', 'color:#52c41a;font-weight:bold;font-size:14px');
     setTimeout(hideBubble, 3000);
   }
@@ -555,26 +616,33 @@
   if (isWorkPage) {
     icon.addEventListener('click', function () {
       if (dragMoved || isWorking) return;
-      isWorking = true;
+      if (!Config.startWorkflow(null)) return;
       _stepCounter = 0;
       wrapper.classList.add('flying');
       console.log('%c[小蜜蜂] ===== 开始工作 =====', 'color:#FFCA28;font-weight:bold;font-size:14px');
-      doStep4();
+      safeCall(doStep4)();
     });
 
     // 译 按钮：单独触发翻译
     var translateEl = document.getElementById('__dxm_bee_translate');
     if (translateEl) {
       translateEl.addEventListener('click', function () {
-        if (isWorking) return;
-        doTranslateOnly();
+        if (!Config.startWorkflow('__dxm_bee_translate')) return;
+        try {
+          doTranslateOnly();
+        } catch (e) {
+          console.error('[小蜜蜂] 翻译异常:', e);
+          showBubble('❌ 翻译出错', 'err');
+          setTimeout(hideBubble, 2000);
+          Config.finishWorkflow(false);
+        }
       });
     }
 
     var skuTableEl = document.getElementById('__dxm_bee_sku_table');
     if (skuTableEl) {
       skuTableEl.addEventListener('click', function () {
-        if (isWorking) return;
+        if (!Config.startWorkflow('__dxm_bee_sku_table')) return;
         var skuSection = document.querySelector('#skuDataInfo');
         if (skuSection) skuSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
         Config.doSkuTableFill();
@@ -631,6 +699,7 @@
         console.log('%c[小蜜蜂] ❌ 未找到翻译按钮', 'color:#ff4444;font-weight:bold');
         showBubble('❌ 未找到翻译按钮', 'err');
         setTimeout(hideBubble, 2000);
+        Config.finishWorkflow(false);
         return;
       }
 
@@ -659,6 +728,7 @@
           console.log('%c[小蜜蜂] ✅ 翻译完成', 'color:#52c41a;font-weight:bold');
           showBubble('✅ 翻译完成', 'ok');
           setTimeout(hideBubble, 2000);
+          Config.finishWorkflow(true);
           return;
         }
         if (Date.now() - start > 3000) {
@@ -673,6 +743,7 @@
               console.log('%c[小蜜蜂] ✅ 翻译完成', 'color:#52c41a;font-weight:bold');
               showBubble('✅ 翻译完成', 'ok');
               setTimeout(hideBubble, 2000);
+              Config.finishWorkflow(true);
               return;
             }
             if (Date.now() - start2 > 3000) {
@@ -680,6 +751,7 @@
               console.log('%c[小蜜蜂] ❌ 未找到翻译菜单', 'color:#ff4444;font-weight:bold');
               showBubble('❌ 未找到翻译菜单', 'err');
               setTimeout(hideBubble, 2000);
+              Config.finishWorkflow(false);
               return;
             }
             requestAnimationFrame(tryMenu2);
@@ -700,7 +772,7 @@
       if (!input || !input.value) {
         log(s, '⚠️ 未找到标题输入框或值为空，跳过过滤');
         updateProgress(s, '标题为空，跳过过滤', 'ok');
-        setTimeout(doStep11, 150);
+        setTimeout(safeCall(doStep11), 150);
         return;
       }
       var title = input.value;
@@ -739,7 +811,7 @@
           updateProgress(s, '标题无违规字样', 'ok');
         }
       }
-      setTimeout(doStep11, 200);
+      setTimeout(safeCall(doStep11), 200);
     }
 
     // 标题气泡：显示在产品标题上方
@@ -850,9 +922,17 @@
     var resizeEl = document.getElementById('__dxm_bee_resize');
     if (resizeEl) {
       resizeEl.addEventListener('click', function () {
+        if (!Config.startWorkflow('__dxm_bee_resize')) return;
         var mainImg = document.querySelector('#productProductInfo .mainImage');
         if (mainImg) mainImg.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        doResizeImages();
+        try {
+          doResizeImages();
+        } catch (e) {
+          console.error('[小蜜蜂] 尺寸异常:', e);
+          showBubble('❌ 尺寸修改出错', 'err');
+          setTimeout(hideBubble, 2000);
+          Config.finishWorkflow(false);
+        }
       });
     }
 
@@ -877,6 +957,7 @@
       if (!editBtn) {
         showBubble('❌ 未找到编辑图片按钮', 'err');
         setTimeout(hideBubble, 2000);
+        Config.finishWorkflow(false);
         return;
       }
 
@@ -885,6 +966,7 @@
         if (!resizeItem) {
           showBubble('❌ 未找到批量改图片尺寸', 'err');
           setTimeout(hideBubble, 2000);
+          Config.finishWorkflow(false);
           return;
         }
         resizeItem.click();
@@ -912,9 +994,11 @@
                 jpgBtn.click();
                 showBubble('✅ 图片尺寸已修改', 'ok');
                 setTimeout(hideBubble, 2000);
+                Config.finishWorkflow(true);
               } else {
                 showBubble('❌ 未找到生成按钮', 'err');
                 setTimeout(hideBubble, 2000);
+                Config.finishWorkflow(false);
               }
             }, 300);
             return;
@@ -922,6 +1006,7 @@
           if (Date.now() - start > 5000) {
             showBubble('❌ 未找到弹窗', 'err');
             setTimeout(hideBubble, 2000);
+            Config.finishWorkflow(false);
             return;
           }
           requestAnimationFrame(checkModal);
@@ -935,9 +1020,17 @@
     var pkgEl = document.getElementById('__dxm_bee_package');
     if (pkgEl) {
       pkgEl.addEventListener('click', function () {
+        if (!Config.startWorkflow('__dxm_bee_package')) return;
         var pkgSection = document.querySelector('#packageInfo');
         if (pkgSection) pkgSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        doPackage();
+        try {
+          doPackage();
+        } catch (e) {
+          console.error('[小蜜蜂] 包装异常:', e);
+          showBubble('❌ 包装设置出错', 'err');
+          setTimeout(hideBubble, 2000);
+          Config.finishWorkflow(false);
+        }
       });
     }
 
@@ -951,27 +1044,28 @@
 
       pkgLog('选择外包装形状...');
       waitForAntSelect('外包装形状', function (sel) {
-        if (!sel) { showBubble('❌ 未找到外包装形状', 'err'); setTimeout(hideBubble, 2000); return; }
+        if (!sel) { showBubble('❌ 未找到外包装形状', 'err'); setTimeout(hideBubble, 2000); Config.finishWorkflow(false); return; }
         sel.scrollIntoView({ block: 'center' });
         setTimeout(function () {
           forceOpenAntSelect(sel);
           waitForElement('.ant-select-item-option[title="不规则"]', 3000, function (opt) {
-            if (!opt) { showBubble('❌ 未找到不规则选项', 'err'); setTimeout(hideBubble, 2000); return; }
+            if (!opt) { showBubble('❌ 未找到不规则选项', 'err'); setTimeout(hideBubble, 2000); Config.finishWorkflow(false); return; }
             opt.click();
 
             setTimeout(function () {
               pkgLog('选择外包装类型...');
               waitForAntSelect('外包装类型', function (sel2) {
-                if (!sel2) { showBubble('❌ 未找到外包装类型', 'err'); setTimeout(hideBubble, 2000); return; }
+                if (!sel2) { showBubble('❌ 未找到外包装类型', 'err'); setTimeout(hideBubble, 2000); Config.finishWorkflow(false); return; }
                 forceOpenAntSelect(sel2);
                 waitForElement('.ant-select-item-option[title="软包装+硬物"]', 3000, function (opt2) {
-                  if (!opt2) { showBubble('❌ 未找到软包装+硬物', 'err'); setTimeout(hideBubble, 2000); return; }
+                  if (!opt2) { showBubble('❌ 未找到软包装+硬物', 'err'); setTimeout(hideBubble, 2000); Config.finishWorkflow(false); return; }
                   opt2.click();
 
                   setTimeout(function () {
                     doUpdatePkgImage(pkgLog, function () {
                       showBubble('✅ 外包装设置完成', 'ok');
                       setTimeout(hideBubble, 2000);
+                      Config.finishWorkflow(true);
                     });
                   }, 300);
                 });
