@@ -1,5 +1,7 @@
 (function () {
   var GRID_KEY = '__dxm_collage_grid';
+  var FIT_KEY = '__dxm_collage_fit';
+  var IMG_KEY = '__dxm_collage_images';
   var GRIDS = [
     { cols: 2, rows: 2, label: '4宫格' },
     { cols: 3, rows: 2, label: '6宫格' },
@@ -7,15 +9,35 @@
     { cols: 4, rows: 4, label: '16宫格' }
   ];
 
-  // 从 localStorage 恢复上次选择
   var currentIdx = 0;
   try {
     var saved = parseInt(localStorage.getItem(GRID_KEY));
     if (saved >= 0 && saved < GRIDS.length) currentIdx = saved;
   } catch (e) {}
 
+  var fitMode = 'cover';
+  try {
+    var sf = localStorage.getItem(FIT_KEY);
+    if (sf === 'cover' || sf === 'contain' || sf === 'fill') fitMode = sf;
+  } catch (e) {}
+  document.getElementById('fitMode').value = fitMode;
+
+  document.getElementById('fitMode').addEventListener('change', function () {
+    fitMode = this.value;
+    try { localStorage.setItem(FIT_KEY, fitMode); } catch (e) {}
+    buildGrid();
+  });
+
   var cellImages = {};
+  try {
+    var savedImg = localStorage.getItem(IMG_KEY);
+    if (savedImg) cellImages = JSON.parse(savedImg);
+  } catch (e) {}
   var activeCell = -1;
+
+  function saveImages() {
+    try { localStorage.setItem(IMG_KEY, JSON.stringify(cellImages)); } catch (e) {}
+  }
 
   // ========== Toast ==========
   var toastEl = document.getElementById('toast');
@@ -32,8 +54,6 @@
   GRIDS.forEach(function (g, i) {
     var opt = document.createElement('div');
     opt.className = 'grid-opt' + (i === currentIdx ? ' active' : '');
-
-    // 大号预览卡片
     var preview = document.createElement('div');
     preview.className = 'grid-preview';
     preview.style.gridTemplateColumns = 'repeat(' + g.cols + ', 1fr)';
@@ -42,11 +62,9 @@
     for (var j = 0; j < total; j++) {
       preview.appendChild(document.createElement('span'));
     }
-
     var label = document.createElement('div');
     label.className = 'grid-label';
     label.textContent = g.label;
-
     opt.appendChild(preview);
     opt.appendChild(label);
     opt.addEventListener('click', function () { selectGrid(i); });
@@ -67,6 +85,7 @@
   function getGrid() { return GRIDS[currentIdx]; }
 
   function buildGrid() {
+    saveImages();
     var g = getGrid();
     var grid = document.getElementById('grid');
     grid.innerHTML = '';
@@ -81,6 +100,7 @@
         cell.classList.add('has-img');
         var img = document.createElement('img');
         img.src = cellImages[i];
+        img.style.objectFit = fitMode;
         cell.appendChild(img);
         var rm = document.createElement('button');
         rm.className = 'rm';
@@ -100,17 +120,14 @@
         cell.appendChild(ph);
       }
 
-      // click to select for paste
       (function (idx) {
-        cell.addEventListener('click', function () {
-          if (cellImages[idx]) return;
-          document.querySelectorAll('.cell').forEach(function (c) { c.style.borderColor = ''; });
-          this.style.borderColor = '#7E57C2';
+        cell.addEventListener('mouseenter', function () {
+          document.querySelectorAll('.cell').forEach(function (c) { c.classList.remove('cell-active'); });
+          this.classList.add('cell-active');
           activeCell = idx;
         });
       })(i);
 
-      // drag-and-drop
       (function (idx) {
         cell.addEventListener('dragover', function (e) {
           e.preventDefault();
@@ -161,7 +178,7 @@
     reader.readAsDataURL(file);
   }
 
-  function loadURL(url, cellIdx) {
+  function loadURL(url, cellIdx, cb) {
     var img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = function () {
@@ -175,10 +192,12 @@
         cellImages[cellIdx] = url;
       }
       buildGrid();
+      if (cb) cb();
     };
     img.onerror = function () {
       cellImages[cellIdx] = url;
       buildGrid();
+      if (cb) cb();
     };
     img.src = url;
   }
@@ -187,7 +206,7 @@
   document.addEventListener('paste', function (e) {
     var target = activeCell;
     if (target < 0) {
-      showToast('请先点击一个空白格子', 'err');
+      showToast('请先将鼠标移到目标格子', 'err');
       return;
     }
     var items = e.clipboardData && e.clipboardData.items;
@@ -207,6 +226,79 @@
     }
   });
 
+  // ========== 批量贴图 ==========
+  document.getElementById('btnPasteUrl').addEventListener('click', function () {
+    if (navigator.clipboard && navigator.clipboard.readText) {
+      navigator.clipboard.readText().then(function (text) {
+        doBatchFill(text);
+      }).catch(function () {
+        showToast('无法读取剪贴板，请检查浏览器权限', 'err');
+      });
+    } else {
+      showToast('浏览器不支持自动读取剪贴板', 'err');
+    }
+  });
+
+  function doBatchFill(text) {
+    text = (text || '').trim();
+    if (!text) { showToast('剪贴板为空', 'err'); return; }
+
+    var urls = text.split(/[\r\n]+/).map(function (s) { return s.trim(); }).filter(function (s) {
+      return s && /^https?:\/\//i.test(s);
+    });
+    if (urls.length === 0) { showToast('剪贴板中未识别到图片地址', 'err'); return; }
+
+    var g = getGrid();
+    var total = g.cols * g.rows;
+    var emptyCells = [];
+    for (var i = 0; i < total; i++) {
+      if (!cellImages[i]) emptyCells.push(i);
+    }
+
+    var fillCount = Math.min(urls.length, emptyCells.length);
+    if (fillCount === 0) {
+      showToast('所有格子已满', 'err');
+      return;
+    }
+
+    showToast('正在加载 ' + fillCount + ' 张图片...', 'ok');
+    var loaded = 0;
+
+    for (var j = 0; j < fillCount; j++) {
+      (function (idx, url) {
+        loadURL(url, idx, function () {
+          loaded++;
+          if (loaded >= fillCount) {
+            showToast('已填充 ' + fillCount + ' 张图片' + (urls.length > fillCount ? '（多余 ' + (urls.length - fillCount) + ' 张已跳过）' : ''), 'ok');
+          }
+        });
+      })(emptyCells[j], urls[j]);
+    }
+  }
+
+  // ========== 预览 ==========
+  var previewMask = document.getElementById('previewMask');
+  var previewImg = document.getElementById('previewImg');
+
+  document.getElementById('btnPreview').addEventListener('click', function () {
+    var g = getGrid();
+    var total = g.cols * g.rows;
+    var hasAny = false;
+    for (var k in cellImages) { hasAny = true; break; }
+    if (!hasAny) { showToast('请先添加图片', 'err'); return; }
+    renderCanvas(g, total, function (canvas) {
+      previewImg.src = canvas.toDataURL('image/png');
+      previewMask.classList.add('show');
+    });
+  });
+
+  document.getElementById('previewClose').addEventListener('click', function () {
+    previewMask.classList.remove('show');
+  });
+  previewMask.addEventListener('click', function (e) {
+    if (e.target === previewMask) previewMask.classList.remove('show');
+  });
+
   // ========== Clear ==========
   document.getElementById('btnClear').addEventListener('click', function () {
     cellImages = {};
@@ -220,11 +312,22 @@
     var total = g.cols * g.rows;
     var hasAny = false;
     for (var k in cellImages) { hasAny = true; break; }
-    if (!hasAny) {
-      showToast('请先添加图片', 'err');
-      return;
-    }
+    if (!hasAny) { showToast('请先添加图片', 'err'); return; }
+    renderCanvas(g, total, function (canvas) {
+      try {
+        var a = document.createElement('a');
+        a.download = 'collage_' + Date.now() + '.png';
+        a.href = canvas.toDataURL('image/png');
+        a.click();
+        showToast('导出成功!', 'ok');
+      } catch (e) {
+        showToast('导出失败: ' + e.message, 'err');
+      }
+    });
+  });
 
+  // ========== 渲染到 Canvas（共享逻辑） ==========
+  function renderCanvas(g, total, onDone) {
     var cellSize = 600;
     var gap = 12;
     var pad = 16;
@@ -244,9 +347,11 @@
       if (cellImages[i]) needed++;
     }
 
+    if (needed === 0) { onDone(canvas); return; }
+
     function done() {
       loaded++;
-      if (loaded >= needed) downloadCanvas(canvas);
+      if (loaded >= needed) onDone(canvas);
     }
 
     function drawImg(idx, img) {
@@ -254,15 +359,32 @@
       var row = Math.floor(idx / g.cols);
       var x = pad + col * (cellSize + gap);
       var y = pad + row * (cellSize + gap);
-      var scale = Math.max(cellSize / img.width, cellSize / img.height);
-      var w = img.width * scale;
-      var h = img.height * scale;
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(x, y, cellSize, cellSize);
-      ctx.clip();
-      ctx.drawImage(img, x + (cellSize - w) / 2, y + (cellSize - h) / 2, w, h);
-      ctx.restore();
+      var w, h, ox, oy;
+
+      if (fitMode === 'fill') {
+        w = cellSize; h = cellSize; ox = x; oy = y;
+      } else if (fitMode === 'contain') {
+        var scale = Math.min(cellSize / img.width, cellSize / img.height);
+        w = img.width * scale; h = img.height * scale;
+        ox = x + (cellSize - w) / 2; oy = y + (cellSize - h) / 2;
+        // contain 不需要 clip，直接画
+        ctx.drawImage(img, ox, oy, w, h);
+        return;
+      } else {
+        // cover
+        var scale = Math.max(cellSize / img.width, cellSize / img.height);
+        w = img.width * scale; h = img.height * scale;
+        ox = x + (cellSize - w) / 2; oy = y + (cellSize - h) / 2;
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(x, y, cellSize, cellSize);
+        ctx.clip();
+        ctx.drawImage(img, ox, oy, w, h);
+        ctx.restore();
+        return;
+      }
+      // fill: 直接拉伸
+      ctx.drawImage(img, x, y, cellSize, cellSize);
     }
 
     for (var j = 0; j < total; j++) {
@@ -282,20 +404,6 @@
         };
         img.src = cellImages[idx];
       })(j);
-    }
-
-    if (needed === 0) downloadCanvas(canvas);
-  });
-
-  function downloadCanvas(canvas) {
-    try {
-      var a = document.createElement('a');
-      a.download = 'collage_' + Date.now() + '.png';
-      a.href = canvas.toDataURL('image/png');
-      a.click();
-      showToast('导出成功!', 'ok');
-    } catch (e) {
-      showToast('导出失败: ' + e.message, 'err');
     }
   }
 

@@ -8,7 +8,7 @@ Vue.component('page-products', {
       page: 1,
       pageSize: 20,
       keyword: '',
-      statusFilter: '0',
+      statusFilter: 'all',
       categoryFilter: '',
       categoryList: [],
       dxmCategoryFilter: '',
@@ -21,7 +21,8 @@ Vue.component('page-products', {
     };
   },
   mounted: function () {
-    this.loadList(1);
+    this.restoreFilters();
+    this.loadList();
     this.loadCategories();
     this.loadDxmCategories();
     this.startPoll();
@@ -79,6 +80,36 @@ Vue.component('page-products', {
     }
   },
   methods: {
+    // -- 筛选缓存 --
+    restoreFilters: function () {
+      try {
+        var s = JSON.parse(localStorage.getItem('__product_filters'));
+        if (!s) return;
+        if (s.keyword !== undefined) this.keyword = s.keyword;
+        if (s.statusFilter !== undefined) this.statusFilter = s.statusFilter;
+        if (s.categoryFilter !== undefined)
+          this.categoryFilter = s.categoryFilter;
+        if (s.dxmCategoryFilter !== undefined)
+          this.dxmCategoryFilter = s.dxmCategoryFilter;
+        if (s.page) this.page = s.page;
+        if (s.pageSize) this.pageSize = s.pageSize;
+      } catch (e) {}
+    },
+    saveFilters: function () {
+      try {
+        localStorage.setItem(
+          '__product_filters',
+          JSON.stringify({
+            keyword: this.keyword,
+            statusFilter: this.statusFilter,
+            categoryFilter: this.categoryFilter,
+            dxmCategoryFilter: this.dxmCategoryFilter,
+            page: this.page,
+            pageSize: this.pageSize
+          })
+        );
+      } catch (e) {}
+    },
     // -- 列辅助方法 --
     getSkuImage: function (row) {
       var mainImages = JSON.parse(row.main_images || '[]');
@@ -177,6 +208,7 @@ Vue.component('page-products', {
     loadList: function (p) {
       var vm = this;
       if (p) vm.page = p;
+      vm.saveFilters();
       vm.loading = true;
       var params = new URLSearchParams({
         page: vm.page,
@@ -205,6 +237,7 @@ Vue.component('page-products', {
     },
     onPageSizeChange: function (s) {
       this.pageSize = s;
+      this.saveFilters();
       this.loadList(1);
     },
     onSelectionChange: function (sel) {
