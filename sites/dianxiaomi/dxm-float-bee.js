@@ -14,7 +14,8 @@
     '__dxm_bee_sku_table': '填表',
     '__dxm_bee_sku': 'SKU',
     '__dxm_bee_package': '包装',
-    '__dxm_bee_edit': '描述'
+    '__dxm_bee_edit': '描述',
+    '__dxm_bee_collage': '拼图'
   };
 
   // ========== SVG ==========
@@ -77,6 +78,8 @@
     '<div id="__dxm_bee_package" title="自动设置外包装">包装<span class="__dxm_bee_check"></span></div>' +
     '<div class="__dxm_bee_line"></div>' +
     '<div id="__dxm_bee_edit" title="一键编辑描述">描述<span class="__dxm_bee_check"></span></div>' +
+    '<div class="__dxm_bee_line"></div>' +
+    '<div id="__dxm_bee_collage" title="图片拼图">拼图<span class="__dxm_bee_check"></span></div>' +
     '</div>';
 
   // ========== Styles ==========
@@ -106,6 +109,8 @@
     '#__dxm_bee_translate:hover{transform:scale(1.15)!important;box-shadow:0 4px 12px rgba(255,160,0,.5)}' +
     '#__dxm_bee_edit{margin-top:3px;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#66BB6A,#43A047);color:#fff;font:bold 12px/1 "楷体","KaiTi","STKaiti",serif;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(67,160,71,.35);transition:box-shadow .2s;user-select:none;text-shadow:0 1px 2px rgba(0,0,0,.15)}' +
     '#__dxm_bee_edit:hover{transform:scale(1.15)!important;box-shadow:0 4px 12px rgba(67,160,71,.5)}' +
+    '#__dxm_bee_collage{margin-top:3px;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#7E57C2,#4527A0);color:#fff;font:bold 12px/1 "楷体","KaiTi","STKaiti",serif;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(69,39,160,.35);transition:box-shadow .2s;user-select:none;text-shadow:0 1px 2px rgba(0,0,0,.15)}' +
+    '#__dxm_bee_collage:hover{transform:scale(1.15)!important;box-shadow:0 4px 12px rgba(69,39,160,.5)}' +
     '#__dxm_bee_paste{margin-top:3px;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#AB47BC,#8E24AA);color:#fff;font:bold 12px/1 "楷体","KaiTi","STKaiti",serif;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(142,36,170,.35);transition:box-shadow .2s;user-select:none;text-shadow:0 1px 2px rgba(0,0,0,.15)}' +
     '#__dxm_bee_paste:hover{transform:scale(1.15)!important;box-shadow:0 4px 12px rgba(142,36,170,.5)}' +
     '#__dxm_bee_sku{margin-top:3px;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#26C6DA,#00838F);color:#fff;font-size:10px;font-weight:bold;letter-spacing:.5px;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(0,131,143,.35);transition:box-shadow .2s;user-select:none;text-shadow:0 1px 2px rgba(0,0,0,.15)}' +
@@ -312,7 +317,7 @@
   var activeWorkflowBtn = null;
   var BEE_BTNS = ['__dxm_bee_translate', '__dxm_bee_delete', '__dxm_bee_paste',
     '__dxm_bee_resize', '__dxm_bee_sku_table', '__dxm_bee_sku',
-    '__dxm_bee_package', '__dxm_bee_edit'];
+    '__dxm_bee_package', '__dxm_bee_edit', '__dxm_bee_collage'];
 
   // ========== Workflow Manager ==========
   Config.startWorkflow = function (btnId) {
@@ -1211,6 +1216,21 @@
         })();
       });
     }
+  }
+
+  // ========== 拼图按钮 ==========
+  var collageEl = document.getElementById('__dxm_bee_collage');
+  if (collageEl) {
+    collageEl.addEventListener('click', function () {
+      console.log('[小蜜蜂] 拼图按钮点击');
+      try {
+        chrome.runtime.sendMessage({ action: 'openTab', url: 'sites/dianxiaomi/dxm-collage.html' });
+      } catch (e) {
+        console.error('[小蜜蜂] 拼图页面打开失败:', e);
+        showBubble('❌ 打开拼图页面失败', 'err');
+        setTimeout(hideBubble, 2000);
+      }
+    });
   }
 
   // ========== 同步类目（共享请求队列，支持多个大类并发） ==========
