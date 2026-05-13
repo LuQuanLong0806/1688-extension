@@ -7,33 +7,49 @@
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f5f5f5;height:100vh;display:flex;overflow:hidden}
 
-/* 左侧工具栏 */
-.sidebar{width:180px;background:#fff;border-right:1px solid #e8e8e8;padding:20px 14px;display:flex;flex-direction:column;gap:10px;flex-shrink:0;overflow-y:auto}
-.sidebar h3{font-size:14px;color:#333;margin-bottom:6px;text-align:center;letter-spacing:2px;font-weight:bold}
-.grid-opt{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 8px;border-radius:10px;cursor:pointer;border:2px solid transparent;transition:all .15s;background:#fafafa}
+/* ========== 左侧工具栏 ========== */
+.sidebar{width:200px;background:#fff;border-right:1px solid #e8e8e8;display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}
+.sb-section{padding:12px 14px;border-bottom:1px solid #f0f0f0}
+.sb-title{font-size:11px;color:#999;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;font-weight:bold}
+.sb-spacer{flex:1}
+
+/* 模式切换 */
+.mode-switch{display:flex;border-radius:6px;overflow:hidden;border:1px solid #CE93D8}
+.mode-btn{flex:1;padding:6px 0;font-size:12px;font-weight:bold;cursor:pointer;border:none;background:#fff;color:#7E57C2;transition:all .15s}
+.mode-btn.active{background:#7E57C2;color:#fff}
+.mode-btn:hover:not(.active){background:#F3E5F5}
+
+/* 宫格选项 (2列) */
+.grid-options{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.grid-opt{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 6px;border-radius:8px;cursor:pointer;border:2px solid transparent;transition:all .15s;background:#fafafa}
 .grid-opt:hover{background:#F3E5F5;border-color:#CE93D8}
 .grid-opt.active{border-color:#7E57C2;background:#EDE7F6;box-shadow:0 2px 8px rgba(126,87,194,.2)}
-.grid-preview{width:100px;height:80px;display:grid;gap:3px;padding:4px;background:#fff;border-radius:6px;box-shadow:inset 0 1px 3px rgba(0,0,0,.06)}
-.grid-preview span{background:#CE93D8;border-radius:3px;transition:background .15s}
+.grid-preview{width:64px;height:52px;display:grid;gap:2px;padding:3px;background:#fff;border-radius:4px;box-shadow:inset 0 1px 3px rgba(0,0,0,.06)}
+.grid-preview span{background:#CE93D8;border-radius:2px;transition:background .15s}
 .grid-opt.active .grid-preview span{background:#7E57C2}
-.grid-label{font-size:13px;color:#666;font-weight:500;transition:color .15s}
+.grid-label{font-size:11px;color:#666;font-weight:500;transition:color .15s}
 .grid-opt.active .grid-label{color:#4527A0;font-weight:bold}
 
-/* 主体 */
-.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+/* 图片设置下拉 */
+.fit-select{width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;color:#333;background:#fff;cursor:pointer;outline:none;transition:border-color .15s}
+.fit-select:focus{border-color:#7E57C2}
 
-/* 顶部工具栏 */
-.topbar{padding:10px 20px;display:flex;gap:8px;align-items:center;border-bottom:1px solid #f0f0f0;background:#fff;flex-shrink:0}
-.topbar .btn-sm{padding:6px 16px;border-radius:6px;border:none;font-size:12px;font-weight:bold;cursor:pointer;transition:all .15s}
-.btn-paste-url{background:linear-gradient(135deg,#AB47BC,#8E24AA);color:#fff;box-shadow:0 1px 4px rgba(142,36,170,.3)}
-.btn-paste-url:hover{box-shadow:0 2px 8px rgba(142,36,170,.5)}
+/* 侧栏按钮 */
+.sb-btn{width:100%;padding:8px 0;border-radius:8px;border:none;font-size:12px;font-weight:bold;cursor:pointer;transition:all .15s}
+.sb-btn+.sb-btn{margin-top:6px}
+.btn-paste{background:linear-gradient(135deg,#AB47BC,#8E24AA);color:#fff;box-shadow:0 1px 4px rgba(142,36,170,.3)}
+.btn-paste:hover{box-shadow:0 2px 8px rgba(142,36,170,.5)}
 .btn-preview{background:#fff;color:#7E57C2;border:1px solid #CE93D8}
 .btn-preview:hover{background:#F3E5F5}
-.topbar .separator{width:1px;height:20px;background:#e0e0e0;margin:0 4px}
-.topbar .fit-label{font-size:12px;color:#666;white-space:nowrap}
-.topbar .fit-select{padding:5px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;color:#333;background:#fff;cursor:pointer;outline:none;transition:border-color .15s}
-.topbar .fit-select:focus{border-color:#7E57C2}
+.btn-clear{background:#fff;color:#666;border:1px solid #ddd}
+.btn-clear:hover{border-color:#999;color:#333}
+.btn-export{background:linear-gradient(135deg,#7E57C2,#4527A0);color:#fff;box-shadow:0 2px 8px rgba(69,39,160,.3)}
+.btn-export:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(69,39,160,.5)}
 
+/* ========== 主体 ========== */
+.main{flex:1;display:flex;overflow:hidden}
+
+/* 宫格模式 */
 .grid-area{flex:1;display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto}
 .grid-wrap{background:#fff;padding:12px;border-radius:14px;box-shadow:0 2px 16px rgba(0,0,0,.08);display:inline-grid;gap:6px}
 .cell{width:180px;height:180px;border:2px dashed #e0e0e0;border-radius:8px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;cursor:pointer;transition:border-color .15s,background .15s;background:#fafafa}
@@ -49,23 +65,78 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f5f5f5;height:10
 .cell .ph{color:#ccc;font-size:12px;text-align:center;pointer-events:none;line-height:1.4}
 .cell .ph::before{content:"";display:block;width:28px;height:28px;margin:0 auto 6px;border:2px dashed #ddd;border-radius:6px}
 
-/* 底部 */
-.bottom{padding:12px 20px;display:flex;justify-content:center;gap:10px;border-top:1px solid #f0f0f0;background:#fff;flex-shrink:0}
-.btn{padding:8px 28px;border-radius:8px;border:none;font-size:13px;font-weight:bold;cursor:pointer;transition:all .15s}
-.btn-export{background:linear-gradient(135deg,#7E57C2,#4527A0);color:#fff;box-shadow:0 2px 8px rgba(69,39,160,.3)}
-.btn-export:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(69,39,160,.5)}
-.btn-clear{background:#fff;color:#666;border:1px solid #ddd}
-.btn-clear:hover{border-color:#999;color:#333}
+/* ========== 自定义模式 ========== */
+.custom-area{display:none;flex:1;overflow:hidden}
+.custom-area.show{display:flex}
+.custom-body{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.canvas-area{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;overflow:auto;background:#e8e8e8}
+.canvas-wrap{position:relative;display:inline-block}
+.canvas-board{position:relative;background:#fff;box-shadow:0 2px 16px rgba(0,0,0,.12);overflow:hidden;border-radius:2px}
+.canvas-size{margin-top:8px;font-size:12px;color:#999;text-align:center}
+
+/* 画布缩放手柄 */
+.board-resize{position:absolute;z-index:100}
+.board-resize-r{right:-6px;top:0;width:12px;height:100%;cursor:ew-resize}
+.board-resize-b{bottom:-6px;left:0;height:12px;width:100%;cursor:ns-resize}
+.board-resize-rb{right:-6px;bottom:-6px;width:16px;height:16px;cursor:nwse-resize}
+.board-resize-rb::after{content:"";position:absolute;right:2px;bottom:2px;width:8px;height:8px;border-right:2px solid #999;border-bottom:2px solid #999}
+
+/* 画布元素 */
+.canvas-item{position:absolute;cursor:move;user-select:none;transform-origin:center center}
+.canvas-item img{width:100%;height:100%;pointer-events:none;display:block}
+.canvas-item.selected{outline:2px solid #7E57C2;outline-offset:-1px}
+.canvas-item .c-rm{position:absolute;top:-10px;right:-10px;width:20px;height:20px;background:#ff4444;color:#fff;border:1.5px solid #fff;border-radius:50%;font-size:11px;display:none;align-items:center;justify-content:center;cursor:pointer;line-height:1;z-index:5}
+.canvas-item.selected .c-rm{display:flex}
+.canvas-item .c-resize{position:absolute;right:-4px;bottom:-4px;width:12px;height:12px;cursor:nwse-resize;z-index:5;display:none}
+.canvas-item.selected .c-resize{display:block}
+.canvas-item .c-resize::after{content:"";position:absolute;right:1px;bottom:1px;width:8px;height:8px;border-right:2px solid #7E57C2;border-bottom:2px solid #7E57C2}
+.canvas-item .c-rot-line{position:absolute;top:-24px;left:50%;width:1px;height:24px;background:#7E57C2;display:none;transform:translateX(-50%)}
+.canvas-item.selected .c-rot-line{display:block}
+.canvas-item .c-rot{position:absolute;top:-36px;left:50%;width:14px;height:14px;border-radius:50%;background:#7E57C2;border:1.5px solid #fff;cursor:grab;display:none;transform:translateX(-50%);z-index:5}
+.canvas-item.selected .c-rot{display:block}
+
+/* ========== 右侧面板 ========== */
+.right-panel{width:200px;background:#fff;border-left:1px solid #e8e8e8;flex-shrink:0;display:none;flex-direction:column;overflow-y:auto}
+.right-panel.show{display:flex}
+.rp-section{padding:12px 14px;border-bottom:1px solid #f0f0f0}
+.rp-section:last-child{border-bottom:none}
+.rp-title{font-size:11px;color:#999;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;font-weight:bold}
+
+/* 图片池 (右侧面板内，flex换行) */
+.pool-grid{display:flex;flex-wrap:wrap;gap:6px;min-height:20px}
+.pool-item{width:50px;height:50px;border-radius:6px;border:2px solid #e8e8e8;overflow:hidden;cursor:grab;position:relative;transition:border-color .15s}
+.pool-item:hover{border-color:#7E57C2}
+.pool-item img{width:100%;height:100%;object-fit:cover;pointer-events:none}
+.pool-item .pool-rm{position:absolute;top:1px;right:1px;width:14px;height:14px;background:rgba(0,0,0,.5);color:#fff;border:none;border-radius:50%;font-size:9px;display:none;align-items:center;justify-content:center;cursor:pointer;line-height:1}
+.pool-item:hover .pool-rm{display:flex}
+.pool-empty{font-size:11px;color:#ccc;text-align:center;padding:8px 0}
+
+/* 属性面板 */
+.rp-empty{flex:1;display:flex;align-items:center;justify-content:center;color:#ccc;font-size:12px;text-align:center;padding:20px}
+.rp-content{display:none;flex-direction:column;padding:0}
+.rp-content.show{display:flex}
+.rp-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.rp-row:last-child{margin-bottom:0}
+.rp-label{font-size:12px;color:#666;min-width:28px;flex-shrink:0}
+.rp-input{flex:1;padding:5px 8px;border:1px solid #ddd;border-radius:5px;font-size:12px;text-align:center;outline:none;transition:border-color .15s;min-width:0}
+.rp-input:focus{border-color:#7E57C2}
+.rp-val{font-size:13px;color:#333;font-weight:bold;min-width:40px;text-align:center}
+.rp-btns{display:flex;gap:6px}
+.rp-btn{flex:1;padding:5px 0;border:1px solid #ddd;border-radius:5px;background:#fff;cursor:pointer;font-size:11px;color:#666;transition:all .15s;text-align:center}
+.rp-btn:hover{border-color:#7E57C2;color:#7E57C2}
+.rp-btn.primary{background:#7E57C2;color:#fff;border-color:#7E57C2}
+.rp-btn.primary:hover{background:#6A4FAA}
+.rp-preview{width:100%;aspect-ratio:1;border-radius:6px;overflow:hidden;background:#f5f5f5;border:1px solid #eee}
+.rp-preview img{width:100%;height:100%;object-fit:contain}
 
 /* 预览弹窗 */
 .preview-mask{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center}
 .preview-mask.show{display:flex}
 .preview-box{background:#fff;border-radius:12px;padding:16px;max-width:90vw;max-height:90vh;display:flex;flex-direction:column;align-items:center;gap:12px}
 .preview-box img{max-width:100%;max-height:70vh;border-radius:8px;box-shadow:0 2px 12px rgba(0,0,0,.1)}
-.preview-box .preview-close{padding:6px 20px;border-radius:6px;border:1px solid #ddd;background:#fff;color:#666;font-size:12px;cursor:pointer}
-.preview-box .preview-close:hover{border-color:#999;color:#333}
+.preview-close{padding:6px 20px;border-radius:6px;border:1px solid #ddd;background:#fff;color:#666;font-size:12px;cursor:pointer}
+.preview-close:hover{border-color:#999;color:#333}
 
-/* 提示 */
 .toast{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-80px);background:#fff;padding:10px 24px;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.15);font-size:13px;color:#333;transition:transform .3s;z-index:999;white-space:nowrap}
 .toast.show{transform:translateX(-50%) translateY(0)}
 .toast.ok{border-left:3px solid #52c41a}
@@ -74,28 +145,101 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f5f5f5;height:10
 </head>
 <body>
 
+<!-- 左侧工具栏 -->
 <div class="sidebar">
-  <h3>选择宫格</h3>
-</div>
-
-<div class="main">
-  <div class="topbar">
-    <button class="btn-sm btn-paste-url" id="btnPasteUrl">贴图</button>
-    <button class="btn-sm btn-preview" id="btnPreview">预览</button>
-    <div class="separator"></div>
-    <span class="fit-label">图片设置</span>
+  <div class="sb-section">
+    <div class="sb-title">模式</div>
+    <div class="mode-switch">
+      <button class="mode-btn active" id="modeGrid">宫格</button>
+      <button class="mode-btn" id="modeCustom">自定义</button>
+    </div>
+  </div>
+  <div class="sb-section grid-only" id="gridSection">
+    <div class="sb-title">选择宫格</div>
+    <div class="grid-options" id="gridOptsContainer"></div>
+  </div>
+  <div class="sb-section grid-only">
+    <div class="sb-title">图片设置</div>
     <select class="fit-select" id="fitMode">
       <option value="cover">cover 裁剪填充</option>
       <option value="contain">contain 完整显示</option>
       <option value="fill">fill 拉伸填充</option>
     </select>
   </div>
-  <div class="grid-area">
+  <div class="sb-section">
+    <button class="sb-btn btn-paste" id="btnPasteUrl">贴图</button>
+    <button class="sb-btn btn-preview" id="btnPreview">预览</button>
+  </div>
+  <div class="sb-spacer"></div>
+  <div class="sb-section">
+    <button class="sb-btn btn-clear" id="btnClear">清空全部</button>
+    <button class="sb-btn btn-export" id="btnExport">导出拼图</button>
+  </div>
+</div>
+
+<!-- 主体内容 -->
+<div class="main">
+  <!-- 宫格模式 -->
+  <div class="grid-area" id="gridArea">
     <div class="grid-wrap" id="grid"></div>
   </div>
-  <div class="bottom">
-    <button class="btn btn-clear" id="btnClear">清空全部</button>
-    <button class="btn btn-export" id="btnExport">导出拼图</button>
+  <!-- 自定义模式 -->
+  <div class="custom-area" id="customArea">
+    <div class="custom-body">
+      <div class="canvas-area">
+        <div class="canvas-wrap" id="canvasWrap">
+          <div class="canvas-board" id="canvasBoard"></div>
+          <div class="board-resize board-resize-r" id="resizeR"></div>
+          <div class="board-resize board-resize-b" id="resizeB"></div>
+          <div class="board-resize board-resize-rb" id="resizeRB"></div>
+        </div>
+        <div class="canvas-size" id="canvasSize">800 × 800</div>
+      </div>
+    </div>
+    <!-- 右侧面板：图片池 + 属性 -->
+    <div class="right-panel" id="rightPanel">
+      <div class="rp-section">
+        <div class="rp-title">图片列表</div>
+        <div class="pool-grid" id="poolBar"></div>
+      </div>
+      <div class="rp-empty" id="rpEmpty">点击画布上的图片<br>查看属性</div>
+      <div class="rp-content" id="rpContent">
+        <div class="rp-section">
+          <div class="rp-title">预览</div>
+          <div class="rp-preview"><img id="rpPreviewImg" src="" alt=""></div>
+        </div>
+        <div class="rp-section">
+          <div class="rp-title">尺寸</div>
+          <div class="rp-row">
+            <span class="rp-label">宽</span>
+            <input class="rp-input" type="number" id="propW" min="10" max="4000">
+          </div>
+          <div class="rp-row">
+            <span class="rp-label">高</span>
+            <input class="rp-input" type="number" id="propH" min="10" max="4000">
+          </div>
+        </div>
+        <div class="rp-section">
+          <div class="rp-title">旋转</div>
+          <div class="rp-row">
+            <span class="rp-val" id="propRot">0°</span>
+          </div>
+        </div>
+        <div class="rp-section">
+          <div class="rp-title">图层</div>
+          <div class="rp-btns">
+            <button class="rp-btn" id="propDown">↓ 下移</button>
+            <button class="rp-btn" id="propUp">↑ 上移</button>
+          </div>
+          <div class="rp-btns" style="margin-top:6px">
+            <button class="rp-btn primary" id="propTop">⤒ 置顶</button>
+          </div>
+        </div>
+        <div class="rp-section">
+          <button class="rp-btn" id="propDelete" style="width:100%;color:#ff4444;border-color:#ffccc7">删除图片</button>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
