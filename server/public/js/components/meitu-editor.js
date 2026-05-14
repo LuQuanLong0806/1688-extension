@@ -35,6 +35,7 @@ Vue.component('meitu-editor', {
       // 马赛克
       mosaicMode: false,
       mosaicSize: 15,
+      mosaicTool: 'brush',
       // 换背景
       bgColor: '',
       // 水印
@@ -108,10 +109,22 @@ Vue.component('meitu-editor', {
         preserveObjectStacking: true,
         selection: true
       });
+      // 让 Fabric.js 序列化时保留自定义属性 name / _rawPoints
+      fabric.Object.prototype.toObject = (function (toObject) {
+        return function () {
+          var obj = toObject.call(this);
+          if (this.name) obj.name = this.name;
+          if (this._rawPoints) obj._rawPoints = this._rawPoints;
+          return obj;
+        };
+      })(fabric.Object.prototype.toObject);
       // 监听对象修改用于撤销
       var vm = this;
       this.canvas.on('object:modified', function () { vm.saveHistory(); });
-      this.canvas.on('path:created', function () { vm.saveHistory(); });
+      this.canvas.on('path:created', function (opt) {
+        if (vm.eraseMode || vm.mosaicMode) return; // 消除/马赛克模式自己管理历史
+        vm.saveHistory();
+      });
     },
 
     resizeCanvas: function () {
@@ -173,6 +186,51 @@ Vue.component('meitu-editor', {
         vm.redoStack = [];
         vm.saveHistory();
         vm.$emit('loaded');
+      }, { crossOrigin: 'anonymous' });
+    },
+
+    // 原位替换背景图片（消除/马赛克后保持位置不变）
+    replaceBgImage: function (url) {
+      var vm = this;
+      var oldImg = vm.getBgImage();
+      if (!oldImg) { vm.loadImage(url); return; }
+
+      var src = url;
+      if (url && url.indexOf('http') === 0 && url.indexOf('localhost') === -1 && url.indexOf('/uploads/') === -1) {
+        src = '/api/proxy-image?url=' + encodeURIComponent(url);
+      }
+
+      var oldLeft = oldImg.left;
+      var oldTop = oldImg.top;
+      var oldDispW = oldImg.width * oldImg.scaleX;
+      var oldDispH = oldImg.height * oldImg.scaleY;
+
+      fabric.Image.fromURL(src, function (newImg) {
+        if (!newImg || !newImg.width) return;
+
+        // 移除旧背景和标记
+        var toRemove = vm.canvas.getObjects().filter(function (o) {
+          return o.name === 'bgImage' || o.name === 'erase-mark';
+        });
+        toRemove.forEach(function (o) { vm.canvas.remove(o); });
+
+        // 缩放新图匹配旧图的显示区域
+        var newScale = Math.min(oldDispW / newImg.width, oldDispH / newImg.height);
+        var newDispW = newImg.width * newScale;
+        var newDispH = newImg.height * newScale;
+        // 居中于旧图显示区域
+        newImg.set({
+          left: oldLeft + (oldDispW - newDispW) / 2,
+          top: oldTop + (oldDispH - newDispH) / 2,
+          scaleX: newScale,
+          scaleY: newScale,
+          selectable: false,
+          evented: false,
+          name: 'bgImage'
+        });
+        vm.canvas.add(newImg);
+        vm.canvas.renderAll();
+        vm.saveHistory();
       }, { crossOrigin: 'anonymous' });
     },
 
@@ -538,16 +596,19 @@ Vue.component('meitu-editor', {
         var isDown = false, startX, startY;
         vm._eraseBoxRect = null;
 
-        var bg = vm.getBgImage();
-        var imgBounds = bg ? {
-          left: bg.left, top: bg.top,
-          right: bg.left + bg.width * bg.scaleX,
-          bottom: bg.top + bg.height * bg.scaleY
-        } : null;
+        // 动态获取图片边界（每次都重新计算，因为 aiInpaint 后图片位置会变）
+        var getImgBounds = function () {
+          var bg = vm.getBgImage();
+          if (!bg) return null;
+          return {
+            left: bg.left, top: bg.top,
+            right: bg.left + bg.width * bg.scaleX,
+            bottom: bg.top + bg.height * bg.scaleY
+          };
+        };
 
         var downHandler = function (opt) {
           var p = vm.canvas.getPointer(opt.e);
-          if (imgBounds && (p.x < imgBounds.left || p.x > imgBounds.right || p.y < imgBounds.top || p.y > imgBounds.bottom)) return;
           isDown = true;
           startX = p.x;
           startY = p.y;
@@ -567,10 +628,10 @@ Vue.component('meitu-editor', {
         var moveHandler = function (opt) {
           if (!isDown || !vm._eraseBoxRect) return;
           var p = vm.canvas.getPointer(opt.e);
-          // 限制在图片范围内
-          if (imgBounds) {
-            p.x = Math.max(imgBounds.left, Math.min(imgBounds.right, p.x));
-            p.y = Math.max(imgBounds.top, Math.min(imgBounds.bottom, p.y));
+          var bounds = getImgBounds();
+          if (bounds) {
+            p.x = Math.max(bounds.left, Math.min(bounds.right, p.x));
+            p.y = Math.max(bounds.top, Math.min(bounds.bottom, p.y));
           }
           vm._eraseBoxRect.set({
             left: Math.min(startX, p.x),
@@ -583,14 +644,12 @@ Vue.component('meitu-editor', {
 
         var upHandler = function () {
           isDown = false;
-          // 框太小忽略
           if (vm._eraseBoxRect && vm._eraseBoxRect.width < 5 && vm._eraseBoxRect.height < 5) {
             vm.canvas.remove(vm._eraseBoxRect);
             vm._eraseBoxRect = null;
             vm.canvas.renderAll();
             return;
           }
-          // 框选完成后自动修复
           if (vm._eraseBoxRect) {
             vm.aiInpaint();
           }
@@ -856,48 +915,121 @@ Vue.component('meitu-editor', {
     // ===== 马赛克 =====
     startMosaic: function () {
       this.mosaicMode = true;
-      this.canvas.isDrawingMode = true;
-      this.canvas.freeDrawingBrush = new fabric.PencilBrush(this.canvas);
-      this.canvas.freeDrawingBrush.color = 'rgba(0,0,0,0.01)';
-      this.canvas.freeDrawingBrush.width = this.mosaicSize;
-      this.canvas.selection = false;
-      this.canvas.forEachObject(function (o) { o.set({ selectable: false, evented: false }); });
+      this.setupMosaicTool();
+    },
 
+    onMosaicToolChange: function () {
+      if (!this.mosaicMode) return;
+      this.setupMosaicTool();
+    },
+
+    setupMosaicTool: function () {
       var vm = this;
-      var points = [];
+      // 清理
+      vm.canvas.isDrawingMode = false;
       vm.canvas.off('mouse:down');
       vm.canvas.off('mouse:move');
       vm.canvas.off('mouse:up');
+      vm.canvas.selection = false;
+      vm.canvas.forEachObject(function (o) { o.set({ selectable: false, evented: false }); });
 
-      vm.canvas.on('mouse:down', function () { points = []; });
-      vm.canvas.on('mouse:move', function (opt) {
-        if (!vm.canvas.isDrawingMode) return;
-        var p = vm.canvas.getPointer(opt.e);
-        points.push({ x: p.x, y: p.y });
-      });
-      vm.canvas.on('mouse:up', function () {
-        if (points.length < 2) return;
-        // 取消画笔产生的路径
-        var objs = vm.canvas.getObjects();
-        var last = objs[objs.length - 1];
-        if (last && last.type === 'path') vm.canvas.remove(last);
-        vm.applyMosaic(points);
-        points = [];
-      });
+      if (vm.mosaicTool === 'brush') {
+        vm.canvas.isDrawingMode = true;
+        vm.canvas.freeDrawingBrush = new fabric.PencilBrush(vm.canvas);
+        vm.canvas.freeDrawingBrush.color = 'rgba(0,0,0,0.01)';
+        vm.canvas.freeDrawingBrush.width = vm.mosaicSize;
+        vm.canvas.defaultCursor = 'crosshair';
+
+        var points = [];
+        vm.canvas.on('mouse:down', function () { points = []; });
+        vm.canvas.on('mouse:move', function (opt) {
+          if (!vm.canvas.isDrawingMode) return;
+          var p = vm.canvas.getPointer(opt.e);
+          points.push({ x: p.x, y: p.y });
+        });
+        vm.canvas.on('mouse:up', function () {
+          if (points.length < 2) return;
+          var objs = vm.canvas.getObjects();
+          var last = objs[objs.length - 1];
+          if (last && last.type === 'path') vm.canvas.remove(last);
+          vm.applyMosaic(points);
+          points = [];
+        });
+      } else {
+        // 框选模式
+        vm.canvas.defaultCursor = 'crosshair';
+        var isDown = false, startX, startY;
+        vm._mosaicBoxRect = null;
+
+        var downHandler = function (opt) {
+          var p = vm.canvas.getPointer(opt.e);
+          isDown = true;
+          startX = p.x;
+          startY = p.y;
+          if (vm._mosaicBoxRect) {
+            vm.canvas.remove(vm._mosaicBoxRect);
+            vm._mosaicBoxRect = null;
+          }
+          vm._mosaicBoxRect = new fabric.Rect({
+            left: startX, top: startY, width: 0, height: 0,
+            fill: 'rgba(126,87,194,0.2)', stroke: '#7E57C2', strokeWidth: 2,
+            strokeDashArray: [6, 3], selectable: false, evented: false, name: 'mosaic-mark'
+          });
+          vm.canvas.add(vm._mosaicBoxRect);
+          vm.canvas.renderAll();
+        };
+
+        var moveHandler = function (opt) {
+          if (!isDown || !vm._mosaicBoxRect) return;
+          var p = vm.canvas.getPointer(opt.e);
+          vm._mosaicBoxRect.set({
+            left: Math.min(startX, p.x),
+            top: Math.min(startY, p.y),
+            width: Math.abs(p.x - startX),
+            height: Math.abs(p.y - startY)
+          });
+          vm.canvas.renderAll();
+        };
+
+        var upHandler = function () {
+          isDown = false;
+          if (!vm._mosaicBoxRect || vm._mosaicBoxRect.width < 5 || vm._mosaicBoxRect.height < 5) {
+            if (vm._mosaicBoxRect) vm.canvas.remove(vm._mosaicBoxRect);
+            vm._mosaicBoxRect = null;
+            vm.canvas.renderAll();
+            return;
+          }
+          // 对框选区域做马赛克
+          var r = vm._mosaicBoxRect;
+          vm.canvas.remove(r);
+          vm._mosaicBoxRect = null;
+          vm.applyMosaicRect(r.left, r.top, r.width, r.height);
+        };
+
+        vm.canvas.on('mouse:down', downHandler);
+        vm.canvas.on('mouse:move', moveHandler);
+        vm.canvas.on('mouse:up', upHandler);
+        vm._mosaicDownHandler = downHandler;
+        vm._mosaicMoveHandler = moveHandler;
+        vm._mosaicUpHandler = upHandler;
+      }
     },
 
     applyMosaic: function (points) {
       var bgImg = this.getBgImage();
-      if (!bgImg) return;
-      var ctx = bgImg._element ? bgImg._element.getContext('2d') : null;
-      if (!ctx) {
-        // 用canvas toDataURL方式
-        this.applyMosaicFallback(points);
-        return;
-      }
+      if (!bgImg || !bgImg._element) return;
+      var el = bgImg._element;
       var size = this.mosaicSize;
       var ratio = this.getBgImageRatio();
-      // 对每个点做像素化
+
+      var origW = el.naturalWidth || el.width;
+      var origH = el.naturalHeight || el.height;
+      var tmpCanvas = document.createElement('canvas');
+      tmpCanvas.width = origW;
+      tmpCanvas.height = origH;
+      var tmpCtx = tmpCanvas.getContext('2d');
+      tmpCtx.drawImage(el, 0, 0, origW, origH);
+
       for (var i = 0; i < points.length; i++) {
         var px = (points[i].x - bgImg.left) * ratio;
         var py = (points[i].y - bgImg.top) * ratio;
@@ -906,8 +1038,11 @@ Vue.component('meitu-editor', {
         var y0 = Math.max(0, Math.floor(py - halfSize));
         var w = Math.floor(size * ratio);
         var h = Math.floor(size * ratio);
+        if (x0 + w > origW) w = origW - x0;
+        if (y0 + h > origH) h = origH - y0;
+        if (w <= 0 || h <= 0) continue;
         try {
-          var imgData = ctx.getImageData(x0, y0, w, h);
+          var imgData = tmpCtx.getImageData(x0, y0, w, h);
           var data = imgData.data;
           var step = Math.max(4, Math.floor(size * ratio / 4));
           for (var sy = 0; sy < h; sy += step) {
@@ -922,29 +1057,75 @@ Vue.component('meitu-editor', {
               }
             }
           }
-          ctx.putImageData(imgData, x0, y0);
+          tmpCtx.putImageData(imgData, x0, y0);
         } catch (e) {}
       }
+
+      // 用马赛克后的canvas替换原图
+      var newImg = new fabric.Image(tmpCanvas);
+      newImg.set({
+        left: bgImg.left, top: bgImg.top,
+        scaleX: bgImg.scaleX, scaleY: bgImg.scaleY,
+        angle: bgImg.angle, flipX: bgImg.flipX, flipY: bgImg.flipY,
+        selectable: false, evented: false, name: 'bgImage'
+      });
+      this.canvas.remove(bgImg);
+      this.canvas.add(newImg);
       this.canvas.renderAll();
       this.saveHistory();
     },
 
-    applyMosaicFallback: function (points) {
-      // 简化版：用矩形覆盖模拟
-      var vm = this;
-      var size = vm.mosaicSize;
-      points.forEach(function (p) {
-        var rect = new fabric.Rect({
-          left: p.x - size / 2, top: p.y - size / 2,
-          width: size, height: size,
-          fill: 'rgba(128,128,128,0.8)',
-          selectable: false, evented: false,
-          name: 'mosaic'
-        });
-        vm.canvas.add(rect);
+    applyMosaicRect: function (left, top, width, height) {
+      var bgImg = this.getBgImage();
+      if (!bgImg || !bgImg._element) return;
+      var el = bgImg._element;
+      var ratio = this.getBgImageRatio();
+      var size = this.mosaicSize;
+
+      var origW = el.naturalWidth || el.width;
+      var origH = el.naturalHeight || el.height;
+      var tmpCanvas = document.createElement('canvas');
+      tmpCanvas.width = origW;
+      tmpCanvas.height = origH;
+      var tmpCtx = tmpCanvas.getContext('2d');
+      tmpCtx.drawImage(el, 0, 0, origW, origH);
+
+      // 将框选区域转为原图像素坐标
+      var x0 = Math.max(0, Math.floor((left - bgImg.left) * ratio));
+      var y0 = Math.max(0, Math.floor((top - bgImg.top) * ratio));
+      var rw = Math.floor(width * ratio);
+      var rh = Math.floor(height * ratio);
+      if (x0 + rw > origW) rw = origW - x0;
+      if (y0 + rh > origH) rh = origH - y0;
+      if (rw <= 0 || rh <= 0) return;
+
+      var step = Math.max(4, size * ratio);
+      // 逐块像素化
+      for (var sy = 0; sy < rh; sy += step) {
+        for (var sx = 0; sx < rw; sx += step) {
+          var bw = Math.min(step, rw - sx);
+          var bh = Math.min(step, rh - sy);
+          var imgData = tmpCtx.getImageData(x0 + sx, y0 + sy, bw, bh);
+          var data = imgData.data;
+          var r = data[0], g = data[1], b = data[2];
+          for (var i = 0; i < data.length; i += 4) {
+            data[i] = r; data[i + 1] = g; data[i + 2] = b;
+          }
+          tmpCtx.putImageData(imgData, x0 + sx, y0 + sy);
+        }
+      }
+
+      var newImg = new fabric.Image(tmpCanvas);
+      newImg.set({
+        left: bgImg.left, top: bgImg.top,
+        scaleX: bgImg.scaleX, scaleY: bgImg.scaleY,
+        angle: bgImg.angle, flipX: bgImg.flipX, flipY: bgImg.flipY,
+        selectable: false, evented: false, name: 'bgImage'
       });
-      vm.canvas.renderAll();
-      vm.saveHistory();
+      this.canvas.remove(bgImg);
+      this.canvas.add(newImg);
+      this.canvas.renderAll();
+      this.saveHistory();
     },
 
     cancelMosaic: function () {
@@ -953,8 +1134,10 @@ Vue.component('meitu-editor', {
       this.canvas.off('mouse:down');
       this.canvas.off('mouse:move');
       this.canvas.off('mouse:up');
+      this._mosaicBoxRect = null;
       this.activeTool = '';
       this.canvas.selection = true;
+      this.canvas.defaultCursor = 'default';
       this.restoreObjectSelection();
       this.saveHistory();
     },
@@ -1219,8 +1402,8 @@ Vue.component('meitu-editor', {
         vm.aiProcessing = false;
         vm.aiProgress = '';
         if (d.error) { vm.$Message.error(d.error); return; }
-        // 用修复结果替换图片
-        vm.loadImage(d.url);
+        // 用修复结果原位替换图片
+        vm.replaceBgImage(d.url);
         vm.$Message.success('AI修复完成');
       }).catch(function (e) {
         vm.aiProcessing = false;
@@ -1442,11 +1625,22 @@ Vue.component('meitu-editor', {
           <!-- 马赛克面板 -->
           <div v-if="mosaicMode" class="meitu-panel-section">
             <div class="meitu-panel-title">马赛克</div>
-            <div class="meitu-panel-row">
+            <div style="margin-bottom:8px">
+              <radio-group v-model="mosaicTool" size="small" @on-change="onMosaicToolChange">
+                <radio label="brush">画笔涂抹</radio>
+                <radio label="box">框选区域</radio>
+              </radio-group>
+            </div>
+            <div v-if="mosaicTool==='brush'" class="meitu-panel-row">
+              <label>粗细</label>
+              <slider v-model="mosaicSize" :min="5" :max="40" :step="1" @on-change="canvas.freeDrawingBrush.width=mosaicSize"></slider>
+            </div>
+            <div v-if="mosaicTool==='box'" class="meitu-panel-row">
               <label>块大小</label>
               <slider v-model="mosaicSize" :min="5" :max="40" :step="1"></slider>
             </div>
-            <div style="color:#999;font-size:11px;margin-bottom:8px">在图片上涂抹区域进行打码</div>
+            <div v-if="mosaicTool==='brush'" style="color:#999;font-size:11px;margin-bottom:8px">在图片上涂抹区域进行打码</div>
+            <div v-if="mosaicTool==='box'" style="color:#999;font-size:11px;margin-bottom:8px">在图片上拖拽框选要打码的区域</div>
             <div style="display:flex;gap:6px">
               <i-button size="small" @click="cancelMosaic">完成</i-button>
             </div>
