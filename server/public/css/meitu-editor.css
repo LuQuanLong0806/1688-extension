@@ -315,40 +315,40 @@
 }
 
 .meitu-processing-spinner {
-  width: 48px;
-  height: 48px;
+  width: 56px;
+  height: 56px;
   position: relative;
   animation: meitu-orbit 1.2s linear infinite;
 }
 
 .meitu-processing-spinner .orbit-dot {
   position: absolute;
-  width: 12px;
-  height: 12px;
   border-radius: 50%;
   background: #fdba3b;
 }
 
 .meitu-processing-spinner .orbit-dot:nth-child(1) {
+  width: 16px;
+  height: 16px;
   top: 0;
   left: 50%;
   transform: translateX(-50%);
 }
 
 .meitu-processing-spinner .orbit-dot:nth-child(2) {
-  bottom: 8px;
-  left: 0;
-  width: 10px;
-  height: 10px;
-  opacity: .7;
+  width: 11px;
+  height: 11px;
+  bottom: 6px;
+  left: 4px;
+  opacity: .65;
 }
 
 .meitu-processing-spinner .orbit-dot:nth-child(3) {
-  bottom: 8px;
-  right: 0;
   width: 8px;
   height: 8px;
-  opacity: .4;
+  bottom: 6px;
+  right: 4px;
+  opacity: .35;
 }
 
 @keyframes meitu-orbit {
