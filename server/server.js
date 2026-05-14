@@ -60,6 +60,7 @@ app.use('/api', require('./routes/settings'));
 app.use('/api', require('./routes/products'));
 app.use('/api', require('./routes/categories'));
 app.use('/api', require('./routes/dxm-tree'));
+app.use('/api/ai', require('./routes/ai'));
 
 // Start
 initDb().then(() => initTreeDb()).then(() => {

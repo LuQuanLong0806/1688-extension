@@ -1,0 +1,377 @@
+/* ========== 小秘美图编辑器 ========== */
+
+/* 整体布局 */
+.meitu-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  font-size: 13px;
+  user-select: none;
+}
+
+/* 顶部工具栏 */
+.meitu-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 16px;
+  background: #16213e;
+  border-bottom: 1px solid #2a2a4a;
+  flex-shrink: 0;
+}
+
+.meitu-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.meitu-toolbar-sep {
+  width: 1px;
+  height: 24px;
+  background: #2a2a4a;
+  margin: 0 8px;
+}
+
+.meitu-tool-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  color: #999;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.15s;
+  font-size: 11px;
+  gap: 2px;
+  min-width: 50px;
+}
+
+.meitu-tool-btn:hover {
+  background: #2a2a4a;
+  color: #e0e0e0;
+}
+
+.meitu-tool-btn.active {
+  background: #3a3a6a;
+  color: #fdba3b;
+}
+
+.meitu-tool-btn .tool-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.meitu-tool-btn .tool-label {
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.meitu-tool-btn.loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* 主区域 */
+.meitu-main {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* 画布区域 */
+.meitu-canvas-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+  background:
+    linear-gradient(45deg, #222 25%, transparent 25%),
+    linear-gradient(-45deg, #222 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #222 75%),
+    linear-gradient(-45deg, transparent 75%, #222 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+  background-color: #1a1a1a;
+}
+
+.meitu-canvas-wrap .canvas-container {
+  box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+}
+
+/* 空状态 */
+.meitu-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: #666;
+}
+
+.meitu-empty-icon {
+  font-size: 64px;
+  opacity: 0.3;
+}
+
+.meitu-empty-text {
+  font-size: 14px;
+}
+
+.meitu-empty-btn {
+  padding: 8px 24px;
+  background: #fdba3b;
+  color: #000;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.meitu-empty-btn:hover {
+  background: #f0a800;
+}
+
+/* 右侧属性面板 */
+.meitu-panel {
+  width: 240px;
+  flex-shrink: 0;
+  background: #16213e;
+  border-left: 1px solid #2a2a4a;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.meitu-panel-section {
+  padding: 12px 16px;
+  border-bottom: 1px solid #2a2a4a;
+}
+
+.meitu-panel-title {
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.meitu-panel-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.meitu-panel-row label {
+  width: 50px;
+  flex-shrink: 0;
+  font-size: 12px;
+  color: #999;
+}
+
+.meitu-panel-row .ivu-slider {
+  flex: 1;
+}
+
+.meitu-panel-row .ivu-input-number {
+  width: 70px;
+}
+
+/* 裁剪预设按钮组 */
+.meitu-crop-presets {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.meitu-crop-preset {
+  padding: 6px 4px;
+  background: #2a2a4a;
+  border: 1px solid #3a3a5a;
+  border-radius: 4px;
+  color: #ccc;
+  cursor: pointer;
+  text-align: center;
+  font-size: 11px;
+  transition: all 0.15s;
+}
+
+.meitu-crop-preset:hover {
+  border-color: #fdba3b;
+  color: #fdba3b;
+}
+
+.meitu-crop-preset.active {
+  background: #3a3a6a;
+  border-color: #fdba3b;
+  color: #fdba3b;
+}
+
+/* 滤镜滑块组 */
+.meitu-filter-slider {
+  margin-bottom: 10px;
+}
+
+.meitu-filter-slider .filter-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: #999;
+}
+
+.meitu-filter-slider .filter-val {
+  color: #fdba3b;
+  font-size: 11px;
+  min-width: 28px;
+  text-align: right;
+}
+
+/* 背景色选择 */
+.meitu-bg-colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.meitu-bg-color {
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  border: 2px solid #3a3a5a;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.meitu-bg-color:hover,
+.meitu-bg-color.active {
+  border-color: #fdba3b;
+}
+
+.meitu-bg-color.transparent {
+  background:
+    linear-gradient(45deg, #ccc 25%, transparent 25%),
+    linear-gradient(-45deg, #ccc 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #ccc 75%),
+    linear-gradient(-45deg, transparent 75%, #ccc 75%);
+  background-size: 8px 8px;
+  background-position: 0 0, 0 4px, 4px -4px, -4px 0;
+  background-color: #fff;
+}
+
+/* 底部操作栏 */
+.meitu-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: #16213e;
+  border-top: 1px solid #2a2a4a;
+  flex-shrink: 0;
+}
+
+.meitu-footer-left {
+  display: flex;
+  gap: 4px;
+}
+
+.meitu-footer-right {
+  display: flex;
+  gap: 8px;
+}
+
+.meitu-footer .ivu-btn {
+  font-size: 12px;
+}
+
+/* 全屏弹窗适配 */
+.meitu-modal-fullscreen .ivu-modal-body {
+  padding: 0 !important;
+  height: calc(100vh - 55px);
+  overflow: hidden;
+}
+
+/* AI处理遮罩 */
+.meitu-processing {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  background: rgba(26, 26, 46, 0.85);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.meitu-processing-spin {
+  font-size: 36px;
+  color: #fdba3b;
+  animation: meitu-spin 1s linear infinite;
+}
+
+.meitu-processing-text {
+  color: #999;
+  font-size: 13px;
+}
+
+@keyframes meitu-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* 裁剪覆盖层 */
+.meitu-crop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  cursor: crosshair;
+}
+
+/* 消除画笔光标 */
+.meitu-erase-cursor {
+  position: fixed;
+  pointer-events: none;
+  z-index: 9999;
+  border: 2px solid #fdba3b;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* iView 深色主题覆写（面板内） */
+.meitu-panel .ivu-slider-bar {
+  background: #fdba3b;
+}
+
+.meitu-panel .ivu-slider-button {
+  border-color: #fdba3b;
+}
+
+.meitu-panel .ivu-input-number-input {
+  background: #2a2a4a;
+  color: #e0e0e0;
+  border-color: #3a3a5a;
+}
+
+.meitu-panel .ivu-color-picker .ivu-input {
+  background: #2a2a4a;
+  color: #e0e0e0;
+}
+
+.meitu-panel .ivu-btn-text {
+  color: #999;
+}
+
+.meitu-panel .ivu-btn-text:hover {
+  color: #fdba3b;
+}
