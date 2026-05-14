@@ -1595,9 +1595,7 @@ Vue.component('meitu-editor', {
             </div>
             <div v-if="eraseTool==='box'" style="color:#999;font-size:11px;margin-bottom:6px">在图片上拖拽框选要消除的区域</div>
             <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px">
-              <i-button type="error" size="small" long :loading="aiProcessing" @click="smartDetect('all')" :disabled="!hasImage">
-                <icon type="md-eye" /> 智能检测
-              </i-button>
+              <!-- 智能检测已隐藏（GLM坐标不准） -->
               <i-button type="warning" size="small" long @click="aiInpaint" :disabled="!hasImage" :loading="aiProcessing">
                 <icon type="md-build" /> AI修复消除
               </i-button>

@@ -1,9 +1,9 @@
 (function () {
-  // 只持久化设置，不持久化图片
   var GRID_KEY = '__dxm_collage_grid';
   var FIT_KEY = '__dxm_collage_fit';
   var MODE_KEY = '__dxm_collage_mode';
   var BOARD_KEY = '__dxm_collage_board';
+  var SERVER_KEY = '__dxm_collage_server';
   var GRIDS = [
     { cols: 2, rows: 2, label: '4宫格' },
     { cols: 3, rows: 2, label: '6宫格' },
@@ -18,15 +18,19 @@
   try { var sg = parseInt(localStorage.getItem(GRID_KEY)); if (sg >= 0 && sg < GRIDS.length) currentIdx = sg; } catch (e) {}
   var fitMode = 'cover';
   try { var sf = localStorage.getItem(FIT_KEY); if (sf === 'cover' || sf === 'contain' || sf === 'fill') fitMode = sf; } catch (e) {}
-  var cellImages = {};    // 不持久化
-  var imagePool = [];     // 不持久化
-  var canvasItems = [];   // 不持久化
+  var cellImages = {};
+  var imagePool = [];
+  var canvasItems = [];
   var boardW = 800, boardH = 800;
   try { var sb = JSON.parse(localStorage.getItem(BOARD_KEY)); if (sb && sb.w > 0 && sb.h > 0) { boardW = sb.w; boardH = sb.h; } } catch (e) {}
 
   var activeCell = -1;
   var nextId = 1;
   var selectedItemId = null;
+  var selectedPoolId = null;
+
+  var serverBase = '';
+  try { serverBase = localStorage.getItem(SERVER_KEY) || ''; } catch (e) {}
 
   // ========== Toast ==========
   var toastEl = document.getElementById('toast');
@@ -38,7 +42,7 @@
     toastTimer = setTimeout(function () { toastEl.classList.remove('show'); }, 2000);
   }
 
-  // ========== Save (仅设置) ==========
+  // ========== Save settings ==========
   function saveGrid() {
     try { localStorage.setItem(GRID_KEY, String(currentIdx)); } catch (e) {}
     try { localStorage.setItem(FIT_KEY, fitMode); } catch (e) {}
@@ -64,6 +68,8 @@
   var propW = document.getElementById('propW');
   var propH = document.getElementById('propH');
   var propRot = document.getElementById('propRot');
+  var btnEditImage = document.getElementById('btnEditImage');
+  var editHint = document.getElementById('editHint');
 
   // ========== Mode Switch ==========
   function applyMode() {
@@ -74,15 +80,18 @@
     document.querySelectorAll('.grid-only').forEach(function (el) {
       el.style.display = mode === 'grid' ? '' : 'none';
     });
-    rightPanel.classList.toggle('show', mode === 'custom');
+    document.querySelectorAll('.custom-only').forEach(function (el) {
+      el.style.display = mode === 'custom' ? '' : 'none';
+    });
+    buildPool();
     if (mode === 'grid') { buildGrid(); }
-    else { applyBoardSize(); buildPool(); buildCanvasItems(); updatePropBar(); }
+    else { applyBoardSize(); buildCanvasItems(); updatePropBar(); }
     saveMode();
   }
   modeGrid.addEventListener('click', function () { mode = 'grid'; applyMode(); });
   modeCustom.addEventListener('click', function () { mode = 'custom'; applyMode(); });
 
-  // ========== Grid Options (左侧侧栏) ==========
+  // ========== Grid Options ==========
   GRIDS.forEach(function (g, i) {
     var opt = document.createElement('div');
     opt.className = 'grid-opt' + (i === currentIdx ? ' active' : '');
@@ -154,6 +163,10 @@
           document.querySelectorAll('.cell').forEach(function (c) { c.classList.remove('cell-active'); });
           this.classList.add('cell-active');
           activeCell = idx;
+          selectedPoolId = null;
+          clearPoolSelection();
+          updatePropBar();
+          updateEditBtn();
         });
         cell.addEventListener('dragover', function (e) { e.preventDefault(); this.classList.add('dragover'); });
         cell.addEventListener('dragleave', function () { this.classList.remove('dragover'); });
@@ -163,6 +176,11 @@
     }
   }
   function handleDropGrid(e, cellIdx) {
+    var poolId = parseInt(e.dataTransfer.getData('text/plain'));
+    if (poolId) {
+      var poolItem = imagePool.find(function (p) { return p.id === poolId; });
+      if (poolItem) { cellImages[cellIdx] = poolItem.src; buildGrid(); return; }
+    }
     var files = e.dataTransfer.files;
     if (files && files.length > 0) {
       for (var i = 0; i < files.length; i++) {
@@ -231,7 +249,7 @@
   setupBoardResize(document.getElementById('resizeB'), 'b');
   setupBoardResize(document.getElementById('resizeRB'), 'rb');
 
-  // ========== Custom — Image Pool (右侧面板) ==========
+  // ========== Custom — Image Pool ==========
   function computeNextId() {
     nextId = 1;
     imagePool.concat(canvasItems).forEach(function (p) { if (p.id >= nextId) nextId = p.id + 1; });
@@ -247,7 +265,7 @@
     }
     imagePool.forEach(function (item) {
       var div = document.createElement('div');
-      div.className = 'pool-item';
+      div.className = 'pool-item' + (item.id === selectedPoolId ? ' active' : '');
       div.draggable = true;
       div.dataset.poolId = item.id;
       var img = document.createElement('img');
@@ -260,10 +278,16 @@
         e.stopPropagation();
         imagePool = imagePool.filter(function (p) { return p.id !== item.id; });
         canvasItems = canvasItems.filter(function (c) { return c.poolId !== item.id; });
+        if (selectedPoolId === item.id) selectedPoolId = null;
         buildPool();
-        buildCanvasItems();
+        if (mode === 'custom') buildCanvasItems();
+        updateEditBtn();
       });
       div.appendChild(rm);
+      div.addEventListener('click', function (e) {
+        if (e.target.classList.contains('pool-rm')) return;
+        selectPoolItem(item.id);
+      });
       div.addEventListener('dragstart', function (e) {
         e.dataTransfer.setData('text/plain', String(item.id));
         e.dataTransfer.effectAllowed = 'copy';
@@ -301,30 +325,64 @@
 
   function getSelectedItem() { return canvasItems.find(function (c) { return c.id === selectedItemId; }); }
 
+  function selectPoolItem(poolId) {
+    selectedPoolId = poolId;
+    selectedItemId = null;
+    activeCell = -1;
+    document.querySelectorAll('.cell').forEach(function (c) { c.classList.remove('cell-active'); });
+    canvasBoard.querySelectorAll('.canvas-item,.canvas-text-item').forEach(function (el) { el.classList.remove('selected'); });
+    buildPool();
+    updatePropBar();
+    updateEditBtn();
+  }
+
+  function clearPoolSelection() {
+    selectedPoolId = null;
+    document.querySelectorAll('.pool-item').forEach(function (el) { el.classList.remove('active'); });
+  }
+
   function selectItem(id) {
     selectedItemId = id;
-    canvasBoard.querySelectorAll('.canvas-item').forEach(function (el) {
-      el.classList.toggle('selected', parseInt(el.dataset.itemId) === id);
+    selectedPoolId = null;
+    activeCell = -1;
+    clearPoolSelection();
+    // Update z-index and selected class directly — do NOT rebuild DOM (breaks drag)
+    canvasBoard.querySelectorAll('.canvas-item,.canvas-text-item').forEach(function (el) {
+      var itemId = parseInt(el.dataset.itemId);
+      var isSel = itemId === id;
+      el.classList.toggle('selected', isSel);
+      var item = canvasItems.find(function (c) { return c.id === itemId; });
+      if (item) el.style.zIndex = isSel ? 9999 : (item.z || 0) + 1;
     });
     updatePropBar();
+    updateEditBtn();
   }
 
   function updatePropBar() {
-    var item = getSelectedItem();
-    if (!item) {
+    var src = getSelectedImageSrc();
+    if (!src) {
       rpEmpty.style.display = '';
       rpContent.classList.remove('show');
       return;
     }
     rpEmpty.style.display = 'none';
     rpContent.classList.add('show');
-    rpPreviewImg.src = item.src;
-    propW.value = Math.round(item.w);
-    propH.value = Math.round(item.h);
-    propRot.textContent = Math.round(item.rot || 0) + '°';
+    rpPreviewImg.src = src;
+    var item = getSelectedItem();
+    if (item && item.type !== 'text') {
+      propW.value = Math.round(item.w);
+      propH.value = Math.round(item.h);
+      propRot.textContent = Math.round(item.rot || 0) + '°';
+    }
   }
 
-  // 属性输入
+  // "编辑图片"按钮状态
+  function updateEditBtn() {
+    var hasImage = !!getSelectedImageSrc();
+    btnEditImage.disabled = !hasImage;
+    editHint.style.display = hasImage ? 'none' : '';
+  }
+
   propW.addEventListener('change', function () {
     var item = getSelectedItem(); if (!item) return;
     item.w = Math.max(10, parseInt(this.value) || 10);
@@ -336,7 +394,6 @@
     buildCanvasItems(); updatePropBar();
   });
 
-  // 图层控制
   document.getElementById('propUp').addEventListener('click', function () {
     var item = getSelectedItem(); if (!item) return;
     item.z = (item.z || 0) + 1; buildCanvasItems();
@@ -351,124 +408,213 @@
     item.z = maxZ + 1; buildCanvasItems();
   });
   document.getElementById('propDelete').addEventListener('click', function () {
+    if (selectedPoolId) {
+      imagePool = imagePool.filter(function (p) { return p.id !== selectedPoolId; });
+      canvasItems = canvasItems.filter(function (c) { return c.poolId !== selectedPoolId; });
+      selectedPoolId = null;
+      buildPool();
+      if (mode === 'custom') buildCanvasItems();
+      updatePropBar(); updateEditBtn();
+      return;
+    }
     var item = getSelectedItem(); if (!item) return;
     canvasItems = canvasItems.filter(function (c) { return c.id !== item.id; });
     selectedItemId = null;
-    buildCanvasItems(); updatePropBar();
+    buildCanvasItems(); updatePropBar(); updateEditBtn();
   });
 
   function buildCanvasItems() {
-    canvasBoard.querySelectorAll('.canvas-item').forEach(function (el) { el.remove(); });
+    canvasBoard.querySelectorAll('.canvas-item,.canvas-text-item').forEach(function (el) { el.remove(); });
     var sorted = canvasItems.slice().sort(function (a, b) { return (a.z || 0) - (b.z || 0); });
     sorted.forEach(function (item) {
-      var div = document.createElement('div');
-      div.className = 'canvas-item' + (item.id === selectedItemId ? ' selected' : '');
-      div.dataset.itemId = item.id;
-      div.style.left = item.x + 'px';
-      div.style.top = item.y + 'px';
-      div.style.width = item.w + 'px';
-      div.style.height = item.h + 'px';
-      div.style.zIndex = (item.z || 0) + 1;
-      div.style.transform = 'rotate(' + (item.rot || 0) + 'deg)';
+      if (item.type === 'text') {
+        buildTextElement(item);
+      } else {
+        buildImageElement(item);
+      }
+    });
+  }
 
-      var img = document.createElement('img');
-      img.src = item.src;
-      div.appendChild(img);
+  function buildImageElement(item) {
+    var isSelected = item.id === selectedItemId;
+    var div = document.createElement('div');
+    div.className = 'canvas-item' + (isSelected ? ' selected' : '');
+    div.dataset.itemId = item.id;
+    div.style.left = item.x + 'px';
+    div.style.top = item.y + 'px';
+    div.style.width = item.w + 'px';
+    div.style.height = item.h + 'px';
+    div.style.zIndex = isSelected ? 9999 : (item.z || 0) + 1;
+    div.style.transform = 'rotate(' + (item.rot || 0) + 'deg)';
 
-      // 删除按钮
-      var rm = document.createElement('button');
-      rm.className = 'c-rm';
-      rm.textContent = '×';
-      rm.addEventListener('mousedown', function (e) {
-        e.stopPropagation();
-        canvasItems = canvasItems.filter(function (c) { return c.id !== item.id; });
-        if (selectedItemId === item.id) selectedItemId = null;
-        buildCanvasItems(); updatePropBar();
-      });
-      div.appendChild(rm);
+    var img = document.createElement('img');
+    img.src = item.src;
+    div.appendChild(img);
 
-      // 缩放手柄
-      var rh = document.createElement('div');
-      rh.className = 'c-resize';
-      rh.addEventListener('mousedown', function (e) {
+    var rm = document.createElement('button');
+    rm.className = 'c-rm';
+    rm.textContent = '×';
+    rm.addEventListener('mousedown', function (e) {
+      e.stopPropagation();
+      canvasItems = canvasItems.filter(function (c) { return c.id !== item.id; });
+      if (selectedItemId === item.id) selectedItemId = null;
+      buildCanvasItems(); updatePropBar(); updateEditBtn();
+    });
+    div.appendChild(rm);
+
+    ['tl','tr','bl','br'].forEach(function (corner) {
+      var handle = document.createElement('div');
+      handle.className = 'c-resize c-resize-' + corner;
+      handle.addEventListener('mousedown', function (e) {
         e.stopPropagation(); e.preventDefault(); selectItem(item.id);
-        var startX = e.clientX, startY = e.clientY, startW = item.w, startH = item.h;
+        var startX = e.clientX, startY = e.clientY;
+        var startW = item.w, startH = item.h, startXPos = item.x, startYPos = item.y;
         var ratio = startW / startH;
         function onMove(ev) {
-          var newW = Math.max(30, startW + (ev.clientX - startX));
-          var newH = newW / ratio;
-          item.w = newW; item.h = newH;
-          div.style.width = newW + 'px';
-          div.style.height = newH + 'px';
+          var dx = ev.clientX - startX, dy = ev.clientY - startY;
+          var newW, newH, newX, newY;
+          if (corner === 'br') {
+            newW = Math.max(30, startW + dx); newH = newW / ratio; newX = startXPos; newY = startYPos;
+          } else if (corner === 'bl') {
+            newW = Math.max(30, startW - dx); newH = newW / ratio; newX = startXPos + startW - newW; newY = startYPos;
+          } else if (corner === 'tr') {
+            newW = Math.max(30, startW + dx); newH = newW / ratio; newX = startXPos; newY = startYPos + startH - newH;
+          } else {
+            newW = Math.max(30, startW - dx); newH = newW / ratio; newX = startXPos + startW - newW; newY = startYPos + startH - newH;
+          }
+          item.w = newW; item.h = newH; item.x = newX; item.y = newY;
+          div.style.width = newW + 'px'; div.style.height = newH + 'px';
+          div.style.left = newX + 'px'; div.style.top = newY + 'px';
           updatePropBar();
         }
         function onUp() { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); }
         document.addEventListener('mousemove', onMove);
         document.addEventListener('mouseup', onUp);
       });
-      div.appendChild(rh);
-
-      // 旋转手柄
-      var rotLine = document.createElement('div');
-      rotLine.className = 'c-rot-line';
-      div.appendChild(rotLine);
-      var rotHandle = document.createElement('div');
-      rotHandle.className = 'c-rot';
-      rotHandle.addEventListener('mousedown', function (e) {
-        e.stopPropagation(); e.preventDefault(); selectItem(item.id);
-        var boardRect = canvasBoard.getBoundingClientRect();
-        var cx = boardRect.left + item.x + item.w / 2;
-        var cy = boardRect.top + item.y + item.h / 2;
-        function onMove(ev) {
-          var angle = Math.atan2(ev.clientY - cy, ev.clientX - cx) * 180 / Math.PI + 90;
-          item.rot = Math.round(angle);
-          div.style.transform = 'rotate(' + item.rot + 'deg)';
-          updatePropBar();
-        }
-        function onUp() { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); }
-        document.addEventListener('mousemove', onMove);
-        document.addEventListener('mouseup', onUp);
-      });
-      div.appendChild(rotHandle);
-
-      // 拖动移动
-      div.addEventListener('mousedown', function (e) {
-        if (e.target.classList.contains('c-rm') || e.target.classList.contains('c-resize') ||
-            e.target.classList.contains('c-rot') || e.target.classList.contains('c-rot-line')) return;
-        e.preventDefault(); selectItem(item.id);
-        var startX = e.clientX, startY = e.clientY, origX = item.x, origY = item.y;
-        function onMove(ev) {
-          item.x = origX + (ev.clientX - startX);
-          item.y = origY + (ev.clientY - startY);
-          div.style.left = item.x + 'px';
-          div.style.top = item.y + 'px';
-        }
-        function onUp() { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); }
-        document.addEventListener('mousemove', onMove);
-        document.addEventListener('mouseup', onUp);
-      });
-
-      canvasBoard.appendChild(div);
+      div.appendChild(handle);
     });
+
+    var rotLine = document.createElement('div');
+    rotLine.className = 'c-rot-line';
+    div.appendChild(rotLine);
+    var rotHandle = document.createElement('div');
+    rotHandle.className = 'c-rot';
+    rotHandle.addEventListener('mousedown', function (e) {
+      e.stopPropagation(); e.preventDefault(); selectItem(item.id);
+      var boardRect = canvasBoard.getBoundingClientRect();
+      var cx = boardRect.left + item.x + item.w / 2;
+      var cy = boardRect.top + item.y + item.h / 2;
+      function onMove(ev) {
+        var angle = Math.atan2(ev.clientY - cy, ev.clientX - cx) * 180 / Math.PI + 90;
+        item.rot = Math.round(angle);
+        div.style.transform = 'rotate(' + item.rot + 'deg)';
+        updatePropBar();
+      }
+      function onUp() { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+    div.appendChild(rotHandle);
+
+    div.addEventListener('mousedown', function (e) {
+      if (e.target.classList.contains('c-rm') || e.target.classList.contains('c-resize') ||
+          e.target.classList.contains('c-rot') || e.target.classList.contains('c-rot-line')) return;
+      e.preventDefault(); selectItem(item.id);
+      var startX = e.clientX, startY = e.clientY, origX = item.x, origY = item.y;
+      function onMove(ev) {
+        item.x = origX + (ev.clientX - startX);
+        item.y = origY + (ev.clientY - startY);
+        div.style.left = item.x + 'px';
+        div.style.top = item.y + 'px';
+      }
+      function onUp() { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+
+    canvasBoard.appendChild(div);
+  }
+
+  function buildTextElement(item) {
+    var div = document.createElement('div');
+    div.className = 'canvas-text-item' + (item.id === selectedItemId ? ' selected' : '');
+    div.dataset.itemId = item.id;
+    div.style.left = item.x + 'px';
+    div.style.top = item.y + 'px';
+    div.style.zIndex = (item.z || 0) + 1;
+    div.style.transform = 'rotate(' + (item.rot || 0) + 'deg)';
+
+    var textDiv = document.createElement('div');
+    textDiv.className = 'text-content';
+    textDiv.textContent = item.text || '文字';
+    textDiv.style.fontSize = (item.fontSize || 24) + 'px';
+    textDiv.style.color = item.color || '#ffffff';
+    textDiv.style.fontWeight = 'bold';
+    textDiv.contentEditable = true;
+
+    textDiv.addEventListener('blur', function () {
+      item.text = this.textContent || '文字';
+    });
+
+    textDiv.addEventListener('mousedown', function (e) {
+      if (document.activeElement === this) { e.stopPropagation(); }
+    });
+
+    div.appendChild(textDiv);
+
+    var rm = document.createElement('button');
+    rm.className = 'c-rm';
+    rm.textContent = '×';
+    rm.addEventListener('mousedown', function (e) {
+      e.stopPropagation();
+      canvasItems = canvasItems.filter(function (c) { return c.id !== item.id; });
+      if (selectedItemId === item.id) selectedItemId = null;
+      buildCanvasItems(); updatePropBar(); updateEditBtn();
+    });
+    div.appendChild(rm);
+
+    div.addEventListener('mousedown', function (e) {
+      if (e.target.classList.contains('c-rm') || e.target === textDiv) return;
+      e.preventDefault(); selectItem(item.id);
+      var startX = e.clientX, startY = e.clientY, origX = item.x, origY = item.y;
+      function onMove(ev) {
+        item.x = origX + (ev.clientX - startX);
+        item.y = origY + (ev.clientY - startY);
+        div.style.left = item.x + 'px';
+        div.style.top = item.y + 'px';
+      }
+      function onUp() { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+
+    canvasBoard.appendChild(div);
   }
 
   // ========== Paste ==========
   document.addEventListener('paste', function (e) {
     if (mode === 'grid') {
-      var target = activeCell;
-      if (target < 0) { showToast('请先将鼠标移到目标格子', 'err'); return; }
       var items = e.clipboardData && e.clipboardData.items;
       if (items) {
         for (var i = 0; i < items.length; i++) {
           if (items[i].type.indexOf('image/') === 0) {
             e.preventDefault();
-            loadFile(items[i].getAsFile(), target);
+            loadFile(items[i].getAsFile(), undefined, function (src) {
+              addToPool(src);
+              if (activeCell >= 0) { cellImages[activeCell] = src; buildGrid(); }
+            });
             return;
           }
         }
       }
       var text = e.clipboardData && e.clipboardData.getData('text/plain');
-      if (text && /^https?:\/\//.test(text)) { e.preventDefault(); loadURL(text, target); }
+      if (text && /^https?:\/\//.test(text)) {
+        e.preventDefault();
+        loadURL(text, undefined, function (src) {
+          addToPool(src);
+          if (activeCell >= 0) { cellImages[activeCell] = src; buildGrid(); }
+        });
+      }
     } else {
       var items2 = e.clipboardData && e.clipboardData.items;
       if (items2) {
@@ -500,20 +646,20 @@
     var urls = text.split(/[\r\n]+/).map(function (s) { return s.trim(); }).filter(function (s) { return s && /^https?:\/\//i.test(s); });
     if (urls.length === 0) { showToast('剪贴板中未识别到图片地址', 'err'); return; }
     if (mode === 'grid') {
-      var g = getGrid(), total = g.cols * g.rows, emptyCells = [];
-      for (var i = 0; i < total; i++) { if (!cellImages[i]) emptyCells.push(i); }
-      var fillCount = Math.min(urls.length, emptyCells.length);
-      if (fillCount === 0) { showToast('所有格子已满', 'err'); return; }
-      showToast('正在加载 ' + fillCount + ' 张图片...', 'ok');
+      var g = getGrid(), total = g.cols * g.rows;
+      showToast('正在加载 ' + urls.length + ' 张图片...', 'ok');
       var loaded = 0;
-      for (var j = 0; j < fillCount; j++) {
-        (function (idx, url) {
-          loadURL(url, idx, function () {
-            loaded++;
-            if (loaded >= fillCount) showToast('已填充 ' + fillCount + ' 张图片', 'ok');
-          });
-        })(emptyCells[j], urls[j]);
-      }
+      urls.forEach(function (url, i) {
+        loadURL(url, undefined, function (src) {
+          addToPool(src);
+          if (i < total) { cellImages[i] = src; }
+          loaded++;
+          if (loaded >= urls.length) {
+            buildGrid();
+            showToast('已加载 ' + urls.length + ' 张图片', 'ok');
+          }
+        });
+      });
     } else {
       showToast('正在加载 ' + urls.length + ' 张图片...', 'ok');
       var loaded2 = 0;
@@ -554,7 +700,8 @@
   // ========== Clear ==========
   document.getElementById('btnClear').addEventListener('click', function () {
     if (mode === 'grid') { cellImages = {}; activeCell = -1; buildGrid(); }
-    else { imagePool = []; canvasItems = []; selectedItemId = null; buildPool(); buildCanvasItems(); updatePropBar(); }
+    else { canvasItems = []; selectedItemId = null; buildCanvasItems(); }
+    imagePool = []; selectedPoolId = null; buildPool(); updatePropBar(); updateEditBtn();
   });
 
   // ========== Export ==========
@@ -631,10 +778,29 @@
     ctx.fillStyle = '#fff';
     ctx.fillRect(0, 0, boardW, boardH);
     var sorted = canvasItems.slice().sort(function (a, b) { return (a.z || 0) - (b.z || 0); });
-    var loaded = 0, needed = sorted.length;
-    if (needed === 0) { onDone(canvas); return; }
-    function done() { loaded++; if (loaded >= needed) onDone(canvas); }
+    var loaded = 0, needed = 0;
+    sorted.forEach(function (item) { if (item.type !== 'text') needed++; });
+    var textItems = sorted.filter(function (item) { return item.type === 'text'; });
+
+    function drawTexts() {
+      textItems.forEach(function (item) {
+        ctx.save();
+        var cx = item.x + 100, cy = item.y + 20;
+        ctx.translate(cx, cy);
+        ctx.rotate((item.rot || 0) * Math.PI / 180);
+        ctx.font = 'bold ' + (item.fontSize || 24) + 'px "Microsoft YaHei", Arial, sans-serif';
+        ctx.fillStyle = item.color || '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(item.text || '文字', 0, 0);
+        ctx.restore();
+      });
+    }
+
+    if (needed === 0) { drawTexts(); onDone(canvas); return; }
+    function done() { loaded++; if (loaded >= needed) { drawTexts(); onDone(canvas); } }
     sorted.forEach(function (item) {
+      if (item.type === 'text') return;
       var img = new Image();
       img.crossOrigin = 'anonymous';
       img.onload = function () {
@@ -651,6 +817,654 @@
     });
   }
 
+  // ========== 选中图片 src ==========
+  function getSelectedImageSrc() {
+    if (selectedPoolId) {
+      var poolItem = imagePool.find(function (p) { return p.id === selectedPoolId; });
+      if (poolItem) return poolItem.src;
+    }
+    if (mode === 'grid' && activeCell >= 0 && cellImages[activeCell]) {
+      return cellImages[activeCell];
+    }
+    if (mode === 'custom') {
+      var item = getSelectedItem();
+      if (item && item.src) return item.src;
+    }
+    return null;
+  }
+
+  function updateSelectedImage(newSrc) {
+    if (selectedPoolId) {
+      var poolItem = imagePool.find(function (p) { return p.id === selectedPoolId; });
+      if (poolItem) {
+        poolItem.src = newSrc;
+        canvasItems.forEach(function (c) {
+          if (c.poolId === poolItem.id) c.src = newSrc;
+        });
+        buildPool();
+        if (mode === 'custom') buildCanvasItems();
+        updatePropBar();
+        return;
+      }
+    }
+    if (mode === 'grid' && activeCell >= 0) {
+      cellImages[activeCell] = newSrc;
+      buildGrid();
+    } else if (mode === 'custom') {
+      var item = getSelectedItem();
+      if (item && item.src) {
+        item.src = newSrc;
+        imagePool.forEach(function (p) {
+          if (p.id === item.poolId) p.src = newSrc;
+        });
+        buildCanvasItems();
+        updatePropBar();
+      }
+    }
+  }
+
+  // ========== 文字工具 (侧边栏) ==========
+  var fontSizeRange = document.getElementById('fontSizeRange');
+  var fontSizeVal = document.getElementById('fontSizeVal');
+  fontSizeRange.addEventListener('input', function () { fontSizeVal.textContent = this.value; });
+
+  document.getElementById('btnAddText').addEventListener('click', function () {
+    if (mode !== 'custom') { showToast('仅自定义模式可用', 'err'); return; }
+    var text = document.getElementById('textContent').value.trim();
+    if (!text) { showToast('请输入文字内容', 'err'); return; }
+    var fontSize = parseInt(fontSizeRange.value) || 24;
+    var color = document.getElementById('textColor').value || '#ffffff';
+    var maxZ = canvasItems.reduce(function (m, c) { return Math.max(m, c.z || 0); }, 0);
+    canvasItems.push({
+      id: nextId++, type: 'text', text: text, fontSize: fontSize, color: color,
+      x: boardW / 2 - 100, y: boardH / 2 - 20, rot: 0, z: maxZ + 1
+    });
+    buildCanvasItems();
+    showToast('文字已添加', 'ok');
+  });
+
+  // ========== AI 文生图 (侧边栏) ==========
+  var aiProcessing = document.getElementById('aiProcessing');
+  var aiProcessText = document.getElementById('aiProcessText');
+
+  function showAiLoading(text) {
+    aiProcessText.textContent = text || 'AI处理中...';
+    aiProcessing.style.display = '';
+  }
+  function hideAiLoading() {
+    aiProcessing.style.display = 'none';
+  }
+
+  function getServerBase() {
+    if (serverBase) return serverBase;
+    return 'http://localhost:3000';
+  }
+
+  function urlToBase64(url) {
+    return new Promise(function (resolve, reject) {
+      if (url.indexOf('data:') === 0) { resolve(url); return; }
+      var img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = function () {
+        var c = document.createElement('canvas');
+        c.width = img.naturalWidth; c.height = img.naturalHeight;
+        c.getContext('2d').drawImage(img, 0, 0);
+        resolve(c.toDataURL('image/png'));
+      };
+      img.onerror = function () { reject(new Error('图片加载失败')); };
+      img.src = url;
+    });
+  }
+
+  document.getElementById('btnAiGen').addEventListener('click', function () {
+    var prompt = document.getElementById('aiPrompt').value.trim();
+    if (!prompt) { showToast('请输入图片描述', 'err'); return; }
+    showAiLoading('AI 文生图中...');
+    fetch(getServerBase() + '/api/ai/text-to-image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: prompt, size: '1024x1024' })
+    }).then(function (res) { return res.json(); }).then(function (data) {
+      hideAiLoading();
+      if (data.error) { showToast(data.error, 'err'); return; }
+      var newUrl = data.url;
+      if (newUrl && !newUrl.startsWith('data:')) {
+        newUrl = getServerBase() + newUrl;
+      }
+      if (mode === 'custom') {
+        urlToBase64(newUrl).then(function (base64) {
+          addToPool(base64);
+          showToast('AI图片已加入图片池', 'ok');
+        });
+      } else {
+        var g = getGrid(), total = g.cols * g.rows;
+        var target = -1;
+        for (var i = 0; i < total; i++) { if (!cellImages[i]) { target = i; break; } }
+        if (target < 0) {
+          urlToBase64(newUrl).then(function (base64) { addToPool(base64); });
+          showToast('格子已满，图片已缓存', 'ok');
+        } else {
+          urlToBase64(newUrl).then(function (base64) {
+            cellImages[target] = base64;
+            buildGrid();
+            showToast('AI图片已填充', 'ok');
+          });
+        }
+      }
+    }).catch(function (err) {
+      hideAiLoading();
+      showToast('AI处理失败: ' + err.message, 'err');
+    });
+  });
+
+  // ============================================================
+  // ========== 图片编辑弹窗 ==========
+  // ============================================================
+
+  var editorModal = document.getElementById('editorModal');
+  var editorImgCanvas = document.getElementById('editorImgCanvas');
+  var editorMaskCanvas = document.getElementById('editorMaskCanvas');
+  var editorImgCtx = editorImgCanvas.getContext('2d');
+  var editorMaskCtx = editorMaskCanvas.getContext('2d');
+  var editorStatus = document.getElementById('editorStatus');
+
+  var editorSrc = null;
+  var editorOriginalSrc = null;
+  var editorNatW = 0, editorNatH = 0;
+  var editorScale = 1;
+  var editorDrawMode = ''; // '' | 'mosaic' | 'erase'
+  var editorTool = 'brush'; // 'brush' | 'box'
+  var editorDrawing = false;
+  var editorLastX = 0, editorLastY = 0;
+  var editorBoxStart = null;
+  var editorMaskSnapshot = null;
+
+  // 打开编辑器
+  btnEditImage.addEventListener('click', function () {
+    var src = getSelectedImageSrc();
+    if (!src) { showToast('请先选中一张图片', 'err'); return; }
+    openEditor(src);
+  });
+
+  function openEditor(src) {
+    editorSrc = src;
+    editorOriginalSrc = src;
+    editorDrawMode = '';
+    editorTool = 'brush';
+    editorMaskCanvas.classList.remove('show');
+
+    var img = new Image();
+    img.onload = function () {
+      editorNatW = img.naturalWidth;
+      editorNatH = img.naturalHeight;
+      fitEditorCanvas();
+      editorImgCtx.drawImage(img, 0, 0, editorImgCanvas.width, editorImgCanvas.height);
+      editorMaskCtx.clearRect(0, 0, editorMaskCanvas.width, editorMaskCanvas.height);
+      editorModal.classList.add('show');
+      updateEditorStatus();
+    };
+    img.src = src;
+  }
+
+  function fitEditorCanvas() {
+    var maxW = window.innerWidth - 240;
+    var maxH = window.innerHeight - 80;
+    editorScale = Math.min(maxW / editorNatW, maxH / editorNatH, 1);
+    var cw = Math.round(editorNatW * editorScale);
+    var ch = Math.round(editorNatH * editorScale);
+    editorImgCanvas.width = cw; editorImgCanvas.height = ch;
+    editorMaskCanvas.width = cw; editorMaskCanvas.height = ch;
+  }
+
+  function refreshEditorCanvas() {
+    var img = new Image();
+    img.onload = function () {
+      editorImgCtx.clearRect(0, 0, editorImgCanvas.width, editorImgCanvas.height);
+      editorImgCtx.drawImage(img, 0, 0, editorImgCanvas.width, editorImgCanvas.height);
+    };
+    img.src = editorSrc;
+  }
+
+  function updateEditorStatus() {
+    if (editorDrawMode === 'mosaic') editorStatus.textContent = '马赛克模式 — 松手自动应用';
+    else if (editorDrawMode === 'erase') editorStatus.textContent = 'AI消除模式 — 松手自动调用';
+    else editorStatus.textContent = '就绪 — 从左侧选择工具编辑图片';
+  }
+
+  // 关闭编辑器
+  document.getElementById('editorCancel').addEventListener('click', closeEditor);
+  function closeEditor() {
+    editorModal.classList.remove('show');
+    editorDrawMode = '';
+    editorMaskCanvas.classList.remove('show');
+  }
+
+  // 保存并关闭
+  document.getElementById('editorSave').addEventListener('click', function () {
+    if (editorSrc !== editorOriginalSrc) {
+      updateSelectedImage(editorSrc);
+      showToast('图片已更新', 'ok');
+    }
+    closeEditor();
+  });
+
+  // ===== 手风琴切换 =====
+  editorModal.querySelectorAll('.acc-header').forEach(function (header) {
+    header.addEventListener('click', function () {
+      var section = this.parentElement;
+      var wasOpen = section.classList.contains('open');
+      editorModal.querySelectorAll('.acc-section').forEach(function (s) { s.classList.remove('open'); });
+      if (!wasOpen) {
+        section.classList.add('open');
+        // Auto-enter draw mode for mosaic/erase
+        var m = section.dataset.mode;
+        if (m === 'mosaic' || m === 'erase') {
+          startDrawMode(m);
+        } else {
+          exitDrawMode();
+        }
+      } else {
+        exitDrawMode();
+      }
+    });
+  });
+
+  // ===== 通用图片变换 =====
+  function transformEditorImage(fn) {
+    var img = new Image();
+    img.onload = function () {
+      var c = document.createElement('canvas');
+      c.width = img.width; c.height = img.height;
+      var ctx = c.getContext('2d');
+      fn(ctx, img, c);
+      editorSrc = c.toDataURL('image/png');
+      editorNatW = c.width; editorNatH = c.height;
+      fitEditorCanvas();
+      editorImgCtx.drawImage(c, 0, 0, editorImgCanvas.width, editorImgCanvas.height);
+      editorMaskCtx.clearRect(0, 0, editorMaskCanvas.width, editorMaskCanvas.height);
+      exitDrawMode();
+    };
+    img.src = editorSrc;
+  }
+
+  // ===== 旋转/翻转 =====
+  document.getElementById('edRotate90').addEventListener('click', function () {
+    transformEditorImage(function (ctx, img, c) {
+      c.width = img.height; c.height = img.width;
+      ctx.translate(c.width / 2, c.height / 2);
+      ctx.rotate(Math.PI / 2);
+      ctx.drawImage(img, -img.width / 2, -img.height / 2);
+    });
+    showToast('旋转成功', 'ok');
+  });
+
+  document.getElementById('edFlipH').addEventListener('click', function () {
+    transformEditorImage(function (ctx, img, c) {
+      ctx.translate(c.width, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(img, 0, 0);
+    });
+    showToast('翻转成功', 'ok');
+  });
+
+  // ===== 滤镜 =====
+  var edBright = document.getElementById('edBright');
+  var edContrast = document.getElementById('edContrast');
+  var edSaturate = document.getElementById('edSaturate');
+  var edBrightVal = document.getElementById('edBrightVal');
+  var edContrastVal = document.getElementById('edContrastVal');
+  var edSaturateVal = document.getElementById('edSaturateVal');
+
+  function onEdSliderInput() {
+    edBrightVal.textContent = edBright.value;
+    edContrastVal.textContent = edContrast.value;
+    edSaturateVal.textContent = edSaturate.value;
+  }
+  edBright.addEventListener('input', onEdSliderInput);
+  edContrast.addEventListener('input', onEdSliderInput);
+  edSaturate.addEventListener('input', onEdSliderInput);
+
+  document.getElementById('edFilterReset').addEventListener('click', function () {
+    edBright.value = 100; edContrast.value = 100; edSaturate.value = 100;
+    onEdSliderInput();
+    if (editorSrc !== editorOriginalSrc) {
+      editorSrc = editorOriginalSrc;
+      var img = new Image();
+      img.onload = function () {
+        editorNatW = img.naturalWidth; editorNatH = img.naturalHeight;
+        fitEditorCanvas();
+        editorImgCtx.drawImage(img, 0, 0, editorImgCanvas.width, editorImgCanvas.height);
+      };
+      img.src = editorSrc;
+    }
+    showToast('滤镜已重置', 'ok');
+  });
+
+  document.getElementById('edFilterApply').addEventListener('click', function () {
+    var b = edBright.value, c = edContrast.value, s = edSaturate.value;
+    if (b == 100 && c == 100 && s == 100) { showToast('未做任何调整', 'err'); return; }
+    transformEditorImage(function (ctx, img, canvas) {
+      ctx.filter = 'brightness(' + b + '%) contrast(' + c + '%) saturate(' + s + '%)';
+      ctx.drawImage(img, 0, 0);
+    });
+    edBright.value = 100; edContrast.value = 100; edSaturate.value = 100;
+    onEdSliderInput();
+    showToast('滤镜已应用', 'ok');
+  });
+
+  // ===== 涂抹模式管理 =====
+  function startDrawMode(type) {
+    editorDrawMode = type;
+    editorMaskCtx.clearRect(0, 0, editorMaskCanvas.width, editorMaskCanvas.height);
+    editorMaskCanvas.classList.add('show');
+    updateEditorStatus();
+  }
+
+  function exitDrawMode() {
+    editorDrawMode = '';
+    editorMaskCanvas.classList.remove('show');
+    updateEditorStatus();
+  }
+
+  // ===== 马赛克 涂抹控制 =====
+  document.getElementById('edMosBrush').addEventListener('click', function () {
+    editorTool = 'brush';
+    this.classList.add('active');
+    document.getElementById('edMosBox').classList.remove('active');
+  });
+  document.getElementById('edMosBox').addEventListener('click', function () {
+    editorTool = 'box';
+    this.classList.add('active');
+    document.getElementById('edMosBrush').classList.remove('active');
+  });
+  document.getElementById('edMosBrushSize').addEventListener('input', function () {
+    document.getElementById('edMosBrushVal').textContent = this.value;
+  });
+
+  // ===== AI消除 涂抹控制 =====
+  document.getElementById('edEraseBrush').addEventListener('click', function () {
+    editorTool = 'brush';
+    this.classList.add('active');
+    document.getElementById('edEraseBox').classList.remove('active');
+  });
+  document.getElementById('edEraseBox').addEventListener('click', function () {
+    editorTool = 'box';
+    this.classList.add('active');
+    document.getElementById('edEraseBrush').classList.remove('active');
+  });
+  document.getElementById('edEraseBrushSize').addEventListener('input', function () {
+    document.getElementById('edEraseBrushVal').textContent = this.value;
+  });
+
+  // ===== Mask 绘制 =====
+  function getEditorBrushSize() {
+    if (editorDrawMode === 'mosaic') return parseInt(document.getElementById('edMosBrushSize').value) || 20;
+    return parseInt(document.getElementById('edEraseBrushSize').value) || 20;
+  }
+
+  function getMaskColor() {
+    return editorDrawMode === 'mosaic' ? 'rgba(128,0,255,0.45)' : 'rgba(255,60,60,0.45)';
+  }
+
+  function getEditorPos(e) {
+    var rect = editorMaskCanvas.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }
+
+  function drawBrushAt(x, y) {
+    var size = getEditorBrushSize();
+    editorMaskCtx.fillStyle = getMaskColor();
+    editorMaskCtx.beginPath();
+    editorMaskCtx.arc(x, y, size / 2, 0, Math.PI * 2);
+    editorMaskCtx.fill();
+  }
+
+  function drawBrushLine(x0, y0, x1, y1) {
+    var size = getEditorBrushSize();
+    editorMaskCtx.strokeStyle = getMaskColor();
+    editorMaskCtx.lineWidth = size;
+    editorMaskCtx.lineCap = 'round';
+    editorMaskCtx.lineJoin = 'round';
+    editorMaskCtx.beginPath();
+    editorMaskCtx.moveTo(x0, y0);
+    editorMaskCtx.lineTo(x1, y1);
+    editorMaskCtx.stroke();
+  }
+
+  function drawBoxPreview(x0, y0, x1, y1) {
+    var sx = Math.min(x0, x1), sy = Math.min(y0, y1);
+    var sw = Math.abs(x1 - x0), sh = Math.abs(y1 - y0);
+    editorMaskCtx.fillStyle = getMaskColor();
+    editorMaskCtx.fillRect(sx, sy, sw, sh);
+  }
+
+  editorMaskCanvas.addEventListener('mousedown', function (e) {
+    if (!editorDrawMode) return;
+    e.preventDefault();
+    var pos = getEditorPos(e);
+    editorDrawing = true;
+    editorLastX = pos.x; editorLastY = pos.y;
+    if (editorTool === 'brush') {
+      drawBrushAt(pos.x, pos.y);
+    } else {
+      editorBoxStart = { x: pos.x, y: pos.y };
+      editorMaskSnapshot = editorMaskCtx.getImageData(0, 0, editorMaskCanvas.width, editorMaskCanvas.height);
+    }
+  });
+
+  editorMaskCanvas.addEventListener('mousemove', function (e) {
+    if (!editorDrawing || !editorDrawMode) return;
+    var pos = getEditorPos(e);
+    if (editorTool === 'brush') {
+      drawBrushLine(editorLastX, editorLastY, pos.x, pos.y);
+      editorLastX = pos.x; editorLastY = pos.y;
+    } else if (editorBoxStart) {
+      if (editorMaskSnapshot) editorMaskCtx.putImageData(editorMaskSnapshot, 0, 0);
+      drawBoxPreview(editorBoxStart.x, editorBoxStart.y, pos.x, pos.y);
+    }
+  });
+
+  function stopEditorDraw() {
+    var wasDrawing = editorDrawing;
+    editorDrawing = false;
+    editorBoxStart = null;
+    editorMaskSnapshot = null;
+    // Auto-apply after drawing (like meitu editor)
+    if (wasDrawing && editorDrawMode && hasMaskData()) {
+      if (editorDrawMode === 'mosaic') {
+        applyEditorMosaic();
+      } else if (editorDrawMode === 'erase') {
+        applyEditorInpaint();
+      }
+    }
+  }
+  editorMaskCanvas.addEventListener('mouseup', stopEditorDraw);
+  editorMaskCanvas.addEventListener('mouseleave', stopEditorDraw);
+
+  function hasMaskData() {
+    var md = editorMaskCtx.getImageData(0, 0, editorMaskCanvas.width, editorMaskCanvas.height);
+    for (var i = 3; i < md.data.length; i += 4) {
+      if (md.data[i] > 0) return true;
+    }
+    return false;
+  }
+
+  // 将 mask 放大到原始尺寸并转黑白
+  function buildOrigMask() {
+    var mc = document.createElement('canvas');
+    mc.width = editorNatW; mc.height = editorNatH;
+    var mCtx = mc.getContext('2d');
+    mCtx.drawImage(editorMaskCanvas, 0, 0, editorNatW, editorNatH);
+    var md = mCtx.getImageData(0, 0, editorNatW, editorNatH);
+    for (var i = 0; i < md.data.length; i += 4) {
+      var alpha = md.data[i + 3];
+      if (alpha > 10) { md.data[i] = 255; md.data[i + 1] = 255; md.data[i + 2] = 255; md.data[i + 3] = 255; }
+      else { md.data[i] = 0; md.data[i + 1] = 0; md.data[i + 2] = 0; md.data[i + 3] = 255; }
+    }
+    mCtx.putImageData(md, 0, 0);
+    return mCtx;
+  }
+
+  function getOrigImageCanvas() {
+    var img = new Image();
+    img.src = editorSrc;
+    var c = document.createElement('canvas');
+    c.width = editorNatW; c.height = editorNatH;
+    c.getContext('2d').drawImage(img, 0, 0);
+    return c;
+  }
+
+  // ===== 马赛克 应用 =====
+  function applyEditorMosaic() {
+    var origCanvas = getOrigImageCanvas();
+    var maskCtx = buildOrigMask();
+    var w = origCanvas.width, h = origCanvas.height;
+    var imgCtx = origCanvas.getContext('2d');
+    var imgData = imgCtx.getImageData(0, 0, w, h);
+    var maskData = maskCtx.getImageData(0, 0, w, h);
+    var blockSize = Math.max(8, Math.round(Math.min(w, h) / 60));
+
+    for (var by = 0; by < h; by += blockSize) {
+      for (var bx = 0; bx < w; bx += blockSize) {
+        var hit = false;
+        for (var dy = 0; dy < blockSize && by + dy < h; dy++) {
+          for (var dx = 0; dx < blockSize && bx + dx < w; dx++) {
+            var mi = ((by + dy) * w + (bx + dx)) * 4;
+            if (maskData.data[mi] > 128) { hit = true; break; }
+          }
+          if (hit) break;
+        }
+        if (!hit) continue;
+        var r = 0, g = 0, b = 0, count = 0;
+        for (var dy2 = 0; dy2 < blockSize && by + dy2 < h; dy2++) {
+          for (var dx2 = 0; dx2 < blockSize && bx + dx2 < w; dx2++) {
+            var idx = ((by + dy2) * w + (bx + dx2)) * 4;
+            r += imgData.data[idx]; g += imgData.data[idx + 1]; b += imgData.data[idx + 2]; count++;
+          }
+        }
+        r = Math.round(r / count); g = Math.round(g / count); b = Math.round(b / count);
+        for (var dy3 = 0; dy3 < blockSize && by + dy3 < h; dy3++) {
+          for (var dx3 = 0; dx3 < blockSize && bx + dx3 < w; dx3++) {
+            var idx2 = ((by + dy3) * w + (bx + dx3)) * 4;
+            imgData.data[idx2] = r; imgData.data[idx2 + 1] = g; imgData.data[idx2 + 2] = b;
+          }
+        }
+      }
+    }
+    imgCtx.putImageData(imgData, 0, 0);
+    editorSrc = origCanvas.toDataURL('image/png');
+    // Clear mask and refresh canvas, stay in draw mode for more strokes
+    editorMaskCtx.clearRect(0, 0, editorMaskCanvas.width, editorMaskCanvas.height);
+    refreshEditorCanvas();
+    showToast('马赛克已应用', 'ok');
+  }
+
+  // ===== AI消除 应用 =====
+  function applyEditorInpaint() {
+    var origCanvas = getOrigImageCanvas();
+    var maskCtx = buildOrigMask();
+    var imageBase64 = origCanvas.toDataURL('image/png');
+    var maskBase64 = maskCtx.canvas.toDataURL('image/png');
+
+    // Clear mask immediately so user sees progress
+    editorMaskCtx.clearRect(0, 0, editorMaskCanvas.width, editorMaskCanvas.height);
+    editorStatus.textContent = 'AI消除中...';
+    showAiLoading('AI消除中...');
+    fetch(getServerBase() + '/api/ai/inpaint', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image_base64: imageBase64, mask_base64: maskBase64 })
+    }).then(function (res) { return res.json(); }).then(function (data) {
+      hideAiLoading();
+      if (data.error) { showToast('AI消除失败: ' + data.error, 'err'); updateEditorStatus(); return; }
+      var newUrl = data.url;
+      if (newUrl && !newUrl.startsWith('data:')) {
+        newUrl = getServerBase() + newUrl;
+      }
+      urlToBase64(newUrl).then(function (base64) {
+        editorSrc = base64;
+        var img = new Image();
+        img.onload = function () {
+          editorNatW = img.naturalWidth; editorNatH = img.naturalHeight;
+          fitEditorCanvas();
+          editorImgCtx.drawImage(img, 0, 0, editorImgCanvas.width, editorImgCanvas.height);
+          editorMaskCtx.clearRect(0, 0, editorMaskCanvas.width, editorMaskCanvas.height);
+          updateEditorStatus();
+        };
+        img.src = base64;
+        showToast('AI消除完成', 'ok');
+      });
+    }).catch(function (err) {
+      hideAiLoading();
+      showToast('AI消除失败: ' + err.message, 'err');
+      updateEditorStatus();
+    });
+  }
+
+  // ===== AI 白底图 / 画质增强 =====
+  document.getElementById('edAiWhiteBg').addEventListener('click', function () {
+    if (!editorSrc) return;
+    showAiLoading('AI 白底图生成中...');
+    urlToBase64(editorSrc).then(function (base64) {
+      return fetch(getServerBase() + '/api/ai/white-bg', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_base64: base64 })
+      });
+    }).then(function (res) { return res.json(); }).then(function (data) {
+      hideAiLoading();
+      if (data.error) { showToast(data.error, 'err'); return; }
+      var newUrl = data.url;
+      if (newUrl && !newUrl.startsWith('data:')) newUrl = getServerBase() + newUrl;
+      urlToBase64(newUrl).then(function (base64) {
+        editorSrc = base64;
+        var img = new Image();
+        img.onload = function () {
+          editorNatW = img.naturalWidth; editorNatH = img.naturalHeight;
+          fitEditorCanvas();
+          editorImgCtx.drawImage(img, 0, 0, editorImgCanvas.width, editorImgCanvas.height);
+        };
+        img.src = base64;
+        showToast('AI白底图生成成功', 'ok');
+      });
+    }).catch(function (err) {
+      hideAiLoading();
+      showToast('AI处理失败: ' + err.message, 'err');
+    });
+  });
+
+  document.getElementById('edAiEnhance').addEventListener('click', function () {
+    if (!editorSrc) return;
+    showAiLoading('AI 画质增强中...');
+    urlToBase64(editorSrc).then(function (base64) {
+      return fetch(getServerBase() + '/api/ai/enhance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_base64: base64 })
+      });
+    }).then(function (res) { return res.json(); }).then(function (data) {
+      hideAiLoading();
+      if (data.error) { showToast(data.error, 'err'); return; }
+      var newUrl = data.url;
+      if (newUrl && !newUrl.startsWith('data:')) newUrl = getServerBase() + newUrl;
+      urlToBase64(newUrl).then(function (base64) {
+        editorSrc = base64;
+        var img = new Image();
+        img.onload = function () {
+          editorNatW = img.naturalWidth; editorNatH = img.naturalHeight;
+          fitEditorCanvas();
+          editorImgCtx.drawImage(img, 0, 0, editorImgCanvas.width, editorImgCanvas.height);
+        };
+        img.src = base64;
+        showToast('AI画质增强成功', 'ok');
+      });
+    }).catch(function (err) {
+      hideAiLoading();
+      showToast('AI处理失败: ' + err.message, 'err');
+    });
+  });
+
   // ========== Init ==========
   applyMode();
+  updateEditBtn();
 })();
