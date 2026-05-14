@@ -1032,6 +1032,67 @@
     editorProcessing.classList.remove('show');
   }
 
+  // ===== Editor undo/redo =====
+  var editorHistory = [];
+  var editorRedoStack = [];
+  var MAX_EDITOR_HISTORY = 30;
+
+  function saveEditorHistory() {
+    if (!editorSrc) return;
+    editorHistory.push(editorSrc);
+    if (editorHistory.length > MAX_EDITOR_HISTORY) editorHistory.shift();
+    editorRedoStack = [];
+    updateUndoRedoBtns();
+  }
+
+  function restoreEditorSrc(src) {
+    editorSrc = src;
+    var img = new Image();
+    img.onload = function () {
+      editorNatW = img.naturalWidth;
+      editorNatH = img.naturalHeight;
+      fitEditorCanvas();
+      editorImgCtx.clearRect(0, 0, editorImgCanvas.width, editorImgCanvas.height);
+      editorImgCtx.drawImage(img, 0, 0, editorImgCanvas.width, editorImgCanvas.height);
+      editorMaskCtx.clearRect(0, 0, editorMaskCanvas.width, editorMaskCanvas.height);
+    };
+    img.src = src;
+  }
+
+  function editorUndo() {
+    if (editorHistory.length <= 0) return;
+    editorRedoStack.push(editorSrc);
+    var prev = editorHistory.pop();
+    restoreEditorSrc(prev);
+    updateUndoRedoBtns();
+  }
+
+  function editorRedo() {
+    if (!editorRedoStack.length) return;
+    editorHistory.push(editorSrc);
+    var next = editorRedoStack.pop();
+    restoreEditorSrc(next);
+    updateUndoRedoBtns();
+  }
+
+  function updateUndoRedoBtns() {
+    var undoBtn = document.getElementById('edUndo');
+    var redoBtn = document.getElementById('edRedo');
+    if (undoBtn) undoBtn.disabled = editorHistory.length <= 0;
+    if (redoBtn) redoBtn.disabled = !editorRedoStack.length;
+  }
+
+  document.getElementById('edUndo').addEventListener('click', editorUndo);
+  document.getElementById('edRedo').addEventListener('click', editorRedo);
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', function (e) {
+    if (!editorModal.classList.contains('show')) return;
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.ctrlKey && e.key === 'z') { e.preventDefault(); editorUndo(); }
+    if (e.ctrlKey && e.key === 'y') { e.preventDefault(); editorRedo(); }
+  });
+
   // ===== Open editor — collect all images =====
   btnEditImage.addEventListener('click', function () {
     var src = getSelectedImageSrc();
@@ -1072,6 +1133,8 @@
     editorCurrentIdx = startIdx;
     editorDrawMode = '';
     editorTool = 'brush';
+    editorHistory = [];
+    editorRedoStack = [];
     editorMaskCanvas.classList.remove('show');
     // Reset tool button states to match editorTool='brush'
     resetToolButtons();
@@ -1124,6 +1187,10 @@
       editorMaskCtx.clearRect(0, 0, editorMaskCanvas.width, editorMaskCanvas.height);
       restoreDrawMode();
       updateEditorStatus();
+      // Set initial history for this image (clear old)
+      editorHistory = [];
+      editorRedoStack = [];
+      updateUndoRedoBtns();
     };
     img.src = editorSrc;
   }
@@ -1331,6 +1398,7 @@
       editorImgCtx.drawImage(c, 0, 0, editorImgCanvas.width, editorImgCanvas.height);
       editorMaskCtx.clearRect(0, 0, editorMaskCanvas.width, editorMaskCanvas.height);
       exitDrawMode();
+      saveEditorHistory();
     };
     img.src = editorSrc;
   }
@@ -1798,6 +1866,7 @@
     editorMaskCtx.clearRect(0, 0, editorMaskCanvas.width, editorMaskCanvas.height);
     refreshEditorCanvas();
     showToast('马赛克已应用', 'ok');
+    saveEditorHistory();
   }
 
   // ===== AI inpaint =====
@@ -1833,6 +1902,7 @@
         };
         img.src = base64;
         showToast('AI消除完成', 'ok');
+        saveEditorHistory();
       });
     }).catch(function (err) {
       hideEditorLoading();
@@ -1866,6 +1936,7 @@
         };
         img.src = base64;
         showToast('AI白底图生成成功', 'ok');
+        saveEditorHistory();
       });
     }).catch(function (err) {
       hideEditorLoading();
@@ -1898,6 +1969,7 @@
         };
         img.src = base64;
         showToast('AI画质增强成功', 'ok');
+        saveEditorHistory();
       });
     }).catch(function (err) {
       hideEditorLoading();
@@ -1932,6 +2004,7 @@
         };
         img.src = base64;
         showToast('AI抠图完成', 'ok');
+        saveEditorHistory();
       });
     }).catch(function (err) {
       hideEditorLoading();
