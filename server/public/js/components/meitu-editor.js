@@ -49,7 +49,7 @@ Vue.component('meitu-editor', {
       aiProgress: '',
       aiPrompt: '电商产品主图，纯白背景，高清简约',
       aiModel: 'cogview-3-flash',
-      aiSize: '800x800',
+      aiSize: '1024x1024',
       aiApiKey: '',
       aiKeyConfigured: false,
       aiKeyMasked: '',
@@ -1205,11 +1205,12 @@ Vue.component('meitu-editor', {
       var vm = this;
       if (!vm.hasImage) { vm.$Message.warning('请先加载参考图'); return; }
       if (!vm.aiPrompt.trim()) { vm.$Message.warning('请输入图片描述'); return; }
+
+      var base64 = vm._getCurrentImageBase64();
+      if (!base64) { vm.$Message.warning('获取参考图失败'); return; }
+
       vm.aiProcessing = true;
       vm.aiProgress = 'AI图生图中...';
-
-      var dataUrl = vm.canvas.toDataURL({ format: 'png' });
-      var base64 = dataUrl.replace(/^data:image\/\w+;base64,/, '');
 
       fetch('/api/ai/image-to-image', {
         method: 'POST',
@@ -1551,7 +1552,11 @@ Vue.component('meitu-editor', {
           </div>
           <!-- AI处理遮罩 -->
           <div class="meitu-processing" v-if="aiProcessing">
-            <div class="meitu-processing-spin">⟳</div>
+            <div class="meitu-processing-spinner">
+              <div class="orbit-dot"></div>
+              <div class="orbit-dot"></div>
+              <div class="orbit-dot"></div>
+            </div>
             <div class="meitu-processing-text">{{ aiProgress }}</div>
           </div>
         </div>
@@ -1676,17 +1681,17 @@ Vue.component('meitu-editor', {
               <div style="margin-bottom:8px">
                 <div style="color:#999;font-size:11px;margin-bottom:4px">尺寸</div>
                 <radio-group v-model="aiSize" size="small">
-                  <radio label="800x800">800×800</radio>
                   <radio label="1024x1024">1024²</radio>
                   <radio label="768x1344">768×1344</radio>
                   <radio label="864x1152">864×1152</radio>
+                  <radio label="1344x768">1344×768</radio>
                 </radio-group>
               </div>
               <i-input v-model="aiPrompt" type="textarea" :rows="3" placeholder="描述想要的图片效果" size="small" style="margin-bottom:8px" />
               <div style="margin-bottom:8px">
                 <div style="color:#999;font-size:11px;margin-bottom:4px">快捷prompt：</div>
                 <div style="display:flex;flex-wrap:wrap;gap:4px">
-                  <i-button size="small" @click="aiPrompt='电商产品主图，纯白背景，高清简约，800x800'">白底主图</i-button>
+                  <i-button size="small" @click="aiPrompt='电商产品主图，纯白背景，高清简约'">白底主图</i-button>
                   <i-button size="small" @click="aiPrompt='产品场景图，自然光，温馨家居背景'">场景图</i-button>
                   <i-button size="small" @click="aiPrompt='产品细节特写，微距摄影，高质感'">细节图</i-button>
                 </div>

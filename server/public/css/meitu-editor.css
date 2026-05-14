@@ -311,23 +311,55 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 16px;
 }
 
-.meitu-processing-spin {
-  font-size: 36px;
-  color: #fdba3b;
-  animation: meitu-spin 1s linear infinite;
+.meitu-processing-spinner {
+  width: 48px;
+  height: 48px;
+  position: relative;
+  animation: meitu-orbit 1.2s linear infinite;
+}
+
+.meitu-processing-spinner .orbit-dot {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fdba3b;
+}
+
+.meitu-processing-spinner .orbit-dot:nth-child(1) {
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.meitu-processing-spinner .orbit-dot:nth-child(2) {
+  bottom: 8px;
+  left: 0;
+  width: 10px;
+  height: 10px;
+  opacity: .7;
+}
+
+.meitu-processing-spinner .orbit-dot:nth-child(3) {
+  bottom: 8px;
+  right: 0;
+  width: 8px;
+  height: 8px;
+  opacity: .4;
+}
+
+@keyframes meitu-orbit {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .meitu-processing-text {
-  color: #999;
+  color: #aaa;
   font-size: 13px;
-}
-
-@keyframes meitu-spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  letter-spacing: 1px;
 }
 
 /* 裁剪覆盖层 */

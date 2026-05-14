@@ -290,7 +290,7 @@ Vue.component('detail-modal', {
               <div class="sku-img-check">
                 <checkbox :value="isMainImageChecked(i)" @click.native.stop></checkbox>
               </div>
-              <div class="img-edit-btn" @click.stop="editImage(url, 'main_images', i)" title="编辑图片">&#9998;</div>
+              <!-- img-edit-btn hidden -->
               <div class="img-del" @click.stop="removeMainImage(i)">&times;</div>
             </div>
           </div>
@@ -314,7 +314,7 @@ Vue.component('detail-modal', {
               <div class="sku-img-check">
                 <checkbox :value="isDetailImageChecked(i)" @click.native.stop></checkbox>
               </div>
-              <div class="img-edit-btn" @click.stop="editImage(url, 'detail_images', i)" title="编辑图片">&#9998;</div>
+              <!-- img-edit-btn hidden -->
               <div class="img-del" @click.stop="removeDetailImage(i)">&times;</div>
             </div>
           </div>
