@@ -49,7 +49,7 @@ Vue.component('meitu-editor', {
       aiProgress: '',
       aiPrompt: '电商产品主图，纯白背景，高清简约',
       aiModel: 'cogview-3-flash',
-      aiSize: '1024x1024',
+      aiSize: '800x800',
       aiApiKey: '',
       aiKeyConfigured: false,
       aiKeyMasked: '',
@@ -145,22 +145,6 @@ Vue.component('meitu-editor', {
         if (!img || !img.width) {
           vm.$Message.error('图片加载失败');
           return;
-        }
-
-        // AI生成的图片（/uploads/ai_开头）自动裁掉右下角水印
-        if (url && url.indexOf('/uploads/ai_') !== -1) {
-          var el = img.getElement();
-          var w = img.width;
-          var h = img.height;
-          var cropH = 30;
-          if (h > cropH) {
-            var tmpCanvas = document.createElement('canvas');
-            tmpCanvas.width = w;
-            tmpCanvas.height = h - cropH;
-            var ctx = tmpCanvas.getContext('2d');
-            ctx.drawImage(el, 0, 0, w, h - cropH, 0, 0, w, h - cropH);
-            img = new fabric.Image(tmpCanvas);
-          }
         }
 
         vm.canvas.clear();
@@ -1692,6 +1676,7 @@ Vue.component('meitu-editor', {
               <div style="margin-bottom:8px">
                 <div style="color:#999;font-size:11px;margin-bottom:4px">尺寸</div>
                 <radio-group v-model="aiSize" size="small">
+                  <radio label="800x800">800×800</radio>
                   <radio label="1024x1024">1024²</radio>
                   <radio label="768x1344">768×1344</radio>
                   <radio label="864x1152">864×1152</radio>
