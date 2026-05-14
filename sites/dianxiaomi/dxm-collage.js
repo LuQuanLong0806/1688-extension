@@ -344,6 +344,15 @@
     buildCanvasItems();
   });
   canvasBoard.addEventListener('mousedown', function (e) { if (e.target === canvasBoard) selectItem(null); });
+  var canvasArea = document.querySelector('.canvas-area');
+  if (canvasArea) {
+    canvasArea.addEventListener('mousedown', function (e) {
+      if (!e.target.closest('.canvas-item') && !e.target.closest('.canvas-text-item') &&
+          !e.target.closest('.board-resize')) {
+        selectItem(null);
+      }
+    });
+  }
 
   function getSelectedItem() { return canvasItems.find(function (c) { return c.id === selectedItemId; }); }
 
@@ -398,9 +407,9 @@
   }
 
   function updateEditBtn() {
-    var hasImage = !!getSelectedImageSrc();
-    btnEditImage.disabled = !hasImage;
-    editHint.style.display = hasImage ? 'none' : '';
+    var hasAny = imagePool.length > 0 || Object.keys(cellImages).length > 0 || canvasItems.some(function (c) { return c.src && c.type !== 'text'; });
+    btnEditImage.disabled = !hasAny;
+    editHint.style.display = hasAny ? 'none' : '';
   }
 
   propW.addEventListener('change', function () {
@@ -725,6 +734,26 @@
     imagePool = []; selectedPoolId = null; buildPool(); updatePropBar(); updateEditBtn();
   });
 
+  // ========== 生成拼图（生成图片并push到图片列表）==========
+  document.getElementById('btnGenCollage').addEventListener('click', function () {
+    if (mode === 'grid') {
+      var g = getGrid(), total = g.cols * g.rows;
+      var hasAny = false;
+      for (var k in cellImages) { hasAny = true; break; }
+      if (!hasAny) { showToast('请先添加图片', 'err'); return; }
+      renderGridCanvas(g, total, function (canvas) {
+        addToPool(canvas.toDataURL('image/png'));
+        showToast('拼图已生成并添加到图片列表', 'ok');
+      });
+    } else {
+      if (!canvasItems.length) { showToast('请先添加图片到画布', 'err'); return; }
+      renderCustomCanvas(function (canvas) {
+        addToPool(canvas.toDataURL('image/png'));
+        showToast('拼图已生成并添加到图片列表', 'ok');
+      });
+    }
+  });
+
   // ========== Export ==========
   document.getElementById('btnExport').addEventListener('click', function () {
     if (mode === 'grid') {
@@ -1006,23 +1035,26 @@
   // ===== Open editor — collect all images =====
   btnEditImage.addEventListener('click', function () {
     var src = getSelectedImageSrc();
-    if (!src) { showToast('请先选中一张图片', 'err'); return; }
     openEditor(src);
   });
 
   function openEditor(selectedSrc) {
     var images = [];
+    var srcSet = {};
     imagePool.forEach(function (p) {
       images.push({ id: 'p-' + p.id, src: p.src, originalSrc: p.src, type: 'pool', refId: p.id, label: '图片池 #' + p.id });
+      srcSet[p.src] = true;
     });
     if (mode === 'grid') {
       for (var k in cellImages) {
-        images.push({ id: 'c-' + k, src: cellImages[k], originalSrc: cellImages[k], type: 'cell', refId: parseInt(k), label: '格子 ' + (parseInt(k) + 1) });
+        if (!srcSet[cellImages[k]]) {
+          images.push({ id: 'c-' + k, src: cellImages[k], originalSrc: cellImages[k], type: 'cell', refId: parseInt(k), label: '格子 ' + (parseInt(k) + 1) });
+        }
       }
     }
     if (mode === 'custom') {
       canvasItems.forEach(function (c) {
-        if (c.src && c.type !== 'text') {
+        if (c.src && c.type !== 'text' && !srcSet[c.src]) {
           images.push({ id: 'cv-' + c.id, src: c.src, originalSrc: c.src, type: 'canvas', refId: c.id, label: '画布 #' + c.id });
         }
       });
@@ -1046,6 +1078,7 @@
 
     loadEditorImage(startIdx);
     buildEditorImageList();
+    applyFloatPos();
     editorModal.classList.add('show');
   }
 
@@ -1063,9 +1096,9 @@
   }
 
   function updateTopToolbar() {
-    var bar = document.getElementById('edQuickBar');
+    var bar = document.getElementById('edFloatBtns');
     if (!bar) return;
-    bar.querySelectorAll('.ed-quick-btn').forEach(function (btn) {
+    bar.querySelectorAll('.ed-float-btn').forEach(function (btn) {
       var action = btn.dataset.btnId;
       var isActive = false;
       if (action === 'eraseBrush') isActive = (editorTool === 'brush' && editorDrawMode === 'erase');
@@ -1168,7 +1201,6 @@
     showToast('所有修改已保存', 'ok');
   });
 
-  // Add current edited image to external pool
   // Push current edited image to external pool
   document.getElementById('edAddToPool').addEventListener('click', function () {
     if (!editorSrc) return;
@@ -1191,6 +1223,39 @@
     });
     if (count === 0) { showToast('没有编辑过的图片', 'err'); return; }
     showToast('已批量推送 ' + count + ' 张图片', 'ok');
+  });
+
+  // 导出当前编辑图片（下载）
+  document.getElementById('edExportImg').addEventListener('click', function () {
+    if (!editorSrc) return;
+    if (editorProcessing.classList.contains('show')) return;
+    editorImages[editorCurrentIdx].src = editorSrc;
+    try {
+      var a = document.createElement('a');
+      a.download = 'edited_' + Date.now() + '.png';
+      a.href = editorSrc;
+      a.click();
+      showToast('导出成功', 'ok');
+    } catch (e) { showToast('导出失败: ' + e.message, 'err'); }
+  });
+
+  // 批量导出右侧图片列表所有图片
+  document.getElementById('edBatchExport').addEventListener('click', function () {
+    if (editorProcessing.classList.contains('show')) return;
+    editorImages[editorCurrentIdx].src = editorSrc;
+    var exported = 0;
+    editorImages.forEach(function (img, i) {
+      setTimeout(function () {
+        try {
+          var a = document.createElement('a');
+          a.download = 'edited_' + (i + 1) + '_' + Date.now() + '.png';
+          a.href = img.src;
+          a.click();
+          exported++;
+        } catch (e) {}
+      }, i * 200);
+    });
+    showToast('正在导出 ' + editorImages.length + ' 张图片...', 'ok');
   });
 
   // ===== Editor canvas helpers =====
@@ -1378,8 +1443,9 @@
     document.getElementById('edEraseBrushVal').textContent = this.value;
   });
 
-  // ===== Top quick bar — draggable buttons =====
+  // ===== Floating quick bar — draggable buttons + position drag =====
   var QUICK_ORDER_KEY = '__dxm_collage_quick_order';
+  var FLOAT_POS_KEY = '__dxm_collage_float_pos';
   var QUICK_BTNS = [
     { id: 'eraseBrush', label: '画笔消除', icon: '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 14l2-2L13 3l1 1L5 13l-2 1z"/><path d="M11 2l2 2"/></svg>' },
     { id: 'eraseBox', label: '框选消除', icon: '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="1"/><path d="M5 5l6 6M11 5l-6 6"/></svg>' },
@@ -1394,28 +1460,53 @@
     return QUICK_BTNS.map(function (b) { return b.id; });
   }
   function saveQuickOrder() {
-    var bar = document.getElementById('edQuickBar');
+    var bar = document.getElementById('edFloatBtns');
     if (!bar) return;
     var order = [];
-    bar.querySelectorAll('.ed-quick-btn').forEach(function (b) { order.push(b.dataset.btnId); });
+    bar.querySelectorAll('.ed-float-btn').forEach(function (b) { order.push(b.dataset.btnId); });
     try { localStorage.setItem(QUICK_ORDER_KEY, JSON.stringify(order)); } catch (e) {}
   }
 
+  function loadFloatPos() {
+    try {
+      var saved = JSON.parse(localStorage.getItem(FLOAT_POS_KEY));
+      if (saved && saved.top !== undefined) return saved;
+    } catch (e) {}
+    return null;
+  }
+  function saveFloatPos() {
+    var bar = document.getElementById('edFloatingBar');
+    if (!bar) return;
+    try {
+      localStorage.setItem(FLOAT_POS_KEY, JSON.stringify({ top: bar.style.top, left: bar.style.left }));
+    } catch (e) {}
+  }
+  function applyFloatPos() {
+    var bar = document.getElementById('edFloatingBar');
+    if (!bar) return;
+    var pos = loadFloatPos();
+    if (pos && pos.left) {
+      bar.style.top = pos.top;
+      bar.style.left = pos.left;
+      bar.style.transform = 'none';
+    }
+  }
+
   function buildQuickBar() {
-    var bar = document.getElementById('edQuickBar');
+    var bar = document.getElementById('edFloatBtns');
     if (!bar) return;
     bar.innerHTML = '';
     var order = loadQuickOrder();
     order.forEach(function (id, idx) {
       if (idx > 0) {
         var sep = document.createElement('div');
-        sep.className = 'ed-quick-sep';
+        sep.className = 'ed-float-sep';
         bar.appendChild(sep);
       }
       var config = QUICK_BTNS.find(function (b) { return b.id === id; });
       if (!config) return;
       var btn = document.createElement('div');
-      btn.className = 'ed-quick-btn';
+      btn.className = 'ed-float-btn';
       btn.dataset.btnId = config.id;
       btn.draggable = true;
       btn.title = config.label;
@@ -1423,7 +1514,7 @@
       bar.appendChild(btn);
     });
     // Bind click events
-    bar.querySelectorAll('.ed-quick-btn').forEach(function (btn) {
+    bar.querySelectorAll('.ed-float-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {
         var id = btn.dataset.btnId;
         if (id === 'eraseBrush') triggerEraseBrush();
@@ -1431,39 +1522,37 @@
         else if (id === 'cutout') document.getElementById('edAiCutout').click();
       });
     });
-    // Drag reorder
+    // Drag reorder within bar
     bar.addEventListener('dragstart', function (e) {
-      var btn = e.target.closest('.ed-quick-btn');
+      var btn = e.target.closest('.ed-float-btn');
       if (!btn) return;
       e.dataTransfer.setData('text/plain', btn.dataset.btnId);
       e.dataTransfer.effectAllowed = 'move';
       requestAnimationFrame(function () { btn.classList.add('dragging'); });
     });
     bar.addEventListener('dragend', function (e) {
-      var btn = e.target.closest('.ed-quick-btn');
+      var btn = e.target.closest('.ed-float-btn');
       if (btn) btn.classList.remove('dragging');
-      bar.querySelectorAll('.ed-quick-btn').forEach(function (b) { b.classList.remove('drag-over'); });
+      bar.querySelectorAll('.ed-float-btn').forEach(function (b) { b.classList.remove('drag-over'); });
     });
     bar.addEventListener('dragover', function (e) {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
-      var target = e.target.closest('.ed-quick-btn');
-      bar.querySelectorAll('.ed-quick-btn').forEach(function (b) { b.classList.remove('drag-over'); });
+      var target = e.target.closest('.ed-float-btn');
+      bar.querySelectorAll('.ed-float-btn').forEach(function (b) { b.classList.remove('drag-over'); });
       if (target && !target.classList.contains('dragging')) target.classList.add('drag-over');
     });
     bar.addEventListener('drop', function (e) {
       e.preventDefault();
-      var target = e.target.closest('.ed-quick-btn');
+      var target = e.target.closest('.ed-float-btn');
       if (!target) return;
       var sourceId = e.dataTransfer.getData('text/plain');
       var source = bar.querySelector('[data-btn-id="' + sourceId + '"]');
       if (!source || source === target) { target.classList.remove('drag-over'); return; }
-      // Find source and target separator pairs
       var allItems = Array.prototype.slice.call(bar.children);
       var sourceIdx = allItems.indexOf(source);
       var targetIdx = allItems.indexOf(target);
-      // Move source (and its preceding separator) before target
-      var sourceSep = sourceIdx > 0 && allItems[sourceIdx - 1].classList.contains('ed-quick-sep') ? allItems[sourceIdx - 1] : null;
+      var sourceSep = sourceIdx > 0 && allItems[sourceIdx - 1].classList.contains('ed-float-sep') ? allItems[sourceIdx - 1] : null;
       if (sourceIdx < targetIdx) {
         if (sourceSep) bar.insertBefore(sourceSep, target.nextSibling);
         bar.insertBefore(source, target.nextSibling);
@@ -1473,6 +1562,35 @@
       }
       target.classList.remove('drag-over');
       saveQuickOrder();
+    });
+  }
+
+  // Float bar position drag (handle)
+  var edFloatHandle = document.getElementById('edFloatHandle');
+  if (edFloatHandle) {
+    edFloatHandle.addEventListener('mousedown', function (e) {
+      e.preventDefault();
+      var bar = document.getElementById('edFloatingBar');
+      if (!bar) return;
+      var rect = bar.getBoundingClientRect();
+      var startX = e.clientX - rect.left;
+      var startY = e.clientY - rect.top;
+      bar.style.transform = 'none';
+      bar.style.left = rect.left + 'px';
+      bar.style.top = rect.top + 'px';
+      function onMove(ev) {
+        var newLeft = Math.max(0, Math.min(window.innerWidth - bar.offsetWidth, ev.clientX - startX));
+        var newTop = Math.max(0, Math.min(window.innerHeight - bar.offsetHeight, ev.clientY - startY));
+        bar.style.left = newLeft + 'px';
+        bar.style.top = newTop + 'px';
+      }
+      function onUp() {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        saveFloatPos();
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
     });
   }
 
@@ -1792,7 +1910,7 @@
     if (!editorSrc) return;
     showEditorLoading('AI 抠图中，请耐心等待...');
     urlToBase64(editorSrc).then(function (base64) {
-      return fetch(getServerBase() + '/api/ai/remove-bg', {
+      return fetch(getServerBase() + '/api/ai/remove-bg-local', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image_base64: base64 })

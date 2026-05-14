@@ -340,7 +340,7 @@ router.post('/enhance', function (req, res) {
   });
 });
 
-// ===== AI抠图（@imgly/background-removal 服务端）=====
+// ===== AI抠图 — 原始端点（保留兼容，客户端CDN调用）=====
 var bgRemovalLib = null;
 function getBgRemovalLib() {
   if (bgRemovalLib) return Promise.resolve(bgRemovalLib);
@@ -357,15 +357,13 @@ router.post('/remove-bg', function (req, res) {
   console.log('[AI抠图] 开始...');
   var t0 = Date.now();
 
-  // base64 → Buffer → Blob
   var base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
   var buf = Buffer.from(base64Data, 'base64');
-  var blob = new Blob([buf], { type: 'image/png' });
 
   getBgRemovalLib().then(function (removeBg) {
-    return removeBg(blob);
+    var uint8 = new Uint8Array(buf);
+    return removeBg(uint8);
   }).then(function (resultBlob) {
-    // resultBlob → Buffer → save to uploads
     return resultBlob.arrayBuffer().then(function (ab) {
       var resultBuf = Buffer.from(ab);
       var filename = 'removebg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8) + '.png';
@@ -382,7 +380,34 @@ router.post('/remove-bg', function (req, res) {
     res.json({ ok: true, url: localUrl });
   }).catch(function (err) {
     console.error('[AI抠图失败]', err.message);
-    res.status(502).json({ error: err.message });
+    if (!res.headersSent) res.status(502).json({ error: err.message });
+  });
+});
+
+// ===== AI抠图（onnxruntime-node + ISNet 本地推理 — 供扩展页面使用）=====
+var removeBgService = require('../services/remove-bg');
+
+router.post('/remove-bg-local', function (req, res) {
+  var imageBase64 = req.body.image_base64;
+  if (!imageBase64) return res.status(400).json({ error: '请先加载图片' });
+
+  console.log('[AI抠图-本地] 开始...');
+  var t0 = Date.now();
+
+  var base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+  var buf = Buffer.from(base64Data, 'base64');
+
+  removeBgService.removeBackground(buf).then(function (resultBuf) {
+    var filename = 'removebg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8) + '.png';
+    var filepath = path.join(UPLOADS_DIR, filename);
+    fs.writeFile(filepath, resultBuf, function (err) {
+      if (err) return res.status(500).json({ error: '保存失败' });
+      console.log('[AI抠图-本地] 完成, 耗时:', Date.now() - t0, 'ms');
+      res.json({ ok: true, url: '/uploads/' + filename });
+    });
+  }).catch(function (err) {
+    console.error('[AI抠图-本地失败]', err.message);
+    if (!res.headersSent) res.status(502).json({ error: err.message });
   });
 });
 
