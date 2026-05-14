@@ -7,118 +7,84 @@
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f0f0;color:#333;height:100vh;display:flex;overflow:hidden;font-size:13px}
 
-/* ========== 左侧工具栏（精简） ========== */
+/* ========== 左侧工具栏 ========== */
 .sidebar{width:210px;background:#fff;border-right:1px solid #e0e0e0;flex-shrink:0;display:flex;flex-direction:column;overflow-y:auto}
 .sb-section{padding:10px 12px;border-bottom:1px solid #f0f0f0}
 .sb-title{font-size:11px;color:#999;letter-spacing:1px;margin-bottom:6px;font-weight:600;text-transform:uppercase}
-
-/* 模式切换 */
 .mode-switch{display:flex;border-radius:6px;overflow:hidden;border:1px solid #CE93D8}
 .mode-btn{flex:1;padding:5px 0;font-size:12px;font-weight:bold;cursor:pointer;border:none;background:#fff;color:#7E57C2;transition:all .15s}
 .mode-btn.active{background:#7E57C2;color:#fff}
 .mode-btn:hover:not(.active){background:#F3E5F5}
-
-/* 宫格选项 */
 .grid-options{display:grid;grid-template-columns:1fr 1fr;gap:4px}
-.grid-opt{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 4px;border-radius:6px;cursor:pointer;
-  border:2px solid transparent;transition:all .15s;background:#fafafa}
+.grid-opt{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 4px;border-radius:6px;cursor:pointer;border:2px solid transparent;transition:all .15s;background:#fafafa}
 .grid-opt:hover{background:#F3E5F5;border-color:#CE93D8}
 .grid-opt.active{border-color:#7E57C2;background:#EDE7F6;box-shadow:0 2px 8px rgba(126,87,194,.2)}
 .grid-preview{width:56px;height:44px;display:grid;gap:2px;padding:2px;background:#fff;border-radius:3px}
-.grid-preview span{background:#CE93D8;border-radius:1px;transition:background .15s}
+.grid-preview span{background:#CE93D8;border-radius:1px}
 .grid-opt.active .grid-preview span{background:#7E57C2}
 .grid-label{font-size:10px;color:#666;font-weight:500}
 .grid-opt.active .grid-label{color:#4527A0;font-weight:bold}
-
-/* 下拉选择 */
 .fit-select{width:100%;padding:5px 6px;border:1px solid #ddd;border-radius:5px;font-size:12px;color:#333;background:#fff;cursor:pointer;outline:none}
 .fit-select:focus{border-color:#7E57C2}
-
-/* 操作按钮 */
-.sb-btn{width:100%;padding:7px;border:1px solid #ddd;border-radius:5px;background:#fff;color:#666;
-  cursor:pointer;font-size:12px;margin-bottom:4px;transition:all .15s;text-align:center}
+.sb-btn{width:100%;padding:7px;border:1px solid #ddd;border-radius:5px;background:#fff;color:#666;cursor:pointer;font-size:12px;margin-bottom:4px;transition:all .15s;text-align:center}
 .sb-btn:last-child{margin-bottom:0}
 .sb-btn:hover{border-color:#7E57C2;color:#7E57C2;background:#F3E5F5}
-.sb-btn.primary{background:linear-gradient(135deg,#AB47BC,#8E24AA);color:#fff;border-color:#8E24AA;font-weight:bold;
-  box-shadow:0 1px 3px rgba(142,36,170,.3)}
+.sb-btn.primary{background:linear-gradient(135deg,#AB47BC,#8E24AA);color:#fff;border-color:#8E24AA;font-weight:bold;box-shadow:0 1px 3px rgba(142,36,170,.3)}
 .sb-btn.primary:hover{box-shadow:0 2px 6px rgba(142,36,170,.5)}
 .sb-btn.danger{color:#ff4444;border-color:#ffccc7}
 .sb-btn.danger:hover{background:#fff1f0;border-color:#ff4444}
 .sb-btn.big{padding:10px;font-size:13px}
 .sb-btn:disabled{opacity:.45;pointer-events:none}
-
-/* 小按钮行 */
 .sb-btn-row{display:flex;gap:4px}
 .sb-btn-row .sb-btn{flex:1}
-
-/* 提示文字 */
 .sb-hint{font-size:11px;color:#bbb;text-align:center;padding:4px 0}
-
-/* 滑块 */
 .sb-slider{width:100%;margin:6px 0}
 .sb-slider .slider-header{display:flex;justify-content:space-between;font-size:11px;color:#999;margin-bottom:3px}
 .sb-slider .slider-val{color:#7E57C2;font-weight:600}
 .sb-slider input[type=range]{width:100%;height:4px;-webkit-appearance:none;appearance:none;background:#e0e0e0;border-radius:2px;outline:none}
 .sb-slider input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:12px;height:12px;border-radius:50%;background:#7E57C2;cursor:pointer;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.15)}
-
-/* 文本输入 */
-.sb-text-input{width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:5px;background:#fff;color:#333;
-  font-size:12px;outline:none;margin-bottom:6px;resize:vertical;font-family:inherit}
+.sb-text-input{width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:5px;background:#fff;color:#333;font-size:12px;outline:none;margin-bottom:6px;resize:vertical;font-family:inherit}
 .sb-text-input:focus{border-color:#7E57C2}
 .sb-text-input::placeholder{color:#bbb}
-
-/* 颜色输入行 */
 .sb-color-row{display:flex;align-items:center;gap:6px;margin-bottom:6px}
 .sb-color-row label{font-size:11px;color:#999}
 .sb-color-row input[type=color]{width:28px;height:24px;border:1px solid #ddd;border-radius:4px;background:none;cursor:pointer;padding:1px}
-
 .sb-spacer{flex:1}
 
 /* ========== 主体 ========== */
 .main{flex:1;display:flex;overflow:hidden}
-
-/* 宫格模式 */
 .grid-area{flex:1;display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto}
 .grid-wrap{background:#fff;padding:12px;border-radius:14px;box-shadow:0 2px 16px rgba(0,0,0,.08);display:inline-grid;gap:6px}
-.cell{width:180px;height:180px;border:2px dashed #e0e0e0;border-radius:8px;display:flex;align-items:center;justify-content:center;
-  position:relative;overflow:hidden;cursor:pointer;transition:border-color .15s,background .15s;background:#fafafa}
+.cell{width:180px;height:180px;border:2px dashed #e0e0e0;border-radius:8px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;cursor:pointer;transition:border-color .15s,background .15s;background:#fafafa}
 .cell:hover{border-color:#CE93D8}
 .cell.dragover{border-color:#7E57C2;background:#F3E5F5}
 .cell.has-img{border-style:solid;border-color:#e0e0e0}
 .cell.has-img:hover{border-color:#7E57C2}
 .cell.cell-active{border-color:#7E57C2!important;box-shadow:0 0 0 2px rgba(126,87,194,.3)}
 .cell img{width:100%;height:100%;object-fit:cover;pointer-events:none}
-.cell .rm{position:absolute;top:4px;right:4px;width:22px;height:22px;background:rgba(0,0,0,.55);color:#fff;border:none;
-  border-radius:50%;cursor:pointer;font-size:14px;display:none;align-items:center;justify-content:center;line-height:1}
+.cell .rm{position:absolute;top:4px;right:4px;width:22px;height:22px;background:rgba(0,0,0,.55);color:#fff;border:none;border-radius:50%;cursor:pointer;font-size:14px;display:none;align-items:center;justify-content:center;line-height:1}
 .cell .rm:hover{background:rgba(0,0,0,.8)}
 .cell:hover .rm{display:flex}
 .cell .ph{color:#ccc;font-size:12px;text-align:center;pointer-events:none;line-height:1.4}
 .cell .ph::before{content:"";display:block;width:28px;height:28px;margin:0 auto 6px;border:2px dashed #ddd;border-radius:6px}
 
-/* ========== 自定义模式 ========== */
+/* 自定义模式 */
 .custom-area{display:none;flex:1;overflow:hidden}
 .custom-area.show{display:flex}
 .custom-body{flex:1;display:flex;flex-direction:column;overflow:hidden}
-.canvas-area{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;overflow:auto;
-  background:linear-gradient(45deg,#e8e8e8 25%,transparent 25%),linear-gradient(-45deg,#e8e8e8 25%,transparent 25%),
-  linear-gradient(45deg,transparent 75%,#e8e8e8 75%),linear-gradient(-45deg,transparent 75%,#e8e8e8 75%);
-  background-size:16px 16px;background-position:0 0,0 8px,8px -8px,-8px 0;background-color:#f5f5f5}
+.canvas-area{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;overflow:auto;background:linear-gradient(45deg,#e8e8e8 25%,transparent 25%),linear-gradient(-45deg,#e8e8e8 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#e8e8e8 75%),linear-gradient(-45deg,transparent 75%,#e8e8e8 75%);background-size:16px 16px;background-position:0 0,0 8px,8px -8px,-8px 0;background-color:#f5f5f5}
 .canvas-wrap{position:relative;display:inline-block}
 .canvas-board{position:relative;background:#fff;box-shadow:0 2px 16px rgba(0,0,0,.12);overflow:hidden;border-radius:2px}
 .canvas-size{margin-top:8px;font-size:12px;color:#999;text-align:center}
-
 .board-resize{position:absolute;z-index:100}
 .board-resize-r{right:-6px;top:0;width:12px;height:100%;cursor:ew-resize}
 .board-resize-b{bottom:-6px;left:0;height:12px;width:100%;cursor:ns-resize}
 .board-resize-rb{right:-6px;bottom:-6px;width:16px;height:16px;cursor:nwse-resize}
 .board-resize-rb::after{content:"";position:absolute;right:2px;bottom:2px;width:8px;height:8px;border-right:2px solid #999;border-bottom:2px solid #999}
-
-/* 画布元素 */
 .canvas-item{position:absolute;cursor:move;user-select:none;transform-origin:center center}
 .canvas-item img{width:100%;height:100%;pointer-events:none;display:block}
 .canvas-item.selected{outline:2px solid #7E57C2;outline-offset:-1px}
-.canvas-item .c-rm{position:absolute;top:-10px;right:-10px;width:20px;height:20px;background:#ff4444;color:#fff;border:1.5px solid #fff;
-  border-radius:50%;font-size:11px;display:none;align-items:center;justify-content:center;cursor:pointer;line-height:1;z-index:5}
+.canvas-item .c-rm{position:absolute;top:-10px;right:-10px;width:20px;height:20px;background:#ff4444;color:#fff;border:1.5px solid #fff;border-radius:50%;font-size:11px;display:none;align-items:center;justify-content:center;cursor:pointer;line-height:1;z-index:5}
 .canvas-item.selected .c-rm{display:flex}
 .c-resize{position:absolute;width:12px;height:12px;z-index:5;display:none}
 .canvas-item.selected .c-resize{display:block}
@@ -132,20 +98,15 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f0f0;color:#33
 .c-resize-tl::after{content:"";position:absolute;left:1px;top:1px;width:8px;height:8px;border-left:2px solid #7E57C2;border-top:2px solid #7E57C2}
 .canvas-item .c-rot-line{position:absolute;top:-24px;left:50%;width:1px;height:24px;background:#7E57C2;display:none;transform:translateX(-50%)}
 .canvas-item.selected .c-rot-line{display:block}
-.canvas-item .c-rot{position:absolute;top:-36px;left:50%;width:14px;height:14px;border-radius:50%;background:#7E57C2;border:1.5px solid #fff;
-  cursor:grab;display:none;transform:translateX(-50%);z-index:5}
+.canvas-item .c-rot{position:absolute;top:-36px;left:50%;width:14px;height:14px;border-radius:50%;background:#7E57C2;border:1.5px solid #fff;cursor:grab;display:none;transform:translateX(-50%);z-index:5}
 .canvas-item.selected .c-rot{display:block}
-
-/* 文字元素 */
 .canvas-text-item{position:absolute;cursor:move;user-select:none;transform-origin:center center;min-width:60px;min-height:24px}
-.canvas-text-item .text-content{outline:none;min-width:60px;min-height:24px;padding:4px 8px;
-  border:1px solid transparent;border-radius:4px;transition:border-color .15s;white-space:nowrap}
+.canvas-text-item .text-content{outline:none;min-width:60px;min-height:24px;padding:4px 8px;border:1px solid transparent;border-radius:4px;transition:border-color .15s;white-space:nowrap}
 .canvas-text-item.selected .text-content{border-color:#7E57C2}
-.canvas-text-item .c-rm{position:absolute;top:-10px;right:-10px;width:20px;height:20px;background:#ff4444;color:#fff;border:1.5px solid #fff;
-  border-radius:50%;font-size:11px;display:none;align-items:center;justify-content:center;cursor:pointer;line-height:1;z-index:5}
+.canvas-text-item .c-rm{position:absolute;top:-10px;right:-10px;width:20px;height:20px;background:#ff4444;color:#fff;border:1.5px solid #fff;border-radius:50%;font-size:11px;display:none;align-items:center;justify-content:center;cursor:pointer;line-height:1;z-index:5}
 .canvas-text-item.selected .c-rm{display:flex}
 
-/* ========== 右侧面板（共享） ========== */
+/* 右侧面板 */
 .right-panel{width:180px;background:#fff;border-left:1px solid #e0e0e0;flex-shrink:0;display:flex;flex-direction:column;overflow-y:auto}
 .rp-section{padding:10px 12px;border-bottom:1px solid #f0f0f0}
 .rp-section:last-child{border-bottom:none}
@@ -155,8 +116,7 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f0f0;color:#33
 .pool-item:hover{border-color:#7E57C2}
 .pool-item.active{border-color:#7E57C2;box-shadow:0 0 0 2px rgba(126,87,194,.3)}
 .pool-item img{width:100%;height:100%;object-fit:cover;pointer-events:none}
-.pool-item .pool-rm{position:absolute;top:1px;right:1px;width:12px;height:12px;background:rgba(0,0,0,.5);color:#fff;border:none;
-  border-radius:50%;font-size:8px;display:none;align-items:center;justify-content:center;cursor:pointer;line-height:1}
+.pool-item .pool-rm{position:absolute;top:1px;right:1px;width:12px;height:12px;background:rgba(0,0,0,.5);color:#fff;border:none;border-radius:50%;font-size:8px;display:none;align-items:center;justify-content:center;cursor:pointer;line-height:1}
 .pool-item:hover .pool-rm{display:flex}
 .pool-empty{font-size:11px;color:#ccc;text-align:center;padding:6px 0}
 .rp-empty{flex:1;display:flex;align-items:center;justify-content:center;color:#ccc;font-size:11px;text-align:center;padding:12px}
@@ -165,13 +125,11 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f0f0;color:#33
 .rp-row{display:flex;align-items:center;gap:6px;margin-bottom:6px}
 .rp-row:last-child{margin-bottom:0}
 .rp-label{font-size:11px;color:#666;min-width:24px;flex-shrink:0}
-.rp-input{flex:1;padding:4px 6px;border:1px solid #ddd;border-radius:4px;font-size:11px;text-align:center;outline:none;
-  background:#fff;color:#333;min-width:0;transition:border-color .15s}
+.rp-input{flex:1;padding:4px 6px;border:1px solid #ddd;border-radius:4px;font-size:11px;text-align:center;outline:none;background:#fff;color:#333;min-width:0;transition:border-color .15s}
 .rp-input:focus{border-color:#7E57C2}
 .rp-val{font-size:12px;color:#7E57C2;font-weight:bold;min-width:36px;text-align:center}
 .rp-btns{display:flex;gap:4px}
-.rp-btn{flex:1;padding:4px 0;border:1px solid #ddd;border-radius:4px;background:#fff;cursor:pointer;font-size:10px;
-  color:#666;transition:all .15s;text-align:center}
+.rp-btn{flex:1;padding:4px 0;border:1px solid #ddd;border-radius:4px;background:#fff;cursor:pointer;font-size:10px;color:#666;transition:all .15s;text-align:center}
 .rp-btn:hover{border-color:#7E57C2;color:#7E57C2}
 .rp-btn.primary{background:#7E57C2;color:#fff;border-color:#7E57C2}
 .rp-btn.primary:hover{background:#6A4FAA}
@@ -187,15 +145,13 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f0f0;color:#33
 .preview-close:hover{border-color:#999;color:#333}
 
 /* Toast */
-.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-80px);background:#fff;padding:10px 24px;
-  border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.15);font-size:13px;color:#333;transition:transform .3s;z-index:99999;white-space:nowrap}
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-80px);background:#fff;padding:10px 24px;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.15);font-size:13px;color:#333;transition:transform .3s;z-index:99999;white-space:nowrap}
 .toast.show{transform:translateX(-50%) translateY(0)}
 .toast.ok{border-left:3px solid #52c41a}
 .toast.err{border-left:3px solid #ff4444}
 
 /* AI处理遮罩 */
-.ai-processing{position:fixed;inset:0;z-index:99998;background:rgba(255,255,255,.85);display:none;flex-direction:column;
-  align-items:center;justify-content:center;gap:16px}
+.ai-processing{position:fixed;inset:0;z-index:99998;background:rgba(255,255,255,.85);display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px}
 .ai-spinner{width:56px;height:56px;position:relative;animation:ai-orbit 1.2s linear infinite}
 .ai-spinner .dot{position:absolute;border-radius:50%;background:#7E57C2}
 .ai-spinner .dot:nth-child(1){width:16px;height:16px;top:0;left:50%;transform:translateX(-50%)}
@@ -207,13 +163,30 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f0f0;color:#33
 /* ========== 图片编辑弹窗 ========== */
 .editor-modal{position:fixed;inset:0;z-index:10000;background:#f5f5f5;display:none;flex-direction:column}
 .editor-modal.show{display:flex}
+
+/* 顶部操作栏 */
+.editor-top{display:flex;align-items:center;gap:8px;padding:6px 12px;background:#fff;border-bottom:1px solid #e0e0e0;flex-shrink:0}
+.editor-top .sb-btn{width:auto;padding:5px 14px;margin-bottom:0;font-size:12px}
+.ed-top-left{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.ed-top-icon{width:20px;height:20px;color:#7E57C2}
+.ed-top-title{font-size:13px;font-weight:bold;color:#333;white-space:nowrap}
+.ed-top-center{display:flex;align-items:center;gap:3px;flex:1;justify-content:center;overflow-x:auto;padding:0 8px}
+.ed-top-center .ed-quick-sep{width:1px;height:18px;background:rgba(0,0,0,.10);margin:0 4px;flex-shrink:0}
+.ed-quick-btn{display:flex;align-items:center;gap:4px;padding:5px 12px;border-radius:16px;border:1.5px solid transparent;background:transparent;cursor:pointer;white-space:nowrap;transition:all .15s;font-size:12px;font-weight:500;color:#555;user-select:none}
+.ed-quick-btn:hover{background:rgba(0,0,0,.05);color:#222}
+.ed-quick-btn:active{transform:scale(.97)}
+.ed-quick-btn.active{background:rgba(126,87,194,.12);color:#7E57C2}
+.ed-quick-btn.dragging{opacity:.4}
+.ed-quick-btn.drag-over{border-left-color:#7E57C2;border-left-style:solid}
+.ed-top-right{display:flex;align-items:center;gap:6px;flex-shrink:0}
+
+/* 三栏主体 */
 .editor-body{display:flex;flex:1;min-height:0}
 
-/* 左侧手风琴工具栏 */
+/* 左侧手风琴 */
 .editor-left{width:200px;background:#fff;border-right:1px solid #e0e0e0;overflow-y:auto;flex-shrink:0}
 .acc-section{border-bottom:1px solid #f0f0f0}
-.acc-header{padding:10px 14px;font-size:12px;font-weight:bold;color:#555;cursor:pointer;
-  display:flex;align-items:center;gap:6px;user-select:none;transition:background .15s}
+.acc-header{padding:10px 14px;font-size:12px;font-weight:bold;color:#555;cursor:pointer;display:flex;align-items:center;gap:6px;user-select:none;transition:background .15s}
 .acc-header:hover{background:#f0eaf7}
 .acc-header::before{content:"▶";font-size:10px;transition:transform .2s;color:#999}
 .acc-section.open .acc-header::before{transform:rotate(90deg)}
@@ -221,17 +194,12 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f0f0;color:#33
 .acc-body{max-height:0;overflow:hidden;transition:max-height .25s ease}
 .acc-section.open .acc-body{max-height:500px}
 .acc-inner{padding:10px 14px}
-
-/* 弹窗内按钮 */
-.acc-btn{width:100%;padding:7px;border:1px solid #ddd;border-radius:5px;background:#fff;color:#666;
-  cursor:pointer;font-size:12px;margin-bottom:4px;transition:all .15s;text-align:center}
+.acc-btn{width:100%;padding:7px;border:1px solid #ddd;border-radius:5px;background:#fff;color:#666;cursor:pointer;font-size:12px;margin-bottom:4px;transition:all .15s;text-align:center}
 .acc-btn:last-child{margin-bottom:0}
 .acc-btn:hover{border-color:#7E57C2;color:#7E57C2;background:#F3E5F5}
 .acc-btn.primary{background:#7E57C2;color:#fff;border-color:#7E57C2;font-weight:bold}
 .acc-btn.primary:hover{background:#6A4FAA}
 .acc-btn.active{background:#7E57C2;color:#fff;border-color:#7E57C2}
-.acc-btn.danger{color:#ff4444;border-color:#ffccc7}
-.acc-btn.danger:hover{background:#fff1f0;border-color:#ff4444}
 .acc-btn-row{display:flex;gap:4px;margin-bottom:4px}
 .acc-btn-row .acc-btn{flex:1;margin-bottom:0}
 .acc-slider{width:100%;margin:6px 0}
@@ -240,43 +208,47 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f0f0;color:#33
 .acc-slider input[type=range]{width:100%;height:4px;-webkit-appearance:none;appearance:none;background:#e0e0e0;border-radius:2px;outline:none}
 .acc-slider input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:12px;height:12px;border-radius:50%;background:#7E57C2;cursor:pointer;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.15)}
 
-/* 中间画布区域 */
-.editor-center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:auto;position:relative;
-  background:linear-gradient(45deg,#e8e8e8 25%,transparent 25%),linear-gradient(-45deg,#e8e8e8 25%,transparent 25%),
-  linear-gradient(45deg,transparent 75%,#e8e8e8 75%),linear-gradient(-45deg,transparent 75%,#e8e8e8 75%);
-  background-size:16px 16px;background-position:0 0,0 8px,8px -8px,-8px 0;background-color:#f5f5f5}
+/* 中间画布 */
+.editor-center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:auto;position:relative;background:linear-gradient(45deg,#e8e8e8 25%,transparent 25%),linear-gradient(-45deg,#e8e8e8 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#e8e8e8 75%),linear-gradient(-45deg,transparent 75%,#e8e8e8 75%);background-size:16px 16px;background-position:0 0,0 8px,8px -8px,-8px 0;background-color:#f5f5f5}
 .editor-canvas-wrap{position:relative;display:inline-block;box-shadow:0 2px 20px rgba(0,0,0,.15)}
 #editorImgCanvas{display:block}
 #editorMaskCanvas{position:absolute;top:0;left:0;display:none;cursor:crosshair}
 #editorMaskCanvas.show{display:block}
-.editor-status{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);font-size:11px;color:#999;
-  background:rgba(255,255,255,.85);padding:3px 12px;border-radius:4px;pointer-events:none}
+.editor-status{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);font-size:11px;color:#999;background:rgba(255,255,255,.85);padding:3px 12px;border-radius:4px;pointer-events:none}
 
-/* 底部操作栏 */
-.editor-footer{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:10px 16px;
-  background:#fff;border-top:1px solid #e0e0e0;flex-shrink:0}
-.editor-footer .sb-btn{width:auto;padding:7px 24px;margin-bottom:0}
+/* 编辑器 loading */
+.editor-processing{position:absolute;inset:0;z-index:100;background:rgba(255,255,255,.85);display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px}
+.editor-processing.show{display:flex}
+.editor-processing-text{color:#888;font-size:13px;letter-spacing:1px}
+
+/* 右侧图片列表 */
+.editor-right{width:120px;background:#fff;border-left:1px solid #e0e0e0;overflow-y:auto;flex-shrink:0;display:flex;flex-direction:column}
+.er-title{font-size:11px;color:#999;padding:8px 10px;border-bottom:1px solid #eee;font-weight:600}
+.er-list{flex:1;overflow-y:auto}
+.er-item{padding:6px;cursor:pointer;border-bottom:1px solid #f5f5f5;display:flex;gap:6px;align-items:center;transition:background .15s}
+.er-item:hover{background:#f5f5f5}
+.er-item.active{background:#F3E5F5}
+.er-item img{width:40px;height:40px;object-fit:cover;border-radius:3px;border:1px solid #eee;flex-shrink:0}
+.er-item .er-info{flex:1;min-width:0}
+.er-item .er-label{font-size:10px;color:#666;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.er-item .er-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#7E57C2;vertical-align:middle;margin-left:3px;display:none}
+.er-item .er-dot.modified{display:inline-block}
 </style>
 </head>
 <body>
 
-<!-- ========== 左侧工具栏（精简） ========== -->
+<!-- ========== 左侧工具栏 ========== -->
 <div class="sidebar">
-  <!-- 模式 -->
   <div class="sb-section">
     <div class="mode-switch">
       <button class="mode-btn active" id="modeGrid">宫格</button>
       <button class="mode-btn" id="modeCustom">自定义</button>
     </div>
   </div>
-
-  <!-- 宫格选项 (grid-only) -->
   <div class="sb-section grid-only" id="gridSection">
     <div class="sb-title">选择宫格</div>
     <div class="grid-options" id="gridOptsContainer"></div>
   </div>
-
-  <!-- 图片设置 (grid-only) -->
   <div class="sb-section grid-only">
     <div class="sb-title">图片设置</div>
     <select class="fit-select" id="fitMode">
@@ -285,21 +257,15 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f0f0;color:#33
       <option value="fill">fill 拉伸填充</option>
     </select>
   </div>
-
-  <!-- 操作 -->
   <div class="sb-section">
     <div class="sb-title">操作</div>
     <button class="sb-btn primary" id="btnPasteUrl">贴图</button>
     <button class="sb-btn" id="btnPreview">预览</button>
   </div>
-
-  <!-- 编辑图片 -->
   <div class="sb-section">
     <button class="sb-btn primary big" id="btnEditImage" disabled>✏️ 编辑图片</button>
     <div class="sb-hint" id="editHint">选中图片后可用</div>
   </div>
-
-  <!-- 文字 (custom-only) -->
   <div class="sb-section custom-only">
     <div class="sb-title">文字</div>
     <input type="text" class="sb-text-input" id="textContent" placeholder="输入文字内容">
@@ -307,23 +273,16 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f0f0;color:#33
       <div class="slider-header"><span>字号</span><span class="slider-val" id="fontSizeVal">24</span></div>
       <input type="range" id="fontSizeRange" min="12" max="72" value="24">
     </div>
-    <div class="sb-color-row">
-      <label>颜色</label>
-      <input type="color" id="textColor" value="#ffffff">
-    </div>
+    <div class="sb-color-row"><label>颜色</label><input type="color" id="textColor" value="#ffffff"></div>
     <button class="sb-btn primary" id="btnAddText">添加到画布</button>
   </div>
-
-  <!-- AI文生图 -->
-  <div class="sb-section">
+  <!-- AI文生图（隐藏） -->
+  <div class="sb-section" style="display:none">
     <div class="sb-title">AI 文生图</div>
     <textarea class="sb-text-input" id="aiPrompt" placeholder="描述图片内容..." rows="2"></textarea>
     <button class="sb-btn primary" id="btnAiGen">生成图片</button>
   </div>
-
   <div class="sb-spacer"></div>
-
-  <!-- 底部 -->
   <div class="sb-section">
     <button class="sb-btn danger" id="btnClear">清空全部</button>
     <button class="sb-btn primary" id="btnExport">导出拼图</button>
@@ -332,11 +291,7 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f0f0;color:#33
 
 <!-- 主体 -->
 <div class="main">
-  <!-- 宫格模式 -->
-  <div class="grid-area" id="gridArea">
-    <div class="grid-wrap" id="grid"></div>
-  </div>
-  <!-- 自定义模式 -->
+  <div class="grid-area" id="gridArea"><div class="grid-wrap" id="grid"></div></div>
   <div class="custom-area" id="customArea">
     <div class="custom-body" style="position:relative">
       <div class="canvas-area">
@@ -350,8 +305,6 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f0f0;color:#33
       </div>
     </div>
   </div>
-
-  <!-- 右侧图片列表 -->
   <div class="right-panel" id="rightPanel">
     <div class="rp-section">
       <div class="rp-title">图片列表</div>
@@ -359,47 +312,58 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f0f0;color:#33
     </div>
     <div class="rp-empty" id="rpEmpty">粘贴或拖入图片<br>拖拽到画布/宫格</div>
     <div class="rp-content" id="rpContent">
-      <div class="rp-section">
-        <div class="rp-title">预览</div>
-        <div class="rp-preview"><img id="rpPreviewImg" src="" alt=""></div>
+      <div class="rp-section"><div class="rp-title">预览</div><div class="rp-preview"><img id="rpPreviewImg" src="" alt=""></div></div>
+      <div class="rp-section custom-only"><div class="rp-title">尺寸</div>
+        <div class="rp-row"><span class="rp-label">宽</span><input class="rp-input" type="number" id="propW" min="10" max="4000"></div>
+        <div class="rp-row"><span class="rp-label">高</span><input class="rp-input" type="number" id="propH" min="10" max="4000"></div>
       </div>
-      <div class="rp-section custom-only">
-        <div class="rp-title">尺寸</div>
-        <div class="rp-row">
-          <span class="rp-label">宽</span>
-          <input class="rp-input" type="number" id="propW" min="10" max="4000">
-        </div>
-        <div class="rp-row">
-          <span class="rp-label">高</span>
-          <input class="rp-input" type="number" id="propH" min="10" max="4000">
-        </div>
+      <div class="rp-section custom-only"><div class="rp-title">旋转</div><div class="rp-row"><span class="rp-val" id="propRot">0°</span></div></div>
+      <div class="rp-section custom-only"><div class="rp-title">图层</div>
+        <div class="rp-btns"><button class="rp-btn" id="propDown">↓</button><button class="rp-btn" id="propUp">↑</button><button class="rp-btn primary" id="propTop">⤒</button></div>
       </div>
-      <div class="rp-section custom-only">
-        <div class="rp-title">旋转</div>
-        <div class="rp-row"><span class="rp-val" id="propRot">0°</span></div>
-      </div>
-      <div class="rp-section custom-only">
-        <div class="rp-title">图层</div>
-        <div class="rp-btns">
-          <button class="rp-btn" id="propDown">↓</button>
-          <button class="rp-btn" id="propUp">↑</button>
-          <button class="rp-btn primary" id="propTop">⤒</button>
-        </div>
-      </div>
-      <div class="rp-section">
-        <button class="rp-btn" id="propDelete" style="width:100%;color:#ff6b6b;border-color:#ffccc7">删除</button>
-      </div>
+      <div class="rp-section"><button class="rp-btn" id="propDelete" style="width:100%;color:#ff6b6b;border-color:#ffccc7">删除</button></div>
     </div>
   </div>
 </div>
 
 <!-- ========== 图片编辑弹窗 ========== -->
 <div class="editor-modal" id="editorModal">
+  <!-- 顶部操作栏 -->
+  <div class="editor-top">
+    <div class="ed-top-left">
+      <svg class="ed-top-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+      <span class="ed-top-title">图片编辑</span>
+    </div>
+    <div class="ed-top-center" id="edQuickBar">
+      <!-- JS generates draggable quick buttons -->
+    </div>
+    <div class="ed-top-right">
+      <button class="sb-btn" id="edAddToPool">推送图片</button>
+      <button class="sb-btn" id="edBatchPush">批量推送</button>
+      <button class="sb-btn" id="editorCancel">取消</button>
+      <button class="sb-btn primary" id="editorSave">应用并关闭</button>
+    </div>
+  </div>
   <div class="editor-body">
-    <!-- 左侧手风琴工具栏 -->
+    <!-- 左侧手风琴 -->
     <div class="editor-left">
+      <!-- AI消除（默认展开） -->
+      <div class="acc-section open" data-mode="erase">
+        <div class="acc-header">AI消除 <span class="acc-icon">🧹</span></div>
+        <div class="acc-body"><div class="acc-inner">
+          <div style="font-size:11px;color:#999;margin-bottom:6px">展开即进入涂抹，松手自动调用AI消除</div>
+          <div class="acc-btn-row" style="margin-bottom:6px">
+            <button class="acc-btn active" id="edEraseBrush">画笔</button>
+            <button class="acc-btn" id="edEraseBox">框选</button>
+          </div>
+          <div class="acc-slider">
+            <div class="slider-header"><span>笔刷大小</span><span class="slider-val" id="edEraseBrushVal">20</span></div>
+            <input type="range" id="edEraseBrushSize" min="5" max="80" value="20">
+          </div>
+        </div></div>
+      </div>
       <!-- 旋转翻转 -->
-      <div class="acc-section open">
+      <div class="acc-section">
         <div class="acc-header">旋转翻转 <span class="acc-icon">🔄</span></div>
         <div class="acc-body"><div class="acc-inner">
           <button class="acc-btn" id="edRotate90">↻ 旋转 90°</button>
@@ -410,22 +374,10 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f0f0;color:#33
       <div class="acc-section">
         <div class="acc-header">滤镜调节 <span class="acc-icon">🎨</span></div>
         <div class="acc-body"><div class="acc-inner">
-          <div class="acc-slider">
-            <div class="slider-header"><span>亮度</span><span class="slider-val" id="edBrightVal">100</span></div>
-            <input type="range" id="edBright" min="0" max="200" value="100">
-          </div>
-          <div class="acc-slider">
-            <div class="slider-header"><span>对比度</span><span class="slider-val" id="edContrastVal">100</span></div>
-            <input type="range" id="edContrast" min="0" max="200" value="100">
-          </div>
-          <div class="acc-slider">
-            <div class="slider-header"><span>饱和度</span><span class="slider-val" id="edSaturateVal">100</span></div>
-            <input type="range" id="edSaturate" min="0" max="200" value="100">
-          </div>
-          <div class="acc-btn-row">
-            <button class="acc-btn" id="edFilterReset">重置</button>
-            <button class="acc-btn primary" id="edFilterApply">应用</button>
-          </div>
+          <div class="acc-slider"><div class="slider-header"><span>亮度</span><span class="slider-val" id="edBrightVal">100</span></div><input type="range" id="edBright" min="0" max="200" value="100"></div>
+          <div class="acc-slider"><div class="slider-header"><span>对比度</span><span class="slider-val" id="edContrastVal">100</span></div><input type="range" id="edContrast" min="0" max="200" value="100"></div>
+          <div class="acc-slider"><div class="slider-header"><span>饱和度</span><span class="slider-val" id="edSaturateVal">100</span></div><input type="range" id="edSaturate" min="0" max="200" value="100"></div>
+          <div class="acc-btn-row"><button class="acc-btn" id="edFilterReset">重置</button><button class="acc-btn primary" id="edFilterApply">应用</button></div>
         </div></div>
       </div>
       <!-- 马赛克 -->
@@ -443,54 +395,41 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f0f0;color:#33
           </div>
         </div></div>
       </div>
-      <!-- AI消除 -->
-      <div class="acc-section" data-mode="erase">
-        <div class="acc-header">AI消除 <span class="acc-icon">🧹</span></div>
-        <div class="acc-body"><div class="acc-inner">
-          <div style="font-size:11px;color:#999;margin-bottom:6px">展开即进入涂抹，松手自动调用AI消除</div>
-          <div class="acc-btn-row" style="margin-bottom:6px">
-            <button class="acc-btn active" id="edEraseBrush">画笔</button>
-            <button class="acc-btn" id="edEraseBox">框选</button>
-          </div>
-          <div class="acc-slider">
-            <div class="slider-header"><span>笔刷大小</span><span class="slider-val" id="edEraseBrushVal">20</span></div>
-            <input type="range" id="edEraseBrushSize" min="5" max="80" value="20">
-          </div>
-        </div></div>
-      </div>
       <!-- AI工具 -->
       <div class="acc-section">
         <div class="acc-header">AI工具 <span class="acc-icon">✨</span></div>
         <div class="acc-body"><div class="acc-inner">
+          <button class="acc-btn" id="edAiCutout">AI 抠图</button>
           <button class="acc-btn" id="edAiWhiteBg">AI 白底图</button>
           <button class="acc-btn" id="edAiEnhance">AI 画质增强</button>
         </div></div>
       </div>
     </div>
 
-    <!-- 中间画布区域 -->
+    <!-- 中间画布 -->
     <div class="editor-center">
       <div class="editor-canvas-wrap" id="editorCanvasWrap">
         <canvas id="editorImgCanvas"></canvas>
         <canvas id="editorMaskCanvas"></canvas>
       </div>
       <div class="editor-status" id="editorStatus">就绪</div>
+      <div class="editor-processing" id="editorProcessing">
+        <div class="ai-spinner"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+        <div class="editor-processing-text" id="editorProcessText">处理中...</div>
+      </div>
     </div>
-  </div>
 
-  <!-- 底部操作栏 -->
-  <div class="editor-footer">
-    <button class="sb-btn" id="editorCancel">取消</button>
-    <button class="sb-btn primary" id="editorSave">保存并关闭</button>
+    <!-- 右侧图片列表 -->
+    <div class="editor-right">
+      <div class="er-title">图片列表 (<span id="erCount">0</span>)</div>
+      <div class="er-list" id="editorImageList"></div>
+    </div>
   </div>
 </div>
 
 <!-- 预览弹窗 -->
 <div class="preview-mask" id="previewMask">
-  <div class="preview-box">
-    <img id="previewImg" src="" alt="预览">
-    <button class="preview-close" id="previewClose">关闭</button>
-  </div>
+  <div class="preview-box"><img id="previewImg" src="" alt="预览"><button class="preview-close" id="previewClose">关闭</button></div>
 </div>
 
 <!-- AI loading -->
@@ -500,7 +439,6 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f0f0;color:#33
 </div>
 
 <div class="toast" id="toast"></div>
-
 <script src="dxm-collage.js"></script>
 </body>
 </html>

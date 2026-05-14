@@ -340,4 +340,50 @@ router.post('/enhance', function (req, res) {
   });
 });
 
+// ===== AI抠图（@imgly/background-removal 服务端）=====
+var bgRemovalLib = null;
+function getBgRemovalLib() {
+  if (bgRemovalLib) return Promise.resolve(bgRemovalLib);
+  return import('@imgly/background-removal').then(function (mod) {
+    bgRemovalLib = mod.removeBackground;
+    return bgRemovalLib;
+  });
+}
+
+router.post('/remove-bg', function (req, res) {
+  var imageBase64 = req.body.image_base64;
+  if (!imageBase64) return res.status(400).json({ error: '请先加载图片' });
+
+  console.log('[AI抠图] 开始...');
+  var t0 = Date.now();
+
+  // base64 → Buffer → Blob
+  var base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+  var buf = Buffer.from(base64Data, 'base64');
+  var blob = new Blob([buf], { type: 'image/png' });
+
+  getBgRemovalLib().then(function (removeBg) {
+    return removeBg(blob);
+  }).then(function (resultBlob) {
+    // resultBlob → Buffer → save to uploads
+    return resultBlob.arrayBuffer().then(function (ab) {
+      var resultBuf = Buffer.from(ab);
+      var filename = 'removebg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8) + '.png';
+      var filepath = path.join(UPLOADS_DIR, filename);
+      return new Promise(function (resolve, reject) {
+        fs.writeFile(filepath, resultBuf, function (err) {
+          if (err) return reject(err);
+          resolve('/uploads/' + filename);
+        });
+      });
+    });
+  }).then(function (localUrl) {
+    console.log('[AI抠图] 完成, 耗时:', Date.now() - t0, 'ms');
+    res.json({ ok: true, url: localUrl });
+  }).catch(function (err) {
+    console.error('[AI抠图失败]', err.message);
+    res.status(502).json({ error: err.message });
+  });
+});
+
 module.exports = router;

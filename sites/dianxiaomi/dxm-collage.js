@@ -71,6 +71,28 @@
   var btnEditImage = document.getElementById('btnEditImage');
   var editHint = document.getElementById('editHint');
 
+  // ========== Helpers ==========
+  function getServerBase() {
+    if (serverBase) return serverBase;
+    return 'http://localhost:3000';
+  }
+
+  function urlToBase64(url) {
+    return new Promise(function (resolve, reject) {
+      if (url.indexOf('data:') === 0) { resolve(url); return; }
+      var img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = function () {
+        var c = document.createElement('canvas');
+        c.width = img.naturalWidth; c.height = img.naturalHeight;
+        c.getContext('2d').drawImage(img, 0, 0);
+        resolve(c.toDataURL('image/png'));
+      };
+      img.onerror = function () { reject(new Error('图片加载失败')); };
+      img.src = url;
+    });
+  }
+
   // ========== Mode Switch ==========
   function applyMode() {
     modeGrid.classList.toggle('active', mode === 'grid');
@@ -281,7 +303,7 @@
         if (selectedPoolId === item.id) selectedPoolId = null;
         buildPool();
         if (mode === 'custom') buildCanvasItems();
-        updateEditBtn();
+        updatePropBar(); updateEditBtn();
       });
       div.appendChild(rm);
       div.addEventListener('click', function (e) {
@@ -346,7 +368,6 @@
     selectedPoolId = null;
     activeCell = -1;
     clearPoolSelection();
-    // Update z-index and selected class directly — do NOT rebuild DOM (breaks drag)
     canvasBoard.querySelectorAll('.canvas-item,.canvas-text-item').forEach(function (el) {
       var itemId = parseInt(el.dataset.itemId);
       var isSel = itemId === id;
@@ -376,7 +397,6 @@
     }
   }
 
-  // "编辑图片"按钮状态
   function updateEditBtn() {
     var hasImage = !!getSelectedImageSrc();
     btnEditImage.disabled = !hasImage;
@@ -677,6 +697,7 @@
   var previewMask = document.getElementById('previewMask');
   var previewImg = document.getElementById('previewImg');
   document.getElementById('btnPreview').addEventListener('click', function () {
+    if (mode === 'custom') selectItem(null);
     if (mode === 'grid') {
       var g = getGrid(), total = g.cols * g.rows;
       var hasAny = false;
@@ -817,7 +838,7 @@
     });
   }
 
-  // ========== 选中图片 src ==========
+  // ========== Selected image helpers ==========
   function getSelectedImageSrc() {
     if (selectedPoolId) {
       var poolItem = imagePool.find(function (p) { return p.id === selectedPoolId; });
@@ -863,7 +884,7 @@
     }
   }
 
-  // ========== 文字工具 (侧边栏) ==========
+  // ========== 文字工具 ==========
   var fontSizeRange = document.getElementById('fontSizeRange');
   var fontSizeVal = document.getElementById('fontSizeVal');
   fontSizeRange.addEventListener('input', function () { fontSizeVal.textContent = this.value; });
@@ -883,7 +904,7 @@
     showToast('文字已添加', 'ok');
   });
 
-  // ========== AI 文生图 (侧边栏) ==========
+  // ========== AI 文生图 (hidden but functional) ==========
   var aiProcessing = document.getElementById('aiProcessing');
   var aiProcessText = document.getElementById('aiProcessText');
 
@@ -893,27 +914,6 @@
   }
   function hideAiLoading() {
     aiProcessing.style.display = 'none';
-  }
-
-  function getServerBase() {
-    if (serverBase) return serverBase;
-    return 'http://localhost:3000';
-  }
-
-  function urlToBase64(url) {
-    return new Promise(function (resolve, reject) {
-      if (url.indexOf('data:') === 0) { resolve(url); return; }
-      var img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = function () {
-        var c = document.createElement('canvas');
-        c.width = img.naturalWidth; c.height = img.naturalHeight;
-        c.getContext('2d').drawImage(img, 0, 0);
-        resolve(c.toDataURL('image/png'));
-      };
-      img.onerror = function () { reject(new Error('图片加载失败')); };
-      img.src = url;
-    });
   }
 
   document.getElementById('btnAiGen').addEventListener('click', function () {
@@ -967,48 +967,236 @@
   var editorImgCtx = editorImgCanvas.getContext('2d');
   var editorMaskCtx = editorMaskCanvas.getContext('2d');
   var editorStatus = document.getElementById('editorStatus');
+  var editorProcessing = document.getElementById('editorProcessing');
+  var editorProcessText = document.getElementById('editorProcessText');
+  var editorCenter = document.querySelector('.editor-center');
+  var editorCanvasWrap = document.getElementById('editorCanvasWrap');
 
+  // Filter DOM refs
+  var edBright = document.getElementById('edBright');
+  var edContrast = document.getElementById('edContrast');
+  var edSaturate = document.getElementById('edSaturate');
+  var edBrightVal = document.getElementById('edBrightVal');
+  var edContrastVal = document.getElementById('edContrastVal');
+  var edSaturateVal = document.getElementById('edSaturateVal');
+
+  // Editor state — copy-on-edit
+  var editorImages = [];   // [{ id, src, originalSrc, type, refId, label }]
+  var editorCurrentIdx = 0;
   var editorSrc = null;
   var editorOriginalSrc = null;
   var editorNatW = 0, editorNatH = 0;
   var editorScale = 1;
-  var editorDrawMode = ''; // '' | 'mosaic' | 'erase'
-  var editorTool = 'brush'; // 'brush' | 'box'
+  var editorDrawMode = '';
+  var editorTool = 'brush';
   var editorDrawing = false;
   var editorLastX = 0, editorLastY = 0;
   var editorBoxStart = null;
   var editorMaskSnapshot = null;
 
-  // 打开编辑器
+  // ===== Editor loading =====
+  function showEditorLoading(text) {
+    editorProcessText.textContent = text || '处理中...';
+    editorProcessing.classList.add('show');
+  }
+  function hideEditorLoading() {
+    editorProcessing.classList.remove('show');
+  }
+
+  // ===== Open editor — collect all images =====
   btnEditImage.addEventListener('click', function () {
     var src = getSelectedImageSrc();
     if (!src) { showToast('请先选中一张图片', 'err'); return; }
     openEditor(src);
   });
 
-  function openEditor(src) {
-    editorSrc = src;
-    editorOriginalSrc = src;
+  function openEditor(selectedSrc) {
+    var images = [];
+    imagePool.forEach(function (p) {
+      images.push({ id: 'p-' + p.id, src: p.src, originalSrc: p.src, type: 'pool', refId: p.id, label: '图片池 #' + p.id });
+    });
+    if (mode === 'grid') {
+      for (var k in cellImages) {
+        images.push({ id: 'c-' + k, src: cellImages[k], originalSrc: cellImages[k], type: 'cell', refId: parseInt(k), label: '格子 ' + (parseInt(k) + 1) });
+      }
+    }
+    if (mode === 'custom') {
+      canvasItems.forEach(function (c) {
+        if (c.src && c.type !== 'text') {
+          images.push({ id: 'cv-' + c.id, src: c.src, originalSrc: c.src, type: 'canvas', refId: c.id, label: '画布 #' + c.id });
+        }
+      });
+    }
+    if (!images.length) { showToast('没有可编辑的图片', 'err'); return; }
+
+    var startIdx = 0;
+    if (selectedSrc) {
+      for (var i = 0; i < images.length; i++) {
+        if (images[i].src === selectedSrc) { startIdx = i; break; }
+      }
+    }
+
+    editorImages = images;
+    editorCurrentIdx = startIdx;
     editorDrawMode = '';
     editorTool = 'brush';
     editorMaskCanvas.classList.remove('show');
+    // Reset tool button states to match editorTool='brush'
+    resetToolButtons();
+
+    loadEditorImage(startIdx);
+    buildEditorImageList();
+    editorModal.classList.add('show');
+  }
+
+  function resetToolButtons() {
+    var eb = document.getElementById('edEraseBrush');
+    var ebox = document.getElementById('edEraseBox');
+    var mb = document.getElementById('edMosBrush');
+    var mbox = document.getElementById('edMosBox');
+    if (eb) { eb.classList.add('active'); }
+    if (ebox) { ebox.classList.remove('active'); }
+    if (mb) { mb.classList.add('active'); }
+    if (mbox) { mbox.classList.remove('active'); }
+    // Top toolbar buttons
+    updateTopToolbar();
+  }
+
+  function updateTopToolbar() {
+    var bar = document.getElementById('edQuickBar');
+    if (!bar) return;
+    bar.querySelectorAll('.ed-quick-btn').forEach(function (btn) {
+      var action = btn.dataset.btnId;
+      var isActive = false;
+      if (action === 'eraseBrush') isActive = (editorTool === 'brush' && editorDrawMode === 'erase');
+      else if (action === 'eraseBox') isActive = (editorTool === 'box' && editorDrawMode === 'erase');
+      btn.classList.toggle('active', isActive);
+    });
+  }
+
+  function loadEditorImage(idx) {
+    editorCurrentIdx = idx;
+    var imgData = editorImages[idx];
+    editorSrc = imgData.src;
+    editorOriginalSrc = imgData.originalSrc;
+    resetFilterSliders();
 
     var img = new Image();
     img.onload = function () {
       editorNatW = img.naturalWidth;
       editorNatH = img.naturalHeight;
       fitEditorCanvas();
+      editorImgCtx.clearRect(0, 0, editorImgCanvas.width, editorImgCanvas.height);
       editorImgCtx.drawImage(img, 0, 0, editorImgCanvas.width, editorImgCanvas.height);
       editorMaskCtx.clearRect(0, 0, editorMaskCanvas.width, editorMaskCanvas.height);
-      editorModal.classList.add('show');
+      restoreDrawMode();
       updateEditorStatus();
     };
-    img.src = src;
+    img.src = editorSrc;
   }
 
+  function switchEditorImage(newIdx) {
+    if (newIdx === editorCurrentIdx) return;
+    if (editorProcessing.classList.contains('show')) return; // prevent switch during AI processing
+    // Save current edits to copy
+    editorImages[editorCurrentIdx].src = editorSrc;
+    exitDrawMode();
+    loadEditorImage(newIdx);
+    buildEditorImageList();
+  }
+
+  function buildEditorImageList() {
+    var list = document.getElementById('editorImageList');
+    list.innerHTML = '';
+    document.getElementById('erCount').textContent = editorImages.length;
+    editorImages.forEach(function (imgData, i) {
+      var item = document.createElement('div');
+      item.className = 'er-item' + (i === editorCurrentIdx ? ' active' : '');
+      var thumb = document.createElement('img');
+      thumb.src = imgData.src;
+      item.appendChild(thumb);
+      var info = document.createElement('div');
+      info.className = 'er-info';
+      var label = document.createElement('div');
+      label.className = 'er-label';
+      label.textContent = imgData.label;
+      info.appendChild(label);
+      var dot = document.createElement('span');
+      dot.className = 'er-dot' + (imgData.src !== imgData.originalSrc ? ' modified' : '');
+      info.appendChild(dot);
+      item.appendChild(info);
+      item.addEventListener('click', function () { switchEditorImage(i); });
+      list.appendChild(item);
+    });
+  }
+
+  function closeEditor() {
+    editorModal.classList.remove('show');
+    exitDrawMode();
+    hideEditorLoading();
+    editorImages = [];
+    editorCurrentIdx = 0;
+  }
+
+  // Cancel
+  document.getElementById('editorCancel').addEventListener('click', closeEditor);
+
+  // Save and close — sync edited copies back to originals
+  document.getElementById('editorSave').addEventListener('click', function () {
+    editorImages[editorCurrentIdx].src = editorSrc;
+
+    editorImages.forEach(function (img) {
+      if (img.src !== img.originalSrc) {
+        if (img.type === 'pool') {
+          var p = imagePool.find(function (p) { return p.id === img.refId; });
+          if (p) {
+            p.src = img.src;
+            canvasItems.forEach(function (c) { if (c.poolId === p.id) c.src = img.src; });
+          }
+        } else if (img.type === 'cell') {
+          cellImages[img.refId] = img.src;
+        } else if (img.type === 'canvas') {
+          var c = canvasItems.find(function (c) { return c.id === img.refId; });
+          if (c) c.src = img.src;
+        }
+      }
+    });
+    buildPool();
+    if (mode === 'grid') buildGrid();
+    if (mode === 'custom') { buildCanvasItems(); updatePropBar(); }
+    closeEditor();
+    showToast('所有修改已保存', 'ok');
+  });
+
+  // Add current edited image to external pool
+  // Push current edited image to external pool
+  document.getElementById('edAddToPool').addEventListener('click', function () {
+    if (!editorSrc) return;
+    if (editorProcessing.classList.contains('show')) return;
+    editorImages[editorCurrentIdx].src = editorSrc;
+    addToPool(editorSrc);
+    showToast('已推送当前图片', 'ok');
+  });
+
+  // Batch push all edited images to external pool
+  document.getElementById('edBatchPush').addEventListener('click', function () {
+    if (editorProcessing.classList.contains('show')) return;
+    editorImages[editorCurrentIdx].src = editorSrc;
+    var count = 0;
+    editorImages.forEach(function (img) {
+      if (img.src !== img.originalSrc) {
+        addToPool(img.src);
+        count++;
+      }
+    });
+    if (count === 0) { showToast('没有编辑过的图片', 'err'); return; }
+    showToast('已批量推送 ' + count + ' 张图片', 'ok');
+  });
+
+  // ===== Editor canvas helpers =====
   function fitEditorCanvas() {
-    var maxW = window.innerWidth - 240;
-    var maxH = window.innerHeight - 80;
+    var maxW = window.innerWidth - 200 - 120 - 80;
+    var maxH = window.innerHeight - 50 - 50;
     editorScale = Math.min(maxW / editorNatW, maxH / editorNatH, 1);
     var cw = Math.round(editorNatW * editorScale);
     var ch = Math.round(editorNatH * editorScale);
@@ -1031,24 +1219,20 @@
     else editorStatus.textContent = '就绪 — 从左侧选择工具编辑图片';
   }
 
-  // 关闭编辑器
-  document.getElementById('editorCancel').addEventListener('click', closeEditor);
-  function closeEditor() {
-    editorModal.classList.remove('show');
-    editorDrawMode = '';
-    editorMaskCanvas.classList.remove('show');
+  function resetFilterSliders() {
+    edBright.value = 100; edContrast.value = 100; edSaturate.value = 100;
+    edBrightVal.textContent = '100'; edContrastVal.textContent = '100'; edSaturateVal.textContent = '100';
   }
 
-  // 保存并关闭
-  document.getElementById('editorSave').addEventListener('click', function () {
-    if (editorSrc !== editorOriginalSrc) {
-      updateSelectedImage(editorSrc);
-      showToast('图片已更新', 'ok');
+  function restoreDrawMode() {
+    var openSection = editorModal.querySelector('.acc-section.open');
+    if (openSection) {
+      var m = openSection.dataset.mode;
+      if (m === 'mosaic' || m === 'erase') startDrawMode(m);
     }
-    closeEditor();
-  });
+  }
 
-  // ===== 手风琴切换 =====
+  // ===== Accordion =====
   editorModal.querySelectorAll('.acc-header').forEach(function (header) {
     header.addEventListener('click', function () {
       var section = this.parentElement;
@@ -1056,7 +1240,6 @@
       editorModal.querySelectorAll('.acc-section').forEach(function (s) { s.classList.remove('open'); });
       if (!wasOpen) {
         section.classList.add('open');
-        // Auto-enter draw mode for mosaic/erase
         var m = section.dataset.mode;
         if (m === 'mosaic' || m === 'erase') {
           startDrawMode(m);
@@ -1069,7 +1252,7 @@
     });
   });
 
-  // ===== 通用图片变换 =====
+  // ===== Transform helper =====
   function transformEditorImage(fn) {
     var img = new Image();
     img.onload = function () {
@@ -1087,7 +1270,7 @@
     img.src = editorSrc;
   }
 
-  // ===== 旋转/翻转 =====
+  // ===== Rotate / Flip =====
   document.getElementById('edRotate90').addEventListener('click', function () {
     transformEditorImage(function (ctx, img, c) {
       c.width = img.height; c.height = img.width;
@@ -1107,14 +1290,7 @@
     showToast('翻转成功', 'ok');
   });
 
-  // ===== 滤镜 =====
-  var edBright = document.getElementById('edBright');
-  var edContrast = document.getElementById('edContrast');
-  var edSaturate = document.getElementById('edSaturate');
-  var edBrightVal = document.getElementById('edBrightVal');
-  var edContrastVal = document.getElementById('edContrastVal');
-  var edSaturateVal = document.getElementById('edSaturateVal');
-
+  // ===== Filters =====
   function onEdSliderInput() {
     edBrightVal.textContent = edBright.value;
     edContrastVal.textContent = edContrast.value;
@@ -1125,8 +1301,7 @@
   edSaturate.addEventListener('input', onEdSliderInput);
 
   document.getElementById('edFilterReset').addEventListener('click', function () {
-    edBright.value = 100; edContrast.value = 100; edSaturate.value = 100;
-    onEdSliderInput();
+    resetFilterSliders();
     if (editorSrc !== editorOriginalSrc) {
       editorSrc = editorOriginalSrc;
       var img = new Image();
@@ -1147,56 +1322,189 @@
       ctx.filter = 'brightness(' + b + '%) contrast(' + c + '%) saturate(' + s + '%)';
       ctx.drawImage(img, 0, 0);
     });
-    edBright.value = 100; edContrast.value = 100; edSaturate.value = 100;
-    onEdSliderInput();
+    resetFilterSliders();
     showToast('滤镜已应用', 'ok');
   });
 
-  // ===== 涂抹模式管理 =====
+  // ===== Draw mode management =====
   function startDrawMode(type) {
     editorDrawMode = type;
     editorMaskCtx.clearRect(0, 0, editorMaskCanvas.width, editorMaskCanvas.height);
     editorMaskCanvas.classList.add('show');
+    editorCenter.style.cursor = 'crosshair';
     updateEditorStatus();
+    updateTopToolbar();
   }
 
   function exitDrawMode() {
     editorDrawMode = '';
     editorMaskCanvas.classList.remove('show');
+    editorCenter.style.cursor = '';
     updateEditorStatus();
+    updateTopToolbar();
   }
 
-  // ===== 马赛克 涂抹控制 =====
+  // ===== Mosaic brush/box controls =====
   document.getElementById('edMosBrush').addEventListener('click', function () {
     editorTool = 'brush';
     this.classList.add('active');
     document.getElementById('edMosBox').classList.remove('active');
+    updateTopToolbar();
   });
   document.getElementById('edMosBox').addEventListener('click', function () {
     editorTool = 'box';
     this.classList.add('active');
     document.getElementById('edMosBrush').classList.remove('active');
+    updateTopToolbar();
   });
   document.getElementById('edMosBrushSize').addEventListener('input', function () {
     document.getElementById('edMosBrushVal').textContent = this.value;
   });
 
-  // ===== AI消除 涂抹控制 =====
+  // ===== AI erase brush/box controls =====
   document.getElementById('edEraseBrush').addEventListener('click', function () {
     editorTool = 'brush';
     this.classList.add('active');
     document.getElementById('edEraseBox').classList.remove('active');
+    updateTopToolbar();
   });
   document.getElementById('edEraseBox').addEventListener('click', function () {
     editorTool = 'box';
     this.classList.add('active');
     document.getElementById('edEraseBrush').classList.remove('active');
+    updateTopToolbar();
   });
   document.getElementById('edEraseBrushSize').addEventListener('input', function () {
     document.getElementById('edEraseBrushVal').textContent = this.value;
   });
 
-  // ===== Mask 绘制 =====
+  // ===== Top quick bar — draggable buttons =====
+  var QUICK_ORDER_KEY = '__dxm_collage_quick_order';
+  var QUICK_BTNS = [
+    { id: 'eraseBrush', label: '画笔消除', icon: '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 14l2-2L13 3l1 1L5 13l-2 1z"/><path d="M11 2l2 2"/></svg>' },
+    { id: 'eraseBox', label: '框选消除', icon: '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="1"/><path d="M5 5l6 6M11 5l-6 6"/></svg>' },
+    { id: 'cutout', label: 'AI抠图', icon: '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="5.5"/><path d="M8 2v2M8 12v2M2 8h2M12 8h2"/></svg>' }
+  ];
+
+  function loadQuickOrder() {
+    try {
+      var saved = JSON.parse(localStorage.getItem(QUICK_ORDER_KEY));
+      if (saved && saved.length) return saved;
+    } catch (e) {}
+    return QUICK_BTNS.map(function (b) { return b.id; });
+  }
+  function saveQuickOrder() {
+    var bar = document.getElementById('edQuickBar');
+    if (!bar) return;
+    var order = [];
+    bar.querySelectorAll('.ed-quick-btn').forEach(function (b) { order.push(b.dataset.btnId); });
+    try { localStorage.setItem(QUICK_ORDER_KEY, JSON.stringify(order)); } catch (e) {}
+  }
+
+  function buildQuickBar() {
+    var bar = document.getElementById('edQuickBar');
+    if (!bar) return;
+    bar.innerHTML = '';
+    var order = loadQuickOrder();
+    order.forEach(function (id, idx) {
+      if (idx > 0) {
+        var sep = document.createElement('div');
+        sep.className = 'ed-quick-sep';
+        bar.appendChild(sep);
+      }
+      var config = QUICK_BTNS.find(function (b) { return b.id === id; });
+      if (!config) return;
+      var btn = document.createElement('div');
+      btn.className = 'ed-quick-btn';
+      btn.dataset.btnId = config.id;
+      btn.draggable = true;
+      btn.title = config.label;
+      btn.innerHTML = config.icon + '<span>' + config.label + '</span>';
+      bar.appendChild(btn);
+    });
+    // Bind click events
+    bar.querySelectorAll('.ed-quick-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = btn.dataset.btnId;
+        if (id === 'eraseBrush') triggerEraseBrush();
+        else if (id === 'eraseBox') triggerEraseBox();
+        else if (id === 'cutout') document.getElementById('edAiCutout').click();
+      });
+    });
+    // Drag reorder
+    bar.addEventListener('dragstart', function (e) {
+      var btn = e.target.closest('.ed-quick-btn');
+      if (!btn) return;
+      e.dataTransfer.setData('text/plain', btn.dataset.btnId);
+      e.dataTransfer.effectAllowed = 'move';
+      requestAnimationFrame(function () { btn.classList.add('dragging'); });
+    });
+    bar.addEventListener('dragend', function (e) {
+      var btn = e.target.closest('.ed-quick-btn');
+      if (btn) btn.classList.remove('dragging');
+      bar.querySelectorAll('.ed-quick-btn').forEach(function (b) { b.classList.remove('drag-over'); });
+    });
+    bar.addEventListener('dragover', function (e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      var target = e.target.closest('.ed-quick-btn');
+      bar.querySelectorAll('.ed-quick-btn').forEach(function (b) { b.classList.remove('drag-over'); });
+      if (target && !target.classList.contains('dragging')) target.classList.add('drag-over');
+    });
+    bar.addEventListener('drop', function (e) {
+      e.preventDefault();
+      var target = e.target.closest('.ed-quick-btn');
+      if (!target) return;
+      var sourceId = e.dataTransfer.getData('text/plain');
+      var source = bar.querySelector('[data-btn-id="' + sourceId + '"]');
+      if (!source || source === target) { target.classList.remove('drag-over'); return; }
+      // Find source and target separator pairs
+      var allItems = Array.prototype.slice.call(bar.children);
+      var sourceIdx = allItems.indexOf(source);
+      var targetIdx = allItems.indexOf(target);
+      // Move source (and its preceding separator) before target
+      var sourceSep = sourceIdx > 0 && allItems[sourceIdx - 1].classList.contains('ed-quick-sep') ? allItems[sourceIdx - 1] : null;
+      if (sourceIdx < targetIdx) {
+        if (sourceSep) bar.insertBefore(sourceSep, target.nextSibling);
+        bar.insertBefore(source, target.nextSibling);
+      } else {
+        if (sourceSep) bar.insertBefore(sourceSep, target);
+        bar.insertBefore(source, target);
+      }
+      target.classList.remove('drag-over');
+      saveQuickOrder();
+    });
+  }
+
+  function triggerEraseBrush() {
+    editorTool = 'brush';
+    editorModal.querySelectorAll('.acc-section').forEach(function (s) { s.classList.remove('open'); });
+    var eraseSection = editorModal.querySelector('.acc-section[data-mode="erase"]');
+    if (eraseSection) eraseSection.classList.add('open');
+    startDrawMode('erase');
+    var eb = document.getElementById('edEraseBrush');
+    var ebox = document.getElementById('edEraseBox');
+    if (eb) eb.classList.add('active');
+    if (ebox) ebox.classList.remove('active');
+    updateTopToolbar();
+  }
+
+  function triggerEraseBox() {
+    editorTool = 'box';
+    editorModal.querySelectorAll('.acc-section').forEach(function (s) { s.classList.remove('open'); });
+    var eraseSection = editorModal.querySelector('.acc-section[data-mode="erase"]');
+    if (eraseSection) eraseSection.classList.add('open');
+    startDrawMode('erase');
+    var eb = document.getElementById('edEraseBrush');
+    var ebox = document.getElementById('edEraseBox');
+    if (eb) eb.classList.remove('active');
+    if (ebox) ebox.classList.add('active');
+    updateTopToolbar();
+  }
+
+  buildQuickBar();
+
+  // ===== Mask drawing =====
   function getEditorBrushSize() {
     if (editorDrawMode === 'mosaic') return parseInt(document.getElementById('edMosBrushSize').value) || 20;
     return parseInt(document.getElementById('edEraseBrushSize').value) || 20;
@@ -1206,9 +1514,10 @@
     return editorDrawMode === 'mosaic' ? 'rgba(128,0,255,0.45)' : 'rgba(255,60,60,0.45)';
   }
 
+  // Map page coordinates to image-canvas coordinates (even outside the image)
   function getEditorPos(e) {
-    var rect = editorMaskCanvas.getBoundingClientRect();
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    var imgRect = editorCanvasWrap.getBoundingClientRect();
+    return { x: e.clientX - imgRect.left, y: e.clientY - imgRect.top };
   }
 
   function drawBrushAt(x, y) {
@@ -1238,29 +1547,44 @@
     editorMaskCtx.fillRect(sx, sy, sw, sh);
   }
 
-  editorMaskCanvas.addEventListener('mousedown', function (e) {
+  // Mousedown on editorCenter — supports starting from outside the image
+  editorCenter.addEventListener('mousedown', function (e) {
     if (!editorDrawMode) return;
+    // Ignore clicks on processing overlay or non-canvas areas
+    if (e.target.closest('.editor-processing') || e.target.closest('.editor-status')) return;
     e.preventDefault();
     var pos = getEditorPos(e);
     editorDrawing = true;
     editorLastX = pos.x; editorLastY = pos.y;
     if (editorTool === 'brush') {
-      drawBrushAt(pos.x, pos.y);
+      // Clamp brush to image bounds
+      var cx = Math.max(0, Math.min(editorMaskCanvas.width, pos.x));
+      var cy = Math.max(0, Math.min(editorMaskCanvas.height, pos.y));
+      drawBrushAt(cx, cy);
+      editorLastX = cx; editorLastY = cy;
     } else {
       editorBoxStart = { x: pos.x, y: pos.y };
       editorMaskSnapshot = editorMaskCtx.getImageData(0, 0, editorMaskCanvas.width, editorMaskCanvas.height);
     }
   });
 
-  editorMaskCanvas.addEventListener('mousemove', function (e) {
+  // Mousemove on document — tracks even outside editorCenter for box mode
+  document.addEventListener('mousemove', function (e) {
     if (!editorDrawing || !editorDrawMode) return;
     var pos = getEditorPos(e);
     if (editorTool === 'brush') {
-      drawBrushLine(editorLastX, editorLastY, pos.x, pos.y);
-      editorLastX = pos.x; editorLastY = pos.y;
+      var cx = Math.max(0, Math.min(editorMaskCanvas.width, pos.x));
+      var cy = Math.max(0, Math.min(editorMaskCanvas.height, pos.y));
+      drawBrushLine(editorLastX, editorLastY, cx, cy);
+      editorLastX = cx; editorLastY = cy;
     } else if (editorBoxStart) {
+      // Clamp box coordinates for drawing on mask canvas
+      var sx = Math.max(0, Math.min(editorMaskCanvas.width, pos.x));
+      var sy = Math.max(0, Math.min(editorMaskCanvas.height, pos.y));
+      var bx = Math.max(0, Math.min(editorMaskCanvas.width, editorBoxStart.x));
+      var by = Math.max(0, Math.min(editorMaskCanvas.height, editorBoxStart.y));
       if (editorMaskSnapshot) editorMaskCtx.putImageData(editorMaskSnapshot, 0, 0);
-      drawBoxPreview(editorBoxStart.x, editorBoxStart.y, pos.x, pos.y);
+      drawBoxPreview(bx, by, sx, sy);
     }
   });
 
@@ -1269,7 +1593,6 @@
     editorDrawing = false;
     editorBoxStart = null;
     editorMaskSnapshot = null;
-    // Auto-apply after drawing (like meitu editor)
     if (wasDrawing && editorDrawMode && hasMaskData()) {
       if (editorDrawMode === 'mosaic') {
         applyEditorMosaic();
@@ -1278,8 +1601,10 @@
       }
     }
   }
-  editorMaskCanvas.addEventListener('mouseup', stopEditorDraw);
-  editorMaskCanvas.addEventListener('mouseleave', stopEditorDraw);
+  // Mouseup on document — always captures
+  document.addEventListener('mouseup', function (e) {
+    if (editorDrawing) stopEditorDraw();
+  });
 
   function hasMaskData() {
     var md = editorMaskCtx.getImageData(0, 0, editorMaskCanvas.width, editorMaskCanvas.height);
@@ -1289,7 +1614,6 @@
     return false;
   }
 
-  // 将 mask 放大到原始尺寸并转黑白
   function buildOrigMask() {
     var mc = document.createElement('canvas');
     mc.width = editorNatW; mc.height = editorNatH;
@@ -1314,7 +1638,7 @@
     return c;
   }
 
-  // ===== 马赛克 应用 =====
+  // ===== Mosaic apply =====
   function applyEditorMosaic() {
     var origCanvas = getOrigImageCanvas();
     var maskCtx = buildOrigMask();
@@ -1353,29 +1677,27 @@
     }
     imgCtx.putImageData(imgData, 0, 0);
     editorSrc = origCanvas.toDataURL('image/png');
-    // Clear mask and refresh canvas, stay in draw mode for more strokes
     editorMaskCtx.clearRect(0, 0, editorMaskCanvas.width, editorMaskCanvas.height);
     refreshEditorCanvas();
     showToast('马赛克已应用', 'ok');
   }
 
-  // ===== AI消除 应用 =====
+  // ===== AI inpaint =====
   function applyEditorInpaint() {
     var origCanvas = getOrigImageCanvas();
     var maskCtx = buildOrigMask();
     var imageBase64 = origCanvas.toDataURL('image/png');
     var maskBase64 = maskCtx.canvas.toDataURL('image/png');
 
-    // Clear mask immediately so user sees progress
     editorMaskCtx.clearRect(0, 0, editorMaskCanvas.width, editorMaskCanvas.height);
     editorStatus.textContent = 'AI消除中...';
-    showAiLoading('AI消除中...');
+    showEditorLoading('AI消除中...');
     fetch(getServerBase() + '/api/ai/inpaint', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ image_base64: imageBase64, mask_base64: maskBase64 })
     }).then(function (res) { return res.json(); }).then(function (data) {
-      hideAiLoading();
+      hideEditorLoading();
       if (data.error) { showToast('AI消除失败: ' + data.error, 'err'); updateEditorStatus(); return; }
       var newUrl = data.url;
       if (newUrl && !newUrl.startsWith('data:')) {
@@ -1395,16 +1717,16 @@
         showToast('AI消除完成', 'ok');
       });
     }).catch(function (err) {
-      hideAiLoading();
+      hideEditorLoading();
       showToast('AI消除失败: ' + err.message, 'err');
       updateEditorStatus();
     });
   }
 
-  // ===== AI 白底图 / 画质增强 =====
+  // ===== AI white bg =====
   document.getElementById('edAiWhiteBg').addEventListener('click', function () {
     if (!editorSrc) return;
-    showAiLoading('AI 白底图生成中...');
+    showEditorLoading('AI 白底图生成中...');
     urlToBase64(editorSrc).then(function (base64) {
       return fetch(getServerBase() + '/api/ai/white-bg', {
         method: 'POST',
@@ -1412,7 +1734,7 @@
         body: JSON.stringify({ image_base64: base64 })
       });
     }).then(function (res) { return res.json(); }).then(function (data) {
-      hideAiLoading();
+      hideEditorLoading();
       if (data.error) { showToast(data.error, 'err'); return; }
       var newUrl = data.url;
       if (newUrl && !newUrl.startsWith('data:')) newUrl = getServerBase() + newUrl;
@@ -1428,14 +1750,15 @@
         showToast('AI白底图生成成功', 'ok');
       });
     }).catch(function (err) {
-      hideAiLoading();
+      hideEditorLoading();
       showToast('AI处理失败: ' + err.message, 'err');
     });
   });
 
+  // ===== AI enhance =====
   document.getElementById('edAiEnhance').addEventListener('click', function () {
     if (!editorSrc) return;
-    showAiLoading('AI 画质增强中...');
+    showEditorLoading('AI 画质增强中...');
     urlToBase64(editorSrc).then(function (base64) {
       return fetch(getServerBase() + '/api/ai/enhance', {
         method: 'POST',
@@ -1443,7 +1766,7 @@
         body: JSON.stringify({ image_base64: base64 })
       });
     }).then(function (res) { return res.json(); }).then(function (data) {
-      hideAiLoading();
+      hideEditorLoading();
       if (data.error) { showToast(data.error, 'err'); return; }
       var newUrl = data.url;
       if (newUrl && !newUrl.startsWith('data:')) newUrl = getServerBase() + newUrl;
@@ -1459,8 +1782,42 @@
         showToast('AI画质增强成功', 'ok');
       });
     }).catch(function (err) {
-      hideAiLoading();
+      hideEditorLoading();
       showToast('AI处理失败: ' + err.message, 'err');
+    });
+  });
+
+  // ===== AI cutout (抠图) — server-side =====
+  document.getElementById('edAiCutout').addEventListener('click', function () {
+    if (!editorSrc) return;
+    showEditorLoading('AI 抠图中，请耐心等待...');
+    urlToBase64(editorSrc).then(function (base64) {
+      return fetch(getServerBase() + '/api/ai/remove-bg', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_base64: base64 })
+      });
+    }).then(function (res) { return res.json(); }).then(function (data) {
+      hideEditorLoading();
+      if (data.error) { showToast(data.error, 'err'); return; }
+      var newUrl = data.url;
+      if (newUrl && !newUrl.startsWith('data:')) newUrl = getServerBase() + newUrl;
+      urlToBase64(newUrl).then(function (base64) {
+        editorSrc = base64;
+        var img = new Image();
+        img.onload = function () {
+          editorNatW = img.naturalWidth; editorNatH = img.naturalHeight;
+          fitEditorCanvas();
+          editorImgCtx.clearRect(0, 0, editorImgCanvas.width, editorImgCanvas.height);
+          editorImgCtx.drawImage(img, 0, 0, editorImgCanvas.width, editorImgCanvas.height);
+          editorMaskCtx.clearRect(0, 0, editorMaskCanvas.width, editorMaskCanvas.height);
+        };
+        img.src = base64;
+        showToast('AI抠图完成', 'ok');
+      });
+    }).catch(function (err) {
+      hideEditorLoading();
+      showToast('AI抠图失败: ' + err.message, 'err');
     });
   });
 
