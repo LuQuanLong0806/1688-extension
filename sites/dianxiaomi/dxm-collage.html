@@ -82,10 +82,10 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f0f0;color:#33
 .rp-section{padding:10px 12px;border-bottom:1px solid #f0f0f0}
 .rp-section:last-child{border-bottom:none}
 .rp-title{font-size:11px;color:#999;letter-spacing:1px;margin-bottom:6px;font-weight:600;text-transform:uppercase}
-.pool-grid{display:flex;flex-wrap:wrap;gap:4px;min-height:20px}
-.pool-item{width:72px;height:72px;border-radius:5px;border:2px solid #e8e8e8;overflow:hidden;cursor:grab;position:relative;transition:border-color .15s}
+.pool-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:4px;min-height:20px}
+.pool-item{width:100%;aspect-ratio:1;border-radius:5px;border:2px solid #e8e8e8;overflow:hidden;cursor:grab;position:relative;transition:border-color .15s;box-sizing:border-box}
 .pool-item:hover{border-color:#7E57C2}
-.pool-item.active{border-color:#7E57C2;box-shadow:0 0 0 2px rgba(126,87,194,.3)}
+.pool-item.active{border-color:#7E57C2;outline:2px solid rgba(126,87,194,.3);outline-offset:-1px}
 .pool-item img{width:100%;height:100%;object-fit:cover;pointer-events:none}
 .pool-item .pool-check{position:absolute;bottom:2px;left:2px;width:14px;height:14px;border-radius:3px;border:1.5px solid #ccc;background:rgba(255,255,255,.85);cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;z-index:2}
 .pool-item .pool-check:hover{border-color:#7E57C2}
