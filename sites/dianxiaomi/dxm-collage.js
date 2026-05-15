@@ -293,21 +293,17 @@
       var img = document.createElement('img');
       img.src = item.src;
       div.appendChild(img);
-      var rm = document.createElement('button');
-      rm.className = 'pool-rm';
-      rm.textContent = '×';
-      rm.addEventListener('click', function (e) {
+      var ck = document.createElement('div');
+      ck.className = 'pool-check';
+      ck.addEventListener('click', function (e) {
         e.stopPropagation();
-        imagePool = imagePool.filter(function (p) { return p.id !== item.id; });
-        canvasItems = canvasItems.filter(function (c) { return c.poolId !== item.id; });
-        if (selectedPoolId === item.id) selectedPoolId = null;
-        buildPool();
-        if (mode === 'custom') buildCanvasItems();
-        updatePropBar(); updateEditBtn();
+        ck.classList.toggle('checked');
       });
-      div.appendChild(rm);
+      div.appendChild(ck);
+      var onCanvas = canvasItems.some(function (c) { return c.poolId === item.id; });
+      if (onCanvas) div.classList.add('on-canvas');
       div.addEventListener('click', function (e) {
-        if (e.target.classList.contains('pool-rm')) return;
+        if (e.target.classList.contains('pool-check')) return;
         selectPoolItem(item.id);
       });
       div.addEventListener('dragstart', function (e) {
@@ -777,6 +773,86 @@
     } catch (e) { showToast('导出失败: ' + e.message, 'err'); }
   }
 
+  // ========== 全选/取消 ==========
+  document.getElementById('poolToggleAll').addEventListener('click', function () {
+    var checks = document.querySelectorAll('.pool-check');
+    var allChecked = true;
+    checks.forEach(function (c) { if (!c.classList.contains('checked')) allChecked = false; });
+    checks.forEach(function (c) {
+      if (allChecked) c.classList.remove('checked');
+      else c.classList.add('checked');
+    });
+  });
+
+  // ========== 一键拼图（自定义模式自动排版）==========
+  document.getElementById('btnAutoLayout').addEventListener('click', function () {
+    // 收集勾选的图片
+    var checkedItems = [];
+    document.querySelectorAll('.pool-check.checked').forEach(function (ck) {
+      var poolId = parseInt(ck.parentElement.dataset.poolId);
+      var p = imagePool.find(function (p) { return p.id === poolId; });
+      if (p) checkedItems.push(p);
+    });
+
+    // 收集已在画布中的图片（通过 poolId）
+    var canvasPoolIds = [];
+    canvasItems.forEach(function (c) {
+      if (c.poolId && canvasPoolIds.indexOf(c.poolId) === -1) canvasPoolIds.push(c.poolId);
+    });
+    var canvasItems_list = canvasPoolIds.map(function (pid) {
+      return imagePool.find(function (p) { return p.id === pid; });
+    }).filter(Boolean);
+
+    // 确定排版图片：勾选 > 已在画布 > 全部
+    var images;
+    if (checkedItems.length > 0) {
+      images = checkedItems;
+    } else if (canvasItems_list.length > 0) {
+      images = canvasItems_list;
+    } else {
+      images = imagePool.slice();
+    }
+
+    if (!images.length) { showToast('没有可排版的图片', 'err'); return; }
+
+    // 移除画布中这些图片的旧位置
+    var imgIds = images.map(function (img) { return img.id; });
+    canvasItems = canvasItems.filter(function (c) {
+      return !c.poolId || imgIds.indexOf(c.poolId) === -1;
+    });
+
+    // 计算布局
+    var n = images.length;
+    var ratio = boardW / boardH;
+    var cols = Math.ceil(Math.sqrt(n * ratio));
+    var rows = Math.ceil(n / cols);
+    var gap = 4;
+    var cellW = (boardW - gap * (cols + 1)) / cols;
+    var cellH = (boardH - gap * (rows + 1)) / rows;
+
+    // 排列图片
+    var maxZ = canvasItems.reduce(function (m, c) { return Math.max(m, c.z || 0); }, 0);
+    images.forEach(function (img, idx) {
+      var col = idx % cols;
+      var row = Math.floor(idx / cols);
+      canvasItems.push({
+        id: nextId++,
+        poolId: img.id,
+        src: img.src,
+        x: Math.round(gap + col * (cellW + gap)),
+        y: Math.round(gap + row * (cellH + gap)),
+        w: Math.round(cellW),
+        h: Math.round(cellH),
+        rot: 0,
+        z: maxZ + idx + 1
+      });
+    });
+
+    buildCanvasItems();
+    buildPool();
+    showToast('已排版 ' + n + ' 张图片', 'ok');
+  });
+
   // ========== Render — Grid ==========
   function renderGridCanvas(g, total, onDone) {
     var cellSize = 600, gap = 12, pad = 16;
@@ -1225,6 +1301,22 @@
       dot.className = 'er-dot' + (imgData.src !== imgData.originalSrc ? ' modified' : '');
       info.appendChild(dot);
       item.appendChild(info);
+      var rm = document.createElement('button');
+      rm.className = 'er-rm';
+      rm.textContent = '×';
+      rm.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var removed = editorImages.splice(i, 1)[0];
+        if (!editorImages.length) { closeEditor(); return; }
+        if (i === editorCurrentIdx) {
+          editorCurrentIdx = Math.min(i, editorImages.length - 1);
+          loadEditorImage(editorCurrentIdx);
+        } else if (i < editorCurrentIdx) {
+          editorCurrentIdx--;
+        }
+        buildEditorImageList();
+      });
+      item.appendChild(rm);
       item.addEventListener('click', function () { switchEditorImage(i); });
       list.appendChild(item);
     });

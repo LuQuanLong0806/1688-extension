@@ -115,6 +115,11 @@ initDb().then(() => initTreeDb()).then(() => {
     console.log(`  管理页面: http://localhost:${PORT}`);
     console.log(`  API 地址: http://localhost:${PORT}/api`);
     console.log(`  数据库: ${DB_FILE}\n`);
+
+    // Uploads 定期清理（30天过期，每24小时扫描）
+    var cleanup = require('./services/cleanup');
+    cleanup.startCleanupScheduler(24 * 60 * 60 * 1000, 30);
+    setTimeout(function () { cleanup.runCleanup(30); }, 10000);
     // 自动打开管理页面
     var openUrl = 'http://localhost:' + PORT;
     var chromeExe = '';

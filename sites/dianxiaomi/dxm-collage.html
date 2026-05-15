@@ -116,9 +116,14 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f0f0;color:#33
 .pool-item:hover{border-color:#7E57C2}
 .pool-item.active{border-color:#7E57C2;box-shadow:0 0 0 2px rgba(126,87,194,.3)}
 .pool-item img{width:100%;height:100%;object-fit:cover;pointer-events:none}
-.pool-item .pool-rm{position:absolute;top:1px;right:1px;width:12px;height:12px;background:rgba(0,0,0,.5);color:#fff;border:none;border-radius:50%;font-size:8px;display:none;align-items:center;justify-content:center;cursor:pointer;line-height:1}
-.pool-item:hover .pool-rm{display:flex}
+.pool-item .pool-check{position:absolute;bottom:2px;left:2px;width:14px;height:14px;border-radius:3px;border:1.5px solid #ccc;background:rgba(255,255,255,.85);cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;z-index:2}
+.pool-item .pool-check:hover{border-color:#7E57C2}
+.pool-item .pool-check.checked{background:#7E57C2;border-color:#7E57C2}
+.pool-item .pool-check.checked::after{content:"✓";color:#fff;font-size:9px;font-weight:bold;line-height:1}
+.pool-item.on-canvas::after{content:"";position:absolute;top:3px;right:3px;width:8px;height:8px;border-radius:50%;background:#52c41a;border:1.5px solid #fff;z-index:2}
 .pool-empty{font-size:11px;color:#ccc;text-align:center;padding:6px 0}
+.pool-toggle-all{background:none;border:1px solid #ccc;border-radius:3px;cursor:pointer;font-size:13px;padding:0 4px;line-height:1;transition:all .15s}
+.pool-toggle-all:hover{border-color:#7E57C2;color:#7E57C2}
 .rp-empty{flex:1;display:flex;align-items:center;justify-content:center;color:#ccc;font-size:11px;text-align:center;padding:12px}
 .rp-content{display:none;flex-direction:column;padding:0}
 .rp-content.show{display:flex}
@@ -242,6 +247,10 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f0f0;color:#33
 .er-item .er-label{font-size:10px;color:#666;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .er-item .er-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#7E57C2;vertical-align:middle;margin-left:3px;display:none}
 .er-item .er-dot.modified{display:inline-block}
+.er-item{position:relative}
+.er-item .er-rm{position:absolute;top:4px;right:4px;width:16px;height:16px;background:rgba(0,0,0,.5);color:#fff;border:none;border-radius:50%;font-size:10px;display:none;align-items:center;justify-content:center;cursor:pointer;line-height:1;z-index:2}
+.er-item:hover .er-rm{display:flex}
+.er-item .er-rm:hover{background:rgba(255,0,0,.7)}
 </style>
 </head>
 <body>
@@ -317,8 +326,11 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f0f0;color:#33
   </div>
   <div class="right-panel" id="rightPanel">
     <div class="rp-section">
-      <div class="rp-title">图片列表</div>
+      <div class="rp-title" style="display:flex;align-items:center;justify-content:space-between">图片列表 <button class="pool-toggle-all" id="poolToggleAll" title="全选/取消">☐</button></div>
       <div class="pool-grid" id="poolBar"></div>
+    </div>
+    <div class="rp-section custom-only">
+      <button class="sb-btn primary big" id="btnAutoLayout">一键拼图</button>
     </div>
     <div class="rp-empty" id="rpEmpty">粘贴或拖入图片<br>拖拽到画布/宫格</div>
     <div class="rp-content" id="rpContent">
