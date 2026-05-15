@@ -593,6 +593,22 @@
     if (!canvasItems.length) { showToast('请先添加图片到画布', 'err'); return; }
     renderCustomCanvas(function (canvas) { downloadCanvas(canvas); });
   });
+
+  // ========== 复制拼图地址 ==========
+  document.getElementById('btnCopyCollage').addEventListener('click', function () {
+    if (!canvasItems.length) { showToast('请先添加图片到画布', 'err'); return; }
+    showToast('生成拼图并上传中...', 'loading');
+    renderCustomCanvas(function (canvas) {
+      var base64 = canvas.toDataURL('image/png');
+      uploadToSmms(base64).then(function (url) {
+        return navigator.clipboard.writeText(url);
+      }).then(function () {
+        showToast('已复制拼图地址', 'ok');
+      }).catch(function (err) {
+        showToast('复制失败: ' + err.message, 'err');
+      });
+    });
+  });
   function downloadCanvas(canvas) {
     try {
       var a = document.createElement('a');
