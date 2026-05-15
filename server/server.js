@@ -25,6 +25,9 @@ app.get('/collage', function (req, res) {
 app.get('/collage/dxm-collage.js', function (req, res) {
   res.sendFile(path.join(COLLAGE_DIR, 'dxm-collage.js'));
 });
+app.get('/dxm-collage.js', function (req, res) {
+  res.sendFile(path.join(COLLAGE_DIR, 'dxm-collage.js'));
+});
 
 // Image proxy (solve CORS for external images)
 app.get('/api/proxy-image', function (req, res) {

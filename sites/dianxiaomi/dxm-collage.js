@@ -1,30 +1,13 @@
 (function () {
-  var GRID_KEY = '__dxm_collage_grid';
-  var FIT_KEY = '__dxm_collage_fit';
-  var MODE_KEY = '__dxm_collage_mode';
   var BOARD_KEY = '__dxm_collage_board';
   var SERVER_KEY = '__dxm_collage_server';
-  var GRIDS = [
-    { cols: 2, rows: 2, label: '4宫格' },
-    { cols: 3, rows: 2, label: '6宫格' },
-    { cols: 3, rows: 3, label: '9宫格' },
-    { cols: 4, rows: 4, label: '16宫格' }
-  ];
 
   // ========== State ==========
-  var mode = 'grid';
-  try { var sm = localStorage.getItem(MODE_KEY); if (sm === 'custom') mode = sm; } catch (e) {}
-  var currentIdx = 0;
-  try { var sg = parseInt(localStorage.getItem(GRID_KEY)); if (sg >= 0 && sg < GRIDS.length) currentIdx = sg; } catch (e) {}
-  var fitMode = 'cover';
-  try { var sf = localStorage.getItem(FIT_KEY); if (sf === 'cover' || sf === 'contain' || sf === 'fill') fitMode = sf; } catch (e) {}
-  var cellImages = {};
   var imagePool = [];
   var canvasItems = [];
   var boardW = 800, boardH = 800;
   try { var sb = JSON.parse(localStorage.getItem(BOARD_KEY)); if (sb && sb.w > 0 && sb.h > 0) { boardW = sb.w; boardH = sb.h; } } catch (e) {}
 
-  var activeCell = -1;
   var nextId = 1;
   var selectedItemId = null;
   var selectedPoolId = null;
@@ -43,21 +26,12 @@
   }
 
   // ========== Save settings ==========
-  function saveGrid() {
-    try { localStorage.setItem(GRID_KEY, String(currentIdx)); } catch (e) {}
-    try { localStorage.setItem(FIT_KEY, fitMode); } catch (e) {}
-  }
   function saveBoard() {
     try { localStorage.setItem(BOARD_KEY, JSON.stringify({ w: boardW, h: boardH })); } catch (e) {}
   }
-  function saveMode() { try { localStorage.setItem(MODE_KEY, mode); } catch (e) {} }
 
   // ========== DOM refs ==========
-  var modeGrid = document.getElementById('modeGrid');
-  var modeCustom = document.getElementById('modeCustom');
-  var gridArea = document.getElementById('gridArea');
   var customArea = document.getElementById('customArea');
-  var gridOptsContainer = document.getElementById('gridOptsContainer');
   var canvasBoard = document.getElementById('canvasBoard');
   var canvasWrap = document.getElementById('canvasWrap');
   var canvasSizeEl = document.getElementById('canvasSize');
@@ -74,6 +48,9 @@
   // ========== Helpers ==========
   function getServerBase() {
     if (serverBase) return serverBase;
+    if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
+      return window.location.origin;
+    }
     return 'http://localhost:3000';
   }
 
@@ -93,140 +70,22 @@
     });
   }
 
-  // ========== Mode Switch ==========
+  // ========== Init Layout ==========
   function applyMode() {
-    modeGrid.classList.toggle('active', mode === 'grid');
-    modeCustom.classList.toggle('active', mode === 'custom');
-    gridArea.style.display = mode === 'grid' ? '' : 'none';
-    customArea.classList.toggle('show', mode === 'custom');
-    document.querySelectorAll('.grid-only').forEach(function (el) {
-      el.style.display = mode === 'grid' ? '' : 'none';
-    });
-    document.querySelectorAll('.custom-only').forEach(function (el) {
-      el.style.display = mode === 'custom' ? '' : 'none';
-    });
     buildPool();
-    if (mode === 'grid') { buildGrid(); }
-    else { applyBoardSize(); buildCanvasItems(); updatePropBar(); }
-    saveMode();
-  }
-  modeGrid.addEventListener('click', function () { mode = 'grid'; applyMode(); });
-  modeCustom.addEventListener('click', function () { mode = 'custom'; applyMode(); });
-
-  // ========== Grid Options ==========
-  GRIDS.forEach(function (g, i) {
-    var opt = document.createElement('div');
-    opt.className = 'grid-opt' + (i === currentIdx ? ' active' : '');
-    var preview = document.createElement('div');
-    preview.className = 'grid-preview';
-    preview.style.gridTemplateColumns = 'repeat(' + g.cols + ', 1fr)';
-    preview.style.gridTemplateRows = 'repeat(' + g.rows + ', 1fr)';
-    for (var j = 0; j < g.cols * g.rows; j++) preview.appendChild(document.createElement('span'));
-    var label = document.createElement('div');
-    label.className = 'grid-label';
-    label.textContent = g.label;
-    opt.appendChild(preview);
-    opt.appendChild(label);
-    opt.addEventListener('click', function () {
-      currentIdx = i;
-      try { localStorage.setItem(GRID_KEY, String(i)); } catch (e) {}
-      document.querySelectorAll('.grid-opt').forEach(function (el, idx) { el.classList.toggle('active', idx === i); });
-      activeCell = -1;
-      buildGrid();
-    });
-    gridOptsContainer.appendChild(opt);
-  });
-
-  // ========== Fit Mode ==========
-  document.getElementById('fitMode').value = fitMode;
-  document.getElementById('fitMode').addEventListener('change', function () {
-    fitMode = this.value;
-    try { localStorage.setItem(FIT_KEY, fitMode); } catch (e) {}
-    buildGrid();
-  });
-
-  // ========== Grid Mode ==========
-  function getGrid() { return GRIDS[currentIdx]; }
-  function buildGrid() {
-    saveGrid();
-    var g = getGrid(), grid = document.getElementById('grid');
-    grid.innerHTML = '';
-    grid.style.gridTemplateColumns = 'repeat(' + g.cols + ', 180px)';
-    var total = g.cols * g.rows;
-    for (var i = 0; i < total; i++) {
-      var cell = document.createElement('div');
-      cell.className = 'cell';
-      cell.dataset.idx = i;
-      if (cellImages[i]) {
-        cell.classList.add('has-img');
-        var img = document.createElement('img');
-        img.src = cellImages[i];
-        img.style.objectFit = fitMode;
-        cell.appendChild(img);
-        var rm = document.createElement('button');
-        rm.className = 'rm';
-        rm.textContent = '×';
-        (function (idx) {
-          rm.addEventListener('click', function (e) {
-            e.stopPropagation();
-            delete cellImages[idx];
-            buildGrid();
-          });
-        })(i);
-        cell.appendChild(rm);
-      } else {
-        var ph = document.createElement('div');
-        ph.className = 'ph';
-        ph.textContent = '粘贴或拖入图片';
-        cell.appendChild(ph);
-      }
-      (function (idx) {
-        cell.addEventListener('mouseenter', function () {
-          document.querySelectorAll('.cell').forEach(function (c) { c.classList.remove('cell-active'); });
-          this.classList.add('cell-active');
-          activeCell = idx;
-          selectedPoolId = null;
-          clearPoolSelection();
-          updatePropBar();
-          updateEditBtn();
-        });
-        cell.addEventListener('dragover', function (e) { e.preventDefault(); this.classList.add('dragover'); });
-        cell.addEventListener('dragleave', function () { this.classList.remove('dragover'); });
-        cell.addEventListener('drop', function (e) { e.preventDefault(); e.stopPropagation(); this.classList.remove('dragover'); handleDropGrid(e, idx); });
-      })(i);
-      grid.appendChild(cell);
-    }
-  }
-  function handleDropGrid(e, cellIdx) {
-    var poolId = parseInt(e.dataTransfer.getData('text/plain'));
-    if (poolId) {
-      var poolItem = imagePool.find(function (p) { return p.id === poolId; });
-      if (poolItem) { cellImages[cellIdx] = poolItem.src; buildGrid(); return; }
-    }
-    var files = e.dataTransfer.files;
-    if (files && files.length > 0) {
-      for (var i = 0; i < files.length; i++) {
-        if (files[i].type.indexOf('image/') === 0) { loadFile(files[i], cellIdx); return; }
-      }
-      return;
-    }
-    var html = e.dataTransfer.getData('text/html');
-    if (html) { var m = html.match(/src=["']([^"']+)["']/); if (m) { loadURL(m[1], cellIdx); return; } }
-    var text = e.dataTransfer.getData('text/plain');
-    if (text && /^https?:\/\//.test(text)) loadURL(text, cellIdx);
+    applyBoardSize(); buildCanvasItems(); updatePropBar();
   }
 
   // ========== Loaders ==========
-  function loadFile(file, cellIdx, cb) {
+  function loadFile(file, cb) {
     var reader = new FileReader();
     reader.onload = function (ev) {
       var src = ev.target.result;
-      if (mode === 'grid' && cellIdx !== undefined) { cellImages[cellIdx] = src; buildGrid(); }
       if (cb) cb(src);
     };
     reader.readAsDataURL(file);
   }
-  function loadURL(url, cellIdx, cb) {
+  function loadURL(url, cb) {
     var img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = function () {
@@ -236,11 +95,9 @@
       c.getContext('2d').drawImage(img, 0, 0);
       var dataUrl;
       try { dataUrl = c.toDataURL('image/png'); } catch (e) { dataUrl = url; }
-      if (mode === 'grid' && cellIdx !== undefined) { cellImages[cellIdx] = dataUrl; buildGrid(); }
       if (cb) cb(dataUrl);
     };
     img.onerror = function () {
-      if (mode === 'grid' && cellIdx !== undefined) { cellImages[cellIdx] = url; buildGrid(); }
       if (cb) cb(url);
     };
     img.src = url;
@@ -312,7 +169,7 @@
         canvasItems = canvasItems.filter(function (c) { return c.poolId !== item.id; });
         if (selectedPoolId === item.id) selectedPoolId = null;
         buildPool();
-        if (mode === 'custom') buildCanvasItems();
+        buildCanvasItems();
         updatePropBar(); updateEditBtn();
       });
       div.appendChild(rm);
@@ -403,8 +260,6 @@
   function selectPoolItem(poolId) {
     selectedPoolId = poolId;
     selectedItemId = null;
-    activeCell = -1;
-    document.querySelectorAll('.cell').forEach(function (c) { c.classList.remove('cell-active'); });
     canvasBoard.querySelectorAll('.canvas-item,.canvas-text-item').forEach(function (el) { el.classList.remove('selected'); });
     buildPool();
     updatePropBar();
@@ -419,7 +274,6 @@
   function selectItem(id) {
     selectedItemId = id;
     selectedPoolId = null;
-    activeCell = -1;
     clearPoolSelection();
     canvasBoard.querySelectorAll('.canvas-item,.canvas-text-item').forEach(function (el) {
       var itemId = parseInt(el.dataset.itemId);
@@ -451,7 +305,7 @@
   }
 
   function updateEditBtn() {
-    var hasAny = imagePool.length > 0 || Object.keys(cellImages).length > 0 || canvasItems.some(function (c) { return c.src && c.type !== 'text'; });
+    var hasAny = imagePool.length > 0 || canvasItems.some(function (c) { return c.src && c.type !== 'text'; });
     btnEditImage.disabled = !hasAny;
     editHint.style.display = hasAny ? 'none' : '';
   }
@@ -486,7 +340,7 @@
       canvasItems = canvasItems.filter(function (c) { return c.poolId !== selectedPoolId; });
       selectedPoolId = null;
       buildPool();
-      if (mode === 'custom') buildCanvasItems();
+      buildCanvasItems();
       updatePropBar(); updateEditBtn();
       return;
     }
@@ -666,44 +520,20 @@
 
   // ========== Paste ==========
   document.addEventListener('paste', function (e) {
-    if (mode === 'grid') {
-      var items = e.clipboardData && e.clipboardData.items;
-      if (items) {
-        for (var i = 0; i < items.length; i++) {
-          if (items[i].type.indexOf('image/') === 0) {
-            e.preventDefault();
-            loadFile(items[i].getAsFile(), undefined, function (src) {
-              addToPool(src);
-              if (activeCell >= 0) { cellImages[activeCell] = src; buildGrid(); }
-            });
-            return;
-          }
+    var items = e.clipboardData && e.clipboardData.items;
+    if (items) {
+      for (var i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image/') === 0) {
+          e.preventDefault();
+          loadFile(items[i].getAsFile(), function (src) { addToPool(src); });
+          return;
         }
       }
-      var text = e.clipboardData && e.clipboardData.getData('text/plain');
-      if (text && /^https?:\/\//.test(text)) {
-        e.preventDefault();
-        loadURL(text, undefined, function (src) {
-          addToPool(src);
-          if (activeCell >= 0) { cellImages[activeCell] = src; buildGrid(); }
-        });
-      }
-    } else {
-      var items2 = e.clipboardData && e.clipboardData.items;
-      if (items2) {
-        for (var j = 0; j < items2.length; j++) {
-          if (items2[j].type.indexOf('image/') === 0) {
-            e.preventDefault();
-            loadFile(items2[j].getAsFile(), undefined, function (src) { addToPool(src); });
-            return;
-          }
-        }
-      }
-      var text2 = e.clipboardData && e.clipboardData.getData('text/plain');
-      if (text2 && /^https?:\/\//.test(text2)) {
-        e.preventDefault();
-        loadURL(text2, undefined, function (src) { addToPool(src); });
-      }
+    }
+    var text = e.clipboardData && e.clipboardData.getData('text/plain');
+    if (text && /^https?:\/\//.test(text)) {
+      e.preventDefault();
+      loadURL(text, function (src) { addToPool(src); });
     }
   });
 
@@ -718,98 +548,50 @@
     if (!text) { showToast('剪贴板为空', 'err'); return; }
     var urls = text.split(/[\r\n]+/).map(function (s) { return s.trim(); }).filter(function (s) { return s && /^https?:\/\//i.test(s); });
     if (urls.length === 0) { showToast('剪贴板中未识别到图片地址', 'err'); return; }
-    if (mode === 'grid') {
-      var g = getGrid(), total = g.cols * g.rows;
-      showToast('正在加载 ' + urls.length + ' 张图片...', 'ok');
-      var loaded = 0;
-      urls.forEach(function (url, i) {
-        loadURL(url, undefined, function (src) {
-          addToPool(src);
-          if (i < total) { cellImages[i] = src; }
-          loaded++;
-          if (loaded >= urls.length) {
-            buildGrid();
-            showToast('已加载 ' + urls.length + ' 张图片', 'ok');
-          }
-        });
+    showToast('正在加载 ' + urls.length + ' 张图片...', 'ok');
+    var loaded = 0;
+    urls.forEach(function (url) {
+      loadURL(url, function (src) {
+        addToPool(src);
+        loaded++;
+        if (loaded >= urls.length) showToast('已添加 ' + urls.length + ' 张图片', 'ok');
       });
-    } else {
-      showToast('正在加载 ' + urls.length + ' 张图片...', 'ok');
-      var loaded2 = 0;
-      urls.forEach(function (url) {
-        loadURL(url, undefined, function (src) {
-          addToPool(src);
-          loaded2++;
-          if (loaded2 >= urls.length) showToast('已添加 ' + urls.length + ' 张图片', 'ok');
-        });
-      });
-    }
+    });
   }
 
   // ========== Preview ==========
   var previewMask = document.getElementById('previewMask');
   var previewImg = document.getElementById('previewImg');
   document.getElementById('btnPreview').addEventListener('click', function () {
-    if (mode === 'custom') selectItem(null);
-    if (mode === 'grid') {
-      var g = getGrid(), total = g.cols * g.rows;
-      var hasAny = false;
-      for (var k in cellImages) { hasAny = true; break; }
-      if (!hasAny) { showToast('请先添加图片', 'err'); return; }
-      renderGridCanvas(g, total, function (canvas) {
-        previewImg.src = canvas.toDataURL('image/png');
-        previewMask.classList.add('show');
-      });
-    } else {
-      if (!canvasItems.length) { showToast('请先添加图片到画布', 'err'); return; }
-      renderCustomCanvas(function (canvas) {
-        previewImg.src = canvas.toDataURL('image/png');
-        previewMask.classList.add('show');
-      });
-    }
+    selectItem(null);
+    if (!canvasItems.length) { showToast('请先添加图片到画布', 'err'); return; }
+    renderCustomCanvas(function (canvas) {
+      previewImg.src = canvas.toDataURL('image/png');
+      previewMask.classList.add('show');
+    });
   });
   document.getElementById('previewClose').addEventListener('click', function () { previewMask.classList.remove('show'); });
   previewMask.addEventListener('click', function (e) { if (e.target === previewMask) previewMask.classList.remove('show'); });
 
   // ========== Clear ==========
   document.getElementById('btnClear').addEventListener('click', function () {
-    if (mode === 'grid') { cellImages = {}; activeCell = -1; buildGrid(); }
-    else { canvasItems = []; selectedItemId = null; buildCanvasItems(); }
+    canvasItems = []; selectedItemId = null; buildCanvasItems();
     selectedPoolId = null; buildPool(); updatePropBar(); updateEditBtn();
   });
 
   // ========== 生成拼图（生成图片并push到图片列表）==========
   document.getElementById('btnGenCollage').addEventListener('click', function () {
-    if (mode === 'grid') {
-      var g = getGrid(), total = g.cols * g.rows;
-      var hasAny = false;
-      for (var k in cellImages) { hasAny = true; break; }
-      if (!hasAny) { showToast('请先添加图片', 'err'); return; }
-      renderGridCanvas(g, total, function (canvas) {
-        addToPool(canvas.toDataURL('image/png'));
-        showToast('拼图已生成并添加到图片列表', 'ok');
-      });
-    } else {
-      if (!canvasItems.length) { showToast('请先添加图片到画布', 'err'); return; }
-      renderCustomCanvas(function (canvas) {
-        addToPool(canvas.toDataURL('image/png'));
-        showToast('拼图已生成并添加到图片列表', 'ok');
-      });
-    }
+    if (!canvasItems.length) { showToast('请先添加图片到画布', 'err'); return; }
+    renderCustomCanvas(function (canvas) {
+      addToPool(canvas.toDataURL('image/png'));
+      showToast('拼图已生成并添加到图片列表', 'ok');
+    });
   });
 
   // ========== Export ==========
   document.getElementById('btnExport').addEventListener('click', function () {
-    if (mode === 'grid') {
-      var g = getGrid(), total = g.cols * g.rows;
-      var hasAny = false;
-      for (var k in cellImages) { hasAny = true; break; }
-      if (!hasAny) { showToast('请先添加图片', 'err'); return; }
-      renderGridCanvas(g, total, function (canvas) { downloadCanvas(canvas); });
-    } else {
-      if (!canvasItems.length) { showToast('请先添加图片到画布', 'err'); return; }
-      renderCustomCanvas(function (canvas) { downloadCanvas(canvas); });
-    }
+    if (!canvasItems.length) { showToast('请先添加图片到画布', 'err'); return; }
+    renderCustomCanvas(function (canvas) { downloadCanvas(canvas); });
   });
   function downloadCanvas(canvas) {
     try {
@@ -956,48 +738,6 @@
     showToast('已排版 ' + count + ' 张图片', 'ok');
   });
 
-  // ========== Render — Grid ==========
-  function renderGridCanvas(g, total, onDone) {
-    var cellSize = 600, gap = 12, pad = 16;
-    var cw = pad * 2 + g.cols * cellSize + (g.cols - 1) * gap;
-    var ch = pad * 2 + g.rows * cellSize + (g.rows - 1) * gap;
-    var canvas = document.createElement('canvas');
-    canvas.width = cw; canvas.height = ch;
-    var ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, cw, ch);
-    var loaded = 0, needed = 0;
-    for (var i = 0; i < total; i++) { if (cellImages[i]) needed++; }
-    if (needed === 0) { onDone(canvas); return; }
-    function done() { loaded++; if (loaded >= needed) onDone(canvas); }
-    function drawImg(idx, img) {
-      var col = idx % g.cols, row = Math.floor(idx / g.cols);
-      var x = pad + col * (cellSize + gap), y = pad + row * (cellSize + gap);
-      if (fitMode === 'fill') {
-        ctx.drawImage(img, x, y, cellSize, cellSize);
-      } else if (fitMode === 'contain') {
-        var sc = Math.min(cellSize / img.width, cellSize / img.height);
-        var w = img.width * sc, h = img.height * sc;
-        ctx.drawImage(img, x + (cellSize - w) / 2, y + (cellSize - h) / 2, w, h);
-      } else {
-        var sc2 = Math.max(cellSize / img.width, cellSize / img.height);
-        var w2 = img.width * sc2, h2 = img.height * sc2;
-        ctx.save(); ctx.beginPath(); ctx.rect(x, y, cellSize, cellSize); ctx.clip();
-        ctx.drawImage(img, x + (cellSize - w2) / 2, y + (cellSize - h2) / 2, w2, h2);
-        ctx.restore();
-      }
-    }
-    for (var j = 0; j < total; j++) {
-      if (!cellImages[j]) continue;
-      (function (idx) {
-        var img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = function () { drawImg(idx, img); done(); };
-        img.onerror = function () { done(); };
-        img.src = cellImages[idx];
-      })(j);
-    }
-  }
 
   // ========== Render — Custom ==========
   function renderCustomCanvas(onDone) {
@@ -1052,13 +792,8 @@
       var poolItem = imagePool.find(function (p) { return p.id === selectedPoolId; });
       if (poolItem) return poolItem.src;
     }
-    if (mode === 'grid' && activeCell >= 0 && cellImages[activeCell]) {
-      return cellImages[activeCell];
-    }
-    if (mode === 'custom') {
-      var item = getSelectedItem();
-      if (item && item.src) return item.src;
-    }
+    var item = getSelectedItem();
+    if (item && item.src) return item.src;
     return null;
   }
 
@@ -1071,24 +806,19 @@
           if (c.poolId === poolItem.id) c.src = newSrc;
         });
         buildPool();
-        if (mode === 'custom') buildCanvasItems();
+        buildCanvasItems();
         updatePropBar();
         return;
       }
     }
-    if (mode === 'grid' && activeCell >= 0) {
-      cellImages[activeCell] = newSrc;
-      buildGrid();
-    } else if (mode === 'custom') {
-      var item = getSelectedItem();
-      if (item && item.src) {
-        item.src = newSrc;
-        imagePool.forEach(function (p) {
-          if (p.id === item.poolId) p.src = newSrc;
-        });
-        buildCanvasItems();
-        updatePropBar();
-      }
+    var item = getSelectedItem();
+    if (item && item.src) {
+      item.src = newSrc;
+      imagePool.forEach(function (p) {
+        if (p.id === item.poolId) p.src = newSrc;
+      });
+      buildCanvasItems();
+      updatePropBar();
     }
   }
 
@@ -1098,7 +828,6 @@
   fontSizeRange.addEventListener('input', function () { fontSizeVal.textContent = this.value; });
 
   document.getElementById('btnAddText').addEventListener('click', function () {
-    if (mode !== 'custom') { showToast('仅自定义模式可用', 'err'); return; }
     var text = document.getElementById('textContent').value.trim();
     if (!text) { showToast('请输入文字内容', 'err'); return; }
     var fontSize = parseInt(fontSizeRange.value) || 24;
@@ -1139,26 +868,10 @@
       if (newUrl && !newUrl.startsWith('data:')) {
         newUrl = getServerBase() + newUrl;
       }
-      if (mode === 'custom') {
-        urlToBase64(newUrl).then(function (base64) {
-          addToPool(base64);
-          showToast('AI图片已加入图片池', 'ok');
-        });
-      } else {
-        var g = getGrid(), total = g.cols * g.rows;
-        var target = -1;
-        for (var i = 0; i < total; i++) { if (!cellImages[i]) { target = i; break; } }
-        if (target < 0) {
-          urlToBase64(newUrl).then(function (base64) { addToPool(base64); });
-          showToast('格子已满，图片已缓存', 'ok');
-        } else {
-          urlToBase64(newUrl).then(function (base64) {
-            cellImages[target] = base64;
-            buildGrid();
-            showToast('AI图片已填充', 'ok');
-          });
-        }
-      }
+      urlToBase64(newUrl).then(function (base64) {
+        addToPool(base64);
+        showToast('AI图片已加入图片池', 'ok');
+      });
     }).catch(function (err) {
       hideAiLoading();
       showToast('AI处理失败: ' + err.message, 'err');
@@ -1293,20 +1006,11 @@
       images.push({ id: 'p-' + p.id, src: p.src, originalSrc: p.src, type: 'pool', refId: p.id, label: '图片池 #' + p.id });
       srcSet[p.src] = true;
     });
-    if (mode === 'grid') {
-      for (var k in cellImages) {
-        if (!srcSet[cellImages[k]]) {
-          images.push({ id: 'c-' + k, src: cellImages[k], originalSrc: cellImages[k], type: 'cell', refId: parseInt(k), label: '格子 ' + (parseInt(k) + 1) });
-        }
+    canvasItems.forEach(function (c) {
+      if (c.src && c.type !== 'text' && !srcSet[c.src]) {
+        images.push({ id: 'cv-' + c.id, src: c.src, originalSrc: c.src, type: 'canvas', refId: c.id, label: '画布 #' + c.id });
       }
-    }
-    if (mode === 'custom') {
-      canvasItems.forEach(function (c) {
-        if (c.src && c.type !== 'text' && !srcSet[c.src]) {
-          images.push({ id: 'cv-' + c.id, src: c.src, originalSrc: c.src, type: 'canvas', refId: c.id, label: '画布 #' + c.id });
-        }
-      });
-    }
+    });
     if (!images.length) { showToast('没有可编辑的图片', 'err'); return; }
 
     var startIdx = 0;
@@ -1503,8 +1207,6 @@
             p.src = img.src;
             canvasItems.forEach(function (c) { if (c.poolId === p.id) c.src = img.src; });
           }
-        } else if (img.type === 'cell') {
-          cellImages[img.refId] = img.src;
         } else if (img.type === 'canvas') {
           var c = canvasItems.find(function (c) { return c.id === img.refId; });
           if (c) c.src = img.src;
@@ -1512,8 +1214,7 @@
       }
     });
     buildPool();
-    if (mode === 'grid') buildGrid();
-    if (mode === 'custom') { buildCanvasItems(); updatePropBar(); }
+    buildCanvasItems(); updatePropBar();
     closeEditor();
     showToast('所有修改已保存', 'ok');
   });
