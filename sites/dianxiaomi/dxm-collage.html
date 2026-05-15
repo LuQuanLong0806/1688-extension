@@ -121,9 +121,23 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f0f0;color:#33
 .pool-item .pool-check.checked{background:#7E57C2;border-color:#7E57C2}
 .pool-item .pool-check.checked::after{content:"✓";color:#fff;font-size:9px;font-weight:bold;line-height:1}
 .pool-item.on-canvas::after{content:"";position:absolute;top:3px;right:3px;width:8px;height:8px;border-radius:50%;background:#52c41a;border:1.5px solid #fff;z-index:2}
+.pool-item .pool-rm{position:absolute;top:1px;right:1px;width:14px;height:14px;background:rgba(0,0,0,.5);color:#fff;border:none;border-radius:50%;font-size:9px;display:none;align-items:center;justify-content:center;cursor:pointer;line-height:1;z-index:3}
+.pool-item:hover .pool-rm{display:flex}
+.pool-item .pool-rm:hover{background:rgba(255,0,0,.7)}
 .pool-empty{font-size:11px;color:#ccc;text-align:center;padding:6px 0}
 .pool-toggle-all{background:none;border:1px solid #ccc;border-radius:3px;cursor:pointer;font-size:13px;padding:0 4px;line-height:1;transition:all .15s}
 .pool-toggle-all:hover{border-color:#7E57C2;color:#7E57C2}
+.pool-del-sel{background:none;border:1px solid #e53935;border-radius:3px;cursor:pointer;font-size:12px;padding:0 4px;line-height:1;transition:all .15s;color:#e53935}
+.pool-del-sel:hover{background:#e53935;color:#fff}
+.pool-clear{background:none;border:1px solid #ccc;border-radius:3px;cursor:pointer;font-size:12px;padding:0 4px;line-height:1;transition:all .15s}
+.pool-clear:hover{border-color:#e53935;color:#e53935}
+.pool-dragging{opacity:.4}
+.pool-drop-before{border-left:2px solid #7E57C2 !important}
+.pool-drop-after{border-right:2px solid #7E57C2 !important}
+.auto-layout-opts{display:flex;gap:4px;margin-bottom:8px}
+.al-opt{flex:1;padding:6px 0;border:1.5px solid #ddd;border-radius:5px;background:#fff;color:#666;cursor:pointer;font-size:11px;font-weight:500;transition:all .15s;text-align:center}
+.al-opt:hover{border-color:#7E57C2;color:#7E57C2}
+.al-opt.active{border-color:#7E57C2;background:#7E57C2;color:#fff}
 .rp-empty{flex:1;display:flex;align-items:center;justify-content:center;color:#ccc;font-size:11px;text-align:center;padding:12px}
 .rp-content{display:none;flex-direction:column;padding:0}
 .rp-content.show{display:flex}
@@ -239,15 +253,14 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f0f0;color:#33
 .editor-right{width:130px;background:#fff;border-left:1px solid #e0e0e0;overflow-y:auto;flex-shrink:0;display:flex;flex-direction:column}
 .er-title{font-size:11px;color:#999;padding:8px 10px;border-bottom:1px solid #eee;font-weight:600}
 .er-list{flex:1;overflow-y:auto}
-.er-item{padding:6px;cursor:pointer;border-bottom:1px solid #f5f5f5;display:flex;gap:6px;align-items:center;transition:background .15s}
+.er-item{padding:6px;cursor:pointer;border-bottom:1px solid #f5f5f5;display:flex;gap:6px;align-items:center;transition:background .15s;position:relative}
 .er-item:hover{background:#f5f5f5}
 .er-item.active{background:#F3E5F5}
 .er-item img{width:64px;height:64px;object-fit:cover;border-radius:3px;border:1px solid #eee;flex-shrink:0}
 .er-item .er-info{flex:1;min-width:0}
 .er-item .er-label{font-size:10px;color:#666;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.er-item .er-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#7E57C2;vertical-align:middle;margin-left:3px;display:none}
+.er-item .er-dot{width:6px;height:6px;border-radius:50%;background:#7E57C2;vertical-align:middle;margin-left:3px;display:none}
 .er-item .er-dot.modified{display:inline-block}
-.er-item{position:relative}
 .er-item .er-rm{position:absolute;top:4px;right:4px;width:16px;height:16px;background:rgba(0,0,0,.5);color:#fff;border:none;border-radius:50%;font-size:10px;display:none;align-items:center;justify-content:center;cursor:pointer;line-height:1;z-index:2}
 .er-item:hover .er-rm{display:flex}
 .er-item .er-rm:hover{background:rgba(255,0,0,.7)}
@@ -302,7 +315,14 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f0f0;color:#33
   </div>
   <div class="sb-spacer"></div>
   <div class="sb-section">
-    <button class="sb-btn danger" id="btnClear">清空全部</button>
+    <div class="sb-title">图床设置</div>
+    <div id="smmsStatus" style="font-size:11px;color:#999;margin-bottom:4px">检测中...</div>
+    <input type="password" class="sb-text-input" id="smmsTokenInput" placeholder="输入 ImgBB API Key" style="margin-bottom:4px">
+    <button class="sb-btn primary" id="smmsTokenSave" style="margin-bottom:4px">保存 Token</button>
+    <button class="sb-btn danger" id="smmsTokenDel" style="display:none">删除 Token</button>
+  </div>
+  <div class="sb-section">
+    <button class="sb-btn danger" id="btnClear">清空画布</button>
     <button class="sb-btn primary" id="btnGenCollage">生成拼图</button>
     <button class="sb-btn primary" id="btnExport">导出拼图</button>
   </div>
@@ -326,10 +346,17 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f0f0;color:#33
   </div>
   <div class="right-panel" id="rightPanel">
     <div class="rp-section">
-      <div class="rp-title" style="display:flex;align-items:center;justify-content:space-between">图片列表 <button class="pool-toggle-all" id="poolToggleAll" title="全选/取消">☐</button></div>
+      <div class="rp-title" style="display:flex;align-items:center;justify-content:space-between">图片列表 <span style="display:flex;gap:4px"><button class="pool-toggle-all" id="poolToggleAll" title="全选/取消">☐</button><button class="pool-del-sel" id="poolDelSel" title="删除选中" style="display:none">🗑</button><button class="pool-clear" id="poolClear" title="清空列表">✕</button></span></div>
       <div class="pool-grid" id="poolBar"></div>
     </div>
     <div class="rp-section custom-only">
+      <div class="rp-title">一键拼图</div>
+      <div class="auto-layout-opts" id="autoLayoutOpts">
+        <button class="al-opt" data-cols="1" data-rows="1">1×1</button>
+        <button class="al-opt" data-cols="2" data-rows="2">2×2</button>
+        <button class="al-opt" data-cols="3" data-rows="3">3×3</button>
+        <button class="al-opt active" data-cols="0" data-rows="0">自动</button>
+      </div>
       <button class="sb-btn primary big" id="btnAutoLayout">一键拼图</button>
     </div>
     <div class="rp-empty" id="rpEmpty">粘贴或拖入图片<br>拖拽到画布/宫格</div>
@@ -363,6 +390,7 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f0f0;color:#33
       <button class="sb-btn" id="edBatchExport" style="background:#1565C0;color:#fff;border-color:#1565C0">批量导出</button>
       <button class="sb-btn" id="edAddToPool" style="background:#7E57C2;color:#fff;border-color:#7E57C2">推送图片</button>
       <button class="sb-btn" id="edBatchPush" style="background:#AB47BC;color:#fff;border-color:#AB47BC">批量推送</button>
+      <button class="sb-btn" id="edCopyImgUrl" style="background:#ff6d00;color:#fff;border-color:#ff6d00;font-weight:bold">复制图片地址</button>
       <button class="sb-btn" id="editorSave" style="background:#2e7d32;color:#fff;border-color:#2e7d32;font-weight:bold">应用并关闭</button>
     </div>
   </div>
@@ -390,7 +418,7 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f0f0;color:#33
       <div class="acc-section open" data-mode="erase">
         <div class="acc-header">AI消除 <span class="acc-icon">🧹</span></div>
         <div class="acc-body"><div class="acc-inner">
-          <div style="font-size:11px;color:#999;margin-bottom:6px">展开即进入涂抹，松手自动调用AI消除</div>
+          <div style="font-size:11px;color:#999;margin-bottom:6px">点击快捷工具栏按钮激活涂抹，松手自动调用AI消除</div>
           <div class="acc-btn-row" style="margin-bottom:6px">
             <button class="acc-btn active" id="edEraseBrush">画笔</button>
             <button class="acc-btn" id="edEraseBox">框选</button>
@@ -423,7 +451,7 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f0f0;color:#33
       <div class="acc-section" data-mode="mosaic">
         <div class="acc-header">马赛克 <span class="acc-icon">🔲</span></div>
         <div class="acc-body"><div class="acc-inner">
-          <div style="font-size:11px;color:#999;margin-bottom:6px">展开即进入涂抹，松手自动应用</div>
+          <div style="font-size:11px;color:#999;margin-bottom:6px">点击快捷工具栏按钮激活涂抹，松手自动应用</div>
           <div class="acc-btn-row" style="margin-bottom:6px">
             <button class="acc-btn active" id="edMosBrush">画笔</button>
             <button class="acc-btn" id="edMosBox">框选</button>

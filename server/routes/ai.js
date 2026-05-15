@@ -411,4 +411,98 @@ router.post('/remove-bg-local', function (req, res) {
   });
 });
 
+// ===== ImgBB 图床（免费） =====
+function getImgbbKey() {
+  try {
+    var row = require('../db').getOne("SELECT value FROM settings WHERE key = 'imgbb_api_key'");
+    return row ? row.value : '';
+  } catch (e) {
+    return '';
+  }
+}
+
+router.post('/smms-upload', function (req, res) {
+  var imageBase64 = req.body.image_base64;
+  if (!imageBase64) return res.status(400).json({ error: '请先加载图片' });
+
+  var apiKey = getImgbbKey();
+  if (!apiKey) return res.status(400).json({ error: '未配置 ImgBB API Key，请在管理端设置' });
+
+  var base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+
+  // ImgBB API — 直接发 base64，无需拼 multipart
+  var postData = 'key=' + encodeURIComponent(apiKey) + '&image=' + encodeURIComponent(base64Data);
+
+  var options = {
+    hostname: 'api.imgbb.com',
+    port: 443,
+    path: '/1/upload',
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Content-Length': Buffer.byteLength(postData)
+    }
+  };
+
+  var uploadReq = https.request(options, function (uploadRes) {
+    var chunks = [];
+    uploadRes.on('data', function (c) { chunks.push(c); });
+    uploadRes.on('end', function () {
+      var raw = Buffer.concat(chunks).toString();
+      try {
+        var json = JSON.parse(raw);
+        if (json.success && json.data && json.data.url) {
+          console.log('[ImgBB] Upload success:', json.data.url);
+          // Also save locally
+          var buf = Buffer.from(base64Data, 'base64');
+          var localName = 'imgbb_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8) + '.png';
+          fs.writeFile(path.join(UPLOADS_DIR, localName), buf, function () {});
+          res.json({ ok: true, url: json.data.url, delete: json.data.delete_url });
+        } else {
+          var errMsg = (json.error && json.error.message) || JSON.stringify(json);
+          console.error('[ImgBB] Upload failed:', errMsg);
+          res.status(502).json({ error: 'ImgBB 上传失败: ' + errMsg });
+        }
+      } catch (e) {
+        res.status(502).json({ error: 'ImgBB 响应解析失败' });
+      }
+    });
+  });
+  uploadReq.on('error', function (e) {
+    console.error('[ImgBB] Request error:', e.message);
+    res.status(502).json({ error: 'ImgBB 请求失败: ' + e.message });
+  });
+  uploadReq.write(postData);
+  uploadReq.end();
+});
+
+router.get('/smms-token', function (req, res) {
+  var key = getImgbbKey();
+  if (!key) return res.json({ configured: false, masked: '' });
+  var masked = key.length > 8 ? key.substring(0, 4) + '****' + key.substring(key.length - 4) : '****';
+  res.json({ configured: true, masked: masked });
+});
+
+router.post('/smms-token', function (req, res) {
+  var key = (req.body.token || '').trim();
+  if (!key) return res.status(400).json({ error: 'API Key 不能为空' });
+  try {
+    var db = require('../db');
+    db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('imgbb_api_key', ?)", [key]);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: '保存失败' });
+  }
+});
+
+router.post('/smms-token-delete', function (req, res) {
+  try {
+    var db = require('../db');
+    db.run("DELETE FROM settings WHERE key = 'imgbb_api_key'");
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: '删除失败' });
+  }
+});
+
 module.exports = router;
