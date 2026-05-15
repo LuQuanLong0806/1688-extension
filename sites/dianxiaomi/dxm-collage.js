@@ -65,7 +65,20 @@
         c.getContext('2d').drawImage(img, 0, 0);
         resolve(c.toDataURL('image/png'));
       };
-      img.onerror = function () { reject(new Error('图片加载失败')); };
+      img.onerror = function () {
+        // CORS 失败，通过服务器代理重试
+        var proxyUrl = getServerBase() + '/api/proxy-image?url=' + encodeURIComponent(url);
+        var img2 = new Image();
+        img2.crossOrigin = 'anonymous';
+        img2.onload = function () {
+          var c = document.createElement('canvas');
+          c.width = img2.naturalWidth; c.height = img2.naturalHeight;
+          c.getContext('2d').drawImage(img2, 0, 0);
+          resolve(c.toDataURL('image/png'));
+        };
+        img2.onerror = function () { reject(new Error('图片加载失败')); };
+        img2.src = proxyUrl;
+      };
       img.src = url;
     });
   }
@@ -94,8 +107,21 @@
       c.height = img.naturalHeight;
       c.getContext('2d').drawImage(img, 0, 0);
       var dataUrl;
-      try { dataUrl = c.toDataURL('image/png'); } catch (e) { dataUrl = url; }
-      if (cb) cb(dataUrl);
+      try { dataUrl = c.toDataURL('image/png'); } catch (e) { dataUrl = null; }
+      if (dataUrl) { if (cb) cb(dataUrl); return; }
+      // canvas tainted, retry via proxy
+      var proxyUrl = getServerBase() + '/api/proxy-image?url=' + encodeURIComponent(url);
+      var img2 = new Image();
+      img2.crossOrigin = 'anonymous';
+      img2.onload = function () {
+        var c2 = document.createElement('canvas');
+        c2.width = img2.naturalWidth; c2.height = img2.naturalHeight;
+        c2.getContext('2d').drawImage(img2, 0, 0);
+        try { dataUrl = c2.toDataURL('image/png'); } catch (e) { dataUrl = proxyUrl; }
+        if (cb) cb(dataUrl);
+      };
+      img2.onerror = function () { if (cb) cb(url); };
+      img2.src = proxyUrl;
     };
     img.onerror = function () {
       if (cb) cb(url);
