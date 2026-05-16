@@ -67,6 +67,17 @@ app.post('/api/upload-image', express.json({ limit: '50mb' }), function (req, re
   });
 });
 
+// 拼图页待导入图片暂存（单用户内存）
+var collagePendingImages = null;
+app.post('/api/collage-import', function (req, res) {
+  collagePendingImages = req.body.images || [];
+  res.json({ ok: true, count: collagePendingImages.length });
+});
+app.get('/api/collage-import', function (req, res) {
+  res.json({ images: collagePendingImages || [] });
+  collagePendingImages = null;
+});
+
 // 路由
 app.use('/api', require('./routes/settings'));
 app.use('/api', require('./routes/products'));

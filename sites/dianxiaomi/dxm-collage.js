@@ -87,6 +87,24 @@
   function applyMode() {
     buildPool();
     applyBoardSize(); buildCanvasItems(); updatePropBar();
+    // 自动拉取待导入的产品图片
+    fetch(getServerBase() + '/api/collage-import')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.images && d.images.length) {
+          showToast('正在导入 ' + d.images.length + ' 张产品图片...', 'loading');
+          var loaded = 0;
+          d.images.forEach(function (url) {
+            loadURL(url, function (src) {
+              addToPool(src);
+              loaded++;
+              if (loaded >= d.images.length) {
+                showToast('已导入 ' + loaded + ' 张图片', 'ok');
+              }
+            });
+          });
+        }
+      }).catch(function () {});
   }
 
   // ========== Loaders ==========
@@ -609,7 +627,7 @@
   document.getElementById('btnGenCollage').addEventListener('click', function () {
     if (!canvasItems.length) { showToast('请先添加图片到画布', 'err'); return; }
     renderCustomCanvas(function (canvas) {
-      addToPool(canvas.toDataURL('image/png'));
+      addToPool(ensureMinSize(canvas, 800).toDataURL('image/png'));
       showToast('拼图已生成并添加到图片列表', 'ok');
     });
   });
@@ -617,24 +635,49 @@
   // ========== Export ==========
   document.getElementById('btnExport').addEventListener('click', function () {
     if (!canvasItems.length) { showToast('请先添加图片到画布', 'err'); return; }
-    renderCustomCanvas(function (canvas) { downloadCanvas(canvas); });
+    renderCustomCanvas(function (canvas) { downloadCanvas(ensureMinSize(canvas, 800)); });
   });
 
   // ========== 复制拼图地址 ==========
-  document.getElementById('btnCopyCollage').addEventListener('click', function () {
+  var copyCollageBtn = document.getElementById('btnCopyCollage');
+  copyCollageBtn.addEventListener('click', function () {
     if (!canvasItems.length) { showToast('请先添加图片到画布', 'err'); return; }
-    showToast('生成拼图并上传中...', 'loading');
+    if (copyCollageBtn.disabled) return;
+    var origText = copyCollageBtn.textContent;
+    copyCollageBtn.disabled = true;
+    copyCollageBtn.textContent = '⏳ 生成拼图中...';
+    showToast('1/3 生成拼图...', 'loading');
+
     renderCustomCanvas(function (canvas) {
-      var base64 = canvas.toDataURL('image/png');
+      copyCollageBtn.textContent = '⏳ 上传中...';
+      showToast('2/3 上传到图床...', 'loading');
+      var base64 = ensureMinSize(canvas, 800).toDataURL('image/png');
       uploadToSmms(base64).then(function (url) {
-        return navigator.clipboard.writeText(url);
-      }).then(function () {
-        showToast('已复制拼图地址', 'ok');
+        copyCollageBtn.textContent = '⏳ 复制中...';
+        showToast('3/3 复制地址...', 'loading');
+        return navigator.clipboard.writeText(url).then(function () {
+          return url;
+        });
+      }).then(function (url) {
+        showToast('已复制拼图地址 ✓', 'ok');
       }).catch(function (err) {
         showToast('复制失败: ' + err.message, 'err');
+      }).finally(function () {
+        copyCollageBtn.disabled = false;
+        copyCollageBtn.textContent = origText;
       });
     });
   });
+  function ensureMinSize(canvas, min) {
+    if (canvas.width >= min && canvas.height >= min) return canvas;
+    var scale = min / Math.min(canvas.width, canvas.height);
+    var c2 = document.createElement('canvas');
+    c2.width = Math.round(canvas.width * scale);
+    c2.height = Math.round(canvas.height * scale);
+    c2.getContext('2d').drawImage(canvas, 0, 0, c2.width, c2.height);
+    return c2;
+  }
+
   function downloadCanvas(canvas) {
     try {
       var a = document.createElement('a');

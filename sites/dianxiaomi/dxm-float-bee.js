@@ -1223,13 +1223,26 @@
   if (collageEl) {
     collageEl.addEventListener('click', function () {
       console.log('[小蜜蜂] 拼图按钮点击');
-      try {
-        chrome.runtime.sendMessage({ action: 'openCollage', url: 'sites/dianxiaomi/dxm-collage.html' });
-      } catch (e) {
-        console.error('[小蜜蜂] 拼图页面打开失败:', e);
-        showBubble('❌ 打开拼图页面失败', 'err');
-        setTimeout(hideBubble, 2000);
-      }
+      // 提取产品轮播图URL
+      var imgs = document.querySelectorAll('#productProductInfo .mainImage .img-list .img-item img');
+      var urls = [];
+      imgs.forEach(function (img) {
+        var src = img.src || img.getAttribute('data-src') || '';
+        if (src && src.indexOf('http') === 0) urls.push(src);
+      });
+      var serverUrl = (Config && Config.getServerUrl ? Config.getServerUrl() : localStorage.getItem('1688_server_url')) || 'http://localhost:3000';
+      var promise = urls.length
+        ? fetch(serverUrl + '/api/collage-import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: urls }) }).catch(function () {})
+        : Promise.resolve();
+      promise.then(function () {
+        try {
+          chrome.runtime.sendMessage({ action: 'openCollage', url: 'sites/dianxiaomi/dxm-collage.html' });
+        } catch (e) {
+          console.error('[小蜜蜂] 拼图页面打开失败:', e);
+          showBubble('❌ 打开拼图页面失败', 'err');
+          setTimeout(hideBubble, 2000);
+        }
+      });
     });
   }
 
