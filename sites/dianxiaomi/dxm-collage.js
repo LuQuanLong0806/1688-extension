@@ -1304,63 +1304,6 @@
     showToast('所有修改已保存', 'ok');
   });
 
-  // Push current edited image to external pool
-  document.getElementById('edAddToPool').addEventListener('click', function () {
-    if (!editorSrc) return;
-    if (editorProcessing.classList.contains('show')) return;
-    editorImages[editorCurrentIdx].src = editorSrc;
-    addToPool(editorSrc);
-    showToast('已推送当前图片', 'ok');
-  });
-
-  // Batch push all edited images to external pool
-  document.getElementById('edBatchPush').addEventListener('click', function () {
-    if (editorProcessing.classList.contains('show')) return;
-    editorImages[editorCurrentIdx].src = editorSrc;
-    var count = 0;
-    editorImages.forEach(function (img) {
-      if (img.src !== img.originalSrc) {
-        addToPool(img.src);
-        count++;
-      }
-    });
-    if (count === 0) { showToast('没有编辑过的图片', 'err'); return; }
-    showToast('已批量推送 ' + count + ' 张图片', 'ok');
-  });
-
-  // 导出当前编辑图片（下载）
-  document.getElementById('edExportImg').addEventListener('click', function () {
-    if (!editorSrc) return;
-    if (editorProcessing.classList.contains('show')) return;
-    editorImages[editorCurrentIdx].src = editorSrc;
-    try {
-      var a = document.createElement('a');
-      a.download = 'edited_' + Date.now() + '.png';
-      a.href = editorSrc;
-      a.click();
-      showToast('导出成功', 'ok');
-    } catch (e) { showToast('导出失败: ' + e.message, 'err'); }
-  });
-
-  // 批量导出右侧图片列表所有图片
-  document.getElementById('edBatchExport').addEventListener('click', function () {
-    if (editorProcessing.classList.contains('show')) return;
-    editorImages[editorCurrentIdx].src = editorSrc;
-    var exported = 0;
-    editorImages.forEach(function (img, i) {
-      setTimeout(function () {
-        try {
-          var a = document.createElement('a');
-          a.download = 'edited_' + (i + 1) + '_' + Date.now() + '.png';
-          a.href = img.src;
-          a.click();
-          exported++;
-        } catch (e) {}
-      }, i * 200);
-    });
-    showToast('正在导出 ' + editorImages.length + ' 张图片...', 'ok');
-  });
-
   // ===== 复制图片地址 =====
   function uploadToSmms(base64) {
     return fetch(getServerBase() + '/api/ai/smms-upload', {
@@ -1893,95 +1836,107 @@
   }
 
   function getOrigImageCanvas() {
-    var img = new Image();
-    img.src = editorSrc;
-    var c = document.createElement('canvas');
-    c.width = editorNatW; c.height = editorNatH;
-    c.getContext('2d').drawImage(img, 0, 0);
-    return c;
+    return new Promise(function (resolve) {
+      var img = new Image();
+      img.onload = function () {
+        var c = document.createElement('canvas');
+        c.width = editorNatW; c.height = editorNatH;
+        c.getContext('2d').drawImage(img, 0, 0);
+        resolve(c);
+      };
+      img.onerror = function () {
+        var c = document.createElement('canvas');
+        c.width = editorNatW; c.height = editorNatH;
+        resolve(c);
+      };
+      img.src = editorSrc;
+    });
   }
 
   // ===== Mosaic apply =====
   function applyEditorMosaic() {
     var oldSrc = editorSrc;
-    var origCanvas = getOrigImageCanvas();
-    var maskCtx = buildOrigMask();
-    var w = origCanvas.width, h = origCanvas.height;
-    var imgCtx = origCanvas.getContext('2d');
-    var imgData = imgCtx.getImageData(0, 0, w, h);
-    var maskData = maskCtx.getImageData(0, 0, w, h);
-    var blockSize = Math.max(8, Math.round(Math.min(w, h) / 60));
+    showEditorLoading('马赛克处理中...');
+    getOrigImageCanvas().then(function (origCanvas) {
+      var maskCtx = buildOrigMask();
+      var w = origCanvas.width, h = origCanvas.height;
+      var imgCtx = origCanvas.getContext('2d');
+      var imgData = imgCtx.getImageData(0, 0, w, h);
+      var maskData = maskCtx.getImageData(0, 0, w, h);
+      var blockSize = Math.max(8, Math.round(Math.min(w, h) / 60));
 
-    for (var by = 0; by < h; by += blockSize) {
-      for (var bx = 0; bx < w; bx += blockSize) {
-        var hit = false;
-        for (var dy = 0; dy < blockSize && by + dy < h; dy++) {
-          for (var dx = 0; dx < blockSize && bx + dx < w; dx++) {
-            var mi = ((by + dy) * w + (bx + dx)) * 4;
-            if (maskData.data[mi] > 128) { hit = true; break; }
+      for (var by = 0; by < h; by += blockSize) {
+        for (var bx = 0; bx < w; bx += blockSize) {
+          var hit = false;
+          for (var dy = 0; dy < blockSize && by + dy < h; dy++) {
+            for (var dx = 0; dx < blockSize && bx + dx < w; dx++) {
+              var mi = ((by + dy) * w + (bx + dx)) * 4;
+              if (maskData.data[mi] > 128) { hit = true; break; }
+            }
+            if (hit) break;
           }
-          if (hit) break;
-        }
-        if (!hit) continue;
-        var r = 0, g = 0, b = 0, count = 0;
-        for (var dy2 = 0; dy2 < blockSize && by + dy2 < h; dy2++) {
-          for (var dx2 = 0; dx2 < blockSize && bx + dx2 < w; dx2++) {
-            var idx = ((by + dy2) * w + (bx + dx2)) * 4;
-            r += imgData.data[idx]; g += imgData.data[idx + 1]; b += imgData.data[idx + 2]; count++;
+          if (!hit) continue;
+          var r = 0, g = 0, b = 0, count = 0;
+          for (var dy2 = 0; dy2 < blockSize && by + dy2 < h; dy2++) {
+            for (var dx2 = 0; dx2 < blockSize && bx + dx2 < w; dx2++) {
+              var idx = ((by + dy2) * w + (bx + dx2)) * 4;
+              r += imgData.data[idx]; g += imgData.data[idx + 1]; b += imgData.data[idx + 2]; count++;
+            }
           }
-        }
-        r = Math.round(r / count); g = Math.round(g / count); b = Math.round(b / count);
-        for (var dy3 = 0; dy3 < blockSize && by + dy3 < h; dy3++) {
-          for (var dx3 = 0; dx3 < blockSize && bx + dx3 < w; dx3++) {
-            var idx2 = ((by + dy3) * w + (bx + dx3)) * 4;
-            imgData.data[idx2] = r; imgData.data[idx2 + 1] = g; imgData.data[idx2 + 2] = b;
+          r = Math.round(r / count); g = Math.round(g / count); b = Math.round(b / count);
+          for (var dy3 = 0; dy3 < blockSize && by + dy3 < h; dy3++) {
+            for (var dx3 = 0; dx3 < blockSize && bx + dx3 < w; dx3++) {
+              var idx2 = ((by + dy3) * w + (bx + dx3)) * 4;
+              imgData.data[idx2] = r; imgData.data[idx2 + 1] = g; imgData.data[idx2 + 2] = b;
+            }
           }
         }
       }
-    }
-    imgCtx.putImageData(imgData, 0, 0);
-    editorSrc = origCanvas.toDataURL('image/png');
-    editorMaskCtx.clearRect(0, 0, editorMaskCanvas.width, editorMaskCanvas.height);
-    refreshEditorCanvas();
-    showToast('马赛克已应用', 'ok');
-    saveEditorHistory(oldSrc);
+      imgCtx.putImageData(imgData, 0, 0);
+      editorSrc = origCanvas.toDataURL('image/png');
+      editorMaskCtx.clearRect(0, 0, editorMaskCanvas.width, editorMaskCanvas.height);
+      refreshEditorCanvas();
+      hideEditorLoading();
+      showToast('马赛克已应用', 'ok');
+      saveEditorHistory(oldSrc);
+    });
   }
 
   // ===== AI inpaint =====
   function applyEditorInpaint() {
     var oldSrc = editorSrc;
-    var origCanvas = getOrigImageCanvas();
-    var maskCtx = buildOrigMask();
-    var imageBase64 = origCanvas.toDataURL('image/png');
-    var maskBase64 = maskCtx.canvas.toDataURL('image/png');
-
     editorMaskCtx.clearRect(0, 0, editorMaskCanvas.width, editorMaskCanvas.height);
     editorStatus.textContent = 'AI消除中...';
     showEditorLoading('AI消除中...');
-    fetch(getServerBase() + '/api/ai/inpaint', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image_base64: imageBase64, mask_base64: maskBase64 })
-    }).then(function (res) { return res.json(); }).then(function (data) {
-      hideEditorLoading();
-      if (data.error) { showToast('AI消除失败: ' + data.error, 'err'); updateEditorStatus(); return; }
-      var newUrl = data.url;
-      if (newUrl && !newUrl.startsWith('data:')) {
-        newUrl = getServerBase() + newUrl;
-      }
-      urlToBase64(newUrl).then(function (base64) {
-        editorSrc = base64;
-        var img = new Image();
-        img.onload = function () {
-          editorNatW = img.naturalWidth; editorNatH = img.naturalHeight;
-          fitEditorCanvas();
-          editorImgCtx.drawImage(img, 0, 0, editorImgCanvas.width, editorImgCanvas.height);
-          editorMaskCtx.clearRect(0, 0, editorMaskCanvas.width, editorMaskCanvas.height);
-          updateEditorStatus();
-        };
-        img.src = base64;
-        showToast('AI消除完成', 'ok');
-        saveEditorHistory(oldSrc);
+    getOrigImageCanvas().then(function (origCanvas) {
+      var maskCtx = buildOrigMask();
+      var imageBase64 = origCanvas.toDataURL('image/png');
+      var maskBase64 = maskCtx.canvas.toDataURL('image/png');
+      return fetch(getServerBase() + '/api/ai/inpaint', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_base64: imageBase64, mask_base64: maskBase64 })
+      }).then(function (res) { return res.json(); }).then(function (data) {
+        hideEditorLoading();
+        if (data.error) { showToast('AI消除失败: ' + data.error, 'err'); updateEditorStatus(); return; }
+        var newUrl = data.url;
+        if (newUrl && !newUrl.startsWith('data:')) {
+          newUrl = getServerBase() + newUrl;
+        }
+        urlToBase64(newUrl).then(function (base64) {
+          editorSrc = base64;
+          var img = new Image();
+          img.onload = function () {
+            editorNatW = img.naturalWidth; editorNatH = img.naturalHeight;
+            fitEditorCanvas();
+            editorImgCtx.drawImage(img, 0, 0, editorImgCanvas.width, editorImgCanvas.height);
+            editorMaskCtx.clearRect(0, 0, editorMaskCanvas.width, editorMaskCanvas.height);
+            updateEditorStatus();
+          };
+          img.src = base64;
+          showToast('AI消除完成', 'ok');
+          saveEditorHistory(oldSrc);
+        });
       });
     }).catch(function (err) {
       hideEditorLoading();

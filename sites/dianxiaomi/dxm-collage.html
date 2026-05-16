@@ -96,11 +96,11 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f0f0;color:#33
 .pool-item:hover .pool-rm{display:flex}
 .pool-item .pool-rm:hover{background:rgba(255,0,0,.7)}
 .pool-empty{font-size:11px;color:#ccc;text-align:center;padding:6px 0}
-.pool-toggle-all{background:none;border:1px solid #ccc;border-radius:3px;cursor:pointer;font-size:13px;padding:0 4px;line-height:1;transition:all .15s}
+.pool-toggle-all{background:none;border:1px solid #ccc;border-radius:3px;cursor:pointer;font-size:11px;padding:1px 5px;line-height:1.3;transition:all .15s;color:#666}
 .pool-toggle-all:hover{border-color:#7E57C2;color:#7E57C2}
-.pool-del-sel{background:none;border:1px solid #e53935;border-radius:3px;cursor:pointer;font-size:12px;padding:0 4px;line-height:1;transition:all .15s;color:#e53935}
+.pool-del-sel{background:none;border:1px solid #e53935;border-radius:3px;cursor:pointer;font-size:11px;padding:1px 5px;line-height:1.3;transition:all .15s;color:#e53935}
 .pool-del-sel:hover{background:#e53935;color:#fff}
-.pool-clear{background:none;border:1px solid #ccc;border-radius:3px;cursor:pointer;font-size:12px;padding:0 4px;line-height:1;transition:all .15s}
+.pool-clear{background:none;border:1px solid #ccc;border-radius:3px;cursor:pointer;font-size:11px;padding:1px 5px;line-height:1.3;transition:all .15s;color:#666}
 .pool-clear:hover{border-color:#e53935;color:#e53935}
 .pool-dragging{opacity:.4}
 .pool-drop-before{border-left:2px solid #7E57C2 !important}
@@ -268,17 +268,17 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f0f0;color:#33
   </div>
   <div class="sb-spacer"></div>
   <div class="sb-section">
+    <button class="sb-btn primary" id="btnCopyCollage" style="background:linear-gradient(135deg,#ff6d00,#e65100);border-color:#e65100;font-weight:bold">复制拼图地址</button>
+    <button class="sb-btn primary" id="btnGenCollage">生成拼图</button>
+    <button class="sb-btn primary" id="btnExport">导出拼图</button>
+    <button class="sb-btn danger" id="btnClear">清空画布</button>
+  </div>
+  <div class="sb-section">
     <div class="sb-title">图床设置</div>
     <div id="smmsStatus" style="font-size:11px;color:#999;margin-bottom:4px">检测中...</div>
     <input type="password" class="sb-text-input" id="smmsTokenInput" placeholder="输入 ImgBB API Key" style="margin-bottom:4px">
     <button class="sb-btn primary" id="smmsTokenSave" style="margin-bottom:4px">保存 Token</button>
     <button class="sb-btn danger" id="smmsTokenDel" style="display:none">删除 Token</button>
-  </div>
-  <div class="sb-section">
-    <button class="sb-btn danger" id="btnClear">清空画布</button>
-    <button class="sb-btn primary" id="btnGenCollage">生成拼图</button>
-    <button class="sb-btn primary" id="btnExport">导出拼图</button>
-    <button class="sb-btn primary" id="btnCopyCollage" style="background:linear-gradient(135deg,#ff6d00,#e65100);border-color:#e65100;font-weight:bold">复制拼图地址</button>
   </div>
 </div>
 
@@ -299,7 +299,7 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f0f0;color:#33
   </div>
   <div class="right-panel" id="rightPanel">
     <div class="rp-section">
-      <div class="rp-title" style="display:flex;align-items:center;justify-content:space-between">图片列表 <span style="display:flex;gap:4px"><button class="pool-toggle-all" id="poolToggleAll" title="全选/取消">☐</button><button class="pool-del-sel" id="poolDelSel" title="删除选中" style="display:none">🗑</button><button class="pool-clear" id="poolClear" title="清空列表">✕</button></span></div>
+      <div class="rp-title" style="display:flex;align-items:center;justify-content:space-between">图片列表 <span style="display:flex;gap:4px"><button class="pool-toggle-all" id="poolToggleAll" title="全选/取消">全选</button><button class="pool-del-sel" id="poolDelSel" title="删除选中" style="display:none">🗑 删</button><button class="pool-clear" id="poolClear" title="清空列表">清空</button></span></div>
       <div class="pool-grid" id="poolBar"></div>
     </div>
     <div class="rp-section">
@@ -339,10 +339,6 @@ body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#f0f0f0;color:#33
     <div style="flex:1"></div>
     <div class="ed-top-right">
       <button class="sb-btn" id="editorCancel">关闭</button>
-      <button class="sb-btn" id="edExportImg" style="background:#1976D2;color:#fff;border-color:#1976D2">导出图片</button>
-      <button class="sb-btn" id="edBatchExport" style="background:#1565C0;color:#fff;border-color:#1565C0">批量导出</button>
-      <button class="sb-btn" id="edAddToPool" style="background:#7E57C2;color:#fff;border-color:#7E57C2">推送图片</button>
-      <button class="sb-btn" id="edBatchPush" style="background:#AB47BC;color:#fff;border-color:#AB47BC">批量推送</button>
       <button class="sb-btn" id="edCopyImgUrl" style="background:#ff6d00;color:#fff;border-color:#ff6d00;font-weight:bold">复制图片地址</button>
       <button class="sb-btn" id="editorSave" style="background:#2e7d32;color:#fff;border-color:#2e7d32;font-weight:bold">应用并关闭</button>
     </div>
