@@ -1236,7 +1236,7 @@
         : Promise.resolve();
       promise.then(function () {
         try {
-          chrome.runtime.sendMessage({ action: 'openCollage', url: 'sites/dianxiaomi/dxm-collage.html' });
+          chrome.runtime.sendMessage({ action: 'openCollage', url: 'sites/dianxiaomi/dxm-collage.html?server=' + encodeURIComponent(serverUrl) });
         } catch (e) {
           console.error('[小蜜蜂] 拼图页面打开失败:', e);
           showBubble('❌ 打开拼图页面失败', 'err');

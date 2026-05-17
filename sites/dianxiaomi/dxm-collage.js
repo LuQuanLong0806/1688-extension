@@ -51,6 +51,10 @@
     if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
       return window.location.origin;
     }
+    // chrome-extension 页面：从 URL 参数读取服务端地址
+    var p = new URLSearchParams(window.location.search);
+    var s = p.get('server');
+    if (s) { serverBase = s; return s; }
     return 'http://localhost:3000';
   }
 
