@@ -149,6 +149,53 @@ router.post('/product', (req, res) => {
   scheduleSave();
   sseBroadcast('product-added', { id: row.id, title: title || '' });
   res.json({ ok: true, id: row.id });
+
+  // 异步AI分类推荐：仅当 customCategory 和 dxmCategoryVal 都为空时触发
+  if (!customCategory && !dxmCategoryVal && title) {
+    var aliCat = category ? (category.leafCategoryName || category.categoryPath || '') : '';
+    var productId = row.id;
+    var http = require('http');
+    var postData = JSON.stringify({ title: title, ali_category: aliCat });
+    var reqOpts = {
+      hostname: 'localhost',
+      port: 3000,
+      path: '/api/ai/suggest-category',
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(postData) }
+    };
+    var aiReq = http.request(reqOpts, function (aiRes) {
+      var body = '';
+      aiRes.on('data', function (chunk) { body += chunk; });
+      aiRes.on('end', function () {
+        try {
+          var result = JSON.parse(body);
+          if (result.ok && result.category && result.confidence >= 0.6) {
+            var updates = [];
+            var params = [];
+            if (result.category) {
+              updates.push('custom_category = ?');
+              params.push(result.category);
+            }
+            if (result.path) {
+              var dxmCat = JSON.stringify({ path: result.path, leafName: result.category });
+              updates.push('dxm_category = ?');
+              params.push(dxmCat);
+            }
+            if (updates.length) {
+              params.push(productId);
+              dbModule.db.run('UPDATE products SET ' + updates.join(', ') + ' WHERE id = ?', params);
+              scheduleSave();
+              console.log('[AI分类推荐] 产品#' + productId + ' 异步匹配: ' + result.category + ' (置信度:' + result.confidence.toFixed(2) + ', 来源:' + result.source + ')');
+              sseBroadcast('product-category-updated', { id: productId, category: result.category, source: result.source });
+            }
+          }
+        } catch (e) {}
+      });
+    });
+    aiReq.on('error', function () {});
+    aiReq.write(postData);
+    aiReq.end();
+  }
 });
 
 // 检查是否已采集

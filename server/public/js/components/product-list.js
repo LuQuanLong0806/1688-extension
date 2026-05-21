@@ -175,6 +175,13 @@ Vue.component('page-products', {
         vm.$root.loadStats();
         vm.$Message.info('新采集数据已同步');
       });
+      es.addEventListener('product-category-updated', function (e) {
+        try {
+          var data = JSON.parse(e.data);
+          vm.$Message.info('AI分类推荐完成: ' + data.category);
+          vm.loadList(vm.page);
+        } catch (ex) {}
+      });
       es.onerror = function () {
         es.close();
         setTimeout(function () {

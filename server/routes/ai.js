@@ -685,21 +685,21 @@ router.post('/suggest-category', function (req, res) {
     }
   }
 
-  // Step 2: 用LLM语义匹配
-  // 从dxm_tree.db搜索相关叶子类目
+  // Step 2: 搜索候选分类（同时搜 cat_name 和 path）
   var searchTerms = [title, aliCategory].filter(Boolean).join(' ');
   var keywords = searchTerms.split(/[\s\/,|]+/).filter(function (w) { return w.length > 1; });
 
   var candidates = [];
-  var seen = {};
-  for (var k = 0; k < keywords.length; k++) {
+  var seenPaths = {};
+  var MAX_CANDIDATES = 30;
+  for (var k = 0; k < keywords.length && candidates.length < MAX_CANDIDATES; k++) {
     var rows = dbModule.treeGetAll(
-      'SELECT cat_name, path FROM dxm_category_tree WHERE is_leaf = 1 AND cat_name LIKE ? LIMIT 10',
-      ['%' + keywords[k] + '%']
+      'SELECT cat_name, path FROM dxm_category_tree WHERE is_leaf = 1 AND (cat_name LIKE ? OR path LIKE ?) LIMIT 15',
+      ['%' + keywords[k] + '%', '%' + keywords[k] + '%']
     );
-    for (var r = 0; r < rows.length; r++) {
-      if (!seen[rows[r].cat_name]) {
-        seen[rows[r].cat_name] = true;
+    for (var r = 0; r < rows.length && candidates.length < MAX_CANDIDATES; r++) {
+      if (!seenPaths[rows[r].path]) {
+        seenPaths[rows[r].path] = true;
         candidates.push({ name: rows[r].cat_name, path: rows[r].path });
       }
     }
@@ -763,54 +763,113 @@ router.post('/suggest-category', function (req, res) {
   });
 });
 
-// LLM 推荐分类（无候选时）
+// LLM 推荐分类（无候选时）— 两阶段：先选分支，再选叶子
 function suggestCategoryWithLLM(title, aliCategory) {
   var apiKey = getApiKey();
   if (!apiKey) return Promise.resolve(null);
 
-  var prompt = '你是一个跨境电商分类专家。根据以下产品信息，推荐最合适的TEMU分类。\n\n';
-  if (title) prompt += '产品标题: ' + title + '\n';
-  if (aliCategory) prompt += '1688类目: ' + aliCategory + '\n';
-  prompt += '\n请返回JSON格式: {"category": "叶子分类名", "confidence": 0.8}\n只返回JSON，不要其他文字。';
+  // 阶段1：取所有二级分支，让LLM选择最相关的分支
+  var branches = dbModule.treeGetAll(
+    'SELECT DISTINCT path FROM dxm_category_tree WHERE is_leaf = 0 AND cat_level <= 2 AND path LIKE "%/%" ORDER BY path'
+  );
+  if (!branches.length) return Promise.resolve(null);
+
+  var branchList = branches.map(function (b, i) {
+    return (i + 1) + '. ' + b.path;
+  }).join('\n');
+
+  var stage1Prompt = '你是一个跨境电商分类专家。根据产品信息，从以下分类分支中选择最可能包含该产品的分支。\n\n';
+  if (title) stage1Prompt += '产品标题: ' + title + '\n';
+  if (aliCategory) stage1Prompt += '来源平台类目: ' + aliCategory + '\n';
+  stage1Prompt += '\n可选分类分支:\n' + branchList;
+  stage1Prompt += '\n\n请选择最相关的分支序号。返回JSON: {"choice": 序号}\n只返回JSON。';
 
   return zhipuRequest('/chat/completions', {
     model: 'glm-4-flash',
-    messages: [{ role: 'user', content: prompt }],
+    messages: [{ role: 'user', content: stage1Prompt }],
     temperature: 0.1,
-    max_tokens: 200
+    max_tokens: 50
   }).then(function (result) {
     var text = result.choices && result.choices[0] && result.choices[0].message && result.choices[0].message.content;
     if (!text) return null;
+    var parsed;
     try {
       var jsonStr = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-      var parsed = JSON.parse(jsonStr);
-      // 在dxm_tree中查找路径
-      var pathRow = dbModule.treeGetOne(
-        'SELECT path FROM dxm_category_tree WHERE cat_name = ? AND is_leaf = 1 LIMIT 1',
-        [parsed.category]
-      );
-      return {
-        category: parsed.category,
-        path: pathRow ? pathRow.path : '',
-        confidence: parsed.confidence || 0.6
-      };
+      parsed = JSON.parse(jsonStr);
     } catch (e) {
       return null;
     }
+
+    var branchIdx = (parsed.choice || 1) - 1;
+    if (branchIdx < 0 || branchIdx >= branches.length) return null;
+
+    // 阶段2：在选中分支内取叶子分类，让LLM选最终结果
+    var selectedBranch = branches[branchIdx].path;
+    var leaves = dbModule.treeGetAll(
+      'SELECT cat_name, path FROM dxm_category_tree WHERE is_leaf = 1 AND path LIKE ? LIMIT 50',
+      [selectedBranch + '/%']
+    );
+    if (!leaves.length) {
+      // 分支下无叶子，尝试取下一级子分支的叶子
+      leaves = dbModule.treeGetAll(
+        'SELECT cat_name, path FROM dxm_category_tree WHERE is_leaf = 1 AND path LIKE ? LIMIT 50',
+        [selectedBranch.substring(0, selectedBranch.indexOf('/') + 1) + '%']
+      );
+    }
+    if (!leaves.length) return null;
+
+    if (leaves.length <= 3) {
+      // 叶子很少时直接返回第一个，置信度 0.6 刚好达到异步保存阈值
+      return { category: leaves[0].cat_name, path: leaves[0].path, confidence: 0.6 };
+    }
+
+    var leafList = leaves.slice(0, 30).map(function (l, i) {
+      return (i + 1) + '. ' + l.path;
+    }).join('\n');
+
+    var stage2Prompt = '你是一个跨境电商分类专家。根据产品信息，从以下分类中选择最匹配的叶子分类。\n\n';
+    if (title) stage2Prompt += '产品标题: ' + title + '\n';
+    if (aliCategory) stage2Prompt += '来源平台类目: ' + aliCategory + '\n';
+    stage2Prompt += '\n候选分类:\n' + leafList;
+    stage2Prompt += '\n\n请选择最匹配的分类序号。返回JSON: {"choice": 序号, "confidence": 0.0到1.0}\n只返回JSON。';
+
+    return zhipuRequest('/chat/completions', {
+      model: 'glm-4-flash',
+      messages: [{ role: 'user', content: stage2Prompt }],
+      temperature: 0.1,
+      max_tokens: 50
+    }).then(function (result2) {
+      var text2 = result2.choices && result2.choices[0] && result2.choices[0].message && result2.choices[0].message.content;
+      if (!text2) return { category: leaves[0].cat_name, path: leaves[0].path, confidence: 0.5 };
+      try {
+        var jsonStr2 = text2.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+        var parsed2 = JSON.parse(jsonStr2);
+        var leafIdx = (parsed2.choice || 1) - 1;
+        if (leafIdx >= 0 && leafIdx < leaves.length) {
+          return { category: leaves[leafIdx].cat_name, path: leaves[leafIdx].path, confidence: parsed2.confidence || 0.5 };
+        }
+      } catch (e) {}
+      return { category: leaves[0].cat_name, path: leaves[0].path, confidence: 0.5 };
+    });
   }).catch(function () { return null; });
 }
 
-// LLM 从候选中选择最佳
+// LLM 从候选中选择最佳（传完整路径让LLM利用层级语义）
 function suggestCategoryFromCandidates(title, aliCategory, candidates) {
   var apiKey = getApiKey();
   if (!apiKey) return Promise.resolve({ category: candidates[0].name, path: candidates[0].path, confidence: 0.5 });
 
-  var candidateNames = candidates.slice(0, 10).map(function (c) { return c.name; });
-  var prompt = '你是跨境电商分类专家。为以下产品选择最合适的TEMU分类。\n\n';
+  var candidateList = candidates.slice(0, 15).map(function (c, i) {
+    return (i + 1) + '. ' + c.path;
+  }).join('\n');
+
+  var prompt = '你是一个跨境电商分类匹配专家。请根据产品信息，从候选分类路径中选择最匹配的一个。\n\n';
   if (title) prompt += '产品标题: ' + title + '\n';
-  if (aliCategory) prompt += '1688类目: ' + aliCategory + '\n';
-  prompt += '\n候选分类:\n' + candidateNames.map(function (n, i) { return (i + 1) + '. ' + n; }).join('\n');
-  prompt += '\n\n请返回JSON: {"choice": 序号, "confidence": 0.8}\n只返回JSON。';
+  if (aliCategory) prompt += '来源平台类目: ' + aliCategory + '\n';
+  prompt += '\n候选分类路径:\n' + candidateList;
+  prompt += '\n\n请分析每个候选路径的层级语义，选择与产品最匹配的分类。\n';
+  prompt += '返回JSON格式: {"choice": 序号, "confidence": 0.0到1.0之间的数值}\n';
+  prompt += '只返回JSON，不要其他文字。';
 
   return zhipuRequest('/chat/completions', {
     model: 'glm-4-flash',
