@@ -1909,11 +1909,11 @@
   // ===== AI inpaint =====
   function applyEditorInpaint() {
     var oldSrc = editorSrc;
-    editorMaskCtx.clearRect(0, 0, editorMaskCanvas.width, editorMaskCanvas.height);
     editorStatus.textContent = 'AI消除中...';
     showEditorLoading('AI消除中...');
     getOrigImageCanvas().then(function (origCanvas) {
       var maskCtx = buildOrigMask();
+      editorMaskCtx.clearRect(0, 0, editorMaskCanvas.width, editorMaskCanvas.height);
       var imageBase64 = origCanvas.toDataURL('image/png');
       var maskBase64 = maskCtx.canvas.toDataURL('image/png');
       return fetch(getServerBase() + '/api/ai/inpaint', {
