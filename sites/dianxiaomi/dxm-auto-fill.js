@@ -308,20 +308,22 @@
     });
 
     function doCategorySelect(data) {
-      var catInfo = resolveCategory(data);
-      if (catInfo) {
-        waitForElement(
-          '#productBasicInfo .category-item button',
-          5000,
-          function () {
-            autoSelectCategory(catInfo, collectId, function () {
-              doFillTitleAndNext(data);
-            });
-          }
-        );
-      } else {
-        doFillTitleAndNext(data);
-      }
+      resolveCategory(data, function (catInfo) {
+        if (catInfo) {
+          waitForElement(
+            '#productBasicInfo .category-item button',
+            5000,
+            function () {
+              autoSelectCategory(catInfo, collectId, function () {
+                doFillTitleAndNext(data);
+              });
+            }
+          );
+        } else {
+          autoLog('无法确定分类，请手动选择');
+          doFillTitleAndNext(data);
+        }
+      });
     }
 
     function doFillTitleAndNext(data) {
@@ -344,7 +346,17 @@
         '#productProductInfo .mainImage .img-list .img-item'
       ).length;
       if (allImages.length) {
-        pasteMainImages(allImages, function () {
+        // 自动去中文：在贴图前清理图片中的中文文字
+        if (window.DxmAutoClean && window.DxmAutoClean.isAutoCleanEnabled()) {
+          autoLog('自动检测并清理图片中文...');
+          window.DxmAutoClean.smartPasteImages(allImages, function (cleanedImages) {
+            pasteMainImages(cleanedImages, doAfterPaste);
+          });
+        } else {
+          pasteMainImages(allImages, doAfterPaste);
+        }
+
+        function doAfterPaste() {
           if (C.loadAutoResize()) {
             waitForImagesUploaded(initialImgCount, function () {
               deleteProductVideos(function () {
@@ -406,7 +418,7 @@
               });
             });
           }
-        });
+        } // end doAfterPaste
       } else {
         autoFinish('自动填表完成（无主图数据）');
       }
@@ -752,31 +764,83 @@
 
   // ========== Step 1.6: 自动选择类目 ==========
 
-  // 类目回退优先级：manualCategory → customCategory → dxmCategory → 1688原始类目
-  function resolveCategory(data) {
+  // 类目回退优先级：manualCategory → customCategory → dxmCategory → AI推荐 → 1688原始类目
+  function resolveCategory(data, cb) {
     // 0. 最优先用手动分类
     if (data.manualCategory) {
       var mc = data.manualCategory;
-      return { path: mc, leafName: mc.split(/[\/>]/).pop() || mc };
+      return cb({ path: mc, leafName: mc.split(/[\/>]/).pop() || mc, source: 'manual' });
     }
     // 1. 自定义类目（category-picker 选的）
     if (data.customCategory) {
       var cc = data.customCategory;
-      return { path: cc, leafName: cc.split(/[\/>]/).pop() || cc };
+      return cb({ path: cc, leafName: cc.split(/[\/>]/).pop() || cc, source: 'custom' });
     }
     // 2. 用已保存的店小秘类目
     if (data.dxmCategory && data.dxmCategory.leafName) {
-      return data.dxmCategory;
+      return cb({ path: data.dxmCategory.path || data.dxmCategory.leafName, leafName: data.dxmCategory.leafName, source: 'dxm' });
     }
-    // 3. 用1688原始类目
+    // 3. 调用后端 AI 推荐分类
+    var title = data.title || '';
+    var aliCategory = '';
+    if (data.category) {
+      aliCategory = data.category.leafCategoryName || data.category.categoryPath || '';
+    }
+    if (title || aliCategory) {
+      autoLog('正在推荐分类: ' + (title || aliCategory));
+      var serverUrl = localStorage.getItem(SERVER_KEY) || 'http://localhost:3000';
+      fetch(serverUrl + '/api/ai/suggest-category', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: title, ali_category: aliCategory })
+      }).then(function (r) { return r.json(); }).then(function (result) {
+        if (result.ok && result.category) {
+          autoLog('分类推荐命中 (' + result.source + ', 置信度: ' + (result.confidence || 0).toFixed(2) + '): ' + result.category);
+          // 高置信度自动保存映射，避免重复调LLM
+          if (result.confidence >= 0.8 && aliCategory && result.source !== 'mapping') {
+            saveCategoryMapping(aliCategory, result.category);
+          }
+          cb({ path: result.path || result.category, leafName: result.category, source: result.source, confidence: result.confidence });
+        } else {
+          // AI推荐无结果，回退到1688原始类目
+          autoLog('AI推荐无结果，尝试1688原始类目');
+          cb(fallbackTo1688Category(data));
+        }
+      }).catch(function (e) {
+        console.warn('[自动填表] 分类推荐失败:', e);
+        autoLog('分类推荐失败，尝试1688原始类目');
+        cb(fallbackTo1688Category(data));
+      });
+      return; // 异步等结果
+    }
+    // 无标题也无1688类目
+    cb(null);
+  }
+
+  // 1688原始类目回退
+  function fallbackTo1688Category(data) {
     var cat = data.category;
     if (cat) {
       var name = cat.leafCategoryName || cat.categoryPath || '';
       if (name) {
-        return { path: name, leafName: name.split('/').pop() || name };
+        return { path: name, leafName: name.split('/').pop() || name, source: '1688' };
       }
     }
     return null;
+  }
+
+  // 自动保存分类映射（后台静默，不阻塞流程）
+  function saveCategoryMapping(aliCategory, temuCategory) {
+    var serverUrl = localStorage.getItem(SERVER_KEY) || 'http://localhost:3000';
+    fetch(serverUrl + '/api/ai/save-category-mapping', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ali_category: aliCategory, temu_category: temuCategory })
+    }).then(function (r) { return r.json(); }).then(function (result) {
+      if (result.ok) {
+        console.log('[自动填表] 分类映射已保存:', aliCategory, '→', temuCategory);
+      }
+    }).catch(function () {});
   }
 
   function autoSelectCategory(catInfo, cId, cb) {

@@ -1,4 +1,4 @@
-var resultTabsMap = {};
+﻿var resultTabsMap = {};
 var collageMap = {}; // sourceId -> collageTabId (1:1)
 
 chrome.runtime.onMessage.addListener(function (msg, sender) {
@@ -27,6 +27,24 @@ chrome.runtime.onMessage.addListener(function (msg, sender) {
       collageMap[sourceId] = tab.id;
     });
   }
+  // 去中文页面：紧挨源标签打开，一对一关联
+  if (msg.action === 'openTextCleaner' && msg.url) {
+    var sourceId = sender.tab.id;
+    if (cleanerMap[sourceId]) {
+      chrome.tabs.update(cleanerMap[sourceId], { active: true }, function () {
+        if (chrome.runtime.lastError) {
+          delete cleanerMap[sourceId];
+          chrome.tabs.create({ url: msg.url, index: sender.tab.index + 1 }, function (tab) {
+            cleanerMap[sourceId] = tab.id;
+          });
+        }
+      });
+      return;
+    }
+    chrome.tabs.create({ url: msg.url, index: sender.tab.index + 1 }, function (tab) {
+      cleanerMap[sourceId] = tab.id;
+    });
+  }
   if (msg.action === 'closeSourceTab') {
     chrome.tabs.remove(sender.tab.id);
   }
@@ -50,6 +68,18 @@ chrome.tabs.onRemoved.addListener(function (tabId) {
   for (var sid in collageMap) {
     if (collageMap[sid] === tabId) {
       delete collageMap[sid];
+      return;
+    }
+  }
+  // 去中文：源标签关闭→关闭去中文页面；去中文页面关闭→仅移除映射
+  if (cleanerMap[tabId]) {
+    chrome.tabs.remove(cleanerMap[tabId]);
+    delete cleanerMap[tabId];
+    return;
+  }
+  for (var sid in cleanerMap) {
+    if (cleanerMap[sid] === tabId) {
+      delete cleanerMap[sid];
       return;
     }
   }

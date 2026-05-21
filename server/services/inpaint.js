@@ -107,8 +107,37 @@ async function inpaint(imageBuffer, maskBuffer) {
   }
 
   // 6. 缩放回原图尺寸
-  const resultPng = await sharp(rgbBuf, { raw: { width: outW, height: outH, channels: 3 } })
+  const inpaintResult = await sharp(rgbBuf, { raw: { width: outW, height: outH, channels: 3 } })
     .resize(origW, origH, { fit: 'fill' })
+    .raw()
+    .toBuffer();
+
+  // 7. 只替换 mask 区域的像素，保留原图非 mask 区域（避免全图模糊）
+  // 将原图也转为 raw
+  const origRaw = await sharp(imageBuffer)
+    .removeAlpha()
+    .resize(origW, origH)
+    .raw()
+    .toBuffer();
+
+  // 将 mask 缩放到原图尺寸并转为 raw
+  const origMask = await sharp(maskBuffer)
+    .resize(origW, origH, { fit: 'fill' })
+    .grayscale()
+    .threshold(128)
+    .raw()
+    .toBuffer();
+
+  // 混合：mask 白色区域用 inpaint 结果，黑色区域用原图
+  const blended = Buffer.alloc(origW * origH * 3);
+  for (let i = 0; i < origW * origH; i++) {
+    const m = origMask[i] / 255;  // 0=原图, 1=修复
+    blended[i * 3]     = Math.round(origRaw[i * 3]     * (1 - m) + inpaintResult[i * 3]     * m);
+    blended[i * 3 + 1] = Math.round(origRaw[i * 3 + 1] * (1 - m) + inpaintResult[i * 3 + 1] * m);
+    blended[i * 3 + 2] = Math.round(origRaw[i * 3 + 2] * (1 - m) + inpaintResult[i * 3 + 2] * m);
+  }
+
+  const resultPng = await sharp(blended, { raw: { width: origW, height: origH, channels: 3 } })
     .png()
     .toBuffer();
 

@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>去中文工具 - TEMU无中文图方案</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"Microsoft YaHei",Arial,sans-serif;background:#1a1a2e;color:#e0e0e0;height:100vh;display:flex;flex-direction:column;overflow:hidden;font-size:13px}
+
+/* ========== 顶部栏 ========== */
+.topbar{height:44px;background:#16213e;display:flex;align-items:center;padding:0 16px;border-bottom:1px solid #0f3460;flex-shrink:0;gap:12px}
+.topbar h1{font-size:15px;color:#e94560;letter-spacing:1px;white-space:nowrap}
+.topbar .status{font-size:11px;padding:3px 10px;border-radius:10px;background:#0f3460;color:#8bf}
+.topbar .status.ok{background:#1a472a;color:#6fcf97}
+.topbar .status.err{background:#4a1a1a;color:#ff6b6b}
+.topbar .status.loading{animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.topbar .spacer{flex:1}
+.topbar .hint{font-size:11px;color:#666}
+
+/* ========== 主体 ========== */
+.main{flex:1;display:flex;overflow:hidden}
+
+/* ========== 左侧面板 ========== */
+.sidebar{width:240px;background:#16213e;border-right:1px solid #0f3460;flex-shrink:0;display:flex;flex-direction:column;overflow-y:auto}
+.sb-section{padding:12px;border-bottom:1px solid #0f3460}
+.sb-title{font-size:11px;color:#e94560;letter-spacing:1px;margin-bottom:8px;font-weight:600;text-transform:uppercase}
+.sb-btn{width:100%;padding:8px;border:1px solid #0f3460;border-radius:6px;background:#1a1a2e;color:#e0e0e0;cursor:pointer;font-size:12px;margin-bottom:4px;transition:all .15s;text-align:center}
+.sb-btn:hover{border-color:#e94560;color:#e94560;background:#2a1a3e}
+.sb-btn.primary{background:linear-gradient(135deg,#e94560,#c23152);color:#fff;border-color:#c23152;font-weight:bold;box-shadow:0 2px 8px rgba(233,69,96,.3)}
+.sb-btn.primary:hover{box-shadow:0 4px 12px rgba(233,69,96,.5)}
+.sb-btn:disabled{opacity:.4;pointer-events:none}
+.sb-hint{font-size:11px;color:#555;text-align:center;padding:4px 0}
+.sb-input{width:100%;padding:7px 10px;border:1px solid #0f3460;border-radius:6px;background:#1a1a2e;color:#e0e0e0;font-size:12px;outline:none;margin-bottom:6px;font-family:inherit;resize:vertical}
+.sb-input:focus{border-color:#e94560}
+.sb-input::placeholder{color:#444}
+.sb-slider{width:100%;margin:6px 0}
+.sb-slider .slider-header{display:flex;justify-content:space-between;font-size:11px;color:#666;margin-bottom:3px}
+.sb-slider .slider-val{color:#e94560;font-weight:600}
+.sb-slider input[type=range]{width:100%;height:4px;-webkit-appearance:none;appearance:none;background:#0f3460;border-radius:2px;outline:none}
+.sb-slider input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;border-radius:50%;background:#e94560;cursor:pointer;border:2px solid #1a1a2e}
+.sb-check{display:flex;align-items:center;gap:6px;font-size:12px;color:#aaa;margin-bottom:6px;cursor:pointer}
+.sb-check input{accent-color:#e94560}
+
+/* ========== 中央画布 ========== */
+.canvas-area{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;overflow:auto;background:repeating-conic-gradient(#222 0% 25%,#1a1a2e 0% 50%) 50%/16px 16px}
+.canvas-wrap{position:relative;display:inline-block}
+.canvas-board{position:relative;background:#fff;box-shadow:0 4px 24px rgba(0,0,0,.4);overflow:hidden;border-radius:4px}
+.canvas-board img{display:block;max-width:100%;max-height:70vh}
+.canvas-board canvas{position:absolute;top:0;left:0;pointer-events:none}
+
+/* 空态 */
+.empty-state{display:flex;flex-direction:column;align-items:center;gap:16px;color:#555}
+.empty-state svg{width:80px;height:80px;fill:#333}
+.empty-state p{font-size:14px}
+
+/* ========== 右侧面板 ========== */
+.right-panel{width:280px;background:#16213e;border-left:1px solid #0f3460;flex-shrink:0;display:flex;flex-direction:column;overflow-y:auto}
+.rp-section{padding:12px;border-bottom:1px solid #0f3460}
+.rp-title{font-size:11px;color:#e94560;letter-spacing:1px;margin-bottom:8px;font-weight:600;text-transform:uppercase}
+.region-list{max-height:300px;overflow-y:auto}
+.region-item{display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid #0f3460;border-radius:4px;margin-bottom:4px;font-size:11px;cursor:pointer;transition:all .15s}
+.region-item:hover{border-color:#e94560;background:#2a1a3e}
+.region-item .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.region-item .dot.cn{background:#e94560}
+.region-item .dot.en{background:#4fc3f7}
+.region-item .text{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#aaa}
+.region-item .conf{color:#666;font-size:10px}
+.rp-stat{display:flex;gap:12px;margin-bottom:8px}
+.rp-stat .stat{flex:1;text-align:center;padding:8px;border:1px solid #0f3460;border-radius:6px}
+.rp-stat .stat .num{font-size:20px;font-weight:bold;color:#e94560}
+.rp-stat .stat .label{font-size:10px;color:#666;margin-top:2px}
+
+/* ========== 对比视图 ========== */
+.compare-wrap{display:flex;gap:2px;width:100%;max-width:900px}
+.compare-side{flex:1;position:relative;background:#111;border-radius:4px;overflow:hidden}
+.compare-side img{width:100%;display:block}
+.compare-label{position:absolute;top:8px;left:8px;font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(0,0,0,.7);color:#fff}
+
+/* ========== Toast ========== */
+.toast{position:fixed;top:60px;left:50%;transform:translateX(-50%);padding:8px 20px;border-radius:8px;font-size:13px;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+.toast.ok{background:#1a472a;color:#6fcf97;border:1px solid #2d6a4f}
+.toast.err{background:#4a1a1a;color:#ff6b6b;border:1px solid #6a2c2c}
+.toast.loading{background:#1a2a4a;color:#8bf;border:1px solid #2a3a6a}
+
+/* ========== Loading ========== */
+.loading-overlay{position:absolute;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:50}
+.loading-spinner{width:40px;height:40px;border:3px solid #0f3460;border-top-color:#e94560;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<!-- 顶部栏 -->
+<div class="topbar">
+  <h1>🧹 去中文工具</h1>
+  <div class="status" id="ocrStatus">检测中...</div>
+  <div class="status" id="lamaStatus">检测中...</div>
+  <div class="spacer"></div>
+  <div class="hint">TEMU无中文图一键方案 | 1688采货专用</div>
+</div>
+
+<!-- 主体 -->
+<div class="main">
+  <!-- 左侧面板 -->
+  <div class="sidebar">
+    <div class="sb-section">
+      <div class="sb-title">📥 图片输入</div>
+      <textarea class="sb-input" id="imageUrlInput" rows="3" placeholder="粘贴图片URL（多个换行分隔）"></textarea>
+      <button class="sb-btn" id="btnLoadUrl">加载URL图片</button>
+      <button class="sb-btn" id="btnUpload">上传本地图片</button>
+      <input type="file" id="fileInput" accept="image/*" multiple style="display:none">
+      <button class="sb-btn" id="btnPasteClipboard">从剪贴板粘贴</button>
+      <div class="sb-hint">支持拖拽图片到画布</div>
+    </div>
+
+    <div class="sb-section">
+      <div class="sb-title">🔍 检测设置</div>
+      <label class="sb-check"><input type="checkbox" id="chkChineseOnly" checked> 仅检测中文</label>
+      <div class="sb-slider">
+        <div class="slider-header"><span>最低置信度</span><span class="slider-val" id="confVal">0.50</span></div>
+        <input type="range" id="confSlider" min="0.1" max="0.95" step="0.05" value="0.5">
+      </div>
+      <div class="sb-slider">
+        <div class="slider-header"><span>膨胀像素</span><span class="slider-val" id="expandVal">8</span></div>
+        <input type="range" id="expandSlider" min="0" max="30" step="1" value="8">
+      </div>
+      <button class="sb-btn primary" id="btnDetect">🔍 检测文字</button>
+    </div>
+
+    <div class="sb-section">
+      <div class="sb-title">✨ 一键去中文</div>
+      <button class="sb-btn primary" id="btnCleanAll" style="background:linear-gradient(135deg,#ff6b35,#e94560)">✨ 检测 + 修复</button>
+      <div class="sb-hint">OCR检测 → 生成Mask → LaMa修复</div>
+    </div>
+
+    <div class="sb-section">
+      <div class="sb-title">💾 导出</div>
+      <button class="sb-btn" id="btnDownload">下载结果图</button>
+      <button class="sb-btn" id="btnCopyUrl">复制到图床</button>
+    </div>
+
+    <div class="sb-section">
+      <div class="sb-title">🔄 批量模式</div>
+      <div class="sb-hint" id="batchHint">尚未添加图片</div>
+      <button class="sb-btn" id="btnBatchClean" disabled>批量去中文</button>
+      <div class="sb-hint" id="batchProgress"></div>
+    </div>
+  </div>
+
+  <!-- 中央画布 -->
+  <div class="canvas-area" id="canvasArea">
+    <div class="empty-state" id="emptyState">
+      <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+      <p>拖拽图片到这里，或从左侧输入URL</p>
+    </div>
+    <div class="canvas-wrap" id="canvasWrap" style="display:none">
+      <div class="canvas-board" id="canvasBoard">
+        <img id="mainImage" src="" alt="">
+        <canvas id="overlayCanvas"></canvas>
+      </div>
+      <div class="loading-overlay" id="loadingOverlay" style="display:none">
+        <div class="loading-spinner"></div>
+      </div>
+    </div>
+    <!-- 对比视图 -->
+    <div class="compare-wrap" id="compareWrap" style="display:none">
+      <div class="compare-side">
+        <div class="compare-label">原图</div>
+        <img id="compareOrig" src="">
+      </div>
+      <div class="compare-side">
+        <div class="compare-label">去中文后</div>
+        <img id="compareClean" src="">
+      </div>
+    </div>
+  </div>
+
+  <!-- 右侧面板 -->
+  <div class="right-panel">
+    <div class="rp-section">
+      <div class="rp-title">📊 检测统计</div>
+      <div class="rp-stat">
+        <div class="stat"><div class="num" id="statTotal">0</div><div class="label">文字区域</div></div>
+        <div class="stat"><div class="num" id="statChinese">0</div><div class="label">含中文</div></div>
+        <div class="stat"><div class="num" id="statEnglish">0</div><div class="label">纯英文</div></div>
+      </div>
+      <div class="sb-hint" id="detectTime"></div>
+    </div>
+
+    <div class="rp-section">
+      <div class="rp-title">📝 检测结果</div>
+      <div class="region-list" id="regionList">
+        <div class="sb-hint">暂无检测结果</div>
+      </div>
+    </div>
+
+    <div class="rp-section">
+      <div class="rp-title">🖼️ 图片队列</div>
+      <div class="region-list" id="imageQueue">
+        <div class="sb-hint">暂无图片</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script src="/dxm-text-cleaner.js"></script>
+</body>
+</html>

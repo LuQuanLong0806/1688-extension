@@ -505,4 +505,363 @@ router.post('/smms-token-delete', function (req, res) {
   }
 });
 
+// ===== PaddleOCR 文字检测（替代 GLM-4V，坐标更精准）=====
+var textCleaner = require('../services/text-cleaner');
+
+router.post('/detect-text', function (req, res) {
+  var imageBase64 = req.body.image_base64;
+  var imageUrl = req.body.image_url;
+  var chineseOnly = req.body.chinese_only !== false;
+
+  if (!imageBase64 && !imageUrl) return res.status(400).json({ error: '请提供 image_base64 或 image_url' });
+
+  var detectPromise;
+  if (imageBase64) {
+    detectPromise = textCleaner.callOcrService(imageBase64, chineseOnly);
+  } else {
+    // 先下载图片转 base64
+    detectPromise = textCleaner.downloadImage(imageUrl).then(function (buf) {
+      return textCleaner.callOcrService(buf.toString('base64'), chineseOnly);
+    });
+  }
+
+  detectPromise.then(function (result) {
+    res.json(result);
+  }).catch(function (err) {
+    console.error('[文字检测失败]', err.message);
+    res.status(502).json({ error: '文字检测失败: ' + err.message });
+  });
+});
+
+// ===== 自动清理图片中的中文文字（一键去中文）=====
+router.post('/auto-clean-chinese', function (req, res) {
+  var imageBase64 = req.body.image_base64;
+  var imageUrl = req.body.image_url;
+
+  if (!imageBase64 && !imageUrl) return res.status(400).json({ error: '请提供 image_base64 或 image_url' });
+
+  console.log('[自动去中文] 开始处理...');
+  var t0 = Date.now();
+
+  var imagePromise;
+  if (imageBase64) {
+    imagePromise = Promise.resolve(Buffer.from(imageBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64'));
+  } else {
+    imagePromise = textCleaner.downloadImage(imageUrl);
+  }
+
+  imagePromise.then(function (imgBuf) {
+    return textCleaner.cleanImage(imgBuf, { chineseOnly: true });
+  }).then(function (result) {
+    if (!result.cleaned) {
+      // 无需清理或模型不可用
+      res.json({
+        ok: true,
+        cleaned: false,
+        regions: result.regions || [],
+        regionCount: (result.regions || []).length,
+        message: result.message
+      });
+      return;
+    }
+
+    // 保存清理后的图片
+    return textCleaner.saveCleanedImage(result.imageBuffer).then(function (url) {
+      var elapsed = Date.now() - t0;
+      console.log('[自动去中文] 完成, 消除 ' + result.regionCount + ' 个区域, 耗时: ' + elapsed + 'ms');
+      res.json({
+        ok: true,
+        cleaned: true,
+        url: url,
+        regions: result.regions,
+        regionCount: result.regionCount,
+        elapsed_ms: elapsed
+      });
+    });
+  }).catch(function (err) {
+    console.error('[自动去中文失败]', err.message);
+    res.status(502).json({ error: '自动去中文失败: ' + err.message });
+  });
+});
+
+// ===== 批量清理图片中文（多图并行）=====
+router.post('/batch-clean-chinese', function (req, res) {
+  var images = req.body.images; // [{ url: '...', base64: '...' }, ...]
+  if (!Array.isArray(images) || !images.length) {
+    return res.status(400).json({ error: '请提供 images 数组' });
+  }
+
+  console.log('[批量去中文] 处理 ' + images.length + ' 张图片...');
+  var t0 = Date.now();
+
+  var promises = images.map(function (img, idx) {
+    var imagePromise;
+    if (img.base64) {
+      imagePromise = Promise.resolve(Buffer.from(img.base64.replace(/^data:image\/\w+;base64,/, ''), 'base64'));
+    } else if (img.url) {
+      imagePromise = textCleaner.downloadImage(img.url);
+    } else {
+      return Promise.resolve({ ok: true, cleaned: false, message: 'No image data' });
+    }
+
+    return imagePromise.then(function (buf) {
+      return textCleaner.cleanImage(buf, { chineseOnly: true });
+    }).then(function (result) {
+      if (!result.cleaned) {
+        return { ok: true, cleaned: false, regions: result.regions || [] };
+      }
+      return textCleaner.saveCleanedImage(result.imageBuffer).then(function (url) {
+        return { ok: true, cleaned: true, url: url, regionCount: result.regionCount };
+      });
+    }).catch(function (err) {
+      return { ok: false, error: err.message };
+    });
+  });
+
+  Promise.all(promises).then(function (results) {
+    var elapsed = Date.now() - t0;
+    var cleaned = results.filter(function (r) { return r.cleaned; }).length;
+    console.log('[批量去中文] 完成, ' + cleaned + '/' + images.length + ' 张被清理, 耗时: ' + elapsed + 'ms');
+    res.json({ ok: true, results: results, total: images.length, cleaned: cleaned, elapsed_ms: elapsed });
+  });
+});
+
+// ===== OCR 服务状态检查 =====
+router.get('/ocr-status', function (req, res) {
+  textCleaner.checkOcrHealth().then(function (status) {
+    var lamaAvailable = false;
+    try {
+      lamaAvailable = lamaService.isModelAvailable();
+    } catch (e) {
+      lamaAvailable = false;
+    }
+    res.json({
+      ocr: status,
+      lama: { available: lamaAvailable, model: 'LaMa (Local ONNX)' },
+      pipeline: status.status === 'ok' && lamaAvailable ? 'ready' : 'partial'
+    });
+  });
+});
+
+// ===== AI 分类推荐（LLM + dxm_tree.db）=====
+var dbModule = require('../db');
+
+router.post('/suggest-category', function (req, res) {
+  var title = (req.body.title || '').trim();
+  var aliCategory = (req.body.ali_category || '').trim();
+  var imageUrl = (req.body.image_url || '').trim();
+
+  if (!title && !aliCategory) {
+    return res.status(400).json({ error: '请提供 title 或 ali_category' });
+  }
+
+  console.log('[分类推荐] 标题:', title, '1688类目:', aliCategory);
+
+  // Step 1: 先查映射表
+  if (aliCategory) {
+    var mappings = dbModule.getAll(
+      'SELECT custom_category FROM category_mappings WHERE category_name = ? ORDER BY id',
+      [aliCategory]
+    );
+    if (mappings.length > 0) {
+      var mappedCategory = mappings[0].custom_category;
+      // 查完整路径
+      var pathRow = dbModule.treeGetOne(
+        'SELECT path FROM dxm_category_tree WHERE cat_name = ? AND is_leaf = 1 LIMIT 1',
+        [mappedCategory]
+      );
+      console.log('[分类推荐] 映射表命中:', mappedCategory);
+      return res.json({
+        ok: true,
+        source: 'mapping',
+        category: mappedCategory,
+        path: pathRow ? pathRow.path : '',
+        confidence: 1.0
+      });
+    }
+  }
+
+  // Step 2: 用LLM语义匹配
+  // 从dxm_tree.db搜索相关叶子类目
+  var searchTerms = [title, aliCategory].filter(Boolean).join(' ');
+  var keywords = searchTerms.split(/[\s\/,|]+/).filter(function (w) { return w.length > 1; });
+
+  var candidates = [];
+  var seen = {};
+  for (var k = 0; k < keywords.length; k++) {
+    var rows = dbModule.treeGetAll(
+      'SELECT cat_name, path FROM dxm_category_tree WHERE is_leaf = 1 AND cat_name LIKE ? LIMIT 10',
+      ['%' + keywords[k] + '%']
+    );
+    for (var r = 0; r < rows.length; r++) {
+      if (!seen[rows[r].cat_name]) {
+        seen[rows[r].cat_name] = true;
+        candidates.push({ name: rows[r].cat_name, path: rows[r].path });
+      }
+    }
+  }
+
+  // 如果关键词搜索无结果，用LLM
+  if (candidates.length === 0) {
+    // 尝试智谱LLM
+    suggestCategoryWithLLM(title, aliCategory).then(function (suggestion) {
+      if (suggestion) {
+        res.json({
+          ok: true,
+          source: 'llm',
+          category: suggestion.category,
+          path: suggestion.path,
+          confidence: suggestion.confidence || 0.6,
+          alternatives: suggestion.alternatives || []
+        });
+      } else {
+        res.json({ ok: true, source: 'none', category: '', path: '', confidence: 0 });
+      }
+    }).catch(function () {
+      res.json({ ok: true, source: 'none', category: '', path: '', confidence: 0 });
+    });
+    return;
+  }
+
+  // 有候选，用LLM从候选中选择最佳
+  if (candidates.length > 1) {
+    suggestCategoryFromCandidates(title, aliCategory, candidates).then(function (choice) {
+      res.json({
+        ok: true,
+        source: 'llm_search',
+        category: choice.category,
+        path: choice.path,
+        confidence: choice.confidence || 0.7,
+        alternatives: candidates.slice(0, 5)
+      });
+    }).catch(function () {
+      // LLM失败，返回第一个候选
+      res.json({
+        ok: true,
+        source: 'search',
+        category: candidates[0].name,
+        path: candidates[0].path,
+        confidence: 0.5,
+        alternatives: candidates.slice(0, 5)
+      });
+    });
+    return;
+  }
+
+  // 只有1个候选，直接返回
+  res.json({
+    ok: true,
+    source: 'search',
+    category: candidates[0].name,
+    path: candidates[0].path,
+    confidence: 0.8,
+    alternatives: candidates
+  });
+});
+
+// LLM 推荐分类（无候选时）
+function suggestCategoryWithLLM(title, aliCategory) {
+  var apiKey = getApiKey();
+  if (!apiKey) return Promise.resolve(null);
+
+  var prompt = '你是一个跨境电商分类专家。根据以下产品信息，推荐最合适的TEMU分类。\n\n';
+  if (title) prompt += '产品标题: ' + title + '\n';
+  if (aliCategory) prompt += '1688类目: ' + aliCategory + '\n';
+  prompt += '\n请返回JSON格式: {"category": "叶子分类名", "confidence": 0.8}\n只返回JSON，不要其他文字。';
+
+  return zhipuRequest('/chat/completions', {
+    model: 'glm-4-flash',
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.1,
+    max_tokens: 200
+  }).then(function (result) {
+    var text = result.choices && result.choices[0] && result.choices[0].message && result.choices[0].message.content;
+    if (!text) return null;
+    try {
+      var jsonStr = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+      var parsed = JSON.parse(jsonStr);
+      // 在dxm_tree中查找路径
+      var pathRow = dbModule.treeGetOne(
+        'SELECT path FROM dxm_category_tree WHERE cat_name = ? AND is_leaf = 1 LIMIT 1',
+        [parsed.category]
+      );
+      return {
+        category: parsed.category,
+        path: pathRow ? pathRow.path : '',
+        confidence: parsed.confidence || 0.6
+      };
+    } catch (e) {
+      return null;
+    }
+  }).catch(function () { return null; });
+}
+
+// LLM 从候选中选择最佳
+function suggestCategoryFromCandidates(title, aliCategory, candidates) {
+  var apiKey = getApiKey();
+  if (!apiKey) return Promise.resolve({ category: candidates[0].name, path: candidates[0].path, confidence: 0.5 });
+
+  var candidateNames = candidates.slice(0, 10).map(function (c) { return c.name; });
+  var prompt = '你是跨境电商分类专家。为以下产品选择最合适的TEMU分类。\n\n';
+  if (title) prompt += '产品标题: ' + title + '\n';
+  if (aliCategory) prompt += '1688类目: ' + aliCategory + '\n';
+  prompt += '\n候选分类:\n' + candidateNames.map(function (n, i) { return (i + 1) + '. ' + n; }).join('\n');
+  prompt += '\n\n请返回JSON: {"choice": 序号, "confidence": 0.8}\n只返回JSON。';
+
+  return zhipuRequest('/chat/completions', {
+    model: 'glm-4-flash',
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.1,
+    max_tokens: 100
+  }).then(function (result) {
+    var text = result.choices && result.choices[0] && result.choices[0].message && result.choices[0].message.content;
+    if (!text) return { category: candidates[0].name, path: candidates[0].path, confidence: 0.5 };
+    try {
+      var jsonStr = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+      var parsed = JSON.parse(jsonStr);
+      var idx = (parsed.choice || 1) - 1;
+      if (idx >= 0 && idx < candidates.length) {
+        return { category: candidates[idx].name, path: candidates[idx].path, confidence: parsed.confidence || 0.7 };
+      }
+    } catch (e) {}
+    return { category: candidates[0].name, path: candidates[0].path, confidence: 0.5 };
+  }).catch(function () {
+    return { category: candidates[0].name, path: candidates[0].path, confidence: 0.5 };
+  });
+}
+
+// 自动保存分类映射
+router.post('/save-category-mapping', function (req, res) {
+  var aliCategory = (req.body.ali_category || '').trim();
+  var temuCategory = (req.body.temu_category || '').trim();
+
+  if (!aliCategory || !temuCategory) {
+    return res.status(400).json({ error: '请提供 ali_category 和 temu_category' });
+  }
+
+  // 检查是否已有映射
+  var existing = dbModule.getAll(
+    'SELECT id FROM category_mappings WHERE category_name = ?',
+    [aliCategory]
+  );
+
+  if (existing.length > 0) {
+    // 更新已有映射
+    dbModule.run(
+      'UPDATE category_mappings SET custom_category = ? WHERE category_name = ?',
+      [temuCategory, aliCategory]
+    );
+    console.log('[分类映射] 更新:', aliCategory, '→', temuCategory);
+  } else {
+    // 新增映射
+    dbModule.run(
+      'INSERT INTO category_mappings (category_name, custom_category) VALUES (?, ?)',
+      [aliCategory, temuCategory]
+    );
+    console.log('[分类映射] 新增:', aliCategory, '→', temuCategory);
+  }
+
+  res.json({ ok: true, ali_category: aliCategory, temu_category: temuCategory });
+});
+
 module.exports = router;

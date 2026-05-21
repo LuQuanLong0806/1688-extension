@@ -29,6 +29,17 @@ app.get('/dxm-collage.js', function (req, res) {
   res.sendFile(path.join(COLLAGE_DIR, 'dxm-collage.js'));
 });
 
+// 去中文页面 — 直接通过 http://localhost:3000/text-cleaner 访问
+app.get('/text-cleaner', function (req, res) {
+  res.sendFile(path.join(COLLAGE_DIR, 'dxm-text-cleaner.html'));
+});
+app.get('/text-cleaner/dxm-text-cleaner.js', function (req, res) {
+  res.sendFile(path.join(COLLAGE_DIR, 'dxm-text-cleaner.js'));
+});
+app.get('/dxm-text-cleaner.js', function (req, res) {
+  res.sendFile(path.join(COLLAGE_DIR, 'dxm-text-cleaner.js'));
+});
+
 // Image proxy (solve CORS for external images)
 app.get('/api/proxy-image', function (req, res) {
   var url = req.query.url;
@@ -162,5 +173,79 @@ initDb().then(() => initTreeDb()).then(() => {
       var cmd = process.platform === 'win32' ? 'start' : process.platform === 'darwin' ? 'open' : 'xdg-open';
       require('child_process').exec(cmd + ' ' + openUrl);
     }
+
+    // 自动启动 PaddleOCR 微服务
+    startOcrService();
   });
 });
+
+// ========== PaddleOCR 微服务管理 ==========
+var ocrProcess = null;
+
+function startOcrService() {
+  var ocrScript = path.join(__dirname, 'services', 'ocr_service.py');
+  if (!fs.existsSync(ocrScript)) {
+    console.log('[OCR] ocr_service.py not found, skipping');
+    return;
+  }
+
+  // 检查 Python 可用性
+  var pythonCmd = 'python';
+  var { execSync } = require('child_process');
+  try {
+    execSync('python --version', { stdio: 'pipe', timeout: 5000 });
+  } catch (e) {
+    try {
+      execSync('python3 --version', { stdio: 'pipe', timeout: 5000 });
+      pythonCmd = 'python3';
+    } catch (e2) {
+      console.log('[OCR] Python not found, OCR service not started');
+      return;
+    }
+  }
+
+  // 检查 PaddleOCR 是否安装
+  try {
+    execSync(pythonCmd + ' -c "import paddleocr"', { stdio: 'pipe', timeout: 10000 });
+  } catch (e) {
+    console.log('[OCR] PaddleOCR not installed, run: pip install paddleocr paddlepaddle fastapi');
+    return;
+  }
+
+  console.log('[OCR] Starting PaddleOCR service on port 3001...');
+  var spawn = require('child_process').spawn;
+  ocrProcess = spawn(pythonCmd, [ocrScript, '--port', '3001'], {
+    stdio: 'pipe',
+    detached: false,
+    windowsHide: true
+  });
+
+  ocrProcess.stdout.on('data', function (data) {
+    var msg = data.toString().trim();
+    if (msg) console.log('[OCR]', msg);
+  });
+
+  ocrProcess.stderr.on('data', function (data) {
+    var msg = data.toString().trim();
+    if (msg && msg.indexOf('INFO') === -1) console.error('[OCR]', msg);
+  });
+
+  ocrProcess.on('exit', function (code) {
+    console.log('[OCR] Service exited with code:', code);
+    ocrProcess = null;
+    // 自动重启（5秒后）
+    if (code !== 0) {
+      console.log('[OCR] Restarting in 5s...');
+      setTimeout(startOcrService, 5000);
+    }
+  });
+
+  // 优雅退出
+  process.on('SIGINT', function () {
+    if (ocrProcess) {
+      console.log('[OCR] Stopping OCR service...');
+      ocrProcess.kill();
+    }
+    process.exit(0);
+  });
+}

@@ -1,4 +1,4 @@
-(function () {
+﻿(function () {
   if (window.__dxmFloatBee) return;
   window.__dxmFloatBee = true;
 
@@ -11,6 +11,7 @@
     '__dxm_bee_delete': '删图',
     '__dxm_bee_paste': '贴图',
     '__dxm_bee_resize': '尺寸',
+    '__dxm_bee_clean': '去中文',
     '__dxm_bee_sku_table': '填表',
     '__dxm_bee_sku': 'SKU',
     '__dxm_bee_package': '包装',
@@ -70,6 +71,8 @@
     '<div id="__dxm_bee_paste" title="一键粘贴图片URL">贴图<span class="__dxm_bee_check"></span></div>' +
     '<div class="__dxm_bee_line"></div>' +
     '<div id="__dxm_bee_resize" title="批量修改图片尺寸">尺寸<span class="__dxm_bee_check"></span></div>' +
+    '<div class="__dxm_bee_line"></div>' +
+    '<div id="__dxm_bee_clean" title="一键去除图片中文">去中文<span class="__dxm_bee_check"></span></div>' +
     '<div class="__dxm_bee_line" id="__dxm_bee_line_sku_table"></div>' +
     '<div id="__dxm_bee_sku_table" title="SKU表格填充">填表<span class="__dxm_bee_check"></span></div>' +
     '<div class="__dxm_bee_line" id="__dxm_bee_line_after_sku_table"></div>' +
@@ -1017,10 +1020,67 @@
           doResizeImages();
         } catch (e) {
           console.error('[小蜜蜂] 尺寸异常:', e);
-          showBubble('❌ 尺寸修改出错', 'err');
+          showBubble('\u274c \u5c3a\u5bf8\u4fee\u6539\u51fa\u9519', 'err');
           setTimeout(hideBubble, 2000);
           Config.finishWorkflow(false);
         }
+      });
+    }
+
+    // ===== \u53bb\u4e2d\u6587 \u6309\u94ae =====
+    var cleanEl = document.getElementById('__dxm_bee_clean');
+    if (cleanEl) {
+      cleanEl.addEventListener('click', function () {
+        if (!Config.startWorkflow('__dxm_bee_clean')) return;
+
+        if (!window.DxmAutoClean) {
+          showBubble('\u274c \u53bb\u4e2d\u6587\u6a21\u5757\u672a\u52a0\u8f7d', 'err');
+          setTimeout(hideBubble, 2000);
+          Config.finishWorkflow(false);
+          return;
+        }
+
+        // \u83b7\u53d6\u5f53\u524d\u4ea7\u54c1\u4e3b\u56feURL\u5217\u8868
+        var imgUrls = [];
+        var imgItems = document.querySelectorAll('#productProductInfo .mainImage .img-list .img-item img');
+        for (var i = 0; i < imgItems.length; i++) {
+          var src = imgItems[i].src || '';
+          if (src && src.indexOf('data:') !== 0) {
+            imgUrls.push(src);
+          }
+        }
+
+        if (!imgUrls.length) {
+          showBubble('\u274c \u672a\u627e\u5230\u4e3b\u56fe', 'err');
+          setTimeout(hideBubble, 2000);
+          Config.finishWorkflow(false);
+          return;
+        }
+
+        showBubble('\ud83d\udd0d \u68c0\u6d4b ' + imgUrls.length + ' \u5f20\u56fe\u7247\u4e2d\u6587...', 'loading');
+
+        window.DxmAutoClean.batchCleanChinese(imgUrls).then(function (result) {
+          if (!result.ok) {
+            showBubble('\u274c \u53bb\u4e2d\u6587\u5931\u8d25', 'err');
+            setTimeout(hideBubble, 2000);
+            Config.finishWorkflow(false);
+            return;
+          }
+
+          var cleaned = result.results.filter(function (r) { return r.cleaned; }).length;
+          if (cleaned === 0) {
+            showBubble('\u2705 \u56fe\u7247\u65e0\u4e2d\u6587\u6587\u5b57', 'ok');
+            setTimeout(hideBubble, 2000);
+          } else {
+            showBubble('\u2705 \u5df2\u6e05\u7406 ' + cleaned + '/' + imgUrls.length + ' \u5f20\u56fe\u7247\u4e2d\u6587', 'ok');
+            setTimeout(hideBubble, 3000);
+          }
+          Config.finishWorkflow(true);
+        }).catch(function (err) {
+          showBubble('\u274c \u53bb\u4e2d\u6587\u51fa\u9519: ' + err.message, 'err');
+          setTimeout(hideBubble, 2000);
+          Config.finishWorkflow(false);
+        });
       });
     }
 
