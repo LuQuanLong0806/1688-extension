@@ -120,18 +120,18 @@ async function inpaint(imageBuffer, maskBuffer) {
     .raw()
     .toBuffer();
 
-  // 将 mask 缩放到原图尺寸并转为 raw
-  const origMask = await sharp(maskBuffer)
+  // 将 mask 缩放到原图尺寸，并做模糊产生渐变过渡（消除硬边）
+  const softMaskBuf = await sharp(maskBuffer)
     .resize(origW, origH, { fit: 'fill' })
     .grayscale()
-    .threshold(128)
+    .blur(8)
     .raw()
     .toBuffer();
 
-  // 混合：mask 白色区域用 inpaint 结果，黑色区域用原图
+  // 混合：用渐变 mask 做插值，白色=修复，黑色=原图
   const blended = Buffer.alloc(origW * origH * 3);
   for (let i = 0; i < origW * origH; i++) {
-    const m = origMask[i] / 255;  // 0=原图, 1=修复
+    const m = softMaskBuf[i] / 255;
     blended[i * 3]     = Math.round(origRaw[i * 3]     * (1 - m) + inpaintResult[i * 3]     * m);
     blended[i * 3 + 1] = Math.round(origRaw[i * 3 + 1] * (1 - m) + inpaintResult[i * 3 + 1] * m);
     blended[i * 3 + 2] = Math.round(origRaw[i * 3 + 2] * (1 - m) + inpaintResult[i * 3 + 2] * m);

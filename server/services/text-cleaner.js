@@ -15,12 +15,12 @@ const lamaService = require('./inpaint');
 const OCR_SERVICE_URL = 'http://127.0.0.1:3001';
 
 // ========== 调用 OCR 服务 ==========
-function callOcrService(imageBase64, chineseOnly) {
+function callOcrService(imageBase64, chineseOnly, minConfidence) {
   return new Promise(function (resolve, reject) {
     var postData = JSON.stringify({
       image_base64: imageBase64,
       chinese_only: chineseOnly !== false,
-      min_confidence: 0.5,
+      min_confidence: minConfidence || 0.5,
       expand_px: 8
     });
 
@@ -97,23 +97,42 @@ function downloadImage(url) {
   });
 }
 
+// ========== 多边形膨胀：每个顶点沿质心方向外扩 ==========
+function expandPolygon(polygon, dilatePx) {
+  if (!polygon || polygon.length < 3 || dilatePx <= 0) return polygon;
+  var cx = 0, cy = 0;
+  for (var i = 0; i < polygon.length; i++) { cx += polygon[i][0]; cy += polygon[i][1]; }
+  cx /= polygon.length;
+  cy /= polygon.length;
+  return polygon.map(function (p) {
+    var dx = p[0] - cx;
+    var dy = p[1] - cy;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist === 0) return p;
+    var scale = (dist + dilatePx) / dist;
+    return [Math.round(cx + dx * scale), Math.round(cy + dy * scale)];
+  });
+}
+
 // ========== 生成 Mask（白色=需修复区域）==========
-// 优化版：像素级精确绘制 + 膨胀 + 边缘模糊
 async function generateMask(imageWidth, imageHeight, regions, options) {
   options = options || {};
-  var dilatePx = options.dilatePx || 8;   // 膨胀像素
-  var blurPx = options.blurPx || 3;       // 边缘模糊像素
+  var dilatePx = options.dilatePx || 20;
 
-  // Step 1: 用 SVG 绘制精确 polygon（anti-aliased by SVG renderer）
+  // Step 1: 绘制膨胀后的形状（直接外扩坐标）
   var shapes = '';
   for (var i = 0; i < regions.length; i++) {
     var r = regions[i];
     if (r.polygon && r.polygon.length >= 3) {
-      // polygon 比 rect 更精确贴合文字
-      var points = r.polygon.map(function (p) { return p[0] + ',' + p[1]; }).join(' ');
+      var expanded = expandPolygon(r.polygon, dilatePx);
+      var points = expanded.map(function (p) { return p[0] + ',' + p[1]; }).join(' ');
       shapes += '<polygon points="' + points + '" fill="white" />';
     } else {
-      shapes += '<rect x="' + r.x + '" y="' + r.y + '" width="' + r.width + '" height="' + r.height + '" fill="white" />';
+      var ex = Math.max(0, (r.x || 0) - dilatePx);
+      var ey = Math.max(0, (r.y || 0) - dilatePx);
+      var ew = (r.width || 0) + dilatePx * 2;
+      var eh = (r.height || 0) + dilatePx * 2;
+      shapes += '<rect x="' + ex + '" y="' + ey + '" width="' + ew + '" height="' + eh + '" fill="white" />';
     }
   }
 
@@ -122,32 +141,12 @@ async function generateMask(imageWidth, imageHeight, regions, options) {
     shapes +
     '</svg>';
 
-  // Step 2: SVG → grayscale PNG
+  // Step 2: SVG → grayscale PNG（纯二值 mask，不模糊）
   var maskPng = await sharp(Buffer.from(svg))
     .resize(imageWidth, imageHeight)
     .grayscale()
     .png()
     .toBuffer();
-
-  // Step 3: 形态学膨胀 — 用 max filter 模拟 dilate
-  // sharp 没有 dilate，用 threshold + blur + threshold 代替
-  if (dilatePx > 0) {
-    // 方法：先大幅模糊（等于膨胀），再二值化
-    var blurRadius = Math.ceil(dilatePx / 2);
-    maskPng = await sharp(maskPng)
-      .blur(blurRadius)
-      .threshold(30)  // 模糊后阈值降低，让边缘扩散出去
-      .png()
-      .toBuffer();
-  }
-
-  // Step 4: 边缘微模糊 — 让 LaMa 修复过渡更自然
-  if (blurPx > 0) {
-    maskPng = await sharp(maskPng)
-      .blur(blurPx)
-      .png()
-      .toBuffer();
-  }
 
   return maskPng;
 }
@@ -156,12 +155,14 @@ async function generateMask(imageWidth, imageHeight, regions, options) {
 async function cleanImage(imageBuffer, options) {
   options = options || {};
   var chineseOnly = options.chineseOnly !== false;
+  var minConfidence = options.minConfidence || 0.5;
+  var dilatePx = options.dilatePx || 20;
 
   // Step 1: 转base64
   var base64Data = imageBuffer.toString('base64');
 
   // Step 2: OCR 检测
-  var detectResult = await callOcrService(base64Data, chineseOnly);
+  var detectResult = await callOcrService(base64Data, chineseOnly, minConfidence);
 
   if (!detectResult.ok || !detectResult.regions || detectResult.regions.length === 0) {
     return {
@@ -202,8 +203,7 @@ async function cleanImage(imageBuffer, options) {
 
   // Step 4: 生成 mask（优化版：polygon精确绘制 + 膨胀 + 边缘模糊）
   var maskBuffer = await generateMask(imgW, imgH, regions, {
-    dilatePx: 8,   // 膨胀8px让修复区域略大于文字
-    blurPx: 3      // 边缘微模糊让过渡自然
+    dilatePx: dilatePx
   });
 
   // Step 5: LaMa inpaint

@@ -346,15 +346,7 @@
         '#productProductInfo .mainImage .img-list .img-item'
       ).length;
       if (allImages.length) {
-        // 自动去中文：在贴图前清理图片中的中文文字
-        if (window.DxmAutoClean && window.DxmAutoClean.isAutoCleanEnabled()) {
-          autoLog('自动检测并清理图片中文...');
-          window.DxmAutoClean.smartPasteImages(allImages, function (cleanedImages) {
-            pasteMainImages(cleanedImages, doAfterPaste);
-          });
-        } else {
-          pasteMainImages(allImages, doAfterPaste);
-        }
+        pasteMainImages(allImages, doAfterPaste);
 
         function doAfterPaste() {
           if (C.loadAutoResize()) {

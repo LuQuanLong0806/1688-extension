@@ -251,11 +251,19 @@
 
     showLoading();
     var base = getServerBase();
+    var chineseOnly = document.getElementById('chkChineseOnly').checked;
+    var minConfidence = parseFloat(document.getElementById('confSlider').value);
+    var dilatePx = parseInt(document.getElementById('expandSlider').value) || 20;
 
     fetch(base + '/api/ai/auto-clean-chinese', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image_base64: currentImageBuf })
+      body: JSON.stringify({
+        image_base64: currentImageBuf,
+        chinese_only: chineseOnly,
+        min_confidence: minConfidence,
+        dilate_px: dilatePx
+      })
     }).then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.json();

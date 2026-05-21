@@ -1,5 +1,6 @@
 ﻿var resultTabsMap = {};
 var collageMap = {}; // sourceId -> collageTabId (1:1)
+var cleanerMap = {}; // sourceId -> cleanerTabId (1:1)
 
 chrome.runtime.onMessage.addListener(function (msg, sender) {
   if (msg.action === 'openTab' && msg.url) {

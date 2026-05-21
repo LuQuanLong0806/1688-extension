@@ -17,7 +17,7 @@
   }
 
   function isAutoCleanEnabled() {
-    return localStorage.getItem(AUTO_CLEAN_KEY) !== 'false';
+    return localStorage.getItem(AUTO_CLEAN_KEY) === 'true';
   }
 
   function setAutoCleanEnabled(val) {

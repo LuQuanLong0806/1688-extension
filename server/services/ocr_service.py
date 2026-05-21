@@ -194,7 +194,7 @@ async def health():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="PaddleOCR Text Detection Service")
     parser.add_argument("--port", type=int, default=3001)
-    parser.add_argument("--host", type=str, default="127.0.0.1")
+    parser.add_argument("--host", type=str, default="0.0.0.0")
     args = parser.parse_args()
     logger.info("Starting PaddleOCR service @ http://%s:%d", args.host, args.port)
     import uvicorn

@@ -551,7 +551,11 @@ router.post('/auto-clean-chinese', function (req, res) {
   }
 
   imagePromise.then(function (imgBuf) {
-    return textCleaner.cleanImage(imgBuf, { chineseOnly: true });
+    return textCleaner.cleanImage(imgBuf, {
+      chineseOnly: req.body.chinese_only !== false,
+      minConfidence: req.body.min_confidence || 0.5,
+      dilatePx: req.body.dilate_px || 20
+    });
   }).then(function (result) {
     if (!result.cleaned) {
       // 无需清理或模型不可用
