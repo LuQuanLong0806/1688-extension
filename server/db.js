@@ -241,7 +241,48 @@ async function initDb() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       category_name TEXT NOT NULL,
       custom_category TEXT NOT NULL,
+      count INTEGER DEFAULT 1,
+      source TEXT DEFAULT 'auto',
       UNIQUE(category_name, custom_category)
+    )
+  `);
+  try { db.run('ALTER TABLE category_mappings ADD COLUMN count INTEGER DEFAULT 1'); } catch (e) {}
+  try { db.run('ALTER TABLE category_mappings ADD COLUMN source TEXT DEFAULT \'auto\''); } catch (e) {}
+
+  // ===== 关键词-类目关联库 =====
+  db.run(`
+    CREATE TABLE IF NOT EXISTS keyword_category_rel (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      keyword TEXT NOT NULL,
+      category_name TEXT NOT NULL,
+      weight REAL DEFAULT 1.0,
+      match_count INTEGER DEFAULT 1,
+      valid INTEGER DEFAULT 1,
+      source TEXT DEFAULT 'auto',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(keyword, category_name)
+    )
+  `);
+
+  // 同义词表
+  db.run(`
+    CREATE TABLE IF NOT EXISTS keyword_synonyms (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      word_a TEXT NOT NULL,
+      word_b TEXT NOT NULL,
+      UNIQUE(word_a, word_b)
+    )
+  `);
+
+  // 关键词违禁关联黑名单
+  db.run(`
+    CREATE TABLE IF NOT EXISTS keyword_blacklist (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      keyword TEXT NOT NULL,
+      category_name TEXT NOT NULL,
+      reason TEXT DEFAULT '',
+      UNIQUE(keyword, category_name)
     )
   `);
 

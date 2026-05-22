@@ -1,0 +1,9 @@
+
+  商品采集服务已启动
+  管理页面: http://localhost:3000
+  API 地址: http://localhost:3000/api
+  数据库: F:\00_project\1688-extension\server\data.db
+
+[cleanup] Scheduler started — interval: 24h, max age: 30d
+[OCR] Starting PaddleOCR service on port 3001...
+[OCR] [OCR] 2026-05-22 13:33:36,162 Starting PaddleOCR service @ http://0.0.0.0:3001

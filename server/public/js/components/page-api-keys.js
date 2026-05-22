@@ -36,6 +36,8 @@ Vue.component('page-api-keys', {
         qwen: '',
         hunyuan_secretId: '',
         hunyuan_secretKey: '',
+        ollama_model: (this.providers.ollama && this.providers.ollama.model) || 'qwen3:8b',
+        ollama_port: (this.providers.ollama && this.providers.ollama.port) || '11434',
         vision_apiKey: '',
         image_apiKey: ''
       };
@@ -91,6 +93,24 @@ Vue.component('page-api-keys', {
         .then(function (r) { return r.json(); })
         .then(function (result) {
           if (result.ok) { vm.$Message.success('腾讯混元密钥已保存'); vm.editData.hunyuan_secretId = ''; vm.editData.hunyuan_secretKey = ''; vm.loadConfigs(); }
+          else vm.$Message.error(result.error || '保存失败');
+          vm.saving = null;
+        })
+        .catch(function () { vm.$Message.error('保存失败'); vm.saving = null; });
+    },
+    saveOllama: function () {
+      var vm = this;
+      var model = (vm.editData.ollama_model || '').trim() || 'qwen3:8b';
+      var port = (vm.editData.ollama_port || '').trim() || '11434';
+      vm.saving = 'ollama';
+      fetch('/api/ai/configs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ providers: { ollama: { model: model, port: port } } })
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (result) {
+          if (result.ok) { vm.$Message.success('本地模型配置已保存'); vm.loadConfigs(); }
           else vm.$Message.error(result.error || '保存失败');
           vm.saving = null;
         })
@@ -198,6 +218,22 @@ Vue.component('page-api-keys', {
               <i-input v-model="editData.hunyuan_secretId" size="small" placeholder="SecretId" style="width:130px"></i-input>
               <i-input v-model="editData.hunyuan_secretKey" type="password" password size="small" placeholder="SecretKey" style="width:130px"></i-input>
               <i-button type="primary" size="small" :loading="saving === 'hunyuan'" @click="saveHunyuan()">保存</i-button>
+            </div>
+          </div>
+
+          <!-- 本地模型 -->
+          <div class="ai-provider-row">
+            <div class="ai-provider-info">
+              <span class="ai-pname">本地模型</span>
+              <span class="ai-pmodel">Ollama</span>
+              <span class="ai-pfree" style="background:#e8f0ff;color:#2d8cf0">断网可用</span>
+            </div>
+            <div class="ai-provider-action">
+              <span v-if="providers.ollama && providers.ollama.configured" class="ai-key-hint">{{ providers.ollama.model }}:{{ providers.ollama.port }}</span>
+              <span v-else class="ai-key-hint none">未配置</span>
+              <i-input v-model="editData.ollama_model" size="small" placeholder="模型名" style="width:120px"></i-input>
+              <i-input v-model="editData.ollama_port" size="small" placeholder="端口" style="width:80px"></i-input>
+              <i-button type="primary" size="small" :loading="saving === 'ollama'" @click="saveOllama()">保存</i-button>
             </div>
           </div>
         </div>

@@ -186,6 +186,15 @@ Vue.component('page-categories', {
           }
         },
         {
+          title: '商品数',
+          width: 90,
+          align: 'center',
+          render: function (h, params) {
+            var cnt = params.row.productCount || 0;
+            return h('span', { style: { fontWeight: '500', color: cnt ? '#333' : '#ccc' } }, cnt);
+          }
+        },
+        {
           title: '已绑定1688类目',
           minWidth: 200,
           render: function (h, params) {
@@ -270,12 +279,14 @@ Vue.component('page-categories', {
           <thead>
             <tr style="background:#f6f8fa">
               <th style="padding:8px 12px;text-align:left;border-bottom:1px solid #e8e8e8">1688类目</th>
+              <th style="padding:8px 12px;text-align:center;border-bottom:1px solid #e8e8e8;width:80px">商品数</th>
               <th style="padding:8px 12px;text-align:center;border-bottom:1px solid #e8e8e8;width:80px">操作</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="item in modalList" :key="item.id" style="border-bottom:1px solid #f5f5f5">
               <td style="padding:8px 12px;color:#1890ff">{{ item.categoryName }}</td>
+              <td style="padding:8px 12px;text-align:center;color:#333">{{ item.productCount || 0 }}</td>
               <td style="padding:8px 12px;text-align:center">
                 <i-button type="error" size="small" icon="ios-trash" @click="deleteMapItem(item)"></i-button>
               </td>
