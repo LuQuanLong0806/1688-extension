@@ -139,6 +139,167 @@ function treeGetAll(sql, params) {
   return rows;
 }
 
+// ========== 本地表结构定义 ==========
+
+// 本地表结构定义（建表 + 自动补列）
+// 【重要】新增字段只需在对应表的 DDL 里加列即可，启动时 migrateLocalSchema() 会自动 ALTER TABLE ADD COLUMN
+// 规则：只增不删不改，不要删除已有列，不要修改已有列的类型
+var LOCAL_TABLE_DEFS = [
+  {
+    name: 'products',
+    ddl: `CREATE TABLE IF NOT EXISTS products (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      source_url TEXT NOT NULL,
+      title TEXT,
+      main_images TEXT,
+      desc_images TEXT,
+      attrs TEXT,
+      skus TEXT,
+      status INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      category TEXT,
+      detail_images TEXT,
+      custom_category TEXT,
+      dxm_category TEXT DEFAULT '',
+      manual_category TEXT,
+      deleted INTEGER DEFAULT 0
+    )`
+  },
+  {
+    name: 'settings',
+    ddl: `CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`
+  },
+  {
+    name: 'categories',
+    ddl: `CREATE TABLE IF NOT EXISTS categories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      custom_name TEXT DEFAULT '',
+      cat_id TEXT,
+      leaf_category_id TEXT,
+      top_category_id TEXT,
+      post_category_id TEXT,
+      count INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`
+  },
+  {
+    name: 'dxm_categories',
+    ddl: `CREATE TABLE IF NOT EXISTS dxm_categories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      path TEXT NOT NULL UNIQUE,
+      leaf_name TEXT NOT NULL,
+      count INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`
+  },
+  {
+    name: 'category_mappings',
+    ddl: `CREATE TABLE IF NOT EXISTS category_mappings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      category_name TEXT NOT NULL,
+      custom_category TEXT NOT NULL,
+      count INTEGER DEFAULT 1,
+      source TEXT DEFAULT 'auto',
+      UNIQUE(category_name, custom_category)
+    )`
+  },
+  {
+    name: 'keyword_category_rel',
+    ddl: `CREATE TABLE IF NOT EXISTS keyword_category_rel (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      keyword TEXT NOT NULL,
+      category_name TEXT NOT NULL,
+      weight REAL DEFAULT 1.0,
+      match_count INTEGER DEFAULT 1,
+      valid INTEGER DEFAULT 1,
+      source TEXT DEFAULT 'auto',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(keyword, category_name)
+    )`
+  },
+  {
+    name: 'keyword_synonyms',
+    ddl: `CREATE TABLE IF NOT EXISTS keyword_synonyms (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      word_a TEXT NOT NULL,
+      word_b TEXT NOT NULL,
+      UNIQUE(word_a, word_b)
+    )`
+  },
+  {
+    name: 'keyword_blacklist',
+    ddl: `CREATE TABLE IF NOT EXISTS keyword_blacklist (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      keyword TEXT NOT NULL,
+      category_name TEXT NOT NULL,
+      reason TEXT DEFAULT '',
+      UNIQUE(keyword, category_name)
+    )`
+  }
+];
+
+// 解析 DDL 提取列名列表
+function parseColumns(ddl) {
+  var m = ddl.match(/\(([\s\S]+)\)/);
+  if (!m) return [];
+  var body = m[1];
+  var cols = [];
+  var depth = 0;
+  var start = 0;
+  for (var i = 0; i < body.length; i++) {
+    if (body[i] === '(') depth++;
+    else if (body[i] === ')') depth--;
+    else if (body[i] === ',' && depth === 0) {
+      var part = body.substring(start, i).trim();
+      start = i + 1;
+      if (part && !/^(UNIQUE|PRIMARY|CHECK|FOREIGN)/i.test(part)) {
+        cols.push({ name: part.split(/\s+/)[0], full: part });
+      }
+    }
+  }
+  var last = body.substring(start).trim();
+  if (last && !/^(UNIQUE|PRIMARY|CHECK|FOREIGN)/i.test(last)) {
+    cols.push({ name: last.split(/\s+/)[0], full: last });
+  }
+  return cols;
+}
+
+// 自动补列：对比 DDL 和实际表结构，补齐缺失列
+function migrateLocalSchema() {
+  if (!db) return;
+  for (var t = 0; t < LOCAL_TABLE_DEFS.length; t++) {
+    var def = LOCAL_TABLE_DEFS[t];
+    var expected = parseColumns(def.ddl);
+    if (!expected.length) continue;
+    // 查实际列
+    var actual = [];
+    try {
+      var stmt = db.prepare('PRAGMA table_info(' + def.name + ')');
+      while (stmt.step()) {
+        var row = stmt.getAsObject();
+        actual.push(row.name);
+      }
+      stmt.free();
+    } catch (e) { continue; }
+    // 补缺失列
+    for (var c = 0; c < expected.length; c++) {
+      if (actual.indexOf(expected[c].name) < 0) {
+        try {
+          db.run('ALTER TABLE ' + def.name + ' ADD COLUMN ' + expected[c].full);
+          console.log('[DB] 补列: ' + def.name + '.' + expected[c].name);
+        } catch (e) {}
+      }
+    }
+  }
+}
+
 // ========== 初始化 ==========
 
 async function initDb() {
@@ -150,49 +311,12 @@ async function initDb() {
     db = new SQL.Database();
   }
 
-  db.run(`
-    CREATE TABLE IF NOT EXISTS products (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      source_url TEXT NOT NULL,
-      title TEXT,
-      main_images TEXT,
-      desc_images TEXT,
-      attrs TEXT,
-      skus TEXT,
-      status INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-  try { db.run('ALTER TABLE products ADD COLUMN category TEXT'); } catch (e) {}
-  try { db.run('ALTER TABLE products ADD COLUMN detail_images TEXT'); } catch (e) {}
-  try { db.run('ALTER TABLE products ADD COLUMN custom_category TEXT'); } catch (e) {}
-  try { db.run("ALTER TABLE products ADD COLUMN dxm_category TEXT DEFAULT ''"); } catch (e) {}
-  try { db.run('ALTER TABLE products ADD COLUMN manual_category TEXT'); } catch (e) {}
-  try { db.run('ALTER TABLE products ADD COLUMN deleted INTEGER DEFAULT 0'); } catch (e) {}
-
-  db.run(`
-    CREATE TABLE IF NOT EXISTS settings (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
-  db.run(`
-    CREATE TABLE IF NOT EXISTS categories (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL UNIQUE,
-      custom_name TEXT DEFAULT '',
-      cat_id TEXT,
-      leaf_category_id TEXT,
-      top_category_id TEXT,
-      post_category_id TEXT,
-      count INTEGER DEFAULT 1,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-  try { db.run("ALTER TABLE categories ADD COLUMN custom_name TEXT DEFAULT ''"); } catch (e) {}
+  // 建表
+  for (var i = 0; i < LOCAL_TABLE_DEFS.length; i++) {
+    db.run(LOCAL_TABLE_DEFS[i].ddl);
+  }
+  // 自动补列（只增不删）
+  migrateLocalSchema();
 
   // 迁移：将已有商品的类目数据补录到 categories 表
   try {
@@ -226,66 +350,6 @@ async function initDb() {
       }
     }
   } catch (e) {}
-
-  db.run(`
-    CREATE TABLE IF NOT EXISTS dxm_categories (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      path TEXT NOT NULL UNIQUE,
-      leaf_name TEXT NOT NULL,
-      count INTEGER DEFAULT 1,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
-  db.run(`
-    CREATE TABLE IF NOT EXISTS category_mappings (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      category_name TEXT NOT NULL,
-      custom_category TEXT NOT NULL,
-      count INTEGER DEFAULT 1,
-      source TEXT DEFAULT 'auto',
-      UNIQUE(category_name, custom_category)
-    )
-  `);
-  try { db.run('ALTER TABLE category_mappings ADD COLUMN count INTEGER DEFAULT 1'); } catch (e) {}
-  try { db.run('ALTER TABLE category_mappings ADD COLUMN source TEXT DEFAULT \'auto\''); } catch (e) {}
-
-  // ===== 关键词-类目关联库 =====
-  db.run(`
-    CREATE TABLE IF NOT EXISTS keyword_category_rel (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      keyword TEXT NOT NULL,
-      category_name TEXT NOT NULL,
-      weight REAL DEFAULT 1.0,
-      match_count INTEGER DEFAULT 1,
-      valid INTEGER DEFAULT 1,
-      source TEXT DEFAULT 'auto',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(keyword, category_name)
-    )
-  `);
-
-  // 同义词表
-  db.run(`
-    CREATE TABLE IF NOT EXISTS keyword_synonyms (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      word_a TEXT NOT NULL,
-      word_b TEXT NOT NULL,
-      UNIQUE(word_a, word_b)
-    )
-  `);
-
-  // 关键词违禁关联黑名单
-  db.run(`
-    CREATE TABLE IF NOT EXISTS keyword_blacklist (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      keyword TEXT NOT NULL,
-      category_name TEXT NOT NULL,
-      reason TEXT DEFAULT '',
-      UNIQUE(keyword, category_name)
-    )
-  `);
 
   // 迁移：categories.custom_name → category_mappings
   try {

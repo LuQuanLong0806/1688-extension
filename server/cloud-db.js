@@ -45,6 +45,8 @@ async function connect() {
     if (result.rows && result.rows.length > 0) {
       connected = true;
       console.log('[云同步] Turso 连接成功');
+      // 自动补列（对比 DDL 定义，缺什么补什么）
+      migrateCloudSchema().catch(function () {});
       return true;
     }
   } catch (e) {
@@ -55,24 +57,87 @@ async function connect() {
   return false;
 }
 
+// 云端表结构定义（建表 + 自动补列）
+// 【重要】新增字段只需在对应表的 DDL 里加列即可，连接时 migrateCloudSchema() 会自动 ALTER TABLE ADD COLUMN
+// 规则：只增不删不改，不要删除已有列，不要修改已有列的类型
+// 注意：云端表和本地表结构独立，新增字段需在 db.js 和 cloud-db.js 两处 DDL 都加上
+var CLOUD_TABLE_DEFS = [
+  { name: 'category_mappings', ddl: 'CREATE TABLE IF NOT EXISTS category_mappings (id INTEGER PRIMARY KEY AUTOINCREMENT, category_name TEXT NOT NULL, custom_category TEXT NOT NULL, count INTEGER DEFAULT 1, source TEXT DEFAULT \'auto\', UNIQUE(category_name, custom_category))' },
+  { name: 'keyword_category_rel', ddl: 'CREATE TABLE IF NOT EXISTS keyword_category_rel (id INTEGER PRIMARY KEY AUTOINCREMENT, keyword TEXT NOT NULL, category_name TEXT NOT NULL, weight REAL DEFAULT 1.0, match_count INTEGER DEFAULT 1, valid INTEGER DEFAULT 1, source TEXT DEFAULT \'auto\', created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE(keyword, category_name))' },
+  { name: 'keyword_synonyms', ddl: 'CREATE TABLE IF NOT EXISTS keyword_synonyms (id INTEGER PRIMARY KEY AUTOINCREMENT, word_a TEXT NOT NULL, word_b TEXT NOT NULL, UNIQUE(word_a, word_b))' },
+  { name: 'keyword_blacklist', ddl: 'CREATE TABLE IF NOT EXISTS keyword_blacklist (id INTEGER PRIMARY KEY AUTOINCREMENT, keyword TEXT NOT NULL, category_name TEXT NOT NULL, reason TEXT DEFAULT \'\', UNIQUE(keyword, category_name))' },
+  { name: 'dxm_category_tree', ddl: 'CREATE TABLE IF NOT EXISTS dxm_category_tree (cat_id INTEGER PRIMARY KEY, cat_name TEXT NOT NULL, parent_cat_id INTEGER DEFAULT 0, cat_level INTEGER DEFAULT 1, is_leaf INTEGER DEFAULT 0, path TEXT DEFAULT \'\', sync_at TEXT DEFAULT CURRENT_TIMESTAMP)' },
+  { name: 'products', ddl: 'CREATE TABLE IF NOT EXISTS products (source_url TEXT PRIMARY KEY, title TEXT, main_images TEXT, desc_images TEXT, detail_images TEXT, attrs TEXT, skus TEXT, category TEXT, custom_category TEXT, dxm_category TEXT, manual_category TEXT, status INTEGER DEFAULT 0, deleted INTEGER DEFAULT 0, from_machine TEXT DEFAULT \'\', created_at TEXT, updated_at TEXT)' }
+];
+
+// 解析 DDL 提取列定义 { name, type, default }
+function parseColumnsFromDDL(ddl) {
+  var m = ddl.match(/\((.+)\)/s);
+  if (!m) return [];
+  var body = m[1];
+  var cols = [];
+  // 按逗号分割，但跳过括号内的逗号（如 UNIQUE(a, b)）
+  var depth = 0;
+  var start = 0;
+  for (var i = 0; i < body.length; i++) {
+    if (body[i] === '(') depth++;
+    else if (body[i] === ')') depth--;
+    else if (body[i] === ',' && depth === 0) {
+      var part = body.substring(start, i).trim();
+      start = i + 1;
+      if (part && !/^(UNIQUE|PRIMARY|CHECK|FOREIGN)/i.test(part)) {
+        var tokens = part.split(/\s+/);
+        var colName = tokens[0];
+        var colType = tokens.length > 1 ? tokens.slice(1).join(' ') : '';
+        var defMatch = colType.match(/DEFAULT\s+(\S+)/i);
+        cols.push({ name: colName, full: part, hasDefault: !!defMatch });
+      }
+    }
+  }
+  // 最后一个
+  var last = body.substring(start).trim();
+  if (last && !/^(UNIQUE|PRIMARY|CHECK|FOREIGN)/i.test(last)) {
+    var tokens = last.split(/\s+/);
+    var defMatch = last.match(/DEFAULT\s+(\S+)/i);
+    cols.push({ name: tokens[0], full: last, hasDefault: !!defMatch });
+  }
+  return cols;
+}
+
+// 自动补列：对比 DDL 定义和云端实际表，补齐缺失的列
+async function migrateCloudSchema() {
+  if (!client) return;
+  for (var t = 0; t < CLOUD_TABLE_DEFS.length; t++) {
+    var def = CLOUD_TABLE_DEFS[t];
+    var expected = parseColumnsFromDDL(def.ddl);
+    if (!expected.length) continue;
+    // 查云端表实际有哪些列
+    var actual = [];
+    try {
+      var info = await client.execute('PRAGMA table_info(' + def.name + ')');
+      actual = (info.rows || []).map(function (r) { return r.name; });
+    } catch (e) { continue; }
+    // 补缺失的列
+    for (var c = 0; c < expected.length; c++) {
+      if (actual.indexOf(expected[c].name) < 0) {
+        try {
+          await client.execute('ALTER TABLE ' + def.name + ' ADD COLUMN ' + expected[c].full);
+          console.log('[云同步] 补列: ' + def.name + '.' + expected[c].name);
+        } catch (e) {}
+      }
+    }
+  }
+}
+
 // 在云端建表
 async function createTables() {
   if (!client) return false;
   try {
-    var tables = [
-      'CREATE TABLE IF NOT EXISTS category_mappings (id INTEGER PRIMARY KEY AUTOINCREMENT, category_name TEXT NOT NULL, custom_category TEXT NOT NULL, count INTEGER DEFAULT 1, source TEXT DEFAULT \'auto\', UNIQUE(category_name, custom_category))',
-      'CREATE TABLE IF NOT EXISTS keyword_category_rel (id INTEGER PRIMARY KEY AUTOINCREMENT, keyword TEXT NOT NULL, category_name TEXT NOT NULL, weight REAL DEFAULT 1.0, match_count INTEGER DEFAULT 1, valid INTEGER DEFAULT 1, source TEXT DEFAULT \'auto\', created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE(keyword, category_name))',
-      'CREATE TABLE IF NOT EXISTS keyword_synonyms (id INTEGER PRIMARY KEY AUTOINCREMENT, word_a TEXT NOT NULL, word_b TEXT NOT NULL, UNIQUE(word_a, word_b))',
-      'CREATE TABLE IF NOT EXISTS keyword_blacklist (id INTEGER PRIMARY KEY AUTOINCREMENT, keyword TEXT NOT NULL, category_name TEXT NOT NULL, reason TEXT DEFAULT \'\', UNIQUE(keyword, category_name))',
-      'CREATE TABLE IF NOT EXISTS dxm_category_tree (cat_id INTEGER PRIMARY KEY, cat_name TEXT NOT NULL, parent_cat_id INTEGER DEFAULT 0, cat_level INTEGER DEFAULT 1, is_leaf INTEGER DEFAULT 0, path TEXT DEFAULT \'\', sync_at TEXT DEFAULT CURRENT_TIMESTAMP)',
-      'CREATE TABLE IF NOT EXISTS products (source_url TEXT PRIMARY KEY, title TEXT, main_images TEXT, desc_images TEXT, detail_images TEXT, attrs TEXT, skus TEXT, category TEXT, custom_category TEXT, dxm_category TEXT, manual_category TEXT, status INTEGER DEFAULT 0, deleted INTEGER DEFAULT 0, from_machine TEXT DEFAULT \'\', created_at TEXT, updated_at TEXT)'
-    ];
-    for (var i = 0; i < tables.length; i++) {
-      await client.execute(tables[i]);
+    for (var i = 0; i < CLOUD_TABLE_DEFS.length; i++) {
+      await client.execute(CLOUD_TABLE_DEFS[i].ddl);
     }
     console.log('[云同步] 建表完成');
-    // 补充已有云端表缺失的列
-    try { await client.execute('ALTER TABLE products ADD COLUMN deleted INTEGER DEFAULT 0'); } catch (e) {}
+    await migrateCloudSchema();
     return true;
   } catch (e) {
     console.error('[云同步] 建表失败:', e.message);
