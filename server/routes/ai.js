@@ -1343,6 +1343,21 @@ router.post('/suggest-category', function (req, res) {
       return;
     }
 
+    // 快速匹配：候选池里有与1688类目名完全一致的，直接返回（跳过LLM）
+    if (aliCategory && candidates.length > 0) {
+      var exactMatch = candidates.find(function (c) { return c.name === aliCategory; });
+      if (exactMatch) {
+        console.log('[分类推荐] 候选精确匹配1688类目:', exactMatch.name);
+        return res.json({
+          ok: true,
+          source: 'exact_match',
+          category: exactMatch.name,
+          path: exactMatch.path,
+          confidence: 0.95
+        });
+      }
+    }
+
     // 有候选，用LLM从候选中选择最佳
     if (candidates.length > 1) {
       suggestCategoryFromCandidates(title, aliCategory, attrSummary, candidates).then(function (choice) {
