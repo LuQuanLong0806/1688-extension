@@ -1,5 +1,5 @@
 const { Router } = require('express');
-const { run, getAll, sseClients } = require('../db');
+const { run, getOne, getAll, sseClients } = require('../db');
 
 const router = Router();
 
@@ -33,6 +33,18 @@ router.put('/settings', (req, res) => {
   for (const item of items) {
     run('INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)', [item.key, item.value]);
   }
+  res.json({ ok: true });
+});
+
+// 单个配置读写（GET/POST）
+router.get('/settings/:key', (req, res) => {
+  const row = getOne('SELECT value FROM settings WHERE key = ?', [req.params.key]);
+  res.json(row ? { value: row.value } : {});
+});
+
+router.post('/settings/:key', (req, res) => {
+  const { value } = req.body;
+  run('INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)', [req.params.key, value || '']);
   res.json({ ok: true });
 });
 

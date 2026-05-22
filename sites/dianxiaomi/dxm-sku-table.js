@@ -163,10 +163,11 @@
       if (skuInput && !skuInput.value.trim()) focusSetBlur(skuInput, rowData.sku);
     }
 
-    // 3. 申报价格
-    if (rowData.price) {
+    // 3. 申报价格（优先用售价）
+    var fillPrice = rowData.sellPrice || rowData.price;
+    if (fillPrice) {
       var priceInput = tr.querySelector('input[name="price"]');
-      if (priceInput && !priceInput.value.trim()) focusSetBlur(priceInput, rowData.price);
+      if (priceInput && !priceInput.value.trim()) focusSetBlur(priceInput, fillPrice);
     }
 
     // 4. 尺寸（从大到小排序）

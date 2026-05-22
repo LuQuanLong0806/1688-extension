@@ -65,12 +65,14 @@ async function createTables() {
       'CREATE TABLE IF NOT EXISTS keyword_synonyms (id INTEGER PRIMARY KEY AUTOINCREMENT, word_a TEXT NOT NULL, word_b TEXT NOT NULL, UNIQUE(word_a, word_b))',
       'CREATE TABLE IF NOT EXISTS keyword_blacklist (id INTEGER PRIMARY KEY AUTOINCREMENT, keyword TEXT NOT NULL, category_name TEXT NOT NULL, reason TEXT DEFAULT \'\', UNIQUE(keyword, category_name))',
       'CREATE TABLE IF NOT EXISTS dxm_category_tree (cat_id INTEGER PRIMARY KEY, cat_name TEXT NOT NULL, parent_cat_id INTEGER DEFAULT 0, cat_level INTEGER DEFAULT 1, is_leaf INTEGER DEFAULT 0, path TEXT DEFAULT \'\', sync_at TEXT DEFAULT CURRENT_TIMESTAMP)',
-      'CREATE TABLE IF NOT EXISTS products (source_url TEXT PRIMARY KEY, title TEXT, main_images TEXT, desc_images TEXT, detail_images TEXT, attrs TEXT, skus TEXT, category TEXT, custom_category TEXT, dxm_category TEXT, manual_category TEXT, status INTEGER DEFAULT 0, from_machine TEXT DEFAULT \'\', created_at TEXT, updated_at TEXT)'
+      'CREATE TABLE IF NOT EXISTS products (source_url TEXT PRIMARY KEY, title TEXT, main_images TEXT, desc_images TEXT, detail_images TEXT, attrs TEXT, skus TEXT, category TEXT, custom_category TEXT, dxm_category TEXT, manual_category TEXT, status INTEGER DEFAULT 0, deleted INTEGER DEFAULT 0, from_machine TEXT DEFAULT \'\', created_at TEXT, updated_at TEXT)'
     ];
     for (var i = 0; i < tables.length; i++) {
       await client.execute(tables[i]);
     }
     console.log('[云同步] 建表完成');
+    // 补充已有云端表缺失的列
+    try { await client.execute('ALTER TABLE products ADD COLUMN deleted INTEGER DEFAULT 0'); } catch (e) {}
     return true;
   } catch (e) {
     console.error('[云同步] 建表失败:', e.message);
@@ -416,7 +418,7 @@ async function downloadTree() {
 // 上传商品到云端
 async function uploadProducts() {
   if (!connected) return { ok: false, error: '未连接' };
-  var products = dbModule.getAll("SELECT source_url, title, main_images, desc_images, detail_images, attrs, skus, category, custom_category, dxm_category, manual_category, status, created_at, updated_at FROM products");
+  var products = dbModule.getAll("SELECT source_url, title, main_images, desc_images, detail_images, attrs, skus, category, custom_category, dxm_category, manual_category, status, deleted, created_at, updated_at FROM products");
   var total = products.length;
   var uploaded = 0;
   var skipped = 0;
@@ -426,8 +428,8 @@ async function uploadProducts() {
     var chunk = products.slice(batch, batch + batchSize);
     var stmts = chunk.map(function (p) {
       return {
-        sql: 'INSERT OR IGNORE INTO products (source_url, title, main_images, desc_images, detail_images, attrs, skus, category, custom_category, dxm_category, manual_category, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        args: [p.source_url, p.title, p.main_images || '', p.desc_images || '', p.detail_images || '', p.attrs || '', p.skus || '', p.category || '', p.custom_category || '', p.dxm_category || '', p.manual_category || '', p.status || 0, p.created_at || '', p.updated_at || '']
+        sql: 'INSERT OR IGNORE INTO products (source_url, title, main_images, desc_images, detail_images, attrs, skus, category, custom_category, dxm_category, manual_category, status, deleted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        args: [p.source_url, p.title, p.main_images || '', p.desc_images || '', p.detail_images || '', p.attrs || '', p.skus || '', p.category || '', p.custom_category || '', p.dxm_category || '', p.manual_category || '', p.status || 0, p.deleted || 0, p.created_at || '', p.updated_at || '']
       };
     });
     try {
@@ -452,24 +454,33 @@ async function uploadProducts() {
 // 从云端拉取商品到本地（只增不改）
 async function downloadProducts() {
   if (!connected) return { ok: false, error: '未连接' };
-  var cloudProducts = await cloudGetAll('SELECT source_url, title, main_images, desc_images, detail_images, attrs, skus, category, custom_category, dxm_category, manual_category, status, created_at, updated_at FROM products');
+  var cloudProducts = await cloudGetAll('SELECT source_url, title, main_images, desc_images, detail_images, attrs, skus, category, custom_category, dxm_category, manual_category, status, deleted, created_at, updated_at FROM products');
   var added = 0;
   var skipped = 0;
+  var deletedSynced = 0;
 
   for (var i = 0; i < cloudProducts.length; i++) {
     var p = cloudProducts[i];
-    var local = dbModule.getOne('SELECT id FROM products WHERE source_url = ?', [p.source_url]);
+    var isDeleted = p.deleted && Number(p.deleted) === 1;
+    var local = dbModule.getOne('SELECT id, deleted as local_deleted FROM products WHERE source_url = ?', [p.source_url]);
     if (!local) {
-      dbModule.run('INSERT INTO products (source_url, title, main_images, desc_images, detail_images, attrs, skus, category, custom_category, dxm_category, manual_category, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [p.source_url, p.title, p.main_images, p.desc_images, p.detail_images, p.attrs, p.skus, p.category, p.custom_category, p.dxm_category, p.manual_category, p.status, p.created_at, p.updated_at]);
+      // 云端有但本地没有：如果云端已删除，跳过不导入；否则正常导入
+      if (isDeleted) { skipped++; continue; }
+      dbModule.run('INSERT INTO products (source_url, title, main_images, desc_images, detail_images, attrs, skus, category, custom_category, dxm_category, manual_category, status, deleted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [p.source_url, p.title, p.main_images, p.desc_images, p.detail_images, p.attrs, p.skus, p.category, p.custom_category, p.dxm_category, p.manual_category, p.status, 0, p.created_at, p.updated_at]);
       added++;
     } else {
+      // 本地已有：如果云端标记删除，同步删除标记到本地
+      if (isDeleted && !local.local_deleted) {
+        dbModule.run('UPDATE products SET deleted = 1 WHERE id = ?', [local.id]);
+        deletedSynced++;
+      }
       skipped++;
     }
   }
   dbModule.scheduleSave();
-  console.log('[云同步] 商品下载完成, 云端:', cloudProducts.length, '新增:', added, '跳过:', skipped);
-  return { ok: true, cloudTotal: cloudProducts.length, added: added, skipped: skipped };
+  console.log('[云同步] 商品下载完成, 云端:', cloudProducts.length, '新增:', added, '跳过:', skipped, '删除同步:', deletedSynced);
+  return { ok: true, cloudTotal: cloudProducts.length, added: added, skipped: skipped, deletedSynced: deletedSynced };
 }
 
 // 采集时单条商品自动同步到云端（异步，不阻塞采集流程）

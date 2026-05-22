@@ -9,7 +9,7 @@ const router = Router();
 router.get('/product/trend', (req, res) => {
   const days = Math.min(90, Math.max(1, parseInt(req.query.days) || 7));
   const rows = getAll(
-    `SELECT DATE(created_at) as date, COUNT(*) as count FROM products WHERE created_at >= DATE('now', '-' || ? || ' days') GROUP BY DATE(created_at) ORDER BY date`,
+    `SELECT DATE(created_at) as date, COUNT(*) as count FROM products WHERE deleted = 0 AND created_at >= DATE('now', '-' || ? || ' days') GROUP BY DATE(created_at) ORDER BY date`,
     [days]
   );
   const map = {};
@@ -27,7 +27,7 @@ router.get('/product/trend', (req, res) => {
 
 // 统计概览
 router.get('/product/stats', (req, res) => {
-  const row = getOne('SELECT COUNT(*) as total, SUM(CASE WHEN status=0 THEN 1 ELSE 0 END) as unused, SUM(CASE WHEN status=1 THEN 1 ELSE 0 END) as used FROM products');
+  const row = getOne('SELECT COUNT(*) as total, SUM(CASE WHEN status=0 THEN 1 ELSE 0 END) as unused, SUM(CASE WHEN status=1 THEN 1 ELSE 0 END) as used FROM products WHERE deleted = 0');
   const catRow = getOne('SELECT COUNT(*) as cnt FROM categories');
   res.json({
     total: row ? row.total : 0,
@@ -63,7 +63,7 @@ router.get('/product/dxm-category-top', (req, res) => {
       `SELECT cm.custom_category as name, COUNT(*) as count
        FROM products p
        INNER JOIN category_mappings cm ON JSON_EXTRACT(p.category, '$.leafCategoryName') = cm.category_name
-       WHERE cm.custom_category IS NOT NULL AND cm.custom_category != ''
+       WHERE cm.custom_category IS NOT NULL AND cm.custom_category != '' AND p.deleted = 0
        GROUP BY cm.custom_category ORDER BY count DESC`,
       []
     );
@@ -375,7 +375,7 @@ function doRecommendAndSave(title, aliCat, attrs, productId) {
 router.get('/product/check', (req, res) => {
   const offerId = (req.query.offerId || '').trim();
   if (!offerId) return res.json({ exists: false });
-  const row = getOne('SELECT id, title, status FROM products WHERE source_url LIKE ? LIMIT 1', ['%' + offerId + '%']);
+  const row = getOne('SELECT id, title, status FROM products WHERE deleted = 0 AND source_url LIKE ? LIMIT 1', ['%' + offerId + '%']);
   if (row) {
     res.json({ exists: true, id: row.id, title: row.title, status: row.status });
   } else {
@@ -392,7 +392,7 @@ router.get('/product', (req, res) => {
   const category = (req.query.category || '').trim();
   const dxmCategory = (req.query.dxmCategory || '').trim();
 
-  let where = [];
+  let where = ['deleted = 0'];
   let params = [];
 
   if (keyword) {
@@ -518,7 +518,13 @@ router.put('/product/:id', (req, res) => {
 
 // 删除商品
 router.delete('/product/:id', (req, res) => {
-  run('DELETE FROM products WHERE id = ?', [parseInt(req.params.id)]);
+  run('UPDATE products SET deleted = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [parseInt(req.params.id)]);
+  if (cloudDb.connected) {
+    var srcRow = getOne('SELECT source_url FROM products WHERE id = ?', [parseInt(req.params.id)]);
+    if (srcRow && srcRow.source_url) {
+      cloudDb.cloudRun('UPDATE products SET deleted = 1 WHERE source_url = ?', [srcRow.source_url]).catch(function () {});
+    }
+  }
   res.json({ ok: true });
 });
 
@@ -598,13 +604,19 @@ router.post('/product/:id/recommend-category', (req, res) => {
   aiReq.end();
 });
 
-// 批量删除
+// 批量删除（逻辑删）
 router.post('/product/batch-delete', (req, res) => {
   const { ids } = req.body;
   if (!Array.isArray(ids) || !ids.length) return res.json({ ok: true, deleted: 0 });
   const placeholders = ids.map(() => '?').join(',');
   const before = getOne(`SELECT COUNT(*) as count FROM products WHERE id IN (${placeholders})`, ids);
-  run(`DELETE FROM products WHERE id IN (${placeholders})`, ids);
+  run(`UPDATE products SET deleted = 1, updated_at = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`, ids);
+  if (cloudDb.connected) {
+    var srcRows = getAll(`SELECT source_url FROM products WHERE id IN (${placeholders}) AND source_url != ''`, ids);
+    srcRows.forEach(function (r) {
+      cloudDb.cloudRun('UPDATE products SET deleted = 1 WHERE source_url = ?', [r.source_url]).catch(function () {});
+    });
+  }
   res.json({ ok: true, deleted: before ? before.count : 0 });
 });
 

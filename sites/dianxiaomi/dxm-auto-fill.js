@@ -1657,11 +1657,12 @@
   }
 
   function fillSkuFields(tr, skuData) {
-    // 申报价格
-    // if (skuData.price) {
-    //   var priceInput = tr.querySelector('input[name="price"]');
-    //   if (priceInput) focusSetBlur(priceInput, String(skuData.price));
-    // }
+    // 申报价格（优先用售价，无售价用进价）
+    var fillPrice = skuData.sellPrice || skuData.price;
+    if (fillPrice) {
+      var priceInput = tr.querySelector('input[name="price"]');
+      if (priceInput && !priceInput.value.trim()) focusSetBlur(priceInput, String(fillPrice));
+    }
 
     // 尺寸
     if (skuData.dimensions && skuData.dimensions.length === 3) {

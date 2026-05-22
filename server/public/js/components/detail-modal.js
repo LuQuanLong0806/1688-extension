@@ -9,10 +9,36 @@ Vue.component('detail-modal', {
       editable: null,
       selectedSkuIndexes: [],
       selectedDetailIndexes: [],
-      selectedMainIndexes: []
+      selectedMainIndexes: [],
+      dragImageUrl: '',
+      dragSourceIdx: -1,
+      dragSourceField: '',
+      dragOverSkuIdx: -1,
+      dragOverSkuImgIdx: -1,
+      batchFind: '',
+      batchReplace: '',
+      showBatchReplace: false,
+      showPriceFormula: false,
+      priceFormulas: [],
+      _batchHideTimer: null
     };
   },
-  mounted: function () {},
+  mounted: function () {
+    var vm = this;
+    fetch('/api/settings/price_formulas')
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.value) {
+          try { vm.priceFormulas = JSON.parse(data.value); } catch (e) {}
+        }
+        if (!vm.priceFormulas.length) {
+          vm.priceFormulas = [{ min: 0, max: 50, expr: 'price * 3' }, { min: 50, max: 100, expr: 'price * 2.5' }, { min: 100, max: 9999, expr: 'price * 2' }];
+        }
+      })
+      .catch(function () {
+        vm.priceFormulas = [{ min: 0, max: 50, expr: 'price * 3' }, { min: 50, max: 100, expr: 'price * 2.5' }, { min: 100, max: 9999, expr: 'price * 2' }];
+      });
+  },
   watch: {
     detail: function (val) {
       if (val) {
@@ -21,6 +47,7 @@ Vue.component('detail-modal', {
           if (!s.customName && s.name) s.customName = s.name;
           if (!s.dimensions || !s.dimensions.length) s.dimensions = ['', '', ''];
           while (s.dimensions.length < 3) s.dimensions.push('');
+          if (s.sellPrice === undefined) s.sellPrice = '';
         });
         // 主图选中状态
         var savedMain = [];
@@ -70,16 +97,14 @@ Vue.component('detail-modal', {
     skuImages: function () {
       if (!this.editable || !this.editable.skus) return [];
       var vm = this;
-      var seen = {};
       var imgs = [];
       this.editable.skus.forEach(function (s, i) {
-        if (s.image && !seen[s.image]) {
-          seen[s.image] = true;
+        if (s.image) {
           var indexes = [];
           vm.editable.skus.forEach(function (s2, j) {
             if (s2.image === s.image) indexes.push(j);
           });
-          imgs.push({ url: s.image, indexes: indexes });
+          imgs.push({ url: s.image, indexes: indexes, skuIndex: i });
         }
       });
       return imgs;
@@ -242,9 +267,11 @@ Vue.component('detail-modal', {
       this.$root.openPreview(imgs, idx);
     },
     onSkuImgEnter: function (url, e) {
+      if (this.dragImageUrl) return;
       this.$root.$refs.thumbPreview.open(url, e);
     },
     onSkuImgMove: function (e) {
+      if (this.dragImageUrl) return;
       this.$root.$refs.thumbPreview.move(e);
     },
     onSkuImgLeave: function () {
@@ -265,6 +292,137 @@ Vue.component('detail-modal', {
       } else if (field === 'detail_images' && this.editable.detail_images) {
         this.$set(this.editable.detail_images, index, newUrl);
       }
+    },
+    // 拖拽替换SKU图
+    onDragStart: function (url, field, idx) {
+      this.$root.$refs.thumbPreview.close();
+      this.dragImageUrl = url;
+      this.dragSourceField = field;
+      this.dragSourceIdx = idx;
+    },
+    onDragEnd: function () {
+      this.dragImageUrl = '';
+      this.dragSourceField = '';
+      this.dragSourceIdx = -1;
+      this.dragOverSkuIdx = -1;
+    },
+    isDragSource: function (field, idx) {
+      return this.dragSourceField === field && this.dragSourceIdx === idx;
+    },
+    onSkuDragOver: function (idx, e) {
+      e.preventDefault();
+      this.dragOverSkuIdx = idx;
+    },
+    onSkuDragLeave: function (idx) {
+      if (this.dragOverSkuIdx === idx) this.dragOverSkuIdx = -1;
+    },
+    onSkuDrop: function (idx, e) {
+      if (e) e.preventDefault();
+      if (!this.dragImageUrl || !this.editable || !this.editable.skus) return;
+      this.$set(this.editable.skus[idx], 'image', this.dragImageUrl);
+      this.$Message.success('SKU图已替换');
+      this.dragImageUrl = '';
+      this.dragSourceField = '';
+      this.dragSourceIdx = -1;
+      this.dragOverSkuIdx = -1;
+      this.dragOverSkuImgIdx = -1;
+    },
+    onSkuImgDragOver: function (imgIdx, e) {
+      e.preventDefault();
+      this.dragOverSkuImgIdx = imgIdx;
+    },
+    onSkuImgDragLeave: function (imgIdx) {
+      if (this.dragOverSkuImgIdx === imgIdx) this.dragOverSkuImgIdx = -1;
+    },
+    onSkuImgDrop: function (item, imgIdx, e) {
+      if (e) e.preventDefault();
+      if (!this.dragImageUrl || !this.editable || !this.editable.skus) return;
+      var vm = this;
+      var oldUrl = item.url;
+      var count = 0;
+      vm.editable.skus.forEach(function (s) {
+        if (s.image === oldUrl) {
+          vm.$set(s, 'image', vm.dragImageUrl);
+          count++;
+        }
+      });
+      vm.$Message.success('已替换 ' + count + ' 个SKU图');
+      vm.dragImageUrl = '';
+      vm.dragSourceField = '';
+      vm.dragSourceIdx = -1;
+      vm.dragOverSkuImgIdx = -1;
+      vm.dragOverSkuIdx = -1;
+    },
+    openBatchReplace: function () {
+      var vm = this;
+      vm.showBatchReplace = true;
+      if (!vm.batchFind && vm.editable && vm.editable.skus && vm.editable.skus.length) {
+        vm.batchFind = vm.editable.skus[0].name || vm.editable.skus[0].customName || '';
+      }
+    },
+    doBatchReplace: function () {
+      var vm = this;
+      if (!vm.batchFind) { vm.$Message.warning('请输入要查找的内容'); return; }
+      if (!vm.editable || !vm.editable.skus) return;
+      var count = 0;
+      vm.editable.skus.forEach(function (s) {
+        var name = s.customName || s.name || '';
+        if (name.indexOf(vm.batchFind) >= 0) {
+          s.customName = name.split(vm.batchFind).join(vm.batchReplace);
+          count++;
+        }
+      });
+      vm.$Message.success('替换完成，共 ' + count + ' 条');
+      vm.showBatchReplace = false;
+      vm.batchFind = '';
+      vm.batchReplace = '';
+    },
+    scheduleBatchHide: function () {
+      var vm = this;
+      vm._batchHideTimer = setTimeout(function () { vm.showBatchReplace = false; }, 300);
+    },
+    clearBatchHide: function () {
+      if (this._batchHideTimer) { clearTimeout(this._batchHideTimer); this._batchHideTimer = null; }
+    },
+    addFormulaRow: function () {
+      this.priceFormulas.push({ min: 0, max: 9999, expr: 'price * 2' });
+    },
+    removeFormulaRow: function (idx) {
+      this.priceFormulas.splice(idx, 1);
+    },
+    saveFormulas: function () {
+      var vm = this;
+      fetch('/api/settings/price_formulas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: JSON.stringify(vm.priceFormulas) })
+      }).then(function (r) { return r.json(); }).then(function () {
+        vm.$Message.success('公式已保存');
+      }).catch(function () { vm.$Message.error('保存失败'); });
+    },
+    applyPriceFormula: function () {
+      var vm = this;
+      if (!vm.editable || !vm.editable.skus) return;
+      var count = 0;
+      vm.editable.skus.forEach(function (s) {
+        if (vm.calcSellPrice(s)) count++;
+      });
+      vm.$Message.success('已计算 ' + count + ' 条售价');
+    },
+    calcSellPrice: function (sku) {
+      var price = parseFloat(sku.price);
+      if (isNaN(price) || price <= 0) return false;
+      for (var i = 0; i < this.priceFormulas.length; i++) {
+        var f = this.priceFormulas[i];
+        if (price >= f.min && price < f.max) {
+          try {
+            var result = new Function('price', 'return ' + f.expr)(price);
+            sku.sellPrice = Math.round(result * 100) / 100;
+            return true;
+          } catch (e) { return false; }
+        }
+      }
+      return false;
     }
   },
   template: `
@@ -272,73 +430,7 @@ Vue.component('detail-modal', {
       :title="editable ? (editable.title || ('商品 #' + editable.id)) : '商品详情'" fullscreen footer-hide>
       <template v-if="editable">
 
-        <!-- 主图（可勾选） -->
-        <div class="detail-section" v-if="editable.main_images && editable.main_images.length">
-          <div class="detail-section-title">
-            主图 ({{ editable.main_images.length }})
-            <checkbox :value="allMainSelected()" @on-change="toggleAllMainImages" style="margin-left:12px;vertical-align:middle"></checkbox>
-            <span style="font-size:12px;color:#999;margin-left:4px;vertical-align:middle">全选</span>
-          </div>
-          <div class="img-grid">
-            <div class="img-item sku-img-checkable" v-for="(url, i) in editable.main_images" :key="'m'+i"
-              :class="{ 'sku-img-unchecked': !isMainImageChecked(i) }"
-              @click="toggleMainImage(i)">
-              <img :src="url" loading="lazy"
-                @mouseenter="onSkuImgEnter(url, $event)"
-                @mousemove="onSkuImgMove($event)"
-                @mouseleave="onSkuImgLeave" />
-              <div class="sku-img-check">
-                <checkbox :value="isMainImageChecked(i)" @click.native.stop></checkbox>
-              </div>
-              <!-- img-edit-btn hidden -->
-              <div class="img-del" @click.stop="removeMainImage(i)">&times;</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 详情图（可勾选） -->
-        <div class="detail-section" v-if="editable.detail_images && editable.detail_images.length">
-          <div class="detail-section-title">
-            详情图 ({{ editable.detail_images.length }})
-            <checkbox :value="allDetailSelected()" @on-change="toggleAllDetailImages" style="margin-left:12px;vertical-align:middle"></checkbox>
-            <span style="font-size:12px;color:#999;margin-left:4px;vertical-align:middle">全选</span>
-          </div>
-          <div class="img-grid">
-            <div class="img-item sku-img-checkable" v-for="(url, i) in editable.detail_images" :key="'di'+i"
-              :class="{ 'sku-img-unchecked': !isDetailImageChecked(i) }"
-              @click="toggleDetailImage(i)">
-              <img :src="url" loading="lazy"
-                @mouseenter="onSkuImgEnter(url, $event)"
-                @mousemove="onSkuImgMove($event)"
-                @mouseleave="onSkuImgLeave" />
-              <div class="sku-img-check">
-                <checkbox :value="isDetailImageChecked(i)" @click.native.stop></checkbox>
-              </div>
-              <!-- img-edit-btn hidden -->
-              <div class="img-del" @click.stop="removeDetailImage(i)">&times;</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- SKU图（可勾选，关联SKU列表） -->
-        <div class="detail-section" v-if="skuImages.length">
-          <div class="detail-section-title">SKU图 ({{ skuImages.length }})</div>
-          <div class="img-grid">
-            <div class="img-item sku-img-checkable" v-for="(item, i) in skuImages" :key="'si'+i"
-              :class="{ 'sku-img-unchecked': !isSkuImageChecked(item) }"
-              @click="toggleSkuImage(item)">
-              <img :src="item.url" loading="lazy"
-                @mouseenter="onSkuImgEnter(item.url, $event)"
-                @mousemove="onSkuImgMove($event)"
-                @mouseleave="onSkuImgLeave" />
-              <div class="sku-img-check">
-                <checkbox :value="isSkuImageChecked(item)" @click.native.stop></checkbox>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 基本信息 -->
+        <!-- 基本信息（置顶） -->
         <div class="detail-section">
           <div class="detail-section-title">基本信息</div>
           <div class="info-grid">
@@ -362,6 +454,82 @@ Vue.component('detail-modal', {
           </div>
         </div>
 
+        <!-- 主图（可勾选） -->
+        <div class="detail-section" v-if="editable.main_images && editable.main_images.length">
+          <div class="detail-section-title">
+            主图 ({{ editable.main_images.length }})
+            <checkbox :value="allMainSelected()" @on-change="toggleAllMainImages" style="margin-left:12px;vertical-align:middle"></checkbox>
+            <span style="font-size:12px;color:#999;margin-left:4px;vertical-align:middle">全选</span>
+          </div>
+          <div class="img-grid">
+            <div class="img-item sku-img-checkable" v-for="(url, i) in editable.main_images" :key="'m'+i"
+              :class="{ 'sku-img-unchecked': !isMainImageChecked(i), 'img-drag-source': isDragSource('main', i) }"
+              draggable="true"
+              @dragstart="onDragStart(url, 'main', i)"
+              @dragend="onDragEnd"
+              @click="toggleMainImage(i)">
+              <img :src="url" loading="lazy"
+                @mouseenter="onSkuImgEnter(url, $event)"
+                @mousemove="onSkuImgMove($event)"
+                @mouseleave="onSkuImgLeave" />
+              <div class="sku-img-check">
+                <checkbox :value="isMainImageChecked(i)" @click.native.stop></checkbox>
+              </div>
+              <!-- img-edit-btn hidden -->
+              <div class="img-del" @click.stop="removeMainImage(i)">&times;</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 详情图（可勾选） -->
+        <div class="detail-section" v-if="editable.detail_images && editable.detail_images.length">
+          <div class="detail-section-title">
+            详情图 ({{ editable.detail_images.length }})
+            <checkbox :value="allDetailSelected()" @on-change="toggleAllDetailImages" style="margin-left:12px;vertical-align:middle"></checkbox>
+            <span style="font-size:12px;color:#999;margin-left:4px;vertical-align:middle">全选</span>
+          </div>
+          <div class="img-grid">
+            <div class="img-item sku-img-checkable" v-for="(url, i) in editable.detail_images" :key="'di'+i"
+              :class="{ 'sku-img-unchecked': !isDetailImageChecked(i), 'img-drag-source': isDragSource('detail', i) }"
+              draggable="true"
+              @dragstart="onDragStart(url, 'detail', i)"
+              @dragend="onDragEnd"
+              @click="toggleDetailImage(i)">
+              <img :src="url" loading="lazy"
+                @mouseenter="onSkuImgEnter(url, $event)"
+                @mousemove="onSkuImgMove($event)"
+                @mouseleave="onSkuImgLeave" />
+              <div class="sku-img-check">
+                <checkbox :value="isDetailImageChecked(i)" @click.native.stop></checkbox>
+              </div>
+              <!-- img-edit-btn hidden -->
+              <div class="img-del" @click.stop="removeDetailImage(i)">&times;</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SKU图（可勾选，关联SKU列表，可拖拽替换） -->
+        <div class="detail-section" v-if="skuImages.length">
+          <div class="detail-section-title">SKU图 ({{ skuImages.length }}) <span v-if="dragImageUrl" style="font-size:12px;color:#2d8cf0;font-weight:400;margin-left:8px">← 拖拽主图/详情图到此处替换</span></div>
+          <div class="img-grid">
+            <div class="img-item sku-img-checkable sku-img-card" v-for="(item, i) in skuImages" :key="'si'+i"
+              :class="{ 'sku-img-unchecked': !isSkuImageChecked(item), 'img-drag-over': dragOverSkuImgIdx === i }"
+              @dragover="onSkuImgDragOver(i, $event)"
+              @dragleave="onSkuImgDragLeave(i)"
+              @drop="onSkuImgDrop(item, i, $event)"
+              @click="toggleSkuImage(item)">
+              <img :src="item.url" loading="lazy"
+                @mouseenter="onSkuImgEnter(item.url, $event)"
+                @mousemove="onSkuImgMove($event)"
+                @mouseleave="onSkuImgLeave" />
+              <div class="sku-img-check">
+                <checkbox :value="isSkuImageChecked(item)" @click.native.stop></checkbox>
+              </div>
+              <div class="sku-img-label">{{ editable.skus[item.skuIndex].name || editable.skus[item.skuIndex].customName || '' }}</div>
+            </div>
+          </div>
+        </div>
+
         <!-- 描述图 -->
         <div class="detail-section" v-if="editable.desc_images && editable.desc_images.length">
           <div class="detail-section-title">描述图 ({{ editable.desc_images.length }})</div>
@@ -382,28 +550,56 @@ Vue.component('detail-modal', {
         </div>
 
         <!-- SKU 列表（带复选框 + 可编辑） -->
-        <div class="detail-section">
+        <div class="detail-section" style="position:relative">
           <div class="detail-section-title">SKU ({{ editable.skus ? editable.skus.length : 0 }})</div>
+          <!-- 批量替换气泡（放在section层级避免被overflow裁剪） -->
+          <div class="batch-popover batch-popover-float" v-if="showBatchReplace"
+            @mouseenter="clearBatchHide" @mouseleave="scheduleBatchHide">
+            <div style="margin-bottom:6px">
+              <span style="font-size:12px;color:#666">查找内容</span>
+              <i-input v-model="batchFind" size="small" placeholder="要替换的文本" style="margin-top:4px" />
+            </div>
+            <div style="margin-bottom:8px">
+              <span style="font-size:12px;color:#666">替换为</span>
+              <i-input v-model="batchReplace" size="small" placeholder="替换后的文本" style="margin-top:4px" />
+            </div>
+            <i-button type="primary" size="small" long @click="doBatchReplace">执行替换</i-button>
+          </div>
           <div v-if="editable.skus && editable.skus.length" class="detail-sku-scroll">
-            <table class="sku-table">
+            <table class="sku-table" :class="{ 'sku-dragging': dragImageUrl }">
               <thead><tr>
                 <th class="sku-check-col"><checkbox :value="allSkuSelected" @on-change="toggleSkuAll"></checkbox></th>
-                <th>图片</th><th>SKU名称</th><th>自定义名称</th><th>价格</th><th>长(cm)</th><th>宽(cm)</th><th>高(cm)</th><th>重量</th>
+                <th>图片</th><th>SKU名称</th>
+                <th>自定义名称 <span class="th-action" @click="openBatchReplace" @mouseenter="clearBatchHide" @mouseleave="scheduleBatchHide">批量替换</span></th>
+                <th>进价</th><th>售价 <a style="font-size:11px;font-weight:400;color:#2d8cf0;cursor:pointer" @click="showPriceFormula=true">公式设置</a></th><th>尺寸(cm)</th><th>重量</th>
               </tr></thead>
               <tbody>
                 <tr v-for="(sku, i) in editable.skus" :key="'s'+i" :class="{ 'sku-row-checked': isSkuChecked(i) }">
                   <td class="sku-check-col"><checkbox :value="isSkuChecked(i)" @on-change="toggleSkuItem(i)"></checkbox></td>
-                  <td><img v-if="sku.image" :src="sku.image" loading="lazy"
-                    @mouseenter="onSkuImgEnter(sku.image, $event)"
-                    @mousemove="onSkuImgMove($event)"
-                    @mouseleave="onSkuImgLeave" /></td>
+                  <td class="sku-img-drop" :class="{ 'img-drag-over': dragOverSkuIdx === i }"
+                    @dragover="onSkuDragOver(i, $event)"
+                    @dragleave="onSkuDragLeave(i)"
+                    @drop="onSkuDrop(i, $event)">
+                    <img v-if="sku.image" :src="sku.image" loading="lazy"
+                      @mouseenter="onSkuImgEnter(sku.image, $event)"
+                      @mousemove="onSkuImgMove($event)"
+                      @mouseleave="onSkuImgLeave" />
+                    <span v-else class="sku-img-placeholder">拖图替换</span>
+                  </td>
                   <td>{{ sku.name || '-' }}</td>
                   <td><i-input v-model="sku.customName" :placeholder="sku.name || '-'" style="width:200px" /></td>
-                  <td><i-input v-model="sku.price" type="number" number style="width:110px" /></td>
-                  <td><i-input v-model="sku.dimensions[0]" type="number" number style="width:90px" /></td>
-                  <td><i-input v-model="sku.dimensions[1]" type="number" number style="width:90px" /></td>
-                  <td><i-input v-model="sku.dimensions[2]" type="number" number style="width:90px" /></td>
-                  <td><i-input v-model="sku.weight" type="number" number style="width:100px" /></td>
+                  <td><i-input v-model="sku.price" type="number" number style="width:100px" @on-change="calcSellPrice(sku)" /></td>
+                  <td><i-input v-model="sku.sellPrice" type="number" number placeholder="售价" style="width:100px" /></td>
+                  <td style="min-width:280px">
+                    <div style="display:flex;justify-content:space-around;align-items:center">
+                      <i-input v-model="sku.dimensions[0]" type="number" number style="width:80px" />
+                      <span style="color:#bbb">×</span>
+                      <i-input v-model="sku.dimensions[1]" type="number" number style="width:80px" />
+                      <span style="color:#bbb">×</span>
+                      <i-input v-model="sku.dimensions[2]" type="number" number style="width:80px" />
+                    </div>
+                  </td>
+                  <td><i-input v-model="sku.weight" type="number" number style="width:80px" /></td>
                 </tr>
               </tbody>
             </table>
@@ -420,6 +616,27 @@ Vue.component('detail-modal', {
           </i-button>
           <i-button icon="md-close" @click="close">关闭</i-button>
         </div>
+
+        <!-- 价格公式配置 -->
+        <modal v-model="showPriceFormula" title="售价公式配置" width="520" footer-hide>
+          <div style="margin-bottom:12px;font-size:13px;color:#808695">
+            根据进价区间自动计算售价，公式中用 <code>price</code> 代表进价。
+            如：<code>price * 3</code>、<code>price * 2.5 + 5</code>
+          </div>
+          <div v-for="(f, i) in priceFormulas" :key="i" style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+            <i-input v-model="f.min" type="number" number size="small" style="width:80px" placeholder="最低" />
+            <span style="color:#999">~</span>
+            <i-input v-model="f.max" type="number" number size="small" style="width:80px" placeholder="最高" />
+            <span style="color:#999">=</span>
+            <i-input v-model="f.expr" size="small" style="flex:1" placeholder="price * 2.5" />
+            <i-button size="small" type="error" icon="md-trash" @click="removeFormulaRow(i)"></i-button>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:12px">
+            <i-button size="small" icon="md-add" @click="addFormulaRow">添加区间</i-button>
+            <i-button type="primary" size="small" @click="saveFormulas">保存公式</i-button>
+            <i-button type="success" size="small" @click="applyPriceFormula">应用公式</i-button>
+          </div>
+        </modal>
       </template>
     </modal>`
 });

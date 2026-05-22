@@ -169,6 +169,7 @@ async function initDb() {
   try { db.run('ALTER TABLE products ADD COLUMN custom_category TEXT'); } catch (e) {}
   try { db.run("ALTER TABLE products ADD COLUMN dxm_category TEXT DEFAULT ''"); } catch (e) {}
   try { db.run('ALTER TABLE products ADD COLUMN manual_category TEXT'); } catch (e) {}
+  try { db.run('ALTER TABLE products ADD COLUMN deleted INTEGER DEFAULT 0'); } catch (e) {}
 
   db.run(`
     CREATE TABLE IF NOT EXISTS settings (

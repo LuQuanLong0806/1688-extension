@@ -154,7 +154,18 @@ initDb().then(() => initTreeDb()).then(() => {
     // 尝试连接 Turso 云端（静默失败，不影响本地功能）
     var cloudDb = require('./cloud-db');
     cloudDb.connect().then(function (ok) {
-      if (ok) console.log('[云同步] Turso 已连接，知识库云端模式');
+      if (ok) {
+        console.log('[云同步] Turso 已连接，知识库云端模式');
+        // 启动时自动同步：先拉云端数据到本地，再推本地数据到云端
+        cloudDb.downloadProducts().then(function (r) {
+          console.log('[云同步] 启动同步-拉取商品: 新增', r.added, '跳过', r.skipped, '删除同步', r.deletedSynced || 0);
+          return cloudDb.bidirectionalSync();
+        }).then(function (r) {
+          if (r && r.ok) console.log('[云同步] 启动同步-知识库: 拉取', JSON.stringify(r.pull), '推送', JSON.stringify(r.push));
+        }).catch(function (e) {
+          console.error('[云同步] 启动同步失败:', e.message);
+        });
+      }
     });
 
     // Uploads 定期清理（30天过期，每24小时扫描）
