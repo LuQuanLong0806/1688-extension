@@ -112,61 +112,156 @@ router.post('/product', (req, res) => {
     }
   }
 
-  dbModule.db.run(
-    `INSERT INTO products (source_url, title, category, custom_category, dxm_category, main_images, desc_images, detail_images, attrs, skus)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      sourceUrl || '',
-      title || '',
-      JSON.stringify(category || {}),
-      customCategory,
-      dxmCategoryVal,
-      JSON.stringify(mainImages || []),
-      JSON.stringify(descImages || []),
-      JSON.stringify(detailImages || []),
-      JSON.stringify(attrs || []),
-      JSON.stringify(skus || [])
-    ]
-  );
+  // 先调AI推荐，拿到结果后一次性写入数据库
+  var aliCat = category ? (category.leafCategoryName || category.categoryPath || '') : '';
+  var needRecommend = !customCategory && !dxmCategoryVal && title;
 
-  // 立即获取产品ID（必须在其他INSERT之前，否则last_insert_rowid会被覆盖）
-  const row = getOne('SELECT last_insert_rowid() as id');
+  var recommendPromise = needRecommend
+    ? doRecommendAndGetResult(title, aliCat, attrs)
+    : Promise.resolve(null);
 
-  if (category) {
-    const catName = category.leafCategoryName || category.categoryPath;
-    if (catName) {
-      const existing = getOne('SELECT id, count FROM categories WHERE name = ?', [catName]);
-      if (existing) {
-        run('UPDATE categories SET count = count + 1 WHERE name = ?', [catName]);
-      } else {
-        run('INSERT INTO categories (name, cat_id, leaf_category_id, top_category_id, post_category_id) VALUES (?, ?, ?, ?, ?)',
-          [catName, category.catId || '', category.leafCategoryId || '', category.topCategoryId || '', category.postCategoryId || '']);
-      }
-      if (customCategory) {
-        run('INSERT OR IGNORE INTO category_mappings (category_name, custom_category) VALUES (?, ?)', [catName, customCategory]);
+  recommendPromise.then(function (recResult) {
+    // 推荐成功则覆盖分类
+    if (recResult && recResult.category && recResult.confidence >= 0.5) {
+      customCategory = recResult.category;
+      if (recResult.path) {
+        dxmCategoryVal = JSON.stringify({ path: recResult.path, leafName: recResult.category });
       }
     }
-  }
 
-  scheduleSave();
-  sseBroadcast('product-added', { id: row.id, title: title || '' });
+    // 一次性插入数据库（分类已确定）
+    dbModule.db.run(
+      `INSERT INTO products (source_url, title, category, custom_category, dxm_category, main_images, desc_images, detail_images, attrs, skus)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        sourceUrl || '',
+        title || '',
+        JSON.stringify(category || {}),
+        customCategory,
+        dxmCategoryVal,
+        JSON.stringify(mainImages || []),
+        JSON.stringify(descImages || []),
+        JSON.stringify(detailImages || []),
+        JSON.stringify(attrs || []),
+        JSON.stringify(skus || [])
+      ]
+    );
 
-  // 同步AI分类推荐：等待结果后返回，推荐失败不影响采集
-  if (!customCategory && !dxmCategoryVal && title) {
-    var aliCat = category ? (category.leafCategoryName || category.categoryPath || '') : '';
-    var productId = row.id;
+    // 立即获取产品ID（必须在其他INSERT之前）
+    const row = getOne('SELECT last_insert_rowid() as id');
 
-    doRecommendAndSave(title, aliCat, attrs, productId).then(function (recResult) {
-      res.json({ ok: true, id: row.id, recommendation: recResult });
-    }).catch(function () {
-      res.json({ ok: true, id: row.id, recommendation: null });
-    });
-  } else {
-    res.json({ ok: true, id: row.id });
-  }
+    if (category) {
+      const catName = category.leafCategoryName || category.categoryPath;
+      if (catName) {
+        const existing = getOne('SELECT id, count FROM categories WHERE name = ?', [catName]);
+        if (existing) {
+          run('UPDATE categories SET count = count + 1 WHERE name = ?', [catName]);
+        } else {
+          run('INSERT INTO categories (name, cat_id, leaf_category_id, top_category_id, post_category_id) VALUES (?, ?, ?, ?, ?)',
+            [catName, category.catId || '', category.leafCategoryId || '', category.topCategoryId || '', category.postCategoryId || '']);
+        }
+        if (customCategory) {
+          run('INSERT OR IGNORE INTO category_mappings (category_name, custom_category) VALUES (?, ?)', [catName, customCategory]);
+        }
+      }
+    }
+
+    // 推荐成功后的学习逻辑
+    if (recResult && recResult.category && recResult.confidence >= 0.6) {
+      try {
+        var aiModule = require('./ai');
+        var learnKeywords = aiModule.extractSearchKeywordsPublic(title || '', aliCat);
+        aiModule.learnKeywordCategoryRelPublic(learnKeywords, recResult.category, 'auto', recResult.confidence);
+      } catch (learnErr) {}
+    }
+    if (aliCat && customCategory && recResult && recResult.confidence >= 0.7) {
+      var existingMap = getOne('SELECT id, count FROM category_mappings WHERE category_name = ? AND custom_category = ?', [aliCat, customCategory]);
+      if (existingMap) {
+        run('UPDATE category_mappings SET count = count + 1 WHERE id = ?', [existingMap.id]);
+      } else {
+        run('INSERT INTO category_mappings (category_name, custom_category, count, source) VALUES (?, ?, 1, \'auto\')', [aliCat, customCategory]);
+      }
+    }
+
+    scheduleSave();
+    sseBroadcast('product-added', { id: row.id, title: title || '', customCategory: customCategory });
+
+    console.log('[采集] 产品#' + row.id + ' 入库完成, 分类: ' + (customCategory || '无') + ', 来源: ' + (recResult ? recResult.source : '映射'));
+    res.json({ ok: true, id: row.id, recommendation: recResult, customCategory: customCategory });
+  }).catch(function (err) {
+    // 推荐失败，不带分类直接入库
+    console.error('[采集] 推荐失败，不带分类入库:', err.message);
+    dbModule.db.run(
+      `INSERT INTO products (source_url, title, category, custom_category, dxm_category, main_images, desc_images, detail_images, attrs, skus)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        sourceUrl || '', title || '', JSON.stringify(category || {}),
+        '', '',
+        JSON.stringify(mainImages || []), JSON.stringify(descImages || []),
+        JSON.stringify(detailImages || []), JSON.stringify(attrs || []), JSON.stringify(skus || [])
+      ]
+    );
+    const row = getOne('SELECT last_insert_rowid() as id');
+    if (category) {
+      const catName = category.leafCategoryName || category.categoryPath;
+      if (catName) {
+        const existing = getOne('SELECT id, count FROM categories WHERE name = ?', [catName]);
+        if (existing) { run('UPDATE categories SET count = count + 1 WHERE name = ?', [catName]); }
+        else { run('INSERT INTO categories (name, cat_id, leaf_category_id, top_category_id, post_category_id) VALUES (?, ?, ?, ?, ?)', [catName, category.catId || '', category.leafCategoryId || '', category.topCategoryId || '', category.postCategoryId || '']); }
+      }
+    }
+    scheduleSave();
+    sseBroadcast('product-added', { id: row.id, title: title || '' });
+    res.json({ ok: true, id: row.id, recommendation: null });
+  });
 });
 
-// 同步推荐 + 保存结果 + 自动映射
+// 调用推荐API，只返回结果不写数据库
+function doRecommendAndGetResult(title, aliCat, attrs) {
+  console.log('[采集推荐] 标题:', title, '1688类目:', aliCat);
+  return new Promise(function (resolve) {
+    var httpMod = require('http');
+    var postData = JSON.stringify({ title: title, ali_category: aliCat, attrs: attrs || [] });
+    var reqOpts = {
+      hostname: 'localhost', port: 3000, path: '/api/ai/suggest-category',
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(postData) }
+    };
+    var timeout = setTimeout(function () {
+      console.log('[采集推荐] 超时(60s)');
+      aiReq.destroy();
+      resolve(null);
+    }, 60000);
+    var aiReq = httpMod.request(reqOpts, function (aiRes) {
+      var body = '';
+      aiRes.on('data', function (chunk) { body += chunk; });
+      aiRes.on('end', function () {
+        clearTimeout(timeout);
+        try {
+          var result = JSON.parse(body);
+          if (!result.ok || !result.category || result.confidence < 0.5) {
+            console.log('[采集推荐] 无结果 confidence=' + (result.confidence || 0) + ' source=' + (result.source || ''));
+            resolve(null);
+            return;
+          }
+          console.log('[采集推荐] ✅ ' + result.category + ' 置信度:' + result.confidence.toFixed(2) + ' 来源:' + result.source);
+          resolve({ category: result.category, path: result.path, confidence: result.confidence, source: result.source });
+        } catch (e) {
+          console.error('[采集推荐] 解析失败:', e.message);
+          resolve(null);
+        }
+      });
+    });
+    aiReq.on('error', function (e) {
+      clearTimeout(timeout);
+      console.error('[采集推荐] 请求失败:', e.message);
+      resolve(null);
+    });
+    aiReq.write(postData);
+    aiReq.end();
+  });
+}
+
+// 同步推荐 + 保存结果 + 自动映射（手动触发时使用）
 function doRecommendAndSave(title, aliCat, attrs, productId) {
   console.log('[采集推荐] ========== 产品#' + productId + ' 开始推荐 ==========');
   console.log('[采集推荐] 产品#' + productId + ' 标题: ' + title);
