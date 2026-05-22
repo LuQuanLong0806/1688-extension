@@ -5,7 +5,7 @@ Vue.component('page-api-keys', {
       loading: false,
       saving: null,
       configs: {},
-      // 每个配置的编辑状态
+      providers: {},
       editData: {}
     };
   },
@@ -19,113 +19,239 @@ Vue.component('page-api-keys', {
       fetch('/api/ai/configs')
         .then(function (r) { return r.json(); })
         .then(function (data) {
-          vm.configs = data;
+          vm.configs = {};
+          vm.providers = data.providers || {};
+          ['category', 'vision', 'image'].forEach(function (uc) {
+            vm.$set(vm.configs, uc, data[uc] || {});
+          });
+          vm.$set(vm.configs, '_global', data._global || {});
           vm.initEditData();
           vm.loading = false;
         })
         .catch(function () { vm.loading = false; });
     },
     initEditData: function () {
-      var vm = this;
-      vm.editData = {};
-      var cases = ['category', 'vision', 'image'];
-      cases.forEach(function (uc) {
-        var c = vm.configs[uc] || {};
-        vm.$set(vm.editData, uc, {
-          model: c.model || '',
-          apiKey: ''
-        });
-      });
+      this.editData = {
+        zhipu: '',
+        qwen: '',
+        hunyuan_secretId: '',
+        hunyuan_secretKey: '',
+        vision_apiKey: '',
+        image_apiKey: ''
+      };
     },
-    saveConfig: function (uc) {
+    masked: function (key) { return key || ''; },
+    saveZhipu: function () {
       var vm = this;
-      var edit = vm.editData[uc];
-      if (!edit.model) {
-        vm.$Message.warning('请选择模型');
-        return;
-      }
-      vm.saving = uc;
-      var body = {};
-      body[uc] = { model: edit.model };
-      if (edit.apiKey && edit.apiKey.trim()) {
-        body[uc].apiKey = edit.apiKey.trim();
-      }
-      fetch('/api/ai/configs', {
+      var key = (vm.editData.zhipu || '').trim();
+      if (!key) { vm.$Message.warning('请输入API Key'); return; }
+      vm.saving = 'zhipu';
+      fetch('/api/ai/global-key', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
+        body: JSON.stringify({ apiKey: key })
       })
         .then(function (r) { return r.json(); })
         .then(function (result) {
-          if (result.ok) {
-            vm.$Message.success((vm.configs[uc] && vm.configs[uc].label || uc) + '配置已保存');
-            vm.editData[uc].apiKey = '';
-            vm.loadConfigs();
-          } else {
-            vm.$Message.error(result.error || '保存失败');
-          }
+          if (result.ok) { vm.$Message.success('智谱 API Key 已保存'); vm.editData.zhipu = ''; vm.loadConfigs(); }
+          else vm.$Message.error(result.error || '保存失败');
           vm.saving = null;
         })
-        .catch(function () {
-          vm.$Message.error('保存失败');
-          vm.saving = null;
-        });
+        .catch(function () { vm.$Message.error('保存失败'); vm.saving = null; });
     },
-    getStatusTag: function (uc) {
-      var c = this.configs[uc];
-      if (!c) return { text: '未配置', color: '#ed4014' };
-      if (c.configured) return { text: '已配置', color: '#19be6b' };
-      return { text: '缺少Key', color: '#ff9900' };
+    saveQwen: function () {
+      var vm = this;
+      var key = (vm.editData.qwen || '').trim();
+      if (!key) { vm.$Message.warning('请输入API Key'); return; }
+      vm.saving = 'qwen';
+      fetch('/api/ai/configs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ providers: { qwen: { apiKey: key } } })
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (result) {
+          if (result.ok) { vm.$Message.success('通义千问 Key 已保存'); vm.editData.qwen = ''; vm.loadConfigs(); }
+          else vm.$Message.error(result.error || '保存失败');
+          vm.saving = null;
+        })
+        .catch(function () { vm.$Message.error('保存失败'); vm.saving = null; });
+    },
+    saveHunyuan: function () {
+      var vm = this;
+      var sid = (vm.editData.hunyuan_secretId || '').trim();
+      var skey = (vm.editData.hunyuan_secretKey || '').trim();
+      if (!sid || !skey) { vm.$Message.warning('请输入 SecretId 和 SecretKey'); return; }
+      vm.saving = 'hunyuan';
+      fetch('/api/ai/configs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ providers: { hunyuan: { secretId: sid, secretKey: skey } } })
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (result) {
+          if (result.ok) { vm.$Message.success('腾讯混元密钥已保存'); vm.editData.hunyuan_secretId = ''; vm.editData.hunyuan_secretKey = ''; vm.loadConfigs(); }
+          else vm.$Message.error(result.error || '保存失败');
+          vm.saving = null;
+        })
+        .catch(function () { vm.$Message.error('保存失败'); vm.saving = null; });
+    },
+    saveVisionKey: function () {
+      var vm = this;
+      var key = (vm.editData.vision_apiKey || '').trim();
+      if (!key) { vm.$Message.warning('请输入API Key'); return; }
+      vm.saving = 'vision';
+      fetch('/api/ai/configs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vision: { model: 'glm-4v-flash', apiKey: key } })
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (result) {
+          if (result.ok) { vm.$Message.success('智能检测 Key 已保存'); vm.editData.vision_apiKey = ''; vm.loadConfigs(); }
+          else vm.$Message.error(result.error || '保存失败');
+          vm.saving = null;
+        })
+        .catch(function () { vm.$Message.error('保存失败'); vm.saving = null; });
+    },
+    saveImageKey: function () {
+      var vm = this;
+      var key = (vm.editData.image_apiKey || '').trim();
+      if (!key) { vm.$Message.warning('请输入API Key'); return; }
+      vm.saving = 'image';
+      fetch('/api/ai/configs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: { model: 'cogview-3-flash', apiKey: key } })
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (result) {
+          if (result.ok) { vm.$Message.success('图片生成 Key 已保存'); vm.editData.image_apiKey = ''; vm.loadConfigs(); }
+          else vm.$Message.error(result.error || '保存失败');
+          vm.saving = null;
+        })
+        .catch(function () { vm.$Message.error('保存失败'); vm.saving = null; });
     }
   },
   template: `
-    <div class="list-card" style="max-width:800px">
+    <div class="list-card" style="max-width:820px">
       <div style="margin-bottom:20px">
         <h3 style="margin:0 0 6px;font-size:16px;color:#333">AI模型配置</h3>
-        <p style="margin:0;font-size:13px;color:#999">为每个AI功能单独配置模型和API Key。每个用途可使用不同的模型和密钥。</p>
+        <p style="margin:0;font-size:13px;color:#999">配置各AI功能的模型和密钥，限流时自动切换备用。</p>
       </div>
 
       <div v-if="loading" style="text-align:center;padding:40px;color:#999">加载中...</div>
 
       <template v-else>
-        <div v-for="(meta, uc) in { category: configs.category, vision: configs.vision, image: configs.image }" :key="uc"
-          style="border:1px solid #e8e8e8;border-radius:8px;padding:20px;margin-bottom:16px;background:#fafafa">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-            <div>
-              <span style="font-size:15px;font-weight:600;color:#333">{{ meta && meta.label || uc }}</span>
-              <span :style="{ marginLeft:'10px', fontSize:'12px', padding:'2px 8px', borderRadius:'10px', color:'#fff', background: getStatusTag(uc).color }">
-                {{ getStatusTag(uc).text }}
-              </span>
+
+        <!-- ====== 分类推荐 ====== -->
+        <div class="ai-module">
+          <div class="ai-module-header">
+            <span class="ai-module-title">分类推荐</span>
+            <span style="font-size:12px;color:#aaa;margin-left:8px">智谱 → 通义千问 → 腾讯混元 自动切换</span>
+          </div>
+
+          <!-- 智谱 -->
+          <div class="ai-provider-row">
+            <div class="ai-provider-info">
+              <span class="ai-pname">智谱AI</span>
+              <span class="ai-pmodel">GLM-4.7-Flash / GLM-4-Flash</span>
+              <span class="ai-pfree">免费</span>
+            </div>
+            <div class="ai-provider-action">
+              <span v-if="configs._global && configs._global.apiKey" class="ai-key-hint">{{ configs._global.apiKey }}</span>
+              <span v-else class="ai-key-hint none">未设置</span>
+              <i-input v-model="editData.zhipu" type="password" password size="small"
+                :placeholder="(configs._global && configs._global.apiKey) ? '输入新Key覆盖' : '请输入API Key'"
+                style="width:220px"></i-input>
+              <i-button type="primary" size="small" :loading="saving === 'zhipu'" @click="saveZhipu()">保存</i-button>
             </div>
           </div>
 
-          <div style="display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap">
-            <div style="flex:0 0 220px">
-              <div style="font-size:12px;color:#666;margin-bottom:4px">AI模型</div>
-              <i-select v-model="editData[uc].model" style="width:220px" placeholder="选择模型">
-                <i-option v-for="m in (meta && meta.models || [])" :key="m.id" :value="m.id">{{ m.name }}</i-option>
-              </i-select>
+          <!-- 通义千问 -->
+          <div class="ai-provider-row">
+            <div class="ai-provider-info">
+              <span class="ai-pname">通义千问</span>
+              <span class="ai-pmodel">qwen-turbo</span>
+              <span class="ai-pfree">免费</span>
             </div>
-            <div style="flex:1;min-width:200px">
-              <div style="font-size:12px;color:#666;margin-bottom:4px">
-                API Key
-                <span v-if="meta && meta.apiKey" style="color:#999;margin-left:4px">当前: {{ meta.apiKey }}</span>
-                <span v-else style="color:#ed4014;margin-left:4px">未设置</span>
-              </div>
-              <i-input v-model="editData[uc].apiKey" type="password" password
-                :placeholder="(meta && meta.apiKey) ? '留空保持不变，输入新Key则覆盖' : '请输入API Key'"
-                style="width:100%"></i-input>
+            <div class="ai-provider-action">
+              <span v-if="providers.qwen && providers.qwen.apiKey" class="ai-key-hint">{{ providers.qwen.apiKey }}</span>
+              <span v-else class="ai-key-hint none">未设置</span>
+              <i-input v-model="editData.qwen" type="password" password size="small"
+                :placeholder="(providers.qwen && providers.qwen.apiKey) ? '输入新Key覆盖' : '请输入 DashScope API Key'"
+                style="width:220px"></i-input>
+              <i-button type="primary" size="small" :loading="saving === 'qwen'" @click="saveQwen()">保存</i-button>
             </div>
-            <i-button type="primary" :loading="saving === uc" @click="saveConfig(uc)"
-              style="flex:0 0 auto">保存</i-button>
+          </div>
+
+          <!-- 腾讯混元 -->
+          <div class="ai-provider-row">
+            <div class="ai-provider-info">
+              <span class="ai-pname">腾讯混元</span>
+              <span class="ai-pmodel">hunyuan-lite</span>
+              <span class="ai-pfree">永久免费</span>
+            </div>
+            <div class="ai-provider-action">
+              <span v-if="providers.hunyuan && providers.hunyuan.secretId" class="ai-key-hint">{{ providers.hunyuan.secretId }}</span>
+              <span v-else class="ai-key-hint none">未设置</span>
+              <i-input v-model="editData.hunyuan_secretId" size="small" placeholder="SecretId" style="width:130px"></i-input>
+              <i-input v-model="editData.hunyuan_secretKey" type="password" password size="small" placeholder="SecretKey" style="width:130px"></i-input>
+              <i-button type="primary" size="small" :loading="saving === 'hunyuan'" @click="saveHunyuan()">保存</i-button>
+            </div>
           </div>
         </div>
 
-        <div style="border-top:1px solid #e8e8e8;padding-top:16px;margin-top:8px">
-          <p style="font-size:13px;color:#999;margin:0 0 6px">
-            <icon type="ios-information-circle" style="margin-right:4px"></icon>
-            优先使用各功能的独立配置。如未设置独立Key，将回退使用全局Key。
-          </p>
+        <!-- ====== 智能检测 ====== -->
+        <div class="ai-module">
+          <div class="ai-module-header">
+            <span class="ai-module-title">智能检测</span>
+          </div>
+          <div class="ai-provider-row">
+            <div class="ai-provider-info">
+              <span class="ai-pname">智谱AI</span>
+              <span class="ai-pmodel">GLM-4V-Flash</span>
+              <span class="ai-pfree">免费</span>
+            </div>
+            <div class="ai-provider-action">
+              <span v-if="configs.vision && configs.vision.apiKey" class="ai-key-hint">{{ configs.vision.apiKey }}</span>
+              <span v-else class="ai-key-hint none">未设置</span>
+              <i-input v-model="editData.vision_apiKey" type="password" password size="small"
+                :placeholder="(configs.vision && configs.vision.apiKey) ? '输入新Key覆盖' : '请输入API Key'"
+                style="width:220px"></i-input>
+              <i-button type="primary" size="small" :loading="saving === 'vision'" @click="saveVisionKey()">保存</i-button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ====== 图片生成 ====== -->
+        <div class="ai-module">
+          <div class="ai-module-header">
+            <span class="ai-module-title">图片生成</span>
+          </div>
+          <div class="ai-provider-row">
+            <div class="ai-provider-info">
+              <span class="ai-pname">智谱AI</span>
+              <span class="ai-pmodel">CogView-3-Flash / CogView-4</span>
+              <span class="ai-pfree">免费</span>
+            </div>
+            <div class="ai-provider-action">
+              <span v-if="configs.image && configs.image.apiKey" class="ai-key-hint">{{ configs.image.apiKey }}</span>
+              <span v-else class="ai-key-hint none">未设置</span>
+              <i-input v-model="editData.image_apiKey" type="password" password size="small"
+                :placeholder="(configs.image && configs.image.apiKey) ? '输入新Key覆盖' : '请输入API Key'"
+                style="width:220px"></i-input>
+              <i-button type="primary" size="small" :loading="saving === 'image'" @click="saveImageKey()">保存</i-button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 说明 -->
+        <div style="margin-top:12px;padding:10px 14px;background:#f8f8f8;border-radius:6px;font-size:12px;color:#999;line-height:1.8">
+          <icon type="ios-information-circle" style="margin-right:4px"></icon>
+          智谱AI：<a href="https://open.bigmodel.cn" target="_blank" style="color:#2d8cf0">open.bigmodel.cn</a> &nbsp;|&nbsp;
+          通义千问：<a href="https://dashscope.console.aliyun.com" target="_blank" style="color:#2d8cf0">DashScope 控制台</a> &nbsp;|&nbsp;
+          腾讯混元：<a href="https://console.cloud.tencent.com/cam/capi" target="_blank" style="color:#2d8cf0">API密钥管理</a>
         </div>
       </template>
     </div>`

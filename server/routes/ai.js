@@ -5,6 +5,7 @@ const http = require('http');
 const https = require('https');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const sharp = require('sharp');
 
 const UPLOADS_DIR = path.join(__dirname, '..', 'public', 'uploads');
@@ -52,6 +53,198 @@ var AI_USE_CASES = {
   }
 };
 
+// ===== 多供应商配置 =====
+// 供应商密钥存储在 ai_configs 的 providers 字段
+// { providers: { qwen: { apiKey: '...' }, hunyuan: { secretId: '...', secretKey: '...' } } }
+
+function getProviderConfig(provider) {
+  var configs = getAIConfigs();
+  return (configs.providers && configs.providers[provider]) || {};
+}
+
+// 限流/余额不足等可重试错误判断
+function isRateLimitError(err) {
+  var msg = (err && err.message) || '';
+  var keywords = ['访问量过大', '限流', 'rate', 'Rate', '余额', 'ResourceExhausted', 'Throttling', 'frequency', 'quota', '429'];
+  for (var i = 0; i < keywords.length; i++) {
+    if (msg.indexOf(keywords[i]) >= 0) return true;
+  }
+  return false;
+}
+
+// --- 通义千问（阿里云 DashScope，OpenAI 兼容格式）---
+function qwenChatRequest(messages, temperature, maxTokens) {
+  return new Promise(function (resolve, reject) {
+    var cfg = getProviderConfig('qwen');
+    if (!cfg.apiKey) return reject(new Error('未配置通义千问API Key'));
+
+    var body = { model: 'qwen-turbo', messages: messages, temperature: temperature || 0.1 };
+    if (maxTokens) body.max_tokens = maxTokens;
+    var data = JSON.stringify(body);
+
+    var req = https.request({
+      hostname: 'dashscope.aliyuncs.com',
+      port: 443,
+      path: '/compatible-mode/v1/chat/completions',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + cfg.apiKey,
+        'Content-Length': Buffer.byteLength(data)
+      }
+    }, function (res) {
+      var d = '';
+      res.on('data', function (c) { d += c; });
+      res.on('end', function () {
+        try {
+          var result = JSON.parse(d);
+          if (result.error) return reject(new Error(result.error.message || JSON.stringify(result.error)));
+          if (!result.choices || !result.choices.length) return reject(new Error('Qwen返回空结果'));
+          resolve(result);
+        } catch (e) {
+          reject(new Error('Qwen解析失败: ' + d.substring(0, 100)));
+        }
+      });
+    });
+    req.on('error', function (e) { reject(e); });
+    req.write(data);
+    req.end();
+  });
+}
+
+// --- 腾讯混元（Tencent Cloud API，TC3-HMAC-SHA256 签名）---
+function hmacSha256(key, msg) {
+  return crypto.createHmac('sha256', key).update(msg, 'utf8').digest();
+}
+function sha256Hex(msg) {
+  return crypto.createHash('sha256').update(msg, 'utf8').digest('hex');
+}
+
+function hunyuanChatRequest(messages, temperature, maxTokens) {
+  return new Promise(function (resolve, reject) {
+    var cfg = getProviderConfig('hunyuan');
+    if (!cfg.secretId || !cfg.secretKey) return reject(new Error('未配置腾讯云密钥'));
+
+    // 腾讯 API 用 PascalCase
+    var tcMessages = messages.map(function (m) {
+      return { Role: m.role, Content: m.content };
+    });
+    var reqBody = JSON.stringify({ Model: 'hunyuan-lite', Messages: tcMessages, Temperature: temperature || 0.1, TopP: 0.7 });
+
+    var host = 'hunyuan.tencentcloudapi.com';
+    var service = 'hunyuan';
+    var action = 'ChatCompletions';
+    var ts = Math.floor(Date.now() / 1000);
+    var date = new Date(ts * 1000).toISOString().split('T')[0];
+
+    // TC3 签名
+    var ct = 'application/json; charset=utf-8';
+    var canonicalHeaders = 'content-type:' + ct + '\nhost:' + host + '\nx-tc-action:' + action.toLowerCase() + '\n';
+    var signedHeaders = 'content-type;host;x-tc-action';
+    var canonicalRequest = ['POST', '/', '', canonicalHeaders, signedHeaders, sha256Hex(reqBody)].join('\n');
+    var credentialScope = date + '/' + service + '/tc3_request';
+    var stringToSign = ['TC3-HMAC-SHA256', ts, credentialScope, sha256Hex(canonicalRequest)].join('\n');
+    var sig = crypto.createHmac('sha256', hmacSha256(hmacSha256(hmacSha256('TC3' + cfg.secretKey, date), service), 'tc3_request')).update(stringToSign, 'utf8').digest('hex');
+    var auth = 'TC3-HMAC-SHA256 Credential=' + cfg.secretId + '/' + credentialScope + ', SignedHeaders=' + signedHeaders + ', Signature=' + sig;
+
+    var req = https.request({
+      hostname: host, port: 443, path: '/', method: 'POST',
+      headers: {
+        'Content-Type': ct, 'Host': host,
+        'X-TC-Action': action, 'X-TC-Version': '2023-09-01',
+        'X-TC-Timestamp': ts.toString(), 'X-TC-Region': 'ap-guangzhou',
+        'Authorization': auth, 'Content-Length': Buffer.byteLength(reqBody)
+      }
+    }, function (res) {
+      var d = '';
+      res.on('data', function (c) { d += c; });
+      res.on('end', function () {
+        try {
+          var result = JSON.parse(d);
+          if (result.Response && result.Response.Error) {
+            var errMsg = result.Response.Error.Message || JSON.stringify(result.Response.Error);
+            return reject(new Error(errMsg));
+          }
+          // 归一化为 OpenAI 格式
+          var rawChoices = (result.Response && result.Response.Choices) || [];
+          if (!rawChoices.length) return reject(new Error('混元返回空结果'));
+          var choices = rawChoices.map(function (c) {
+            return {
+              message: { role: 'assistant', content: (c.Message && c.Message.Content) || '' },
+              finish_reason: c.FinishReason || 'stop'
+            };
+          });
+          resolve({ choices: choices });
+        } catch (e) {
+          reject(new Error('混元解析失败: ' + d.substring(0, 100)));
+        }
+      });
+    });
+    req.on('error', function (e) { reject(e); });
+    req.write(reqBody);
+    req.end();
+  });
+}
+
+// 分类推荐：多供应商降级链
+var CATEGORY_LLM_CHAIN = [
+  { name: 'GLM-4.7-Flash', provider: 'zhipu', model: 'glm-4.7-flash' },
+  { name: 'GLM-4-Flash', provider: 'zhipu', model: 'glm-4-flash' },
+  { name: '通义千问', provider: 'qwen' },
+  { name: '腾讯混元', provider: 'hunyuan' }
+];
+
+function categoryLLMRequest(apiPath, body) {
+  var zhipuConfig = getAIConfig('category');
+
+  function tryModel(i) {
+    if (i >= CATEGORY_LLM_CHAIN.length) {
+      return Promise.reject(new Error('所有模型均不可用'));
+    }
+    var step = CATEGORY_LLM_CHAIN[i];
+
+    if (step.provider === 'zhipu') {
+      body.model = step.model;
+      body.enable_thinking = false;
+      return zhipuRequest(apiPath, body, { apiKey: zhipuConfig.apiKey }).catch(function (err) {
+        if (isRateLimitError(err)) {
+          console.log('[分类推荐]', step.name, '限流，切换下一个');
+          return tryModel(i + 1);
+        }
+        throw err;
+      });
+    }
+
+    if (step.provider === 'qwen') {
+      var qc = getProviderConfig('qwen');
+      if (!qc.apiKey) return tryModel(i + 1);
+      return qwenChatRequest(body.messages, body.temperature, body.max_tokens).catch(function (err) {
+        if (isRateLimitError(err)) {
+          console.log('[分类推荐]', step.name, '限流，切换下一个');
+          return tryModel(i + 1);
+        }
+        throw err;
+      });
+    }
+
+    if (step.provider === 'hunyuan') {
+      var hc = getProviderConfig('hunyuan');
+      if (!hc.secretId) return tryModel(i + 1);
+      return hunyuanChatRequest(body.messages, body.temperature, body.max_tokens).catch(function (err) {
+        if (isRateLimitError(err)) {
+          console.log('[分类推荐]', step.name, '限流，切换下一个');
+          return tryModel(i + 1);
+        }
+        throw err;
+      });
+    }
+
+    return tryModel(i + 1);
+  }
+
+  return tryModel(0);
+}
+
 function getAIConfigs() {
   try {
     var row = require('../db').getOne("SELECT value FROM settings WHERE key = 'ai_configs'");
@@ -84,27 +277,6 @@ function maskApiKey(key) {
 function imageLLMRequest(apiPath, body) {
   var config = getAIConfig('image');
   return zhipuRequest(apiPath, body, { apiKey: config.apiKey });
-}
-
-// 分类推荐专用请求：优先主模型，限流时降级到其他免费模型
-var FREE_MODELS = ['glm-4.7-flash', 'glm-4-flash'];
-function categoryLLMRequest(apiPath, body) {
-  var config = getAIConfig('category');
-  var useCase = AI_USE_CASES.category;
-  var primaryModel = config.model || useCase.defaultModel;
-  body.model = primaryModel;
-  body.enable_thinking = false;
-
-  return zhipuRequest(apiPath, body, { apiKey: config.apiKey }).catch(function (err) {
-    if (err.message && (err.message.indexOf('访问量过大') >= 0 || err.message.indexOf('限流') >= 0 || err.message.indexOf('rate') >= 0 || err.message.indexOf('余额') >= 0)) {
-      var fallback = FREE_MODELS.filter(function (m) { return m !== primaryModel; })[0];
-      if (!fallback) throw err;
-      console.log('[分类推荐] 主模型限流，降级到', fallback);
-      body.model = fallback;
-      return zhipuRequest(apiPath, body, { apiKey: config.apiKey });
-    }
-    throw err;
-  });
 }
 
 // 通用请求函数 — 支持 apiKey/model 参数
@@ -808,9 +980,12 @@ function extractSearchKeywords(title, aliCategory) {
 
 // 高频错配纠正表
 var CATEGORY_CORRECTIONS = [
-  { wrong: '美术用品', correct_keywords: ['洗碗', '厨房', '清洁', '百洁', '刷锅', '家务'] },
-  { wrong: '刷子和笔清洁用品', correct_keywords: ['洗碗', '厨房', '百洁', '家务'] },
-  { wrong: '办公用品', correct_keywords: ['洗碗', '厨房', '清洁', '百洁', '刷锅', '家务', '沐浴', '美妆'] }
+  { wrong: '美术用品', correct_keywords: ['洗碗', '厨房', '清洁', '百洁', '刷锅', '家务', '抹布'] },
+  { wrong: '刷子和笔清洁用品', correct_keywords: ['洗碗', '厨房', '百洁', '家务', '抹布'] },
+  { wrong: '办公用品', correct_keywords: ['洗碗', '厨房', '清洁', '百洁', '刷锅', '家务', '沐浴', '美妆', '抹布'] },
+  { wrong: '镂空印画刷和海绵擦', correct_keywords: ['洗碗', '厨房', '清洁', '百洁', '刷锅', '家务', '抹布', '去污'] },
+  { wrong: '剪贴', correct_keywords: ['洗碗', '厨房', '清洁', '百洁', '刷锅', '家务'] },
+  { wrong: '工艺工具', correct_keywords: ['洗碗', '厨房', '清洁', '百洁', '刷锅', '家务'] }
 ];
 
 function applyCategoryCorrection(title, category, path) {
@@ -872,9 +1047,160 @@ router.post('/suggest-category', function (req, res) {
     }
   }
 
-  // Step 2: 提取清洗后的关键词，搜索候选分类
-  var keywords = extractSearchKeywords(title, aliCategory);
+  // Step 2: LLM 提炼标题核心属性 → 用提炼的关键词搜索候选
+  extractProductKeywords(title, aliCategory, attrSummary).then(function (keywords) {
+    // 本地关键词作为补充（LLM 提炼失败时兜底）
+    var localKw = extractSearchKeywords(title, aliCategory);
+    localKw.forEach(function (kw) {
+      if (keywords.indexOf(kw) < 0) keywords.push(kw);
+    });
 
+    var candidates = [];
+    var seenPaths = {};
+    var MAX_CANDIDATES = 30;
+    console.log('[分类推荐] 搜索关键词:', keywords.slice(0, 15).join(', '));
+    for (var k = 0; k < keywords.length && candidates.length < MAX_CANDIDATES; k++) {
+      var rows = dbModule.treeGetAll(
+        'SELECT cat_name, path FROM dxm_category_tree WHERE is_leaf = 1 AND (cat_name LIKE ? OR path LIKE ?) LIMIT 15',
+        ['%' + keywords[k] + '%', '%' + keywords[k] + '%']
+      );
+      for (var r = 0; r < rows.length && candidates.length < MAX_CANDIDATES; r++) {
+        if (!seenPaths[rows[r].path]) {
+          seenPaths[rows[r].path] = true;
+          candidates.push({ name: rows[r].cat_name, path: rows[r].path });
+        }
+      }
+    }
+
+    // 对候选执行错配纠正过滤
+    var beforeCorrect = candidates.length;
+    if (title && candidates.length > 0) {
+      candidates = candidates.filter(function (c) {
+        var correction = applyCategoryCorrection(title, c.name, c.path);
+        if (correction) console.log('[分类推荐] 纠正过滤:', c.name, '→', correction.reason);
+        return !correction;
+      });
+    }
+    console.log('[分类推荐] 候选:', candidates.length, '(纠正前:', beforeCorrect, ')');
+
+    // 如果关键词搜索无结果，用LLM
+    if (candidates.length === 0) {
+      suggestCategoryWithLLM(title, aliCategory, attrSummary).then(function (suggestion) {
+        if (suggestion) {
+          var corr = applyCategoryCorrection(title, suggestion.category, suggestion.path);
+          if (corr) {
+            console.log('[分类推荐] 错配纠正:', suggestion.category, '-> 拒绝(', corr.reason, ')');
+            return res.json({ ok: true, source: 'none', category: '', path: '', confidence: 0 });
+          }
+          res.json({
+            ok: true,
+            source: 'llm',
+            category: suggestion.category,
+            path: suggestion.path,
+            confidence: suggestion.confidence || 0.6,
+            alternatives: suggestion.alternatives || []
+          });
+        } else {
+          res.json({ ok: true, source: 'none', category: '', path: '', confidence: 0 });
+        }
+      }).catch(function () {
+        res.json({ ok: true, source: 'none', category: '', path: '', confidence: 0 });
+      });
+      return;
+    }
+
+    // 有候选，用LLM从候选中选择最佳
+    if (candidates.length > 1) {
+      suggestCategoryFromCandidates(title, aliCategory, attrSummary, candidates).then(function (choice) {
+        var corr = applyCategoryCorrection(title, choice.category, choice.path);
+        if (corr) {
+          console.log('[分类推荐] 错配纠正:', choice.category, '-> 拒绝(', corr.reason, ')');
+          return res.json({ ok: true, source: 'none', category: '', path: '', confidence: 0 });
+        }
+        res.json({
+          ok: true,
+          source: 'llm_search',
+          category: choice.category,
+          path: choice.path,
+          confidence: choice.confidence !== undefined ? choice.confidence : 0.7,
+          alternatives: candidates.slice(0, 5)
+        });
+      }).catch(function () {
+        res.json({
+          ok: true,
+          source: 'search',
+          category: candidates[0].name,
+          path: candidates[0].path,
+          confidence: 0.5,
+          alternatives: candidates.slice(0, 5)
+        });
+      });
+      return;
+    }
+
+    // 只有1个候选，直接返回
+    var corr = applyCategoryCorrection(title, candidates[0].name, candidates[0].path);
+    if (corr) {
+      console.log('[分类推荐] 错配纠正:', candidates[0].name, '-> 拒绝(', corr.reason, ')');
+      return res.json({ ok: true, source: 'none', category: '', path: '', confidence: 0 });
+    }
+    res.json({
+      ok: true,
+      source: 'search',
+      category: candidates[0].name,
+      path: candidates[0].path,
+      confidence: 0.8,
+      alternatives: candidates
+    });
+  }).catch(function (err) {
+    // LLM 提炼失败，回退到本地关键词搜索
+    console.log('[分类推荐] LLM提炼失败，回退本地搜索:', err.message);
+    fallbackLocalSearch(title, aliCategory, res);
+  });
+});
+
+// LLM 提炼标题核心属性 → 返回关键词数组
+function extractProductKeywords(title, aliCategory, attrSummary) {
+  var prompt = '你是一个产品分类专家。请从以下产品标题中提取核心属性，排除节日、风格、装饰、促销等无关词语。\n\n';
+  prompt += '重点关注：\n1. 产品品类（是什么东西）\n2. 功能用途（做什么用）\n3. 使用场景/场所（在哪用）\n4. 核心材质\n\n';
+  if (title) prompt += '产品标题: ' + title + '\n';
+  if (aliCategory) prompt += '来源类目: ' + aliCategory + '\n';
+  if (attrSummary) prompt += '规格参数: ' + attrSummary + '\n';
+  prompt += '\n请返回JSON格式：\n{"keywords": ["关键词1", "关键词2", ...]}\n';
+  prompt += '要求：只返回3-6个最核心的搜索关键词，按重要性排序。关键词应适合在分类目录中搜索匹配。\n只返回一行JSON。';
+
+  return categoryLLMRequest('/chat/completions', {
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.1,
+    max_tokens: 200
+  }).then(function (result) {
+    var msg = result.choices && result.choices[0] && result.choices[0].message;
+    var text = (msg && msg.content) || '';
+    if (!text && msg && msg.reasoning_content) {
+      var m = msg.reasoning_content.match(/\{[^{}]*"keywords"[^{}]*\}/);
+      if (m) text = m[0];
+    }
+    if (!text) return [];
+    try {
+      var jsonStr = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+      var parsed = JSON.parse(jsonStr);
+      if (Array.isArray(parsed.keywords) && parsed.keywords.length) {
+        console.log('[分类推荐] LLM提炼关键词:', parsed.keywords.join(', '));
+        return parsed.keywords;
+      }
+    } catch (e) {
+      console.log('[分类推荐] LLM提炼JSON解析失败:', text.substring(0, 100));
+    }
+    return [];
+  }).catch(function (err) {
+    console.log('[分类推荐] LLM提炼请求失败:', err.message);
+    return [];
+  });
+}
+
+// 本地关键词兜底搜索（LLM 提炼失败时）
+function fallbackLocalSearch(title, aliCategory, res) {
+  var keywords = extractSearchKeywords(title, aliCategory);
   var candidates = [];
   var seenPaths = {};
   var MAX_CANDIDATES = 30;
@@ -890,76 +1216,12 @@ router.post('/suggest-category', function (req, res) {
       }
     }
   }
-
-  // 对候选执行错配纠正过滤
   if (title && candidates.length > 0) {
     candidates = candidates.filter(function (c) {
-      var correction = applyCategoryCorrection(title, c.name, c.path);
-      return !correction;
+      return !applyCategoryCorrection(title, c.name, c.path);
     });
   }
-
-  // 如果关键词搜索无结果，用LLM
   if (candidates.length === 0) {
-    suggestCategoryWithLLM(title, aliCategory, attrSummary).then(function (suggestion) {
-      if (suggestion) {
-        // 纠正检查
-        var corr = applyCategoryCorrection(title, suggestion.category, suggestion.path);
-        if (corr) {
-          console.log('[分类推荐] 错配纠正:', suggestion.category, '-> 拒绝(', corr.reason, ')');
-          return res.json({ ok: true, source: 'none', category: '', path: '', confidence: 0 });
-        }
-        res.json({
-          ok: true,
-          source: 'llm',
-          category: suggestion.category,
-          path: suggestion.path,
-          confidence: suggestion.confidence || 0.6,
-          alternatives: suggestion.alternatives || []
-        });
-      } else {
-        res.json({ ok: true, source: 'none', category: '', path: '', confidence: 0 });
-      }
-    }).catch(function () {
-      res.json({ ok: true, source: 'none', category: '', path: '', confidence: 0 });
-    });
-    return;
-  }
-
-  // 有候选，用LLM从候选中选择最佳
-  if (candidates.length > 1) {
-    suggestCategoryFromCandidates(title, aliCategory, attrSummary, candidates).then(function (choice) {
-      // 纠正检查
-      var corr = applyCategoryCorrection(title, choice.category, choice.path);
-      if (corr) {
-        console.log('[分类推荐] 错配纠正:', choice.category, '-> 拒绝(', corr.reason, ')');
-        return res.json({ ok: true, source: 'none', category: '', path: '', confidence: 0 });
-      }
-      res.json({
-        ok: true,
-        source: 'llm_search',
-        category: choice.category,
-        path: choice.path,
-        confidence: choice.confidence !== undefined ? choice.confidence : 0.7,
-        alternatives: candidates.slice(0, 5)
-      });
-    }).catch(function () {
-      res.json({
-        ok: true,
-        source: 'search',
-        category: candidates[0].name,
-        path: candidates[0].path,
-        confidence: 0.5,
-        alternatives: candidates.slice(0, 5)
-      });
-    });
-    return;
-  }
-
-  // 只有1个候选，直接返回
-  var corr = applyCategoryCorrection(title, candidates[0].name, candidates[0].path);
-  if (corr) {
-    console.log('[分类推荐] 错配纠正:', candidates[0].name, '-> 拒绝(', corr.reason, ')');
     return res.json({ ok: true, source: 'none', category: '', path: '', confidence: 0 });
   }
   res.json({
@@ -967,10 +1229,10 @@ router.post('/suggest-category', function (req, res) {
     source: 'search',
     category: candidates[0].name,
     path: candidates[0].path,
-    confidence: 0.8,
-    alternatives: candidates
+    confidence: 0.5,
+    alternatives: candidates.slice(0, 5)
   });
-});
+}
 
 // 构建LLM通用指令前缀
 var LLM_SYSTEM_PROMPT = '你是一个跨境电商分类匹配专家，负责将商品归类到正确的店小秘类目。\n\n' +
@@ -1192,24 +1454,62 @@ router.get('/configs', function (req, res) {
       models: AI_USE_CASES[uc].models
     };
   });
-  // 全局 key 也脱敏返回
+  // 全局 key
   result._global = { apiKey: maskApiKey(getApiKey()), configured: !!getApiKey() };
+  // 供应商密钥（脱敏）
+  var provCfg = configs.providers || {};
+  result.providers = {
+    qwen: {
+      label: '通义千问（阿里云）',
+      apiKey: maskApiKey(provCfg.qwen && provCfg.qwen.apiKey),
+      configured: !!(provCfg.qwen && provCfg.qwen.apiKey)
+    },
+    hunyuan: {
+      label: '腾讯混元（腾讯云）',
+      secretId: maskApiKey(provCfg.hunyuan && provCfg.hunyuan.secretId),
+      secretKey: maskApiKey(provCfg.hunyuan && provCfg.hunyuan.secretKey),
+      configured: !!(provCfg.hunyuan && provCfg.hunyuan.secretId && provCfg.hunyuan.secretKey)
+    }
+  };
   res.json(result);
 });
 
 // 保存配置
 router.post('/configs', function (req, res) {
-  var updates = req.body; // { category: { model, apiKey }, ... }
+  var updates = req.body; // { category: { model, apiKey }, providers: { qwen: { apiKey }, hunyuan: { secretId, secretKey } } }
   var configs = getAIConfigs();
+
+  // 用途配置
   Object.keys(updates).forEach(function (uc) {
+    if (uc === 'providers') return;
     if (!AI_USE_CASES[uc]) return;
     if (!configs[uc]) configs[uc] = {};
     if (updates[uc].model) configs[uc].model = updates[uc].model;
-    // 只有非脱敏的 key 才保存
     if (updates[uc].apiKey && updates[uc].apiKey.indexOf('****') === -1) {
       configs[uc].apiKey = updates[uc].apiKey;
     }
   });
+
+  // 供应商密钥
+  if (updates.providers) {
+    if (!configs.providers) configs.providers = {};
+    if (updates.providers.qwen) {
+      if (!configs.providers.qwen) configs.providers.qwen = {};
+      if (updates.providers.qwen.apiKey && updates.providers.qwen.apiKey.indexOf('****') === -1) {
+        configs.providers.qwen.apiKey = updates.providers.qwen.apiKey;
+      }
+    }
+    if (updates.providers.hunyuan) {
+      if (!configs.providers.hunyuan) configs.providers.hunyuan = {};
+      if (updates.providers.hunyuan.secretId && updates.providers.hunyuan.secretId.indexOf('****') === -1) {
+        configs.providers.hunyuan.secretId = updates.providers.hunyuan.secretId;
+      }
+      if (updates.providers.hunyuan.secretKey && updates.providers.hunyuan.secretKey.indexOf('****') === -1) {
+        configs.providers.hunyuan.secretKey = updates.providers.hunyuan.secretKey;
+      }
+    }
+  }
+
   saveAIConfigs(configs);
   console.log('[AI配置] 已保存');
   res.json({ ok: true });
