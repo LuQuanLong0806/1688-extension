@@ -17,7 +17,8 @@ Vue.component('page-products', {
       batchCatVisible: false,
       batchCatValue: '',
       batchCatPath: '',
-      _pollTimer: null
+      _pollTimer: null,
+      recommending: {}
     };
   },
   mounted: function () {
@@ -166,6 +167,24 @@ Vue.component('page-products', {
         body: JSON.stringify({ manualCategory: path || '' })
       }).catch(function () {});
     },
+    recommendCategory: function (row) {
+      var vm = this;
+      vm.$set(vm.recommending, row.id, true);
+      fetch('/api/product/' + row.id + '/recommend-category', { method: 'POST' })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (data.ok) {
+            vm.$Message.info('AI推荐已触发，请稍候...');
+          } else {
+            vm.$Message.error(data.error || '推荐失败');
+            vm.$set(vm.recommending, row.id, false);
+          }
+        })
+        .catch(function () {
+          vm.$Message.error('请求失败');
+          vm.$set(vm.recommending, row.id, false);
+        });
+    },
     // -- 数据加载 --
     startPoll: function () {
       var vm = this;
@@ -178,7 +197,12 @@ Vue.component('page-products', {
       es.addEventListener('product-category-updated', function (e) {
         try {
           var data = JSON.parse(e.data);
-          vm.$Message.info('AI分类推荐完成: ' + data.category);
+          vm.$set(vm.recommending, data.id, false);
+          if (data.category) {
+            vm.$Message.success('AI分类推荐: ' + data.category);
+          } else {
+            vm.$Message.warning('AI分类推荐无匹配结果');
+          }
           vm.loadList(vm.page);
         } catch (ex) {}
       });
@@ -430,10 +454,20 @@ Vue.component('page-products', {
           <span style="font-size:12px;color:#666;word-break:break-all">{{ (row.category && (row.category.leafCategoryName || row.category.categoryPath)) || '-' }}</span>
         </template>
         <template slot="category" slot-scope="{ row }">
-          <category-picker :value="row.customCategory || ''"
-            placeholder="搜索或选择分类"
-            @input="saveCategory(row, $event)"
-            @path="saveCategoryPath(row, $event)" />
+          <div style="display:flex;align-items:center;gap:4px">
+            <category-picker :value="row.customCategory || ''"
+              placeholder="搜索或选择分类"
+              @input="saveCategory(row, $event)"
+              @path="saveCategoryPath(row, $event)" />
+            <button v-if="!row.customCategory" class="btn-recommend"
+              :class="{ loading: recommending[row.id] }"
+              :disabled="recommending[row.id]"
+              @click="recommendCategory(row)"
+              :title="recommending[row.id] ? '推荐中...' : 'AI推荐分类'">
+              <span v-if="recommending[row.id]">⏳</span>
+              <span v-else>🤖</span>
+            </button>
+          </div>
         </template>
         <template slot="sku" slot-scope="{ row }">
           <template v-if="!getSkuText(row)">

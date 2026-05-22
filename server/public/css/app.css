@@ -791,3 +791,10 @@ body {
 .cat-map-score { font-size: 14px; font-weight: 600; min-width: 48px; }
 .cat-map-path { font-size: 13px; color: #333; flex: 1; }
 .cat-map-count { font-size: 12px; color: #999; }
+.btn-recommend {
+  background: none; border: 1px solid #ddd; border-radius: 4px; cursor: pointer;
+  font-size: 14px; padding: 2px 6px; line-height: 1; transition: all 0.2s;
+  flex-shrink: 0;
+}
+.btn-recommend:hover { border-color: #2d8cf0; background: #e8f4ff; }
+.btn-recommend.loading { opacity: 0.6; cursor: wait; }

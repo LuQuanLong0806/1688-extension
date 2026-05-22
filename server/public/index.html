@@ -53,6 +53,11 @@
               <i class="menu-icon">📊</i>
               <span class="menu-text">仪表盘</span>
             </li>
+            <li class="menu-group-title" style="margin-top:8px">系统设置</li>
+            <li class="menu-item" :class="{ active: currentView === 'page-api-keys' }" @click="switchView('page-api-keys')">
+              <i class="menu-icon">🔑</i>
+              <span class="menu-text">AI模型配置</span>
+            </li>
           </ul>
           <div class="sidebar-toggle" @click="sidebarCollapsed = !sidebarCollapsed" :title="sidebarCollapsed ? '展开菜单' : '收起菜单'">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -121,6 +126,7 @@
   <script src="js/components/page-editor.js"></script>
   <script src="js/components/meitu-editor.js"></script>
   <script src="js/components/page-meitu.js"></script>
+  <script src="js/components/page-api-keys.js"></script>
   <!-- Main app -->
   <script src="js/app.js"></script>
 </body>

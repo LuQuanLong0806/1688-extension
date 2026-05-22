@@ -14,7 +14,8 @@ Vue.component('category-picker', {
       dropdownVisible: false,
       currentPath: '',
       _selecting: false,
-      _searchTimer: null
+      _searchTimer: null,
+      dropStyle: { top: '0px', left: '0px', minWidth: '360px' }
     };
   },
   watch: {
@@ -64,6 +65,24 @@ Vue.component('category-picker', {
         vm.doSearch(kw);
       }, 300);
     },
+    updateDropPos: function () {
+      var input = this.$el && this.$el.querySelector('input');
+      if (!input) return;
+      var rect = input.getBoundingClientRect();
+      var w = Math.max(360, rect.width);
+      var top = rect.bottom + 2;
+      var left = rect.left;
+      // 防止超出屏幕底部
+      var maxH = Math.min(260, window.innerHeight - top - 8);
+      this.dropStyle = {
+        position: 'fixed',
+        top: top + 'px',
+        left: left + 'px',
+        minWidth: w + 'px',
+        maxHeight: Math.max(80, maxH) + 'px',
+        zIndex: 9999
+      };
+    },
     doSearch: function (kw) {
       var vm = this;
       vm.searchLoading = true;
@@ -75,6 +94,7 @@ Vue.component('category-picker', {
           vm.searchOptions = list;
           vm.searchLoading = false;
           vm.dropdownVisible = true;
+          vm.$nextTick(function () { vm.updateDropPos(); });
         })
         .catch(function () {
           vm.searchLoading = false;
@@ -125,19 +145,19 @@ Vue.component('category-picker', {
             style="position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:16px;color:#808695;cursor:pointer"
             @mousedown.prevent="clearValue"></i>
         </div>
-        <div v-if="dropdownVisible && searchOptions.length" style="position:absolute;top:34px;left:0;min-width:360px;z-index:1050;background:#fff;border:1px solid #dcdee2;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.15);max-height:260px;overflow-y:auto">
-          <div v-for="item in searchOptions" :key="item.catId"
-            style="padding:6px 10px;cursor:pointer;border-bottom:1px solid #f5f5f5"
-            @mouseenter="$event.target.style.background='#f0f7ff'"
-            @mouseleave="$event.target.style.background=''"
-            @mousedown.prevent="selectOption(item)">
-            <div style="font-size:13px;color:#333">{{ item.catName }}</div>
-            <div v-if="item.path" style="font-size:12px;color:#999;margin-top:1px;word-break:break-all">{{ item.path }}</div>
-          </div>
+      </div>
+      <div v-if="dropdownVisible && searchOptions.length" :style="Object.assign({background:'#fff',border:'1px solid #dcdee2',borderRadius:'4px',boxShadow:'0 2px 8px rgba(0,0,0,.15)',overflowY:'auto'}, dropStyle)">
+        <div v-for="item in searchOptions" :key="item.catId"
+          style="padding:6px 10px;cursor:pointer;border-bottom:1px solid #f5f5f5"
+          @mouseenter="$event.target.style.background='#f0f7ff'"
+          @mouseleave="$event.target.style.background=''"
+          @mousedown.prevent="selectOption(item)">
+          <div style="font-size:13px;color:#333">{{ item.catName }}</div>
+          <div v-if="item.path" style="font-size:12px;color:#999;margin-top:1px;word-break:break-all">{{ item.path }}</div>
         </div>
-        <div v-if="dropdownVisible && !searchOptions.length && keyword && !searchLoading" style="position:absolute;top:34px;left:0;right:0;z-index:1050;background:#fff;border:1px solid #dcdee2;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.15);padding:10px;text-align:center;color:#999;font-size:13px">
-          无匹配结果
-        </div>
+      </div>
+      <div v-if="dropdownVisible && !searchOptions.length && keyword && !searchLoading" :style="Object.assign({background:'#fff',border:'1px solid #dcdee2',borderRadius:'4px',boxShadow:'0 2px 8px rgba(0,0,0,.15)',padding:'10px',textAlign:'center',color:'#999',fontSize:'13px'}, dropStyle)">
+        无匹配结果
       </div>
       <div v-if="currentPath" style="font-size:11px;color:#999;margin-top:2px;padding-left:2px;word-break:break-all;line-height:1.3">
         {{ currentPath }}

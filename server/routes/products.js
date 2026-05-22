@@ -155,7 +155,7 @@ router.post('/product', (req, res) => {
     var aliCat = category ? (category.leafCategoryName || category.categoryPath || '') : '';
     var productId = row.id;
     var http = require('http');
-    var postData = JSON.stringify({ title: title, ali_category: aliCat });
+    var postData = JSON.stringify({ title: title, ali_category: aliCat, attrs: attrs || [] });
     var reqOpts = {
       hostname: 'localhost',
       port: 3000,
@@ -189,10 +189,14 @@ router.post('/product', (req, res) => {
               sseBroadcast('product-category-updated', { id: productId, category: result.category, source: result.source });
             }
           }
-        } catch (e) {}
+        } catch (e) {
+            console.error('[AI分类推荐] 产品#' + productId + ' 推荐失败:', e.message);
+          }
       });
     });
-    aiReq.on('error', function () {});
+    aiReq.on('error', function (e) {
+      console.error('[AI分类推荐] 产品#' + productId + ' 请求失败:', e.message);
+    });
     aiReq.write(postData);
     aiReq.end();
   }
@@ -327,6 +331,70 @@ router.put('/product/:id', (req, res) => {
 router.delete('/product/:id', (req, res) => {
   run('DELETE FROM products WHERE id = ?', [parseInt(req.params.id)]);
   res.json({ ok: true });
+});
+
+// 手动触发分类推荐
+router.post('/product/:id/recommend-category', (req, res) => {
+  var product = getOne('SELECT * FROM products WHERE id = ?', [parseInt(req.params.id)]);
+  if (!product) return res.status(404).json({ error: '产品不存在' });
+
+  var parsed = parseRow(product);
+  var title = parsed.title || '';
+  var category = parsed.category || {};
+  var aliCat = category.leafCategoryName || category.categoryPath || '';
+  var attrs = parsed.attrs || [];
+
+  var http = require('http');
+  var postData = JSON.stringify({ title: title, ali_category: aliCat, attrs: attrs });
+  var reqOpts = {
+    hostname: 'localhost',
+    port: 3000,
+    path: '/api/ai/suggest-category',
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(postData) }
+  };
+
+  res.json({ ok: true, message: '推荐已触发' });
+
+  var aiReq = http.request(reqOpts, function (aiRes) {
+    var body = '';
+    aiRes.on('data', function (chunk) { body += chunk; });
+    aiRes.on('end', function () {
+      try {
+        var result = JSON.parse(body);
+        if (result.ok && result.category && result.confidence >= 0.6) {
+          var updates = [];
+          var params = [];
+          if (result.category) {
+            updates.push('custom_category = ?');
+            params.push(result.category);
+          }
+          if (result.path) {
+            var dxmCat = JSON.stringify({ path: result.path, leafName: result.category });
+            updates.push('dxm_category = ?');
+            params.push(dxmCat);
+          }
+          if (updates.length) {
+            params.push(parsed.id);
+            dbModule.db.run('UPDATE products SET ' + updates.join(', ') + ' WHERE id = ?', params);
+            scheduleSave();
+            console.log('[AI分类推荐] 产品#' + parsed.id + ' 手动推荐: ' + result.category + ' (置信度:' + result.confidence.toFixed(2) + ', 来源:' + result.source + ')');
+            sseBroadcast('product-category-updated', { id: parsed.id, category: result.category, path: result.path, source: result.source });
+          }
+        } else {
+          console.log('[AI分类推荐] 产品#' + parsed.id + ' 推荐无结果');
+          sseBroadcast('product-category-updated', { id: parsed.id, category: '', source: 'none' });
+        }
+      } catch (e) {
+        console.error('[AI分类推荐] 产品#' + parsed.id + ' 推荐失败:', e.message);
+      }
+    });
+  });
+  aiReq.on('error', function (e) {
+    console.error('[AI分类推荐] 产品#' + parsed.id + ' 请求失败:', e.message);
+  });
+  aiReq.write(postData);
+  aiReq.end();
 });
 
 // 批量删除

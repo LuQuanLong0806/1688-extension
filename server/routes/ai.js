@@ -23,14 +23,101 @@ function getApiKey() {
   }
 }
 
-// 通用请求函数（不用axios，用原生http/https避免新增依赖）
-function zhipuRequest(path, body) {
+// ===== AI 模型配置管理 =====
+// 每个用途独立配置 model + apiKey，存储在 settings 表 key='ai_configs'
+// 结构: { category: { model, apiKey }, vision: { model, apiKey }, image: { model, apiKey } }
+var AI_USE_CASES = {
+  category: {
+    label: '分类推荐',
+    defaultModel: 'glm-4.7-flash',
+    models: [
+      { id: 'glm-4.7-flash', name: 'GLM-4.7-Flash（免费）' },
+      { id: 'glm-4-flash', name: 'GLM-4-Flash（免费）' }
+    ]
+  },
+  vision: {
+    label: '智能检测',
+    defaultModel: 'glm-4v-flash',
+    models: [
+      { id: 'glm-4v-flash', name: 'GLM-4V-Flash（免费）' }
+    ]
+  },
+  image: {
+    label: '图片生成',
+    defaultModel: 'cogview-3-flash',
+    models: [
+      { id: 'cogview-3-flash', name: 'CogView-3-Flash（免费）' },
+      { id: 'cogview-4', name: 'CogView-4' }
+    ]
+  }
+};
+
+function getAIConfigs() {
+  try {
+    var row = require('../db').getOne("SELECT value FROM settings WHERE key = 'ai_configs'");
+    if (row && row.value) return JSON.parse(row.value);
+  } catch (e) {}
+  return {};
+}
+
+function saveAIConfigs(configs) {
+  require('../db').run("INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_configs', ?)", [JSON.stringify(configs)]);
+  require('../db').scheduleSave();
+}
+
+// 获取指定用途的配置，apiKey 回退到全局 zhipu_api_key
+function getAIConfig(useCase) {
+  var configs = getAIConfigs();
+  var uc = configs[useCase] || {};
+  var apiKey = uc.apiKey || getApiKey();
+  var model = uc.model || (AI_USE_CASES[useCase] && AI_USE_CASES[useCase].defaultModel) || '';
+  return { model: model, apiKey: apiKey };
+}
+
+function maskApiKey(key) {
+  if (!key) return '';
+  if (key.length <= 8) return '****';
+  return key.substring(0, 4) + '****' + key.substring(key.length - 4);
+}
+
+// 图片生成专用请求
+function imageLLMRequest(apiPath, body) {
+  var config = getAIConfig('image');
+  return zhipuRequest(apiPath, body, { apiKey: config.apiKey });
+}
+
+// 分类推荐专用请求：优先主模型，限流时降级到其他免费模型
+var FREE_MODELS = ['glm-4.7-flash', 'glm-4-flash'];
+function categoryLLMRequest(apiPath, body) {
+  var config = getAIConfig('category');
+  var useCase = AI_USE_CASES.category;
+  var primaryModel = config.model || useCase.defaultModel;
+  body.model = primaryModel;
+  body.enable_thinking = false;
+
+  return zhipuRequest(apiPath, body, { apiKey: config.apiKey }).catch(function (err) {
+    if (err.message && (err.message.indexOf('访问量过大') >= 0 || err.message.indexOf('限流') >= 0 || err.message.indexOf('rate') >= 0 || err.message.indexOf('余额') >= 0)) {
+      var fallback = FREE_MODELS.filter(function (m) { return m !== primaryModel; })[0];
+      if (!fallback) throw err;
+      console.log('[分类推荐] 主模型限流，降级到', fallback);
+      body.model = fallback;
+      return zhipuRequest(apiPath, body, { apiKey: config.apiKey });
+    }
+    throw err;
+  });
+}
+
+// 通用请求函数 — 支持 apiKey/model 参数
+function zhipuRequest(apiPath, body, options) {
   return new Promise(function (resolve, reject) {
-    var apiKey = getApiKey();
-    if (!apiKey) return reject(new Error('未配置智谱API密钥，请在设置中配置'));
+    var apiKey = (options && options.apiKey) || getApiKey();
+    if (!apiKey) return reject(new Error('未配置API密钥，请在AI模型配置中设置'));
+
+    // 如果 options 传了 model 且 body 没指定，用 options 的
+    if (options && options.model && !body.model) body.model = options.model;
 
     var data = JSON.stringify(body);
-    var url = new URL(API_BASE + path);
+    var url = new URL(API_BASE + apiPath);
     var options = {
       hostname: url.hostname,
       port: 443,
@@ -110,7 +197,7 @@ router.post('/text-to-image', function (req, res) {
 
   if (!prompt || !prompt.trim()) return res.status(400).json({ error: '请输入图片描述' });
 
-  zhipuRequest('/images/generations', {
+  imageLLMRequest('/images/generations', {
     model: model,
     prompt: prompt.trim(),
     size: size
@@ -135,7 +222,7 @@ router.post('/image-to-image', function (req, res) {
   if (!prompt || !prompt.trim()) return res.status(400).json({ error: '请输入图片描述' });
   if (!imageBase64) return res.status(400).json({ error: '请先上传参考图' });
 
-  zhipuRequest('/images/generations', {
+  imageLLMRequest('/images/generations', {
     model: 'cogview-4',
     prompt: prompt.trim(),
     image: imageBase64,
@@ -246,8 +333,9 @@ router.post('/smart-detect', function (req, res) {
     fullBase64 = 'data:image/png;base64,' + fullBase64;
   }
 
+  var visionConfig = getAIConfig('vision');
   zhipuRequest('/chat/completions', {
-    model: 'glm-4v-flash',
+    model: visionConfig.model,
     messages: [{
       role: 'user',
       content: [
@@ -257,7 +345,7 @@ router.post('/smart-detect', function (req, res) {
     }],
     temperature: 0.1,
     max_tokens: 1024
-  }).then(function (result) {
+  }, { apiKey: visionConfig.apiKey }).then(function (result) {
     var text = result.choices && result.choices[0] && result.choices[0].message && result.choices[0].message.content;
     if (!text) return res.status(502).json({ error: 'AI未返回检测结果' });
 
@@ -296,7 +384,7 @@ router.post('/white-bg', function (req, res) {
   console.log('[AI白底] 开始生成...');
   var t0 = Date.now();
 
-  zhipuRequest('/images/generations', {
+  imageLLMRequest('/images/generations', {
     model: 'cogview-4',
     prompt: 'A high quality e-commerce product photo on a pure white background. The product is exactly the same as in the reference image, centered, well-lit, professional studio photography, clean and crisp white background.',
     image: imageBase64,
@@ -322,7 +410,7 @@ router.post('/enhance', function (req, res) {
   console.log('[AI增强] 开始...');
   var t0 = Date.now();
 
-  zhipuRequest('/images/generations', {
+  imageLLMRequest('/images/generations', {
     model: 'cogview-4',
     prompt: 'Enhance this image to higher quality: sharper details, better lighting, more vivid colors, professional photography quality. Keep all content and composition exactly the same.',
     image: imageBase64,
@@ -650,16 +738,116 @@ router.get('/ocr-status', function (req, res) {
 // ===== AI 分类推荐（LLM + dxm_tree.db）=====
 var dbModule = require('../db');
 
+// 关键词清洗：剔除促销/虚词，保留品类/材质/功能/用途核心词
+var NOISE_WORDS = [
+  '爆款', '热销', '新款', '新款上市', '厂家直销', '批发', '包邮', '特价', '促销',
+  '限时', '秒杀', '折扣', '优惠', '满减', '赠品', '现货', '定制', '加工', '代发',
+  '一件代发', '源头工厂', '工厂直供', '厂家直供', '品牌', '正品', '旗舰', '专柜',
+  '同款', '网红', '直播', '推荐', '精选', '热卖', '畅销', '质量保证', '售后',
+  '七天无理由', '退换货', '包邮区', '非偏远包邮', '快递', '物流', '发货',
+  '拍照', '实物', '拍摄', '样品', '拿样', '小批量', '起批', '混批',
+  '春夏', '秋冬', '春款', '夏款', '秋款', '冬款', '春夏新款', '秋冬新款',
+  '2024', '2025', '2026', '最新', '潮流', '时尚', 'ins', 'INS',
+  '百搭', '简约', '韩版', '日系', '欧美', '港风', '复古', '文艺',
+  '可爱', '小清新', 'ins风', '北欧', '轻奢', '高端', '大气', '上档次',
+  '多功能', '二合一', '三合一', '升级', '省心', '省力', '省时',
+  '好用', '实用', '耐用', '经久耐用'
+];
+
+function cleanTitleKeywords(text) {
+  if (!text) return [];
+  var t = text;
+  // 剔除常见促销虚词
+  NOISE_WORDS.forEach(function (w) { t = t.replace(new RegExp(w, 'g'), ' '); });
+  // 剔除纯数字、尺码、容量等
+  t = t.replace(/\d+[mgkmlMGKML只件套盒条瓶包箱个支把片张块台套米cmCMmmMM]*/g, ' ');
+  // 剔除英文型号如 A123、XH-888
+  t = t.replace(/[A-Z]{1,3}[-]?\d{2,6}/gi, ' ');
+  // 分词
+  var words = t.split(/[\s\/,|，、：:·\-—\(\)（）\[\]【】{}]+/).filter(function (w) {
+    if (!w) return false;
+    if (w.length < 2) return false;
+    // 过滤纯数字
+    if (/^\d+$/.test(w)) return false;
+    // 过滤单个英文字母
+    if (/^[a-zA-Z]$/.test(w)) return false;
+    return true;
+  });
+  return words;
+}
+
+// 提取搜索关键词：完整词优先，长中文串用2字片段补充
+function extractSearchKeywords(title, aliCategory) {
+  var titleWords = cleanTitleKeywords(title);
+  var catWords = cleanTitleKeywords(aliCategory);
+
+  var wholeWords = [];
+  var segments = [];
+  var seen = {};
+
+  // 辅助函数：提取完整词和2字片段
+  function addWords(words) {
+    words.forEach(function (w) {
+      var cn = w.replace(/[a-zA-Z0-9]/g, '');
+      if (cn.length >= 2 && cn.length <= 6 && !seen[w]) { seen[w] = true; wholeWords.push(w); }
+      // 长中文串（>4字且无空格分割的连续文本）用2字片段补充
+      if (cn.length > 4) {
+        for (var i = 0; i <= cn.length - 2; i++) {
+          var seg = cn.substring(i, i + 2);
+          if (!seen[seg]) { seen[seg] = true; segments.push(seg); }
+        }
+      }
+    });
+  }
+
+  addWords(titleWords);
+  addWords(catWords);
+
+  return wholeWords.concat(segments);
+}
+
+// 高频错配纠正表
+var CATEGORY_CORRECTIONS = [
+  { wrong: '美术用品', correct_keywords: ['洗碗', '厨房', '清洁', '百洁', '刷锅', '家务'] },
+  { wrong: '刷子和笔清洁用品', correct_keywords: ['洗碗', '厨房', '百洁', '家务'] },
+  { wrong: '办公用品', correct_keywords: ['洗碗', '厨房', '清洁', '百洁', '刷锅', '家务', '沐浴', '美妆'] }
+];
+
+function applyCategoryCorrection(title, category, path) {
+  if (!title || !category) return null;
+  for (var i = 0; i < CATEGORY_CORRECTIONS.length; i++) {
+    var rule = CATEGORY_CORRECTIONS[i];
+    if (category.indexOf(rule.wrong) >= 0 || (path && path.indexOf(rule.wrong) >= 0)) {
+      for (var j = 0; j < rule.correct_keywords.length; j++) {
+        if (title.indexOf(rule.correct_keywords[j]) >= 0) {
+          return { corrected: true, reason: '标题包含"' + rule.correct_keywords[j] + '"，"' + rule.wrong + '"为误匹配' };
+        }
+      }
+    }
+  }
+  return null;
+}
+
 router.post('/suggest-category', function (req, res) {
   var title = (req.body.title || '').trim();
   var aliCategory = (req.body.ali_category || '').trim();
   var imageUrl = (req.body.image_url || '').trim();
+  var attrs = req.body.attrs; // 规格参数，辅助参考
 
   if (!title && !aliCategory) {
     return res.status(400).json({ error: '请提供 title 或 ali_category' });
   }
 
-  console.log('[分类推荐] 标题:', title, '1688类目:', aliCategory);
+  // 构建辅助信息摘要
+  var attrSummary = '';
+  if (Array.isArray(attrs) && attrs.length) {
+    var attrParts = attrs.slice(0, 5).map(function (a) {
+      return (a.name || a.key || '') + ':' + (a.value || a.values || '');
+    }).filter(function (s) { return s.length > 2; });
+    if (attrParts.length) attrSummary = attrParts.join(', ');
+  }
+
+  console.log('[分类推荐] 标题:', title, '1688类目:', aliCategory, attrs ? '含规格参数' : '');
 
   // Step 1: 先查映射表
   if (aliCategory) {
@@ -669,7 +857,6 @@ router.post('/suggest-category', function (req, res) {
     );
     if (mappings.length > 0) {
       var mappedCategory = mappings[0].custom_category;
-      // 查完整路径
       var pathRow = dbModule.treeGetOne(
         'SELECT path FROM dxm_category_tree WHERE cat_name = ? AND is_leaf = 1 LIMIT 1',
         [mappedCategory]
@@ -685,9 +872,8 @@ router.post('/suggest-category', function (req, res) {
     }
   }
 
-  // Step 2: 搜索候选分类（同时搜 cat_name 和 path）
-  var searchTerms = [title, aliCategory].filter(Boolean).join(' ');
-  var keywords = searchTerms.split(/[\s\/,|]+/).filter(function (w) { return w.length > 1; });
+  // Step 2: 提取清洗后的关键词，搜索候选分类
+  var keywords = extractSearchKeywords(title, aliCategory);
 
   var candidates = [];
   var seenPaths = {};
@@ -705,11 +891,24 @@ router.post('/suggest-category', function (req, res) {
     }
   }
 
+  // 对候选执行错配纠正过滤
+  if (title && candidates.length > 0) {
+    candidates = candidates.filter(function (c) {
+      var correction = applyCategoryCorrection(title, c.name, c.path);
+      return !correction;
+    });
+  }
+
   // 如果关键词搜索无结果，用LLM
   if (candidates.length === 0) {
-    // 尝试智谱LLM
-    suggestCategoryWithLLM(title, aliCategory).then(function (suggestion) {
+    suggestCategoryWithLLM(title, aliCategory, attrSummary).then(function (suggestion) {
       if (suggestion) {
+        // 纠正检查
+        var corr = applyCategoryCorrection(title, suggestion.category, suggestion.path);
+        if (corr) {
+          console.log('[分类推荐] 错配纠正:', suggestion.category, '-> 拒绝(', corr.reason, ')');
+          return res.json({ ok: true, source: 'none', category: '', path: '', confidence: 0 });
+        }
         res.json({
           ok: true,
           source: 'llm',
@@ -729,17 +928,22 @@ router.post('/suggest-category', function (req, res) {
 
   // 有候选，用LLM从候选中选择最佳
   if (candidates.length > 1) {
-    suggestCategoryFromCandidates(title, aliCategory, candidates).then(function (choice) {
+    suggestCategoryFromCandidates(title, aliCategory, attrSummary, candidates).then(function (choice) {
+      // 纠正检查
+      var corr = applyCategoryCorrection(title, choice.category, choice.path);
+      if (corr) {
+        console.log('[分类推荐] 错配纠正:', choice.category, '-> 拒绝(', corr.reason, ')');
+        return res.json({ ok: true, source: 'none', category: '', path: '', confidence: 0 });
+      }
       res.json({
         ok: true,
         source: 'llm_search',
         category: choice.category,
         path: choice.path,
-        confidence: choice.confidence || 0.7,
+        confidence: choice.confidence !== undefined ? choice.confidence : 0.7,
         alternatives: candidates.slice(0, 5)
       });
     }).catch(function () {
-      // LLM失败，返回第一个候选
       res.json({
         ok: true,
         source: 'search',
@@ -753,6 +957,11 @@ router.post('/suggest-category', function (req, res) {
   }
 
   // 只有1个候选，直接返回
+  var corr = applyCategoryCorrection(title, candidates[0].name, candidates[0].path);
+  if (corr) {
+    console.log('[分类推荐] 错配纠正:', candidates[0].name, '-> 拒绝(', corr.reason, ')');
+    return res.json({ ok: true, source: 'none', category: '', path: '', confidence: 0 });
+  }
   res.json({
     ok: true,
     source: 'search',
@@ -763,8 +972,17 @@ router.post('/suggest-category', function (req, res) {
   });
 });
 
+// 构建LLM通用指令前缀
+var LLM_SYSTEM_PROMPT = '你是一个跨境电商分类匹配专家，负责将商品归类到正确的店小秘类目。\n\n' +
+  '匹配规则：\n' +
+  '1. 优先匹配三级(叶子)精准类目，无匹配则向上回溯二级、一级\n' +
+  '2. 必须贴合商品实际属性和用途，跨大类禁止匹配（如清洁用品不能归入办公用品/美术用品）\n' +
+  '3. 仅输出唯一最优类目，不额外赘述\n' +
+  '4. 相似度低于60%(confidence<0.6)判定无匹配，直接返回confidence=0\n' +
+  '5. 分析维度：优先标题语义 > 规格参数 > 来源类目\n';
+
 // LLM 推荐分类（无候选时）— 两阶段：先选分支，再选叶子
-function suggestCategoryWithLLM(title, aliCategory) {
+function suggestCategoryWithLLM(title, aliCategory, attrSummary) {
   var apiKey = getApiKey();
   if (!apiKey) return Promise.resolve(null);
 
@@ -778,19 +996,27 @@ function suggestCategoryWithLLM(title, aliCategory) {
     return (i + 1) + '. ' + b.path;
   }).join('\n');
 
-  var stage1Prompt = '你是一个跨境电商分类专家。根据产品信息，从以下分类分支中选择最可能包含该产品的分支。\n\n';
-  if (title) stage1Prompt += '产品标题: ' + title + '\n';
-  if (aliCategory) stage1Prompt += '来源平台类目: ' + aliCategory + '\n';
-  stage1Prompt += '\n可选分类分支:\n' + branchList;
-  stage1Prompt += '\n\n请选择最相关的分支序号。返回JSON: {"choice": 序号}\n只返回JSON。';
+  var stage1Prompt = LLM_SYSTEM_PROMPT;
+  stage1Prompt += '\n任务：请从以下分类分支中选择最匹配产品的分支。\n\n';
+  stage1Prompt += '重要：请优先根据产品标题分析产品的实际用途和使用场景，来源平台类目仅供参考。\n';
+  if (title) stage1Prompt += '\n产品标题: ' + title;
+  if (aliCategory) stage1Prompt += '\n来源平台类目（参考）: ' + aliCategory;
+  if (attrSummary) stage1Prompt += '\n规格参数（参考）: ' + attrSummary;
+  stage1Prompt += '\n\n可选分类分支:\n' + branchList;
+  stage1Prompt += '\n\n请返回JSON格式，将序号填入choice字段。示例：如果选第3个，返回 {"choice": 3, "reason": "理由"}\n只返回一行JSON，不要其他文字。';
 
-  return zhipuRequest('/chat/completions', {
-    model: 'glm-4-flash',
+  return categoryLLMRequest('/chat/completions', {
     messages: [{ role: 'user', content: stage1Prompt }],
     temperature: 0.1,
-    max_tokens: 50
+    max_tokens: 1024
   }).then(function (result) {
-    var text = result.choices && result.choices[0] && result.choices[0].message && result.choices[0].message.content;
+    var msg = result.choices && result.choices[0] && result.choices[0].message;
+    var text = (msg && msg.content) || '';
+    if (!text && msg && msg.reasoning_content) {
+      var jsonMatch = msg.reasoning_content.match(/\{[^{}]*"choice"[^{}]*\}/);
+      if (jsonMatch) text = jsonMatch[0];
+    }
+    console.log('[分类推荐] 阶段1响应 content:', (msg && msg.content || '').substring(0, 100));
     if (!text) return null;
     var parsed;
     try {
@@ -810,7 +1036,6 @@ function suggestCategoryWithLLM(title, aliCategory) {
       [selectedBranch + '/%']
     );
     if (!leaves.length) {
-      // 分支下无叶子，尝试取下一级子分支的叶子
       leaves = dbModule.treeGetAll(
         'SELECT cat_name, path FROM dxm_category_tree WHERE is_leaf = 1 AND path LIKE ? LIMIT 50',
         [selectedBranch.substring(0, selectedBranch.indexOf('/') + 1) + '%']
@@ -819,7 +1044,6 @@ function suggestCategoryWithLLM(title, aliCategory) {
     if (!leaves.length) return null;
 
     if (leaves.length <= 3) {
-      // 叶子很少时直接返回第一个，置信度 0.6 刚好达到异步保存阈值
       return { category: leaves[0].cat_name, path: leaves[0].path, confidence: 0.6 };
     }
 
@@ -827,26 +1051,37 @@ function suggestCategoryWithLLM(title, aliCategory) {
       return (i + 1) + '. ' + l.path;
     }).join('\n');
 
-    var stage2Prompt = '你是一个跨境电商分类专家。根据产品信息，从以下分类中选择最匹配的叶子分类。\n\n';
-    if (title) stage2Prompt += '产品标题: ' + title + '\n';
-    if (aliCategory) stage2Prompt += '来源平台类目: ' + aliCategory + '\n';
-    stage2Prompt += '\n候选分类:\n' + leafList;
-    stage2Prompt += '\n\n请选择最匹配的分类序号。返回JSON: {"choice": 序号, "confidence": 0.0到1.0}\n只返回JSON。';
+    var stage2Prompt = LLM_SYSTEM_PROMPT;
+    stage2Prompt += '\n任务：请从以下叶子分类中选择最匹配产品的分类。\n\n';
+    stage2Prompt += '重要：请优先分析产品标题中的用途和使用场景，来源平台类目仅供参考。\n';
+    if (title) stage2Prompt += '\n产品标题: ' + title;
+    if (aliCategory) stage2Prompt += '\n来源平台类目（参考）: ' + aliCategory;
+    if (attrSummary) stage2Prompt += '\n规格参数（参考）: ' + attrSummary;
+    stage2Prompt += '\n\n候选分类:\n' + leafList;
+    stage2Prompt += '\n\n请返回JSON格式，将序号填入choice字段，confidence为0.0到1.0。示例：如果选第2个且置信度0.85，返回 {"choice": 2, "confidence": 0.85}\n只返回一行JSON。';
 
-    return zhipuRequest('/chat/completions', {
-      model: 'glm-4-flash',
+    return categoryLLMRequest('/chat/completions', {
       messages: [{ role: 'user', content: stage2Prompt }],
       temperature: 0.1,
-      max_tokens: 50
+      max_tokens: 1024
     }).then(function (result2) {
-      var text2 = result2.choices && result2.choices[0] && result2.choices[0].message && result2.choices[0].message.content;
+      var msg2 = result2.choices && result2.choices[0] && result2.choices[0].message;
+      var text2 = (msg2 && msg2.content) || '';
+      if (!text2 && msg2 && msg2.reasoning_content) {
+        var jsonMatch2 = msg2.reasoning_content.match(/\{[^{}]*"choice"[^{}]*\}/);
+        if (jsonMatch2) text2 = jsonMatch2[0];
+      }
       if (!text2) return { category: leaves[0].cat_name, path: leaves[0].path, confidence: 0.5 };
+      console.log('[分类推荐] 阶段2响应:', text2.substring(0, 150));
       try {
         var jsonStr2 = text2.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
         var parsed2 = JSON.parse(jsonStr2);
         var leafIdx = (parsed2.choice || 1) - 1;
         if (leafIdx >= 0 && leafIdx < leaves.length) {
-          return { category: leaves[leafIdx].cat_name, path: leaves[leafIdx].path, confidence: parsed2.confidence || 0.5 };
+          var conf = parsed2.confidence !== undefined ? parsed2.confidence : 0.5;
+          console.log('[分类推荐] 阶段2选择:', leaves[leafIdx].cat_name, '置信度:', conf);
+          if (conf < 0.6) return { category: '', path: '', confidence: 0 };
+          return { category: leaves[leafIdx].cat_name, path: leaves[leafIdx].path, confidence: conf };
         }
       } catch (e) {}
       return { category: leaves[0].cat_name, path: leaves[0].path, confidence: 0.5 };
@@ -854,8 +1089,8 @@ function suggestCategoryWithLLM(title, aliCategory) {
   }).catch(function () { return null; });
 }
 
-// LLM 从候选中选择最佳（传完整路径让LLM利用层级语义）
-function suggestCategoryFromCandidates(title, aliCategory, candidates) {
+// LLM 从候选中选择最佳
+function suggestCategoryFromCandidates(title, aliCategory, attrSummary, candidates) {
   var apiKey = getApiKey();
   if (!apiKey) return Promise.resolve({ category: candidates[0].name, path: candidates[0].path, confidence: 0.5 });
 
@@ -863,32 +1098,46 @@ function suggestCategoryFromCandidates(title, aliCategory, candidates) {
     return (i + 1) + '. ' + c.path;
   }).join('\n');
 
-  var prompt = '你是一个跨境电商分类匹配专家。请根据产品信息，从候选分类路径中选择最匹配的一个。\n\n';
+  var prompt = LLM_SYSTEM_PROMPT;
+  prompt += '\n任务：请从候选分类路径中选择最匹配产品的一个。\n\n';
+  prompt += '分析要求：\n';
+  prompt += '1. 产品的实际用途是什么？\n';
+  prompt += '2. 用在什么场景？\n';
+  prompt += '3. 候选路径的层级语义是否与产品匹配？\n';
+  prompt += '4. 相似度低于70%则confidence设为0\n\n';
   if (title) prompt += '产品标题: ' + title + '\n';
-  if (aliCategory) prompt += '来源平台类目: ' + aliCategory + '\n';
+  if (aliCategory) prompt += '来源平台类目（参考）: ' + aliCategory + '\n';
+  if (attrSummary) prompt += '规格参数（参考）: ' + attrSummary + '\n';
   prompt += '\n候选分类路径:\n' + candidateList;
-  prompt += '\n\n请分析每个候选路径的层级语义，选择与产品最匹配的分类。\n';
-  prompt += '返回JSON格式: {"choice": 序号, "confidence": 0.0到1.0之间的数值}\n';
-  prompt += '只返回JSON，不要其他文字。';
+  prompt += '\n\n请返回JSON格式，将序号填入choice字段，confidence为0.0到1.0。示例：如果选第5个且置信度0.9，返回 {"choice": 5, "confidence": 0.9}\n只返回一行JSON。';
 
-  return zhipuRequest('/chat/completions', {
-    model: 'glm-4-flash',
+  return categoryLLMRequest('/chat/completions', {
     messages: [{ role: 'user', content: prompt }],
     temperature: 0.1,
-    max_tokens: 100
+    max_tokens: 1024
   }).then(function (result) {
-    var text = result.choices && result.choices[0] && result.choices[0].message && result.choices[0].message.content;
+    var msg = result.choices && result.choices[0] && result.choices[0].message;
+    var text = (msg && msg.content) || '';
+    if (!text && msg && msg.reasoning_content) {
+      var jsonMatchC = msg.reasoning_content.match(/\{[^{}]*"choice"[^{}]*\}/);
+      if (jsonMatchC) text = jsonMatchC[0];
+    }
+    console.log('[分类推荐] 候选LLM content:', (msg && msg.content || '').substring(0, 150));
+    console.log('[分类推荐] 候选LLM finish_reason:', result.choices && result.choices[0] && result.choices[0].finish_reason);
     if (!text) return { category: candidates[0].name, path: candidates[0].path, confidence: 0.5 };
     try {
       var jsonStr = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
       var parsed = JSON.parse(jsonStr);
       var idx = (parsed.choice || 1) - 1;
       if (idx >= 0 && idx < candidates.length) {
-        return { category: candidates[idx].name, path: candidates[idx].path, confidence: parsed.confidence || 0.7 };
+        var conf = parsed.confidence !== undefined ? parsed.confidence : 0.7;
+        if (conf < 0.6) return { category: '', path: '', confidence: 0 };
+        return { category: candidates[idx].name, path: candidates[idx].path, confidence: conf };
       }
-    } catch (e) {}
+    } catch (e) { console.log('[分类推荐] JSON解析失败:', e.message, '原文:', text.substring(0, 100)); }
     return { category: candidates[0].name, path: candidates[0].path, confidence: 0.5 };
-  }).catch(function () {
+  }).catch(function (e) {
+    console.log('[分类推荐] suggestCategoryFromCandidates API错误:', e.message);
     return { category: candidates[0].name, path: candidates[0].path, confidence: 0.5 };
   });
 }
@@ -925,6 +1174,61 @@ router.post('/save-category-mapping', function (req, res) {
   }
 
   res.json({ ok: true, ali_category: aliCategory, temu_category: temuCategory });
+});
+
+// ===== AI 模型配置管理 API =====
+
+// 获取所有配置（key 脱敏）
+router.get('/configs', function (req, res) {
+  var configs = getAIConfigs();
+  var result = {};
+  Object.keys(AI_USE_CASES).forEach(function (uc) {
+    var c = configs[uc] || {};
+    result[uc] = {
+      model: c.model || AI_USE_CASES[uc].defaultModel,
+      apiKey: maskApiKey(c.apiKey),
+      configured: !!(c.apiKey || getApiKey()),
+      label: AI_USE_CASES[uc].label,
+      models: AI_USE_CASES[uc].models
+    };
+  });
+  // 全局 key 也脱敏返回
+  result._global = { apiKey: maskApiKey(getApiKey()), configured: !!getApiKey() };
+  res.json(result);
+});
+
+// 保存配置
+router.post('/configs', function (req, res) {
+  var updates = req.body; // { category: { model, apiKey }, ... }
+  var configs = getAIConfigs();
+  Object.keys(updates).forEach(function (uc) {
+    if (!AI_USE_CASES[uc]) return;
+    if (!configs[uc]) configs[uc] = {};
+    if (updates[uc].model) configs[uc].model = updates[uc].model;
+    // 只有非脱敏的 key 才保存
+    if (updates[uc].apiKey && updates[uc].apiKey.indexOf('****') === -1) {
+      configs[uc].apiKey = updates[uc].apiKey;
+    }
+  });
+  saveAIConfigs(configs);
+  console.log('[AI配置] 已保存');
+  res.json({ ok: true });
+});
+
+// 保存全局 key
+router.post('/global-key', function (req, res) {
+  var key = (req.body.apiKey || '').trim();
+  if (!key) return res.status(400).json({ error: 'API Key 不能为空' });
+  if (key.indexOf('****') !== -1) return res.status(400).json({ error: '请输入完整API Key' });
+  try {
+    var db = require('../db');
+    db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('zhipu_api_key', ?)", [key]);
+    db.scheduleSave();
+    console.log('[AI配置] 全局API Key已更新');
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: '保存失败' });
+  }
 });
 
 module.exports = router;
