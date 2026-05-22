@@ -68,6 +68,37 @@ Vue.component('page-cloud-sync', {
       this.syncing = false;
       this.syncingType = '';
     },
+    exportSettings: function () {
+      window.open('/api/settings-export', '_blank');
+    },
+    importSettings: function () {
+      var vm = this;
+      var input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.json';
+      input.onchange = function (e) {
+        var file = e.target.files[0];
+        if (!file) return;
+        var reader = new FileReader();
+        reader.onload = function (ev) {
+          try {
+            var data = JSON.parse(ev.target.result);
+            fetch('/api/settings-import', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(data)
+            }).then(function (r) { return r.json(); }).then(function (res) {
+              if (res.ok) vm.$Message.success('导入成功，共 ' + res.imported + ' 项');
+              else vm.$Message.error(res.error || '导入失败');
+            }).catch(function () { vm.$Message.error('导入失败'); });
+          } catch (err) {
+            vm.$Message.error('文件格式错误');
+          }
+        };
+        reader.readAsText(file);
+      };
+      input.click();
+    },
     loadConfig: function () {
       var vm = this;
       vm.loading = true;
@@ -230,6 +261,7 @@ Vue.component('page-cloud-sync', {
 \
       <!-- 大数据量 -->\
       <div class="sync-section-title">大数据量</div>\
+      <div class="sync-section-title">大数据量</div>\
       <div class="sync-grid sync-grid--big">\
         <div v-for="t in sections[1].tables" :key="t.key" class="sync-card">\
           <div class="sync-card-icon">{{ t.icon }}</div>\
@@ -243,6 +275,14 @@ Vue.component('page-cloud-sync', {
             <Button size="small" type="primary" :loading="isBusy(t.key + \'-sync\')" @click="doAction(t, \'sync\')">双向</Button>\
           </div>\
         </div>\
+      </div>\
+\
+      <!-- 设置导入导出 -->\
+      <div class="sync-section-title">设置（本地文件）</div>\
+      <div style="display:flex;gap:12px;margin-bottom:20px">\
+        <Button icon="md-download" @click="exportSettings">导出设置</Button>\
+        <Button icon="md-upload" @click="importSettings">导入设置</Button>\
+        <span style="color:#808695;font-size:12px;line-height:32px">导出API密钥、价格公式等配置为JSON文件，拷贝到其他机器导入即可</span>\
       </div>\
 \
       <!-- 最近结果 -->\

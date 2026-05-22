@@ -48,6 +48,31 @@ router.post('/settings/:key', (req, res) => {
   res.json({ ok: true });
 });
 
+// 导出所有设置为 JSON 文件
+router.get('/settings-export', (req, res) => {
+  const rows = getAll('SELECT key, value FROM settings');
+  const data = {};
+  rows.forEach(r => { data[r.key] = r.value; });
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Content-Disposition', 'attachment; filename=settings_' + new Date().toISOString().slice(0, 10) + '.json');
+  res.json(data);
+});
+
+// 导入设置 JSON
+router.post('/settings-import', (req, res) => {
+  const data = req.body;
+  if (!data || typeof data !== 'object') return res.status(400).json({ error: '无效数据' });
+  // 排除内部迁移标记
+  const skipKeys = ['migration_custom_name_to_mappings', 'migration_dxm_categories_to_tree', 'migration_cleanup_path_mappings'];
+  let count = 0;
+  for (const [key, value] of Object.entries(data)) {
+    if (skipKeys.includes(key)) continue;
+    run('INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)', [key, String(value)]);
+    count++;
+  }
+  res.json({ ok: true, imported: count });
+});
+
 // SSE 实时推送
 router.get('/events', (req, res) => {
   res.writeHead(200, {
