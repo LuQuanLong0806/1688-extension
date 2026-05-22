@@ -22,7 +22,7 @@ router.get('/categories', (req, res) => {
   res.json({ total, page, pageSize, list: rows.map(r => ({ name: r.name, catId: r.cat_id || '', count: r.count || 0 })) });
 });
 
-// 搜索映射（带商品数量统计）
+// 搜索映射（带商品数量统计）— 批量聚合查询避免 N+1
 router.get('/category-mappings', (req, res) => {
   const keyword = (req.query.keyword || '').trim();
   let rows;
@@ -31,12 +31,17 @@ router.get('/category-mappings', (req, res) => {
   } else {
     rows = getAll('SELECT id, category_name, custom_category FROM category_mappings ORDER BY category_name');
   }
+  // 批量聚合：一次查询获取所有映射的商品数量
+  const countRows = getAll("SELECT JSON_EXTRACT(category, '$.leafCategoryName') as cat_name, custom_category, COUNT(*) as cnt FROM products WHERE deleted = 0 GROUP BY cat_name, custom_category");
+  const countMap = {};
+  countRows.forEach(r => {
+    if (r.cat_name && r.custom_category) {
+      countMap[r.cat_name + '|' + r.custom_category] = r.cnt;
+    }
+  });
   const result = rows.map(r => {
-    const cnt = getOne(
-      "SELECT COUNT(*) as cnt FROM products WHERE JSON_EXTRACT(category, '$.leafCategoryName') = ? AND custom_category = ?",
-      [r.category_name, r.custom_category]
-    );
-    return { id: r.id, categoryName: r.category_name, customCategory: r.custom_category, productCount: cnt ? cnt.cnt : 0 };
+    const count = countMap[r.category_name + '|' + r.custom_category] || 0;
+    return { id: r.id, categoryName: r.category_name, customCategory: r.custom_category, productCount: count };
   });
   res.json(result);
 });
@@ -49,17 +54,17 @@ router.get('/category-mappings/by-name', (req, res) => {
   res.json(rows.map(r => ({ id: r.id, customCategory: r.custom_category })));
 });
 
-// 按DXM类目查映射（带商品数量）
+// 按DXM类目查映射（带商品数量）— 批量聚合
 router.get('/category-mappings/by-dxm', (req, res) => {
   const dxmName = (req.query.name || '').trim();
   if (!dxmName) return res.json([]);
   const rows = getAll('SELECT id, category_name FROM category_mappings WHERE custom_category = ? ORDER BY id', [dxmName]);
+  // 批量聚合该 DXM 类目下的商品数量
+  const countRows = getAll("SELECT JSON_EXTRACT(category, '$.leafCategoryName') as cat_name, COUNT(*) as cnt FROM products WHERE deleted = 0 AND custom_category = ? GROUP BY cat_name", [dxmName]);
+  const countMap = {};
+  countRows.forEach(r => { if (r.cat_name) countMap[r.cat_name] = r.cnt; });
   const result = rows.map(r => {
-    const cnt = getOne(
-      "SELECT COUNT(*) as cnt FROM products WHERE JSON_EXTRACT(category, '$.leafCategoryName') = ? AND custom_category = ?",
-      [r.category_name, dxmName]
-    );
-    return { id: r.id, categoryName: r.category_name, productCount: cnt ? cnt.cnt : 0 };
+    return { id: r.id, categoryName: r.category_name, productCount: countMap[r.category_name] || 0 };
   });
   res.json(result);
 });
@@ -73,15 +78,19 @@ router.get('/category-mappings/grouped', (req, res) => {
   } else {
     rows = getAll('SELECT id, category_name, custom_category FROM category_mappings ORDER BY custom_category, category_name');
   }
+  // 批量聚合：避免 N+1 查询
+  const countRows = getAll("SELECT JSON_EXTRACT(category, '$.leafCategoryName') as cat_name, custom_category, COUNT(*) as cnt FROM products WHERE deleted = 0 GROUP BY cat_name, custom_category");
+  const countMap = {};
+  countRows.forEach(r => {
+    if (r.cat_name && r.custom_category) {
+      countMap[r.cat_name + '|' + r.custom_category] = r.cnt;
+    }
+  });
   const groups = {};
   rows.forEach(r => {
     const key = r.custom_category;
     if (!groups[key]) groups[key] = { customCategory: key, path: '', aliCategories: [], productCount: 0 };
-    const cnt = getOne(
-      "SELECT COUNT(*) as cnt FROM products WHERE JSON_EXTRACT(category, '$.leafCategoryName') = ? AND custom_category = ?",
-      [r.category_name, r.custom_category]
-    );
-    const count = cnt ? cnt.cnt : 0;
+    const count = countMap[r.category_name + '|' + r.custom_category] || 0;
     groups[key].aliCategories.push({ id: r.id, categoryName: r.category_name, productCount: count });
     groups[key].productCount += count;
   });

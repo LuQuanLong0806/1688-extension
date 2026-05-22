@@ -395,7 +395,7 @@ function zhipuRequest(apiPath, body, options) {
 
     var data = JSON.stringify(body);
     var url = new URL(API_BASE + apiPath);
-    var options = {
+    var reqOptions = {
       hostname: url.hostname,
       port: 443,
       path: url.pathname,
@@ -407,7 +407,7 @@ function zhipuRequest(apiPath, body, options) {
       }
     };
 
-    var req = https.request(options, function (res) {
+    var req = https.request(reqOptions, function (res) {
       var chunks = [];
       res.on('data', function (c) { chunks.push(c); });
       res.on('end', function () {

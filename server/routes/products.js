@@ -5,6 +5,47 @@ const cloudDb = require('../cloud-db');
 
 const router = Router();
 
+// 公共：插入商品到数据库
+function insertProduct(sourceUrl, title, category, customCategory, dxmCategory, mainImages, descImages, detailImages, attrs, skus) {
+  dbModule.db.run(
+    `INSERT INTO products (source_url, title, category, custom_category, dxm_category, main_images, desc_images, detail_images, attrs, skus)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      sourceUrl || '', title || '', JSON.stringify(category || {}),
+      customCategory || '', dxmCategory || '',
+      JSON.stringify(mainImages || []), JSON.stringify(descImages || []),
+      JSON.stringify(detailImages || []), JSON.stringify(attrs || []), JSON.stringify(skus || [])
+    ]
+  );
+  // 异步同步到云端
+  cloudDb.saveProductToLocalAndCloud(
+    sourceUrl, title, JSON.stringify(category || {}), customCategory || '', dxmCategory || '',
+    JSON.stringify(mainImages || []), JSON.stringify(descImages || []),
+    JSON.stringify(detailImages || []), JSON.stringify(attrs || []), JSON.stringify(skus || [])
+  );
+  return getOne('SELECT last_insert_rowid() as id');
+}
+
+// 公共：更新类目统计和映射
+function updateCategoryStats(category, customCategory) {
+  if (!category) return;
+  const catName = category.leafCategoryName || category.categoryPath;
+  if (!catName) return;
+  const existing = getOne('SELECT id, count FROM categories WHERE name = ?', [catName]);
+  if (existing) {
+    run('UPDATE categories SET count = count + 1 WHERE name = ?', [catName]);
+  } else {
+    run('INSERT INTO categories (name, cat_id, leaf_category_id, top_category_id, post_category_id) VALUES (?, ?, ?, ?, ?)',
+      [catName, category.catId || '', category.leafCategoryId || '', category.topCategoryId || '', category.postCategoryId || '']);
+  }
+  if (customCategory) {
+    run('INSERT OR IGNORE INTO category_mappings (category_name, custom_category) VALUES (?, ?)', [catName, customCategory]);
+    if (cloudDb.connected) {
+      cloudDb.cloudRun('INSERT OR IGNORE INTO category_mappings (category_name, custom_category, count, source) VALUES (?, ?, 1, ?)', [catName, customCategory, 'auto']).catch(function () {});
+    }
+  }
+}
+
 // 采集趋势
 router.get('/product/trend', (req, res) => {
   const days = Math.min(90, Math.max(1, parseInt(req.query.days) || 7));
@@ -113,7 +154,6 @@ router.post('/product', (req, res) => {
     }
   }
 
-  // 先调AI推荐，拿到结果后一次性写入数据库
   var aliCat = category ? (category.leafCategoryName || category.categoryPath || '') : '';
   var needRecommend = !customCategory && !dxmCategoryVal && title;
 
@@ -122,7 +162,6 @@ router.post('/product', (req, res) => {
     : Promise.resolve(null);
 
   recommendPromise.then(function (recResult) {
-    // 推荐成功则覆盖分类
     if (recResult && recResult.category && recResult.confidence >= 0.5) {
       customCategory = recResult.category;
       if (recResult.path) {
@@ -130,52 +169,8 @@ router.post('/product', (req, res) => {
       }
     }
 
-    // 一次性插入数据库（分类已确定）
-    dbModule.db.run(
-      `INSERT INTO products (source_url, title, category, custom_category, dxm_category, main_images, desc_images, detail_images, attrs, skus)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        sourceUrl || '',
-        title || '',
-        JSON.stringify(category || {}),
-        customCategory,
-        dxmCategoryVal,
-        JSON.stringify(mainImages || []),
-        JSON.stringify(descImages || []),
-        JSON.stringify(detailImages || []),
-        JSON.stringify(attrs || []),
-        JSON.stringify(skus || [])
-      ]
-    );
-    // 异步同步商品到云端
-    cloudDb.saveProductToLocalAndCloud(
-      sourceUrl, title,
-      JSON.stringify(category || {}), customCategory, dxmCategoryVal,
-      JSON.stringify(mainImages || []), JSON.stringify(descImages || []),
-      JSON.stringify(detailImages || []), JSON.stringify(attrs || []), JSON.stringify(skus || [])
-    );
-
-    // 立即获取产品ID（必须在其他INSERT之前）
-    const row = getOne('SELECT last_insert_rowid() as id');
-
-    if (category) {
-      const catName = category.leafCategoryName || category.categoryPath;
-      if (catName) {
-        const existing = getOne('SELECT id, count FROM categories WHERE name = ?', [catName]);
-        if (existing) {
-          run('UPDATE categories SET count = count + 1 WHERE name = ?', [catName]);
-        } else {
-          run('INSERT INTO categories (name, cat_id, leaf_category_id, top_category_id, post_category_id) VALUES (?, ?, ?, ?, ?)',
-            [catName, category.catId || '', category.leafCategoryId || '', category.topCategoryId || '', category.postCategoryId || '']);
-        }
-        if (customCategory) {
-          run('INSERT OR IGNORE INTO category_mappings (category_name, custom_category) VALUES (?, ?)', [catName, customCategory]);
-          if (cloudDb.connected) {
-            cloudDb.cloudRun('INSERT OR IGNORE INTO category_mappings (category_name, custom_category, count, source) VALUES (?, ?, 1, ?)', [catName, customCategory, 'auto']).catch(function () {});
-          }
-        }
-      }
-    }
+    const row = insertProduct(sourceUrl, title, category, customCategory, dxmCategoryVal, mainImages, descImages, detailImages, attrs, skus);
+    updateCategoryStats(category, customCategory);
 
     // 推荐成功后的学习逻辑
     if (recResult && recResult.category && recResult.confidence >= 0.6) {
@@ -195,33 +190,9 @@ router.post('/product', (req, res) => {
     console.log('[采集] 产品#' + row.id + ' 入库完成, 分类: ' + (customCategory || '无') + ', 来源: ' + (recResult ? recResult.source : '映射'));
     res.json({ ok: true, id: row.id, recommendation: recResult, customCategory: customCategory });
   }).catch(function (err) {
-    // 推荐失败，不带分类直接入库
     console.error('[采集] 推荐失败，不带分类入库:', err.message);
-    dbModule.db.run(
-      `INSERT INTO products (source_url, title, category, custom_category, dxm_category, main_images, desc_images, detail_images, attrs, skus)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        sourceUrl || '', title || '', JSON.stringify(category || {}),
-        '', '',
-        JSON.stringify(mainImages || []), JSON.stringify(descImages || []),
-        JSON.stringify(detailImages || []), JSON.stringify(attrs || []), JSON.stringify(skus || [])
-      ]
-    );
-    // 异步同步商品到云端
-    cloudDb.saveProductToLocalAndCloud(
-      sourceUrl, title, JSON.stringify(category || {}), '', '',
-      JSON.stringify(mainImages || []), JSON.stringify(descImages || []),
-      JSON.stringify(detailImages || []), JSON.stringify(attrs || []), JSON.stringify(skus || [])
-    );
-    const row = getOne('SELECT last_insert_rowid() as id');
-    if (category) {
-      const catName = category.leafCategoryName || category.categoryPath;
-      if (catName) {
-        const existing = getOne('SELECT id, count FROM categories WHERE name = ?', [catName]);
-        if (existing) { run('UPDATE categories SET count = count + 1 WHERE name = ?', [catName]); }
-        else { run('INSERT INTO categories (name, cat_id, leaf_category_id, top_category_id, post_category_id) VALUES (?, ?, ?, ?, ?)', [catName, category.catId || '', category.leafCategoryId || '', category.topCategoryId || '', category.postCategoryId || '']); }
-      }
-    }
+    const row = insertProduct(sourceUrl, title, category, '', '', mainImages, descImages, detailImages, attrs, skus);
+    updateCategoryStats(category, '');
     scheduleSave();
     sseBroadcast('product-added', { id: row.id, title: title || '' });
     res.json({ ok: true, id: row.id, recommendation: null });
@@ -608,6 +579,7 @@ router.post('/product/:id/recommend-category', (req, res) => {
 router.post('/product/batch-delete', (req, res) => {
   const { ids } = req.body;
   if (!Array.isArray(ids) || !ids.length) return res.json({ ok: true, deleted: 0 });
+  if (ids.length > 500) return res.status(400).json({ error: '单次最多操作 500 条' });
   const placeholders = ids.map(() => '?').join(',');
   const before = getOne(`SELECT COUNT(*) as count FROM products WHERE id IN (${placeholders})`, ids);
   run(`UPDATE products SET deleted = 1, updated_at = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`, ids);
@@ -623,6 +595,7 @@ router.post('/product/batch-delete', (req, res) => {
 router.post('/product/batch-status', (req, res) => {
   const { ids, status } = req.body;
   if (!Array.isArray(ids) || !ids.length) return res.json({ ok: true, updated: 0 });
+  if (ids.length > 500) return res.status(400).json({ error: '单次最多操作 500 条' });
   if (status === -1) {
     const placeholders = ids.map(() => '?').join(',');
     run(`UPDATE products SET status = CASE WHEN status = 1 THEN 0 ELSE 1 END, updated_at = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`, ids);

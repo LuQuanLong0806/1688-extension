@@ -41,9 +41,29 @@ app.get('/dxm-text-cleaner.js', function (req, res) {
 });
 
 // Image proxy (solve CORS for external images)
+// SSRF 防护：禁止内网地址
+var PROXY_BLOCKED_HOSTS = ['127.0.0.1', 'localhost', '0.0.0.0', '[::1]', '0:0:0:0:0:0:0:1'];
+function isBlockedProxyUrl(urlStr) {
+  if (!urlStr) return true;
+  if (!/^https?:\/\//i.test(urlStr)) return true;
+  try {
+    var parsed = new URL(urlStr);
+    var host = parsed.hostname.toLowerCase();
+    for (var i = 0; i < PROXY_BLOCKED_HOSTS.length; i++) {
+      if (host === PROXY_BLOCKED_HOSTS[i]) return true;
+    }
+    // 禁止私有 IP 段
+    if (/^10\./.test(host) || /^172\.(1[6-9]|2\d|3[01])\./.test(host) || /^192\.168\./.test(host)) return true;
+    if (/^169\.254\./.test(host) || /^fc00:/i.test(host) || /^fe80:/i.test(host)) return true;
+    if (/^0\./.test(host)) return true;
+    return false;
+  } catch (e) { return true; }
+}
+
 app.get('/api/proxy-image', function (req, res) {
   var url = req.query.url;
   if (!url) return res.status(400).send('Missing url');
+  if (isBlockedProxyUrl(url)) return res.status(403).send('Blocked: private/internal URL');
   var http = url.startsWith('https') ? require('https') : require('http');
   http.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, function (upstream) {
     if (upstream.statusCode >= 300 && upstream.statusCode < 400 && upstream.headers.location) {
@@ -64,6 +84,7 @@ app.post('/api/upload-image', express.json({ limit: '50mb' }), function (req, re
   var field = req.body.field || 'main_images';
   var index = req.body.index || 0;
   if (!dataUrl) return res.status(400).json({ error: 'Missing dataUrl' });
+  if (!/^data:image\//i.test(dataUrl)) return res.status(400).json({ error: 'Invalid image format' });
 
   var matches = dataUrl.match(/^data:image\/(\w+);base64,/);
   var ext = matches ? matches[1] : 'jpg';
@@ -199,6 +220,8 @@ initDb().then(() => initTreeDb()).then(() => {
 
 // ========== PaddleOCR 微服务管理 ==========
 var ocrProcess = null;
+var ocrRestartCount = 0;
+var OCR_MAX_RESTARTS = 5;
 
 function startOcrService() {
   var ocrScript = path.join(__dirname, 'services', 'ocr_service.py');
@@ -240,7 +263,13 @@ function startOcrService() {
 
   ocrProcess.stdout.on('data', function (data) {
     var msg = data.toString().trim();
-    if (msg) console.log('[OCR]', msg);
+    if (msg) {
+      console.log('[OCR]', msg);
+      // 检测到服务真正启动成功时重置重启计数
+      if (msg.indexOf('Uvicorn running') >= 0 || msg.indexOf('Application startup complete') >= 0) {
+        ocrRestartCount = 0;
+      }
+    }
   });
 
   ocrProcess.stderr.on('data', function (data) {
@@ -251,10 +280,15 @@ function startOcrService() {
   ocrProcess.on('exit', function (code) {
     console.log('[OCR] Service exited with code:', code);
     ocrProcess = null;
-    // 自动重启（5秒后）
+    // 自动重启（5秒后，最多5次）
     if (code !== 0) {
-      console.log('[OCR] Restarting in 5s...');
-      setTimeout(startOcrService, 5000);
+      ocrRestartCount++;
+      if (ocrRestartCount <= OCR_MAX_RESTARTS) {
+        console.log('[OCR] Restarting in 5s... (attempt ' + ocrRestartCount + '/' + OCR_MAX_RESTARTS + ')');
+        setTimeout(startOcrService, 5000);
+      } else {
+        console.log('[OCR] Max restart attempts reached (' + OCR_MAX_RESTARTS + '). Giving up.');
+      }
     }
   });
 

@@ -315,6 +315,26 @@ async function initDb() {
   for (var i = 0; i < LOCAL_TABLE_DEFS.length; i++) {
     db.run(LOCAL_TABLE_DEFS[i].ddl);
   }
+
+  // 创建索引（高频查询优化）
+  var INDEX_DEFS = [
+    'CREATE INDEX IF NOT EXISTS idx_products_source_url ON products(source_url)',
+    'CREATE INDEX IF NOT EXISTS idx_products_deleted ON products(deleted)',
+    'CREATE INDEX IF NOT EXISTS idx_products_custom_category ON products(custom_category)',
+    'CREATE INDEX IF NOT EXISTS idx_products_created_at ON products(created_at)',
+    'CREATE INDEX IF NOT EXISTS idx_category_mappings_category_name ON category_mappings(category_name)',
+    'CREATE INDEX IF NOT EXISTS idx_category_mappings_custom ON category_mappings(custom_category)',
+    'CREATE INDEX IF NOT EXISTS idx_keyword_category_rel_keyword ON keyword_category_rel(keyword)',
+    'CREATE INDEX IF NOT EXISTS idx_keyword_category_rel_valid ON keyword_category_rel(valid)',
+    'CREATE INDEX IF NOT EXISTS idx_keyword_synonyms_word_a ON keyword_synonyms(word_a)',
+    'CREATE INDEX IF NOT EXISTS idx_keyword_synonyms_word_b ON keyword_synonyms(word_b)',
+    'CREATE INDEX IF NOT EXISTS idx_keyword_blacklist_keyword ON keyword_blacklist(keyword)',
+    'CREATE INDEX IF NOT EXISTS idx_dxm_categories_path ON dxm_categories(path)',
+    'CREATE INDEX IF NOT EXISTS idx_categories_name ON categories(name)'
+  ];
+  for (var j = 0; j < INDEX_DEFS.length; j++) {
+    try { db.run(INDEX_DEFS[j]); } catch (e) {}
+  }
   // 自动补列（只增不删）
   migrateLocalSchema();
 
@@ -388,6 +408,16 @@ async function initTreeDb() {
     path TEXT DEFAULT '',
     sync_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
+  // 分类树索引
+  var treeIndexes = [
+    'CREATE INDEX IF NOT EXISTS idx_tree_cat_name ON dxm_category_tree(cat_name)',
+    'CREATE INDEX IF NOT EXISTS idx_tree_is_leaf ON dxm_category_tree(is_leaf)',
+    'CREATE INDEX IF NOT EXISTS idx_tree_path ON dxm_category_tree(path)',
+    'CREATE INDEX IF NOT EXISTS idx_tree_parent ON dxm_category_tree(parent_cat_id)'
+  ];
+  for (var ti = 0; ti < treeIndexes.length; ti++) {
+    try { treeDb.run(treeIndexes[ti]); } catch (e) {}
+  }
   scheduleTreeSave();
 }
 

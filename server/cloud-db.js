@@ -328,17 +328,39 @@ async function uploadLocalToCloud() {
   }
   counts.keyword_category_rel = rels.length;
 
-  // keyword_synonyms — 只增
+  // keyword_synonyms — 批量写入
   var syns = dbModule.getAll('SELECT word_a, word_b FROM keyword_synonyms');
-  for (var i = 0; i < syns.length; i++) {
-    await cloudRun('INSERT OR IGNORE INTO keyword_synonyms (word_a, word_b) VALUES (?, ?)', [syns[i].word_a, syns[i].word_b]);
+  if (syns.length > 0 && client.batch) {
+    var batchSize = 200;
+    for (var si = 0; si < syns.length; si += batchSize) {
+      var chunk = syns.slice(si, si + batchSize);
+      var stmts = chunk.map(function (s) {
+        return { sql: 'INSERT OR IGNORE INTO keyword_synonyms (word_a, word_b) VALUES (?, ?)', args: [s.word_a, s.word_b] };
+      });
+      try { await client.batch(stmts); } catch (e) { console.error('[云同步] synonyms batch fail:', e.message); }
+    }
+  } else {
+    for (var i = 0; i < syns.length; i++) {
+      await cloudRun('INSERT OR IGNORE INTO keyword_synonyms (word_a, word_b) VALUES (?, ?)', [syns[i].word_a, syns[i].word_b]);
+    }
   }
   counts.keyword_synonyms = syns.length;
 
-  // keyword_blacklist — 只增
+  // keyword_blacklist — 批量写入
   var bl = dbModule.getAll('SELECT keyword, category_name, reason FROM keyword_blacklist');
-  for (var i = 0; i < bl.length; i++) {
-    await cloudRun('INSERT OR IGNORE INTO keyword_blacklist (keyword, category_name, reason) VALUES (?, ?, ?)', [bl[i].keyword, bl[i].category_name, bl[i].reason]);
+  if (bl.length > 0 && client.batch) {
+    var batchSize = 200;
+    for (var bi = 0; bi < bl.length; bi += batchSize) {
+      var chunk = bl.slice(bi, bi + batchSize);
+      var stmts = chunk.map(function (b) {
+        return { sql: 'INSERT OR IGNORE INTO keyword_blacklist (keyword, category_name, reason) VALUES (?, ?, ?)', args: [b.keyword, b.category_name, b.reason] };
+      });
+      try { await client.batch(stmts); } catch (e) { console.error('[云同步] blacklist batch fail:', e.message); }
+    }
+  } else {
+    for (var i = 0; i < bl.length; i++) {
+      await cloudRun('INSERT OR IGNORE INTO keyword_blacklist (keyword, category_name, reason) VALUES (?, ?, ?)', [bl[i].keyword, bl[i].category_name, bl[i].reason]);
+    }
   }
   counts.keyword_blacklist = bl.length;
 
@@ -390,7 +412,7 @@ async function downloadCloudToLocal() {
   }
   counts.keyword_category_rel = cloudRels.length;
 
-  // keyword_synonyms
+  // keyword_synonyms — 本地批量写入（先收集，最后一次保存）
   var cloudSyns = await cloudGetAll('SELECT word_a, word_b FROM keyword_synonyms');
   for (var i = 0; i < cloudSyns.length; i++) {
     dbModule.run('INSERT OR IGNORE INTO keyword_synonyms (word_a, word_b) VALUES (?, ?)', [cloudSyns[i].word_a, cloudSyns[i].word_b]);

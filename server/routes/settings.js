@@ -4,9 +4,18 @@ const { run, getOne, getAll, sseClients } = require('../db');
 const router = Router();
 
 let _clearSignals = {};
+const SIGNAL_TTL = 10 * 60 * 1000; // 10 分钟过期
+
+function cleanExpiredSignals() {
+  const now = Date.now();
+  for (const key of Object.keys(_clearSignals)) {
+    if (now - _clearSignals[key] > SIGNAL_TTL) delete _clearSignals[key];
+  }
+}
 
 // Clear-signal（按 clientId 区分，同一浏览器的 1688/DXM 共享同一 ID）
 router.get('/clear-signal', (req, res) => {
+  cleanExpiredSignals();
   const clientId = req.query.clientId || '';
   const signal = clientId ? _clearSignals[clientId] || 0 : 0;
   res.json({ clearAt: signal });
