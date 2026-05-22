@@ -95,6 +95,7 @@ app.use('/api', require('./routes/products'));
 app.use('/api', require('./routes/categories'));
 app.use('/api', require('./routes/dxm-tree'));
 app.use('/api/ai', require('./routes/ai'));
+app.use('/api/sync', require('./routes/sync'));
 
 // Start
 initDb().then(() => initTreeDb()).then(() => {
@@ -149,6 +150,12 @@ initDb().then(() => initTreeDb()).then(() => {
     console.log(`  管理页面: http://localhost:${PORT}`);
     console.log(`  API 地址: http://localhost:${PORT}/api`);
     console.log(`  数据库: ${DB_FILE}\n`);
+
+    // 尝试连接 Turso 云端（静默失败，不影响本地功能）
+    var cloudDb = require('./cloud-db');
+    cloudDb.connect().then(function (ok) {
+      if (ok) console.log('[云同步] Turso 已连接，知识库云端模式');
+    });
 
     // Uploads 定期清理（30天过期，每24小时扫描）
     var cleanup = require('./services/cleanup');

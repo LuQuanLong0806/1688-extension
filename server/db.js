@@ -346,7 +346,7 @@ module.exports = {
   initDb, initTreeDb,
   run, getOne, getAll,
   treeRun, treeGetOne, treeGetAll,
-  scheduleSave,
+  scheduleSave, scheduleTreeSave,
   parseRow,
   sseClients, sseBroadcast,
   // 暴露 db 用于直接操作（如 db.run 不触发自动保存的场景）

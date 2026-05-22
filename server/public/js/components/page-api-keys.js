@@ -154,10 +154,10 @@ Vue.component('page-api-keys', {
     }
   },
   template: `
-    <div class="list-card" style="max-width:820px">
-      <div style="margin-bottom:20px">
-        <h3 style="margin:0 0 6px;font-size:16px;color:#333">AI模型配置</h3>
-        <p style="margin:0;font-size:13px;color:#999">配置各AI功能的模型和密钥，限流时自动切换备用。</p>
+    <div class="list-card" style="padding:24px">
+      <div style="margin-bottom:24px">
+        <h3 style="margin:0 0 6px;font-size:18px;color:#333">AI模型配置</h3>
+        <p style="margin:0;font-size:13px;color:#808695">配置各AI功能的模型和密钥，限流时自动切换备用</p>
       </div>
 
       <div v-if="loading" style="text-align:center;padding:40px;color:#999">加载中...</div>

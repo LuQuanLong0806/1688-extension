@@ -812,3 +812,16 @@ body {
 .ai-provider-action { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
 .ai-key-hint { font-size: 12px; color: #19be6b; white-space: nowrap; flex-shrink: 0; }
 .ai-key-hint.none { color: #ed4014; }
+
+/* 云同步卡片 */
+.sync-section-title { font-size: 14px; font-weight: 600; color: #333; margin: 24px 0 12px; padding-left: 10px; border-left: 3px solid #2d8cf0; }
+.sync-grid { display: grid; gap: 12px; }
+.sync-grid--kb { grid-template-columns: repeat(2, 1fr); }
+.sync-grid--big { grid-template-columns: repeat(2, 1fr); }
+.sync-card { display: flex; align-items: center; gap: 16px; background: #fafbfc; border: 1px solid #eef0f2; border-radius: 8px; padding: 16px 20px; transition: box-shadow .2s, border-color .2s; }
+.sync-card:hover { border-color: #d2d7de; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+.sync-card-icon { width: 44px; height: 44px; border-radius: 10px; background: #f0f5ff; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+.sync-card-body { flex: 1; min-width: 0; }
+.sync-card-label { font-size: 14px; font-weight: 600; color: #333; margin-bottom: 2px; }
+.sync-card-desc { font-size: 12px; color: #999; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sync-card-actions { display: flex; gap: 6px; flex-shrink: 0; }

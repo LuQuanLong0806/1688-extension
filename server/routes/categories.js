@@ -1,5 +1,6 @@
 const { Router } = require('express');
 const { run, getOne, getAll, treeGetOne } = require('../db');
+const cloudDb = require('../cloud-db');
 
 const router = Router();
 
@@ -100,12 +101,18 @@ router.delete('/category-mappings/dxm/:name', (req, res) => {
   bound.forEach(r => {
     run("UPDATE products SET custom_category = '' WHERE category LIKE ?", ['%"' + r.category_name + '"%']);
   });
+  if (cloudDb.connected) {
+    cloudDb.cloudRun("DELETE FROM category_mappings WHERE custom_category = ?", [dxmName]).catch(function () {});
+  }
   res.json({ ok: true });
 });
 
 // 删除单条映射
 router.delete('/category-mappings/:id', (req, res) => {
   run('DELETE FROM category_mappings WHERE id = ?', [parseInt(req.params.id)]);
+  if (cloudDb.connected) {
+    cloudDb.cloudRun('DELETE FROM category_mappings WHERE id = ?', [parseInt(req.params.id)]).catch(function () {});
+  }
   res.json({ ok: true });
 });
 
@@ -117,6 +124,9 @@ router.post('/category-mappings', (req, res) => {
     const existing = getOne('SELECT id FROM category_mappings WHERE category_name = ? AND custom_category = ?', [categoryName, customCategory]);
     if (!existing) {
       run('INSERT INTO category_mappings (category_name, custom_category, count, source) VALUES (?, ?, 1, \'manual\')', [categoryName, customCategory]);
+      if (cloudDb.connected) {
+        cloudDb.cloudRun('INSERT OR IGNORE INTO category_mappings (category_name, custom_category, count, source) VALUES (?, ?, 1, ?)', [categoryName, customCategory, 'manual']).catch(function () {});
+      }
     }
     res.json({ ok: true });
   } catch (e) {
@@ -186,6 +196,9 @@ router.get('/keyword-rels', (req, res) => {
 // 标记关联为无效
 router.delete('/keyword-rels/:id', (req, res) => {
   run('UPDATE keyword_category_rel SET valid = 0 WHERE id = ?', [parseInt(req.params.id)]);
+  if (cloudDb.connected) {
+    cloudDb.cloudRun('UPDATE keyword_category_rel SET valid = 0 WHERE id = ?', [parseInt(req.params.id)]).catch(function () {});
+  }
   res.json({ ok: true });
 });
 
@@ -193,7 +206,12 @@ router.delete('/keyword-rels/:id', (req, res) => {
 router.post('/keyword-rels/batch-invalidate', (req, res) => {
   const ids = req.body.ids;
   if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ error: '请提供ids数组' });
-  ids.forEach(id => run('UPDATE keyword_category_rel SET valid = 0 WHERE id = ?', [parseInt(id)]));
+  ids.forEach(id => {
+    run('UPDATE keyword_category_rel SET valid = 0 WHERE id = ?', [parseInt(id)]);
+    if (cloudDb.connected) {
+      cloudDb.cloudRun('UPDATE keyword_category_rel SET valid = 0 WHERE id = ?', [parseInt(id)]).catch(function () {});
+    }
+  });
   res.json({ ok: true });
 });
 
@@ -217,6 +235,9 @@ router.post('/keyword-synonyms', (req, res) => {
   if (!wordA || !wordB) return res.status(400).json({ error: '请提供wordA和wordB' });
   try {
     run('INSERT OR IGNORE INTO keyword_synonyms (word_a, word_b) VALUES (?, ?)', [wordA, wordB]);
+    if (cloudDb.connected) {
+      cloudDb.cloudRun('INSERT OR IGNORE INTO keyword_synonyms (word_a, word_b) VALUES (?, ?)', [wordA, wordB]).catch(function () {});
+    }
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -226,6 +247,9 @@ router.post('/keyword-synonyms', (req, res) => {
 // 删除同义词
 router.delete('/keyword-synonyms/:id', (req, res) => {
   run('DELETE FROM keyword_synonyms WHERE id = ?', [parseInt(req.params.id)]);
+  if (cloudDb.connected) {
+    cloudDb.cloudRun('DELETE FROM keyword_synonyms WHERE id = ?', [parseInt(req.params.id)]).catch(function () {});
+  }
   res.json({ ok: true });
 });
 
@@ -249,6 +273,9 @@ router.post('/keyword-blacklist', (req, res) => {
   if (!keyword || !categoryName) return res.status(400).json({ error: '请提供keyword和categoryName' });
   try {
     run('INSERT OR IGNORE INTO keyword_blacklist (keyword, category_name, reason) VALUES (?, ?, ?)', [keyword, categoryName, reason || '']);
+    if (cloudDb.connected) {
+      cloudDb.cloudRun('INSERT OR IGNORE INTO keyword_blacklist (keyword, category_name, reason) VALUES (?, ?, ?)', [keyword, categoryName, reason || '']).catch(function () {});
+    }
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -258,6 +285,9 @@ router.post('/keyword-blacklist', (req, res) => {
 // 删除黑名单
 router.delete('/keyword-blacklist/:id', (req, res) => {
   run('DELETE FROM keyword_blacklist WHERE id = ?', [parseInt(req.params.id)]);
+  if (cloudDb.connected) {
+    cloudDb.cloudRun('DELETE FROM keyword_blacklist WHERE id = ?', [parseInt(req.params.id)]).catch(function () {});
+  }
   res.json({ ok: true });
 });
 
