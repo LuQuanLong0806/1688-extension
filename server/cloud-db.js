@@ -472,6 +472,15 @@ async function downloadProducts() {
   return { ok: true, cloudTotal: cloudProducts.length, added: added, skipped: skipped };
 }
 
+// 采集时单条商品自动同步到云端（异步，不阻塞采集流程）
+function saveProductToLocalAndCloud(sourceUrl, title, category, customCategory, dxmCategory, mainImages, descImages, detailImages, attrs, skus) {
+  if (!connected) return;
+  cloudRun(
+    'INSERT OR IGNORE INTO products (source_url, title, main_images, desc_images, detail_images, attrs, skus, category, custom_category, dxm_category, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)',
+    [sourceUrl || '', title || '', mainImages || '', descImages || '', detailImages || '', attrs || '', skus || '', category || '', customCategory || '', dxmCategory || '']
+  ).catch(function () {});
+}
+
 // ===== 单表同步 =====
 var SINGLE_TABLE_DEFS = {
   mappings: {
@@ -636,6 +645,7 @@ module.exports = {
   getSynonyms,
   getBlacklisted,
   getTreePath,
+  saveProductToLocalAndCloud,
   uploadLocalToCloud,
   downloadCloudToLocal,
   bidirectionalSync,

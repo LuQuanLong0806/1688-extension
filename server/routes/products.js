@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const dbModule = require('../db');
 const { run, getOne, getAll, scheduleSave, sseBroadcast, parseRow, treeGetOne } = dbModule;
+const cloudDb = require('../cloud-db');
 
 const router = Router();
 
@@ -146,6 +147,13 @@ router.post('/product', (req, res) => {
         JSON.stringify(skus || [])
       ]
     );
+    // 异步同步商品到云端
+    cloudDb.saveProductToLocalAndCloud(
+      sourceUrl, title,
+      JSON.stringify(category || {}), customCategory, dxmCategoryVal,
+      JSON.stringify(mainImages || []), JSON.stringify(descImages || []),
+      JSON.stringify(detailImages || []), JSON.stringify(attrs || []), JSON.stringify(skus || [])
+    );
 
     // 立即获取产品ID（必须在其他INSERT之前）
     const row = getOne('SELECT last_insert_rowid() as id');
@@ -162,6 +170,9 @@ router.post('/product', (req, res) => {
         }
         if (customCategory) {
           run('INSERT OR IGNORE INTO category_mappings (category_name, custom_category) VALUES (?, ?)', [catName, customCategory]);
+          if (cloudDb.connected) {
+            cloudDb.cloudRun('INSERT OR IGNORE INTO category_mappings (category_name, custom_category, count, source) VALUES (?, ?, 1, ?)', [catName, customCategory, 'auto']).catch(function () {});
+          }
         }
       }
     }
@@ -175,12 +186,7 @@ router.post('/product', (req, res) => {
       } catch (learnErr) {}
     }
     if (aliCat && customCategory && recResult && recResult.confidence >= 0.7) {
-      var existingMap = getOne('SELECT id, count FROM category_mappings WHERE category_name = ? AND custom_category = ?', [aliCat, customCategory]);
-      if (existingMap) {
-        run('UPDATE category_mappings SET count = count + 1 WHERE id = ?', [existingMap.id]);
-      } else {
-        run('INSERT INTO category_mappings (category_name, custom_category, count, source) VALUES (?, ?, 1, \'auto\')', [aliCat, customCategory]);
-      }
+      cloudDb.saveMapping(aliCat, customCategory, 'auto');
     }
 
     scheduleSave();
@@ -200,6 +206,12 @@ router.post('/product', (req, res) => {
         JSON.stringify(mainImages || []), JSON.stringify(descImages || []),
         JSON.stringify(detailImages || []), JSON.stringify(attrs || []), JSON.stringify(skus || [])
       ]
+    );
+    // 异步同步商品到云端
+    cloudDb.saveProductToLocalAndCloud(
+      sourceUrl, title, JSON.stringify(category || {}), '', '',
+      JSON.stringify(mainImages || []), JSON.stringify(descImages || []),
+      JSON.stringify(detailImages || []), JSON.stringify(attrs || []), JSON.stringify(skus || [])
     );
     const row = getOne('SELECT last_insert_rowid() as id');
     if (category) {
@@ -476,18 +488,29 @@ router.put('/product/:id', (req, res) => {
       const cat = JSON.parse(product.category);
       const catName = cat.leafCategoryName || cat.categoryPath;
       if (catName) {
-        const existingMap = getOne('SELECT id, count FROM category_mappings WHERE category_name = ? AND custom_category = ?', [catName, req.body.customCategory]);
-        if (existingMap) {
-          run('UPDATE category_mappings SET count = count + 1, source = \'manual\' WHERE id = ?', [existingMap.id]);
-        } else {
-          run('INSERT INTO category_mappings (category_name, custom_category, count, source) VALUES (?, ?, 1, \'manual\')', [catName, req.body.customCategory]);
-        }
+        cloudDb.saveMapping(catName, req.body.customCategory, 'manual');
         // 学习关键词-类目关联（手动设置权重高）
         var aiModule = require('./ai');
         var learnKws = aiModule.extractSearchKeywordsPublic(product.title || '', catName);
         aiModule.learnKeywordCategoryRelPublic(learnKws, req.body.customCategory, 'manual', 1.0);
       }
     } catch (e) {}
+  }
+  // 更新云端商品分类
+  if (cloudDb.connected && (req.body.customCategory || req.body.dxmCategory || req.body.status !== undefined)) {
+    var srcRow = getOne('SELECT source_url FROM products WHERE id = ?', [parseInt(req.params.id)]);
+    if (srcRow && srcRow.source_url) {
+      var cloudUpdates = [];
+      var cloudParams = [];
+      if (req.body.customCategory !== undefined) { cloudUpdates.push('custom_category = ?'); cloudParams.push(req.body.customCategory || ''); }
+      if (req.body.dxmCategory !== undefined) { cloudUpdates.push('dxm_category = ?'); cloudParams.push(typeof req.body.dxmCategory === 'object' ? JSON.stringify(req.body.dxmCategory) : req.body.dxmCategory); }
+      if (req.body.status !== undefined) { cloudUpdates.push('status = ?'); cloudParams.push(req.body.status); }
+      if (cloudUpdates.length) {
+        cloudUpdates.push('updated_at = CURRENT_TIMESTAMP');
+        cloudParams.push(srcRow.source_url);
+        cloudDb.cloudRun('UPDATE products SET ' + cloudUpdates.join(', ') + ' WHERE source_url = ?', cloudParams).catch(function () {});
+      }
+    }
   }
 
   res.json({ ok: true });
@@ -547,14 +570,9 @@ router.post('/product/:id/recommend-category', (req, res) => {
             console.log('[AI分类推荐] 产品#' + parsed.id + ' 手动推荐: ' + result.category + ' (置信度:' + result.confidence.toFixed(2) + ', 来源:' + result.source + ')');
             sseBroadcast('product-category-updated', { id: parsed.id, category: result.category, path: result.path, source: result.source });
 
-            // 自动保存映射（已存在则递增count，不存在则插入）
+            // 自动保存映射
             if (aliCat && result.category) {
-              var existingMap2 = getOne('SELECT id, count FROM category_mappings WHERE category_name = ? AND custom_category = ?', [aliCat, result.category]);
-              if (existingMap2) {
-                run('UPDATE category_mappings SET count = count + 1 WHERE id = ?', [existingMap2.id]);
-              } else {
-                run('INSERT INTO category_mappings (category_name, custom_category, count, source) VALUES (?, ?, 1, \'auto\')', [aliCat, result.category]);
-              }
+              cloudDb.saveMapping(aliCat, result.category, 'auto');
               console.log('[AI分类推荐] 自动保存映射:', aliCat, '→', result.category);
             }
             // 学习关键词-类目关联
