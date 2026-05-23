@@ -73,7 +73,7 @@ router.get('/settings-export', (req, res) => {
 // 导入设置 JSON
 router.post('/settings-import', (req, res) => {
   const data = req.body;
-  if (!data || typeof data !== 'object') return res.status(400).json({ error: '无效数据' });
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return res.status(400).json({ error: '无效数据' });
   // 排除内部迁移标记
   const skipKeys = ['migration_custom_name_to_mappings', 'migration_dxm_categories_to_tree', 'migration_cleanup_path_mappings'];
   let count = 0;
@@ -130,7 +130,7 @@ router.get('/events', (req, res) => {
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
-    Connection: 'keep-alive'
+    'Connection': 'keep-alive'
   });
   res.write('event: connected\ndata: {}\n\n');
   sseClients.push(res);

@@ -524,12 +524,10 @@ function extractProductKeywords(title, aliCategory, attrSummary) {
       }
       if (!parsed || !Array.isArray(parsed.keywords)) return { keywords: [], categoryHint: '' };
 
-      var noiseWords = ['六一','儿童节','圣诞','元旦','新年','春节','情人节','国庆','中秋','端午',
-        '卡通','可爱','创意','简约','复古','ins','韩版','日系','欧美','网红',
-        '批发','现货','特价','热卖','直销','厂家','定制','新款','同款','爆款',
-        '礼物','礼品','伴手礼','赠品','福利','奖品'];
+      // 使用统一的噪词列表（DB 配置优先，降级用内置列表）
+      var noiseList = getNoiseWords();
       var filtered = parsed.keywords.filter(function (kw) {
-        return !noiseWords.some(function (nw) { return kw === nw || kw.indexOf(nw) >= 0; });
+        return !noiseList.some(function (nw) { return kw === nw || kw.indexOf(nw) >= 0; });
       });
       if (!filtered.length) filtered = parsed.keywords.slice(0, 3);
 

@@ -73,6 +73,12 @@ function scheduleSave() {
   saveTimer = setTimeout(saveDb, 500);
 }
 
+// 立即保存（用于关键操作后确保数据落盘）
+function saveNow() {
+  if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+  saveDb();
+}
+
 function run(sql, params) {
   db.run(sql, params);
   scheduleSave();
@@ -453,7 +459,7 @@ module.exports = {
   initDb, initTreeDb,
   run, getOne, getAll,
   treeRun, treeGetOne, treeGetAll,
-  scheduleSave, scheduleTreeSave,
+  scheduleSave, saveNow, scheduleTreeSave,
   parseRow,
   sseClients, sseBroadcast,
   // 暴露 db 用于直接操作（如 db.run 不触发自动保存的场景）

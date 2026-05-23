@@ -31,8 +31,8 @@ router.get('/category-mappings', (req, res) => {
   } else {
     rows = getAll('SELECT id, category_name, custom_category FROM category_mappings ORDER BY category_name');
   }
-  // 批量聚合：一次查询获取所有映射的商品数量
-  const countRows = getAll("SELECT JSON_EXTRACT(category, '$.leafCategoryName') as cat_name, custom_category, COUNT(*) as cnt FROM products WHERE deleted = 0 GROUP BY cat_name, custom_category");
+  // 批量聚合：一次查询获取所有映射的商品数量（兼容 leafCategoryName 和 categoryPath）
+  const countRows = getAll("SELECT COALESCE(JSON_EXTRACT(category, '$.leafCategoryName'), JSON_EXTRACT(category, '$.categoryPath')) as cat_name, custom_category, COUNT(*) as cnt FROM products WHERE deleted = 0 AND custom_category IS NOT NULL AND custom_category != '' GROUP BY cat_name, custom_category");
   const countMap = {};
   countRows.forEach(r => {
     if (r.cat_name && r.custom_category) {
@@ -81,8 +81,8 @@ router.get('/category-mappings/grouped', (req, res) => {
   } else {
     rows = getAll('SELECT id, category_name, custom_category FROM category_mappings ORDER BY custom_category, category_name');
   }
-  // 批量聚合：避免 N+1 查询
-  const countRows = getAll("SELECT JSON_EXTRACT(category, '$.leafCategoryName') as cat_name, custom_category, COUNT(*) as cnt FROM products WHERE deleted = 0 GROUP BY cat_name, custom_category");
+  // 批量聚合：避免 N+1 查询（兼容 leafCategoryName 和 categoryPath）
+  const countRows = getAll("SELECT COALESCE(JSON_EXTRACT(category, '$.leafCategoryName'), JSON_EXTRACT(category, '$.categoryPath')) as cat_name, custom_category, COUNT(*) as cnt FROM products WHERE deleted = 0 AND custom_category IS NOT NULL AND custom_category != '' GROUP BY cat_name, custom_category");
   const countMap = {};
   countRows.forEach(r => {
     if (r.cat_name && r.custom_category) {
@@ -110,15 +110,15 @@ router.get('/category-mappings/grouped', (req, res) => {
 // 清空通过映射分类的产品（同时清 custom_category, manual_category, dxm_category）
 function clearProductsByMapping(categoryName, customCategory) {
   if (!categoryName || !customCategory) return 0;
-  var likePattern = '%"%' + categoryName + '"%';
+  // 使用 JSON_EXTRACT 精确匹配，避免 LIKE 模式依赖 JSON 格式假设
   var rows = getAll(
-    "SELECT id FROM products WHERE category LIKE ? AND custom_category = ?",
-    [likePattern, customCategory]
+    "SELECT id FROM products WHERE COALESCE(JSON_EXTRACT(category, '$.leafCategoryName'), JSON_EXTRACT(category, '$.categoryPath')) = ? AND custom_category = ?",
+    [categoryName, customCategory]
   );
   if (!rows.length) return 0;
   run(
-    "UPDATE products SET custom_category = '', manual_category = '', dxm_category = '' WHERE category LIKE ? AND custom_category = ?",
-    [likePattern, customCategory]
+    "UPDATE products SET custom_category = '', manual_category = '', dxm_category = '' WHERE COALESCE(JSON_EXTRACT(category, '$.leafCategoryName'), JSON_EXTRACT(category, '$.categoryPath')) = ? AND custom_category = ?",
+    [categoryName, customCategory]
   );
   scheduleSave();
   return rows.length;

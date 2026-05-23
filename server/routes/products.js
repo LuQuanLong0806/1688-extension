@@ -1,6 +1,6 @@
 const { Router } = require('express');
 const dbModule = require('../db');
-const { run, getOne, getAll, scheduleSave, sseBroadcast, parseRow, treeGetOne } = dbModule;
+const { run, getOne, getAll, scheduleSave, saveNow, sseBroadcast, parseRow, treeGetOne } = dbModule;
 const cloudDb = require('../cloud/index');
 
 const router = Router();
@@ -302,7 +302,9 @@ async function doRecommendAndSave(title, aliCat, attrs, productId) {
 router.get('/product/check', (req, res) => {
   const offerId = (req.query.offerId || '').trim();
   if (!offerId) return res.json({ exists: false });
-  const row = getOne('SELECT id, title, status FROM products WHERE deleted = 0 AND source_url LIKE ? LIMIT 1', ['%' + offerId + '%']);
+  // 转义 LIKE 通配符，防止 offerId 中的 %/_ 被误解析
+  const escaped = offerId.replace(/[%_]/g, '\\$&');
+  const row = getOne('SELECT id, title, status FROM products WHERE deleted = 0 AND source_url LIKE ? ESCAPE "\\\\" LIMIT 1', ['%' + escaped + '%']);
   if (row) {
     res.json({ exists: true, id: row.id, title: row.title, status: row.status });
   } else {
@@ -548,11 +550,15 @@ router.post('/product/batch-delete', (req, res) => {
   const { ids } = req.body;
   if (!Array.isArray(ids) || !ids.length) return res.json({ ok: true, deleted: 0 });
   if (ids.length > 500) return res.status(400).json({ error: '单次最多操作 500 条' });
-  const placeholders = ids.map(() => '?').join(',');
-  const before = getOne(`SELECT COUNT(*) as count FROM products WHERE id IN (${placeholders})`, ids);
-  run(`UPDATE products SET deleted = 1, updated_at = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`, ids);
+  // 校验并转为有效整数
+  const validIds = ids.map(id => parseInt(id)).filter(id => !isNaN(id) && id > 0);
+  if (!validIds.length) return res.json({ ok: true, deleted: 0 });
+  const placeholders = validIds.map(() => '?').join(',');
+  const before = getOne(`SELECT COUNT(*) as count FROM products WHERE id IN (${placeholders})`, validIds);
+  run(`UPDATE products SET deleted = 1, updated_at = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`, validIds);
+  saveNow();
   if (cloudDb.connected) {
-    var srcRows = getAll(`SELECT source_url FROM products WHERE id IN (${placeholders}) AND source_url != ''`, ids);
+    var srcRows = getAll(`SELECT source_url FROM products WHERE id IN (${placeholders}) AND source_url != ''`, validIds);
     srcRows.forEach(function (r) {
       cloudDb.cloudRun('UPDATE products SET deleted = 1 WHERE source_url = ?', [r.source_url]).catch(function () {});
     });
@@ -564,12 +570,15 @@ router.post('/product/batch-status', (req, res) => {
   const { ids, status } = req.body;
   if (!Array.isArray(ids) || !ids.length) return res.json({ ok: true, updated: 0 });
   if (ids.length > 500) return res.status(400).json({ error: '单次最多操作 500 条' });
+  // 校验并转为有效整数
+  const validIds = ids.map(id => parseInt(id)).filter(id => !isNaN(id) && id > 0);
+  if (!validIds.length) return res.json({ ok: true, updated: 0 });
   if (status === -1) {
-    const placeholders = ids.map(() => '?').join(',');
-    run(`UPDATE products SET status = CASE WHEN status = 1 THEN 0 ELSE 1 END, updated_at = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`, ids);
+    const placeholders = validIds.map(() => '?').join(',');
+    run(`UPDATE products SET status = CASE WHEN status = 1 THEN 0 ELSE 1 END, updated_at = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`, validIds);
   } else {
-    const placeholders = ids.map(() => '?').join(',');
-    run(`UPDATE products SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`, [status, ...ids]);
+    const placeholders = validIds.map(() => '?').join(',');
+    run(`UPDATE products SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`, [status, ...validIds]);
   }
   res.json({ ok: true, updated: ids.length });
 });
