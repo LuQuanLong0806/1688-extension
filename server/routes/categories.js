@@ -329,4 +329,56 @@ router.delete('/keyword-blacklist/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+// ===== 分类配置管理（过滤词/互斥组/泛词）=====
+var categoryRecommend = require('./ai/index');
+
+// 获取分类配置（按类型）
+router.get('/category-config', function (req, res) {
+  var type = (req.query.type || '').trim();
+  if (type) {
+    cloudDb.getCategoryConfig(type).then(function (rows) {
+      res.json({ ok: true, list: rows || [] });
+    }).catch(function (e) {
+      res.status(500).json({ error: e.message });
+    });
+  } else {
+    cloudDb.getAllCategoryConfig().then(function (rows) {
+      res.json({ ok: true, list: rows || [] });
+    }).catch(function (e) {
+      res.status(500).json({ error: e.message });
+    });
+  }
+});
+
+// 保存分类配置项
+router.post('/category-config', function (req, res) {
+  var type = (req.body.type || '').trim();
+  var value = (req.body.value || '').trim();
+  var groupName = (req.body.group_name || '').trim();
+  var description = (req.body.description || '').trim();
+  var sortOrder = parseInt(req.body.sort_order) || 0;
+
+  if (!type || !value) return res.status(400).json({ error: 'type 和 value 必填' });
+
+  cloudDb.saveCategoryConfig(type, value, groupName, description, sortOrder).catch(function (e) {
+    console.log('[分类配置] 保存失败:', e.message);
+  });
+  categoryRecommend.clearConfigCache();
+
+  res.json({ ok: true, type: type, value: value });
+});
+
+// 删除分类配置项
+router.delete('/category-config/:id', function (req, res) {
+  var id = parseInt(req.params.id);
+  if (!id) return res.status(400).json({ error: '无效 ID' });
+
+  cloudDb.deleteCategoryConfig(id).catch(function (e) {
+    console.log('[分类配置] 删除失败:', e.message);
+  });
+  categoryRecommend.clearConfigCache();
+
+  res.json({ ok: true });
+});
+
 module.exports = router;

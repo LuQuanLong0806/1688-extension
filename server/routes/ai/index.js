@@ -237,3 +237,4 @@ router.post('/hunyuan-keys', function (req, res) {
 module.exports = router;
 module.exports.extractSearchKeywordsPublic = categoryRouter.extractSearchKeywordsPublic;
 module.exports.learnKeywordCategoryRelPublic = categoryRouter.learnKeywordCategoryRelPublic;
+module.exports.clearConfigCache = categoryRouter.clearConfigCache;

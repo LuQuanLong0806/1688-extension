@@ -827,62 +827,12 @@ function selectFromMappingCandidates(title, aliCategory, attrSummary, mappings) 
   });
 }
 
-// ===== 分类配置管理 API =====
-
-// 获取分类配置（按类型）
-router.get('/config', function (req, res) {
-  var type = (req.query.type || '').trim();
-  if (type) {
-    cloudDb.getCategoryConfig(type).then(function (rows) {
-      res.json({ ok: true, list: rows || [] });
-    }).catch(function (e) {
-      res.status(500).json({ error: e.message });
-    });
-  } else {
-    cloudDb.getAllCategoryConfig().then(function (rows) {
-      res.json({ ok: true, list: rows || [] });
-    }).catch(function (e) {
-      res.status(500).json({ error: e.message });
-    });
-  }
-});
-
-// 保存分类配置项
-router.post('/config', function (req, res) {
-  var type = (req.body.type || '').trim();
-  var value = (req.body.value || '').trim();
-  var groupName = (req.body.group_name || '').trim();
-  var description = (req.body.description || '').trim();
-  var sortOrder = parseInt(req.body.sort_order) || 0;
-
-  if (!type || !value) return res.status(400).json({ error: 'type 和 value 必填' });
-
-  cloudDb.saveCategoryConfig(type, value, groupName, description, sortOrder).catch(function (e) {
-    console.log('[分类配置] 保存失败:', e.message);
-  });
-  // 清除缓存，下次请求重新加载
+// 清除分类配置缓存（供外部调用，如 categories.js 的配置管理端点）
+function clearConfigCache() {
   MUTEX_CACHE = null;
   NOISE_CACHE = null;
   GENERIC_CACHE = null;
-
-  res.json({ ok: true, type: type, value: value });
-});
-
-// 删除分类配置项
-router.delete('/config/:id', function (req, res) {
-  var id = parseInt(req.params.id);
-  if (!id) return res.status(400).json({ error: '无效 ID' });
-
-  cloudDb.deleteCategoryConfig(id).catch(function (e) {
-    console.log('[分类配置] 删除失败:', e.message);
-  });
-  // 清除缓存
-  MUTEX_CACHE = null;
-  NOISE_CACHE = null;
-  GENERIC_CACHE = null;
-
-  res.json({ ok: true });
-});
+}
 
 // 自动保存分类映射
 router.post('/save-category-mapping', function (req, res) {
@@ -907,6 +857,7 @@ router.post('/save-category-mapping', function (req, res) {
 module.exports = router;
 module.exports.extractSearchKeywordsPublic = extractSearchKeywords;
 module.exports.learnKeywordCategoryRelPublic = learnKeywordCategoryRel;
+module.exports.clearConfigCache = clearConfigCache;
 
 // 测试用导出（仅单元测试使用）
 module.exports._test = {
@@ -916,5 +867,6 @@ module.exports._test = {
   splitAliCategoryWords: splitAliCategoryWords,
   cleanTitleKeywords: cleanTitleKeywords,
   calcHitDetail: calcHitDetail,
-  loadMutexGroups: loadMutexGroups
+  loadMutexGroups: loadMutexGroups,
+  clearConfigCache: clearConfigCache
 };
