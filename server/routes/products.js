@@ -1,7 +1,7 @@
 const { Router } = require('express');
 const dbModule = require('../db');
 const { run, getOne, getAll, scheduleSave, sseBroadcast, parseRow, treeGetOne } = dbModule;
-const cloudDb = require('../cloud-db');
+const cloudDb = require('../cloud/index');
 
 const router = Router();
 
@@ -175,7 +175,7 @@ router.post('/product', (req, res) => {
     // 推荐成功后的学习逻辑
     if (recResult && recResult.category && recResult.confidence >= 0.6) {
       try {
-        var aiModule = require('./ai');
+        var aiModule = require('./ai/index');
         var learnKeywords = aiModule.extractSearchKeywordsPublic(title || '', aliCat);
         aiModule.learnKeywordCategoryRelPublic(learnKeywords, recResult.category, 'auto', recResult.confidence);
       } catch (learnErr) {}
@@ -199,147 +199,116 @@ router.post('/product', (req, res) => {
   });
 });
 
-// 调用推荐API，只返回结果不写数据库
-function doRecommendAndGetResult(title, aliCat, attrs) {
-  console.log('[采集推荐] 标题:', title, '1688类目:', aliCat);
+// 公共：本地 HTTP POST 请求（Promise 包装）
+function localPost(path, body, timeoutMs) {
   return new Promise(function (resolve) {
     var httpMod = require('http');
-    var postData = JSON.stringify({ title: title, ali_category: aliCat, attrs: attrs || [] });
+    var postData = JSON.stringify(body);
     var reqOpts = {
-      hostname: 'localhost', port: 3000, path: '/api/ai/suggest-category',
+      hostname: 'localhost', port: 3000, path: path,
       method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(postData) }
     };
-    var timeout = setTimeout(function () {
-      console.log('[采集推荐] 超时(60s)');
-      aiReq.destroy();
-      resolve(null);
-    }, 60000);
-    var aiReq = httpMod.request(reqOpts, function (aiRes) {
-      var body = '';
-      aiRes.on('data', function (chunk) { body += chunk; });
-      aiRes.on('end', function () {
-        clearTimeout(timeout);
-        try {
-          var result = JSON.parse(body);
-          if (!result.ok || !result.category || result.confidence < 0.5) {
-            console.log('[采集推荐] 无结果 confidence=' + (result.confidence || 0) + ' source=' + (result.source || ''));
-            resolve(null);
-            return;
-          }
-          console.log('[采集推荐] ✅ ' + result.category + ' 置信度:' + result.confidence.toFixed(2) + ' 来源:' + result.source);
-          resolve({ category: result.category, path: result.path, confidence: result.confidence, source: result.source });
-        } catch (e) {
-          console.error('[采集推荐] 解析失败:', e.message);
-          resolve(null);
-        }
-      });
+    var timer = setTimeout(function () { req.destroy(); resolve(null); }, timeoutMs || 60000);
+    var req = httpMod.request(reqOpts, function (res) {
+      var data = '';
+      res.on('data', function (c) { data += c; });
+      res.on('end', function () { clearTimeout(timer); resolve(data); });
     });
-    aiReq.on('error', function (e) {
-      clearTimeout(timeout);
-      console.error('[采集推荐] 请求失败:', e.message);
-      resolve(null);
-    });
-    aiReq.write(postData);
-    aiReq.end();
+    req.on('error', function (e) { clearTimeout(timer); resolve(null); });
+    req.write(postData);
+    req.end();
   });
 }
 
+// 调用推荐API，只返回结果不写数据库
+async function doRecommendAndGetResult(title, aliCat, attrs) {
+  console.log('[采集推荐] 标题:', title, '1688类目:', aliCat);
+  var body = await localPost('/api/ai/suggest-category', { title: title, ali_category: aliCat, attrs: attrs || [] });
+  if (!body) return null;
+  try {
+    var result = JSON.parse(body);
+    if (!result.ok || !result.category || result.confidence < 0.5) {
+      console.log('[采集推荐] 无结果 confidence=' + (result.confidence || 0) + ' source=' + (result.source || ''));
+      return null;
+    }
+    console.log('[采集推荐] ✅ ' + result.category + ' 置信度:' + result.confidence.toFixed(2) + ' 来源:' + result.source);
+    return { category: result.category, path: result.path, confidence: result.confidence, source: result.source };
+  } catch (e) {
+    console.error('[采集推荐] 解析失败:', e.message);
+    return null;
+  }
+}
+
 // 同步推荐 + 保存结果 + 自动映射（手动触发时使用）
-function doRecommendAndSave(title, aliCat, attrs, productId) {
+async function doRecommendAndSave(title, aliCat, attrs, productId) {
   console.log('[采集推荐] ========== 产品#' + productId + ' 开始推荐 ==========');
   console.log('[采集推荐] 产品#' + productId + ' 标题: ' + title);
   console.log('[采集推荐] 产品#' + productId + ' 1688类目: ' + aliCat);
+  console.log('[采集推荐] 产品#' + productId + ' 发送推荐请求...');
 
-  return new Promise(function (resolve) {
-    var httpMod = require('http');
-    var postData = JSON.stringify({ title: title, ali_category: aliCat, attrs: attrs || [] });
-    var reqOpts = {
-      hostname: 'localhost', port: 3000, path: '/api/ai/suggest-category',
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(postData) }
-    };
-    console.log('[采集推荐] 产品#' + productId + ' 发送推荐请求...');
-    var timeout = setTimeout(function () {
-      console.log('[采集推荐] 产品#' + productId + ' ❌ 超时(60s)');
-      aiReq.destroy();
-      resolve(null);
-    }, 60000);
+  var body = await localPost('/api/ai/suggest-category', { title: title, ali_category: aliCat, attrs: attrs || [] });
+  if (!body) {
+    console.log('[采集推荐] 产品#' + productId + ' ❌ 超时(60s)');
+    return null;
+  }
 
-    var aiReq = httpMod.request(reqOpts, function (aiRes) {
-      console.log('[采集推荐] 产品#' + productId + ' 收到响应, HTTP状态:', aiRes.statusCode);
-      var body = '';
-      aiRes.on('data', function (chunk) { body += chunk; });
-      aiRes.on('end', function () {
-        clearTimeout(timeout);
-        console.log('[采集推荐] 产品#' + productId + ' 响应体:', body.substring(0, 300));
+  console.log('[采集推荐] 产品#' + productId + ' 响应体:', body.substring(0, 300));
+  try {
+    var result = JSON.parse(body);
+    if (!result.ok || !result.category || result.confidence < 0.5) {
+      console.log('[采集推荐] 产品#' + productId + ' ⚠️ 推荐无结果 ok=' + result.ok + ' category=' + (result.category || '空') + ' confidence=' + (result.confidence || 0) + ' source=' + (result.source || ''));
+      return null;
+    }
+
+    var updates = [];
+    var params = [];
+    if (result.category) { updates.push('custom_category = ?'); params.push(result.category); }
+    if (result.path) {
+      updates.push('dxm_category = ?');
+      params.push(JSON.stringify({ path: result.path, leafName: result.category }));
+    }
+    if (updates.length) {
+      params.push(productId);
+      try {
+        dbModule.db.run('UPDATE products SET ' + updates.join(', ') + ' WHERE id = ?', params);
+      } catch (dbErr) {
+        console.error('[采集推荐] 产品#' + productId + ' ❌ UPDATE失败:', dbErr.message);
+      }
+      var verifyRow = getOne('SELECT custom_category FROM products WHERE id = ?', [productId]);
+      if (verifyRow && verifyRow.custom_category === result.category) {
+        console.log('[采集推荐] 产品#' + productId + ' ✅ 推荐分类: ' + result.category + ' | 置信度: ' + result.confidence.toFixed(2) + ' | 来源: ' + result.source);
+      } else {
+        console.error('[采集推荐] 产品#' + productId + ' ❌ 验证失败! 期望=' + result.category + ' 实际=' + (verifyRow ? verifyRow.custom_category : 'NULL'));
+      }
+      scheduleSave();
+      sseBroadcast('product-category-updated', { id: productId, category: result.category, path: result.path, source: result.source });
+
+      if (result.category && result.confidence >= 0.6) {
         try {
-          var result = JSON.parse(body);
-          // 下调阈值至0.5：低于0.5不分类，0.5-0.7低置信仅绑定商品不固化映射，0.7以上高置信固化映射
-          if (!result.ok || !result.category || result.confidence < 0.5) {
-            console.log('[采集推荐] 产品#' + productId + ' ⚠️ 推荐无结果 ok=' + result.ok + ' category=' + (result.category || '空') + ' confidence=' + (result.confidence || 0) + ' source=' + (result.source || ''));
-            resolve(null);
-            return;
-          }
-          var updates = [];
-          var params = [];
-          if (result.category) { updates.push('custom_category = ?'); params.push(result.category); }
-          if (result.path) {
-            updates.push('dxm_category = ?');
-            params.push(JSON.stringify({ path: result.path, leafName: result.category }));
-          }
-          if (updates.length) {
-            params.push(productId);
-            try {
-              dbModule.db.run('UPDATE products SET ' + updates.join(', ') + ' WHERE id = ?', params);
-            } catch (dbErr) {
-              console.error('[采集推荐] 产品#' + productId + ' ❌ UPDATE失败:', dbErr.message);
-            }
-            var verifyRow = getOne('SELECT custom_category FROM products WHERE id = ?', [productId]);
-            var verifyOk = verifyRow && verifyRow.custom_category === result.category;
-            if (verifyOk) {
-              console.log('[采集推荐] 产品#' + productId + ' ✅ 推荐分类: ' + result.category + ' | 置信度: ' + result.confidence.toFixed(2) + ' | 来源: ' + result.source);
-            } else {
-              console.error('[采集推荐] 产品#' + productId + ' ❌ 验证失败! 期望=' + result.category + ' 实际=' + (verifyRow ? verifyRow.custom_category : 'NULL'));
-            }
-            scheduleSave();
-            sseBroadcast('product-category-updated', { id: productId, category: result.category, path: result.path, source: result.source });
-            // 映射固化规则：高置信(>=0.7)才保存映射并递增count，低置信仅绑定商品不固化
-            // 同时学习关键词-类目关联
-            if (result.category && result.confidence >= 0.6) {
-              try {
-                var aiModule = require('./ai');
-                var learnKeywords = aiModule.extractSearchKeywordsPublic(title, aliCat);
-                aiModule.learnKeywordCategoryRelPublic(learnKeywords, result.category, 'auto', result.confidence);
-              } catch (learnErr) {
-                console.log('[采集推荐] 关键词学习失败:', learnErr.message);
-              }
-            }
-            if (aliCat && result.category && result.confidence >= 0.7) {
-              var existingMap = getOne('SELECT id, count FROM category_mappings WHERE category_name = ? AND custom_category = ?', [aliCat, result.category]);
-              if (existingMap) {
-                run('UPDATE category_mappings SET count = count + 1 WHERE id = ?', [existingMap.id]);
-              } else {
-                run('INSERT INTO category_mappings (category_name, custom_category, count, source) VALUES (?, ?, 1, \'auto\')', [aliCat, result.category]);
-              }
-              console.log('[采集推荐] 产品#' + productId + ' 映射已固化: ' + aliCat + ' → ' + result.category + ' (置信度:' + result.confidence.toFixed(2) + ')');
-            } else if (aliCat && result.category) {
-              console.log('[采集推荐] 产品#' + productId + ' 低置信(' + result.confidence.toFixed(2) + ')不固化映射: ' + result.category);
-            }
-          }
-          resolve({ category: result.category, path: result.path, confidence: result.confidence, source: result.source });
-        } catch (e) {
-          console.error('[采集推荐] 产品#' + productId + ' ❌ 解析响应失败:', e.message, '| 原始响应:', body.substring(0, 200));
-          resolve(null);
+          var aiModule = require('./ai/index');
+          var learnKeywords = aiModule.extractSearchKeywordsPublic(title, aliCat);
+          aiModule.learnKeywordCategoryRelPublic(learnKeywords, result.category, 'auto', result.confidence);
+        } catch (learnErr) {
+          console.log('[采集推荐] 关键词学习失败:', learnErr.message);
         }
-      });
-    });
-    aiReq.on('error', function (e) {
-      clearTimeout(timeout);
-      console.error('[采集推荐] 产品#' + productId + ' ❌ 请求失败:', e.message);
-      resolve(null);
-    });
-    aiReq.write(postData);
-    aiReq.end();
-  });
+      }
+      if (aliCat && result.category && result.confidence >= 0.7) {
+        var existingMap = getOne('SELECT id, count FROM category_mappings WHERE category_name = ? AND custom_category = ?', [aliCat, result.category]);
+        if (existingMap) {
+          run('UPDATE category_mappings SET count = count + 1 WHERE id = ?', [existingMap.id]);
+        } else {
+          run('INSERT INTO category_mappings (category_name, custom_category, count, source) VALUES (?, ?, 1, \'auto\')', [aliCat, result.category]);
+        }
+        console.log('[采集推荐] 产品#' + productId + ' 映射已固化: ' + aliCat + ' → ' + result.category + ' (置信度:' + result.confidence.toFixed(2) + ')');
+      } else if (aliCat && result.category) {
+        console.log('[采集推荐] 产品#' + productId + ' 低置信(' + result.confidence.toFixed(2) + ')不固化映射: ' + result.category);
+      }
+    }
+    return { category: result.category, path: result.path, confidence: result.confidence, source: result.source };
+  } catch (e) {
+    console.error('[采集推荐] 产品#' + productId + ' ❌ 解析响应失败:', e.message, '| 原始响应:', body.substring(0, 200));
+    return null;
+  }
 }
 
 // 检查是否已采集
@@ -461,7 +430,7 @@ router.put('/product/:id', (req, res) => {
       if (catName) {
         cloudDb.saveMapping(catName, req.body.customCategory, 'manual');
         // 学习关键词-类目关联（手动设置权重高）
-        var aiModule = require('./ai');
+        var aiModule = require('./ai/index');
         var learnKws = aiModule.extractSearchKeywordsPublic(product.title || '', catName);
         aiModule.learnKeywordCategoryRelPublic(learnKws, req.body.customCategory, 'manual', 1.0);
       }
@@ -554,7 +523,7 @@ router.post('/product/:id/recommend-category', (req, res) => {
             }
             // 学习关键词-类目关联
             try {
-              var aiModule = require('./ai');
+              var aiModule = require('./ai/index');
               var learnKws = aiModule.extractSearchKeywordsPublic(title, aliCat);
               aiModule.learnKeywordCategoryRelPublic(learnKws, result.category, 'auto', result.confidence);
             } catch (learnErr) {}

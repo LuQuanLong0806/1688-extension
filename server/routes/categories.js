@@ -1,6 +1,6 @@
 const { Router } = require('express');
 const { run, getOne, getAll, treeGetOne } = require('../db');
-const cloudDb = require('../cloud-db');
+const cloudDb = require('../cloud/index');
 
 const router = Router();
 
@@ -149,7 +149,7 @@ router.post('/keyword-rels/rebuild', (req, res) => {
   var products = getAll("SELECT title, category, custom_category FROM products WHERE custom_category IS NOT NULL AND custom_category != ''");
   if (!products.length) return res.json({ ok: true, learned: 0, message: '无可回填商品' });
 
-  var aiModule = require('./ai');
+  var aiModule = require('./ai/index');
   var learned = 0;
   var errors = 0;
   products.forEach(function (p) {

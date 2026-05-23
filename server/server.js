@@ -115,7 +115,7 @@ app.use('/api', require('./routes/settings'));
 app.use('/api', require('./routes/products'));
 app.use('/api', require('./routes/categories'));
 app.use('/api', require('./routes/dxm-tree'));
-app.use('/api/ai', require('./routes/ai'));
+app.use('/api/ai', require('./routes/ai/index'));
 app.use('/api/sync', require('./routes/sync'));
 
 // Start
@@ -173,7 +173,7 @@ initDb().then(() => initTreeDb()).then(() => {
     console.log(`  数据库: ${DB_FILE}\n`);
 
     // 尝试连接 Turso 云端（静默失败，不影响本地功能）
-    var cloudDb = require('./cloud-db');
+    var cloudDb = require('./cloud/index');
     cloudDb.connect().then(function (ok) {
       if (ok) {
         console.log('[云同步] Turso 已连接，知识库云端模式');

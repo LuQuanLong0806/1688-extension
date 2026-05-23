@@ -1,7 +1,7 @@
 // 云同步路由 — Turso 配置、测试、初始化、同步
 const express = require('express');
 const router = express.Router();
-const cloudDb = require('../cloud-db');
+const cloudDb = require('../cloud/index');
 
 // 获取同步配置（脱敏）
 router.get('/config', (req, res) => {

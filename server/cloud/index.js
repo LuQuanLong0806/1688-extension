@@ -1,0 +1,212 @@
+// Turso 云端 SQLite — 连接管理 + 配置 + 云操作基础 + 统一导出
+const { createClient } = require('@libsql/client');
+const dbModule = require('../db');
+
+// 共享状态对象（传给子模块）
+var cloud = {
+  client: null,
+  connected: false,
+  lastSyncTime: null,
+
+  // 云端操作辅助函数
+  run: async function (sql, params) {
+    if (!cloud.connected || !cloud.client) return null;
+    try {
+      var result = await cloud.client.execute({ sql: sql, args: params || [] });
+      return result;
+    } catch (e) {
+      console.error('[云同步] run 失败:', e.message);
+      return null;
+    }
+  },
+  getOne: async function (sql, params) {
+    if (!cloud.connected || !cloud.client) return null;
+    try {
+      var result = await cloud.client.execute({ sql: sql, args: params || [] });
+      if (result.rows && result.rows.length > 0) return result.rows[0];
+      return null;
+    } catch (e) {
+      console.error('[云同步] getOne 失败:', e.message);
+      return null;
+    }
+  },
+  getAll: async function (sql, params) {
+    if (!cloud.connected || !cloud.client) return [];
+    try {
+      var result = await cloud.client.execute({ sql: sql, args: params || [] });
+      return result.rows || [];
+    } catch (e) {
+      console.error('[云同步] getAll 失败:', e.message);
+      return [];
+    }
+  }
+};
+
+// 云端表结构定义
+var CLOUD_TABLE_DEFS = [
+  { name: 'category_mappings', ddl: 'CREATE TABLE IF NOT EXISTS category_mappings (id INTEGER PRIMARY KEY AUTOINCREMENT, category_name TEXT NOT NULL, custom_category TEXT NOT NULL, count INTEGER DEFAULT 1, source TEXT DEFAULT \'auto\', UNIQUE(category_name, custom_category))' },
+  { name: 'keyword_category_rel', ddl: 'CREATE TABLE IF NOT EXISTS keyword_category_rel (id INTEGER PRIMARY KEY AUTOINCREMENT, keyword TEXT NOT NULL, category_name TEXT NOT NULL, weight REAL DEFAULT 1.0, match_count INTEGER DEFAULT 1, valid INTEGER DEFAULT 1, source TEXT DEFAULT \'auto\', created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE(keyword, category_name))' },
+  { name: 'keyword_synonyms', ddl: 'CREATE TABLE IF NOT EXISTS keyword_synonyms (id INTEGER PRIMARY KEY AUTOINCREMENT, word_a TEXT NOT NULL, word_b TEXT NOT NULL, UNIQUE(word_a, word_b))' },
+  { name: 'keyword_blacklist', ddl: 'CREATE TABLE IF NOT EXISTS keyword_blacklist (id INTEGER PRIMARY KEY AUTOINCREMENT, keyword TEXT NOT NULL, category_name TEXT NOT NULL, reason TEXT DEFAULT \'\', UNIQUE(keyword, category_name))' },
+  { name: 'dxm_category_tree', ddl: 'CREATE TABLE IF NOT EXISTS dxm_category_tree (cat_id INTEGER PRIMARY KEY, cat_name TEXT NOT NULL, parent_cat_id INTEGER DEFAULT 0, cat_level INTEGER DEFAULT 1, is_leaf INTEGER DEFAULT 0, path TEXT DEFAULT \'\', sync_at TEXT DEFAULT CURRENT_TIMESTAMP)' },
+  { name: 'products', ddl: 'CREATE TABLE IF NOT EXISTS products (source_url TEXT PRIMARY KEY, title TEXT, main_images TEXT, desc_images TEXT, detail_images TEXT, attrs TEXT, skus TEXT, category TEXT, custom_category TEXT, dxm_category TEXT, manual_category TEXT, status INTEGER DEFAULT 0, deleted INTEGER DEFAULT 0, from_machine TEXT DEFAULT \'\', created_at TEXT, updated_at TEXT)' }
+];
+
+// 从 settings 读取 Turso 配置
+function getConfig() {
+  try {
+    var row = dbModule.getOne("SELECT value FROM settings WHERE key = 'turso_config'");
+    if (row && row.value) return JSON.parse(row.value);
+  } catch (e) {}
+  return null;
+}
+
+function saveConfig(config) {
+  dbModule.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('turso_config', ?)", [JSON.stringify(config)]);
+  dbModule.scheduleSave();
+}
+
+// 解析 DDL 提取列定义
+function parseColumnsFromDDL(ddl) {
+  var m = ddl.match(/\((.+)\)/s);
+  if (!m) return [];
+  var body = m[1];
+  var cols = [];
+  var depth = 0;
+  var start = 0;
+  for (var i = 0; i < body.length; i++) {
+    if (body[i] === '(') depth++;
+    else if (body[i] === ')') depth--;
+    else if (body[i] === ',' && depth === 0) {
+      var part = body.substring(start, i).trim();
+      start = i + 1;
+      if (part && !/^(UNIQUE|PRIMARY|CHECK|FOREIGN)/i.test(part)) {
+        var tokens = part.split(/\s+/);
+        var colName = tokens[0];
+        var colType = tokens.length > 1 ? tokens.slice(1).join(' ') : '';
+        var defMatch = colType.match(/DEFAULT\s+(\S+)/i);
+        cols.push({ name: colName, full: part, hasDefault: !!defMatch });
+      }
+    }
+  }
+  var last = body.substring(start).trim();
+  if (last && !/^(UNIQUE|PRIMARY|CHECK|FOREIGN)/i.test(last)) {
+    var tokens = last.split(/\s+/);
+    var defMatch = last.match(/DEFAULT\s+(\S+)/i);
+    cols.push({ name: tokens[0], full: last, hasDefault: !!defMatch });
+  }
+  return cols;
+}
+
+// 自动补列
+async function migrateCloudSchema() {
+  if (!cloud.client) return;
+  for (var t = 0; t < CLOUD_TABLE_DEFS.length; t++) {
+    var def = CLOUD_TABLE_DEFS[t];
+    var expected = parseColumnsFromDDL(def.ddl);
+    if (!expected.length) continue;
+    var actual = [];
+    try {
+      var info = await cloud.client.execute('PRAGMA table_info(' + def.name + ')');
+      actual = (info.rows || []).map(function (r) { return r.name; });
+    } catch (e) { continue; }
+    for (var c = 0; c < expected.length; c++) {
+      if (actual.indexOf(expected[c].name) < 0) {
+        try {
+          await cloud.client.execute('ALTER TABLE ' + def.name + ' ADD COLUMN ' + expected[c].full);
+          console.log('[云同步] 补列: ' + def.name + '.' + expected[c].name);
+        } catch (e) {}
+      }
+    }
+  }
+}
+
+// 在云端建表
+async function createTables() {
+  if (!cloud.client) return false;
+  try {
+    for (var i = 0; i < CLOUD_TABLE_DEFS.length; i++) {
+      await cloud.client.execute(CLOUD_TABLE_DEFS[i].ddl);
+    }
+    console.log('[云同步] 建表完成');
+    await migrateCloudSchema();
+    return true;
+  } catch (e) {
+    console.error('[云同步] 建表失败:', e.message);
+    return false;
+  }
+}
+
+// 初始化连接
+async function connect() {
+  var config = getConfig();
+  if (!config || !config.url || !config.token) {
+    console.log('[云同步] 未配置 Turso，使用本地模式');
+    cloud.connected = false;
+    return false;
+  }
+  try {
+    cloud.client = createClient({ url: config.url, authToken: config.token });
+    var result = await cloud.client.execute('SELECT 1 as ok');
+    if (result.rows && result.rows.length > 0) {
+      cloud.connected = true;
+      console.log('[云同步] Turso 连接成功');
+      migrateCloudSchema().catch(function () {});
+      return true;
+    }
+  } catch (e) {
+    console.log('[云同步] Turso 连接失败:', e.message);
+    cloud.connected = false;
+    cloud.client = null;
+  }
+  return false;
+}
+
+// 兼容旧接口：cloudRun/cloudGetOne/cloudGetAll
+async function cloudRun(sql, params) { return cloud.run(sql, params); }
+async function cloudGetOne(sql, params) { return cloud.getOne(sql, params); }
+async function cloudGetAll(sql, params) { return cloud.getAll(sql, params); }
+
+function getStatus() {
+  return {
+    connected: cloud.connected,
+    lastSyncTime: cloud.lastSyncTime,
+    config: getConfig() ? true : false
+  };
+}
+
+// 初始化子模块
+var knowledge = require('./knowledge')(cloud, dbModule);
+var sync = require('./sync')(cloud, dbModule);
+
+module.exports = {
+  connect: connect,
+  createTables: createTables,
+  cloudRun: cloudRun,
+  cloudGetOne: cloudGetOne,
+  cloudGetAll: cloudGetAll,
+  getConfig: getConfig,
+  saveConfig: saveConfig,
+  getStatus: getStatus,
+  // knowledge
+  getMappings: knowledge.getMappings,
+  saveMapping: knowledge.saveMapping,
+  getKeywordRels: knowledge.getKeywordRels,
+  saveKeywordRel: knowledge.saveKeywordRel,
+  getSynonyms: knowledge.getSynonyms,
+  getBlacklisted: knowledge.getBlacklisted,
+  getTreePath: knowledge.getTreePath,
+  // sync
+  saveProductToLocalAndCloud: sync.saveProductToLocalAndCloud,
+  uploadLocalToCloud: sync.uploadLocalToCloud,
+  downloadCloudToLocal: sync.downloadCloudToLocal,
+  bidirectionalSync: sync.bidirectionalSync,
+  uploadTree: sync.uploadTree,
+  downloadTree: sync.downloadTree,
+  uploadProducts: sync.uploadProducts,
+  downloadProducts: sync.downloadProducts,
+  pushTable: sync.pushTable,
+  pullTable: sync.pullTable,
+  // 状态
+  get connected() { return cloud.connected; }
+};

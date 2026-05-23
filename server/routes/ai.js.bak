@@ -1142,17 +1142,16 @@ function applyCategoryCorrection(title, category, path) {
   return null;
 }
 
-router.post('/suggest-category', function (req, res) {
+router.post('/suggest-category', async function (req, res) {
   var title = (req.body.title || '').trim();
   var aliCategory = (req.body.ali_category || '').trim();
   var imageUrl = (req.body.image_url || '').trim();
-  var attrs = req.body.attrs; // 规格参数，辅助参考
+  var attrs = req.body.attrs;
 
   if (!title && !aliCategory) {
     return res.status(400).json({ error: '请提供 title 或 ali_category' });
   }
 
-  // 构建辅助信息摘要
   var attrSummary = '';
   if (Array.isArray(attrs) && attrs.length) {
     var attrParts = attrs.slice(0, 5).map(function (a) {
@@ -1163,96 +1162,70 @@ router.post('/suggest-category', function (req, res) {
 
   console.log('[分类推荐] 标题:', title, '1688类目:', aliCategory, attrs ? '含规格参数' : '');
 
-  // Step 1: 查映射表 — 云端优先
-  var mappingPromise = aliCategory ? cloudDb.getMappings(aliCategory) : Promise.resolve([]);
-  mappingPromise.then(function (mappings) {
+  try {
+    // Step 1: 查映射表 — 云端优先
+    var mappings = aliCategory ? await cloudDb.getMappings(aliCategory) : [];
+
+    // 映射表唯一命中，直接返回
     if (mappings.length === 1) {
       var mappedCategory = mappings[0].custom_category;
-      return cloudDb.getTreePath(mappedCategory).then(function (pathRow) {
-        console.log('[分类推荐] 映射表唯一命中:', mappedCategory);
-        res.json({
-          ok: true,
-          source: 'mapping',
-          category: mappedCategory,
-          path: pathRow ? pathRow.path : '',
-          confidence: 1.0
-        });
+      var pathRow = await cloudDb.getTreePath(mappedCategory);
+      console.log('[分类推荐] 映射表唯一命中:', mappedCategory);
+      return res.json({
+        ok: true, source: 'mapping', category: mappedCategory,
+        path: pathRow ? pathRow.path : '', confidence: 1.0
       });
     }
+
+    // 映射表多个命中，LLM 择优
     if (mappings.length > 1) {
       console.log('[分类推荐] 映射表命中', mappings.length, '个候选，交给LLM择优');
-      return selectFromMappingCandidates(title, aliCategory, attrSummary, mappings).then(function (choice) {
+      try {
+        var choice = await selectFromMappingCandidates(title, aliCategory, attrSummary, mappings);
         if (choice) {
-          res.json({
-            ok: true,
-            source: 'mapping_llm',
-            category: choice.category,
-            path: choice.path || '',
-            confidence: choice.confidence
-          });
-        } else {
-          var topCat = mappings[0].custom_category;
-          return cloudDb.getTreePath(topCat).then(function (topPath) {
-            res.json({
-              ok: true,
-              source: 'mapping_top',
-              category: topCat,
-              path: topPath ? topPath.path : '',
-              confidence: 0.7
-            });
+          return res.json({
+            ok: true, source: 'mapping_llm', category: choice.category,
+            path: choice.path || '', confidence: choice.confidence
           });
         }
-      }).catch(function () {
-        var topCat = mappings[0].custom_category;
-        return cloudDb.getTreePath(topCat).then(function (topPath) {
-          res.json({
-            ok: true,
-            source: 'mapping_top',
-            category: topCat,
-            path: topPath ? topPath.path : '',
-            confidence: 0.7
-          });
-        });
+      } catch (e) { /* fallthrough */ }
+      var topCat = mappings[0].custom_category;
+      var topPath = await cloudDb.getTreePath(topCat);
+      return res.json({
+        ok: true, source: 'mapping_top', category: topCat,
+        path: topPath ? topPath.path : '', confidence: 0.7
       });
     }
 
-    // 无映射，进入 Step 2
+    // Step 2: 无映射，LLM 提炼关键词
+    var keywords = await extractProductKeywords(title, aliCategory, attrSummary);
+    var localKw = extractSearchKeywords(title, aliCategory);
+    localKw.slice(0, 2).forEach(function (kw) {
+      if (keywords.indexOf(kw) < 0) keywords.push(kw);
+    });
 
-    // Step 2: LLM 提炼标题核心属性 → 用提炼的关键词搜索候选
-    extractProductKeywords(title, aliCategory, attrSummary).then(function (keywords) {
-      // 本地关键词作为补充
-      var localKw = extractSearchKeywords(title, aliCategory);
-      localKw.slice(0, 2).forEach(function (kw) {
-        if (keywords.indexOf(kw) < 0) keywords.push(kw);
-      });
+    // Step 3: 同义词扩展 + 关键词关联库查询
+    var expandedKeywords = await expandWithSynonyms(keywords);
+    var relCandidates = await queryKeywordCategoryRel(expandedKeywords, title);
 
-      // 同义词扩展：把关键词替换/补充为同义词群（异步，云端查询）
-      expandWithSynonyms(keywords).then(function (expandedKeywords) {
-        // Step 2a: 查关键词-类目关联库（异步，云端查询）
-        return queryKeywordCategoryRel(expandedKeywords, title);
-      }).then(function (relCandidates) {
-        if (relCandidates && relCandidates.length > 0) {
-      // 权重最高的关联，如果权重足够高且唯一，直接返回
+    // 关联库高可信命中，直接返回
+    if (relCandidates && relCandidates.length === 1 && relCandidates[0].totalWeight >= 3.0 && relCandidates[0].matchCount >= 2) {
       var topRel = relCandidates[0];
-      if (relCandidates.length === 1 && topRel.totalWeight >= 3.0 && topRel.matchCount >= 2) {
-        console.log('[分类推荐] 关联库高可信命中:', topRel.category, '权重:', topRel.totalWeight, '次数:', topRel.matchCount);
-        return res.json({
-          ok: true,
-          source: 'keyword_rel',
-          category: topRel.category,
-          path: topRel.path,
-          confidence: Math.min(0.95, 0.7 + topRel.totalWeight * 0.03)
-        });
-      }
-      // 多条命中，作为高权重候选注入后续流程
-      console.log('[分类推荐] 关联库命中', relCandidates.length, '个候选，最高权重:', topRel.totalWeight);
+      console.log('[分类推荐] 关联库高可信命中:', topRel.category, '权重:', topRel.totalWeight, '次数:', topRel.matchCount);
+      return res.json({
+        ok: true, source: 'keyword_rel', category: topRel.category,
+        path: topRel.path, confidence: Math.min(0.95, 0.7 + topRel.totalWeight * 0.03)
+      });
+    }
+    if (relCandidates && relCandidates.length > 0) {
+      console.log('[分类推荐] 关联库命中', relCandidates.length, '个候选，最高权重:', relCandidates[0].totalWeight);
     }
 
+    // Step 4: 构建候选池
     var candidates = [];
     var seenPaths = {};
     var MAX_CANDIDATES = 30;
 
-    // 优先注入关联库候选（高权重优先）
     if (relCandidates && relCandidates.length > 0) {
       relCandidates.forEach(function (rc) {
         if (!seenPaths[rc.path]) {
@@ -1262,7 +1235,6 @@ router.post('/suggest-category', function (req, res) {
       });
     }
 
-    // 不足4个时保留全部有效词（最低2个），最多取6个
     var searchKeywords = keywords.slice(0, Math.max(2, Math.min(6, keywords.length)));
     console.log('[分类推荐] 搜索关键词:', searchKeywords.join(', '));
     for (var k = 0; k < searchKeywords.length && candidates.length < MAX_CANDIDATES; k++) {
@@ -1278,7 +1250,7 @@ router.post('/suggest-category', function (req, res) {
       }
     }
 
-    // 对候选执行错配纠正过滤
+    // 错配纠正过滤
     var beforeCorrect = candidates.length;
     if (title && candidates.length > 0) {
       candidates = candidates.filter(function (c) {
@@ -1287,113 +1259,86 @@ router.post('/suggest-category', function (req, res) {
         return !correction;
       });
     }
-    // 排序：关联库候选优先 → 非"其他"类 → "其他/杂项"类
     candidates.sort(function (a, b) {
-      // 关联库命中候选优先
       var aRel = a.fromRel ? 0 : 1;
       var bRel = b.fromRel ? 0 : 1;
       if (aRel !== bRel) return aRel - bRel;
-      // 关联库内部按权重排
       if (a.fromRel && b.fromRel) return (b.weight || 0) - (a.weight || 0);
-      // "其他/杂项"排最后
       var aOther = /^其他|杂项|其他（/.test(a.name) ? 1 : 0;
       var bOther = /^其他|杂项|其他（/.test(b.name) ? 1 : 0;
       return aOther - bOther;
     });
     console.log('[分类推荐] 候选:', candidates.length, '(纠正前:', beforeCorrect, ', 关联库候选:', candidates.filter(function(c) { return c.fromRel; }).length, ')');
 
-    // 如果关键词搜索无结果，用LLM
+    // 无候选，纯 LLM 推荐
     if (candidates.length === 0) {
-      suggestCategoryWithLLM(title, aliCategory, attrSummary).then(function (suggestion) {
-        if (suggestion) {
-          var corr = applyCategoryCorrection(title, suggestion.category, suggestion.path);
-          if (corr) {
-            console.log('[分类推荐] 错配纠正:', suggestion.category, '-> 拒绝(', corr.reason, ')');
-            return res.json({ ok: true, source: 'none', category: '', path: '', confidence: 0 });
-          }
-          res.json({
-            ok: true,
-            source: 'llm',
-            category: suggestion.category,
-            path: suggestion.path,
-            confidence: suggestion.confidence || 0.6,
-            alternatives: suggestion.alternatives || []
-          });
-        } else {
-          res.json({ ok: true, source: 'none', category: '', path: '', confidence: 0 });
+      var suggestion = await suggestCategoryWithLLM(title, aliCategory, attrSummary);
+      if (suggestion) {
+        var corr = applyCategoryCorrection(title, suggestion.category, suggestion.path);
+        if (corr) {
+          console.log('[分类推荐] 错配纠正:', suggestion.category, '-> 拒绝(', corr.reason, ')');
+          return res.json({ ok: true, source: 'none', category: '', path: '', confidence: 0 });
         }
-      }).catch(function () {
-        res.json({ ok: true, source: 'none', category: '', path: '', confidence: 0 });
-      });
-      return;
+        return res.json({
+          ok: true, source: 'llm', category: suggestion.category,
+          path: suggestion.path, confidence: suggestion.confidence || 0.6,
+          alternatives: suggestion.alternatives || []
+        });
+      }
+      return res.json({ ok: true, source: 'none', category: '', path: '', confidence: 0 });
     }
 
-    // 快速匹配：候选池里有与1688类目名完全一致的，直接返回（跳过LLM）
+    // 精确匹配 1688 类目名
     if (aliCategory && candidates.length > 0) {
       var exactMatch = candidates.find(function (c) { return c.name === aliCategory; });
       if (exactMatch) {
         console.log('[分类推荐] 候选精确匹配1688类目:', exactMatch.name);
         return res.json({
-          ok: true,
-          source: 'exact_match',
-          category: exactMatch.name,
-          path: exactMatch.path,
-          confidence: 0.95
+          ok: true, source: 'exact_match', category: exactMatch.name,
+          path: exactMatch.path, confidence: 0.95
         });
       }
     }
 
-    // 有候选，用LLM从候选中选择最佳
+    // 多候选，LLM 优选
     if (candidates.length > 1) {
-      suggestCategoryFromCandidates(title, aliCategory, attrSummary, candidates).then(function (choice) {
-        var corr = applyCategoryCorrection(title, choice.category, choice.path);
+      try {
+        var bestChoice = await suggestCategoryFromCandidates(title, aliCategory, attrSummary, candidates);
+        var corr = applyCategoryCorrection(title, bestChoice.category, bestChoice.path);
         if (corr) {
-          console.log('[分类推荐] 错配纠正:', choice.category, '-> 拒绝(', corr.reason, ')');
+          console.log('[分类推荐] 错配纠正:', bestChoice.category, '-> 拒绝(', corr.reason, ')');
           return res.json({ ok: true, source: 'none', category: '', path: '', confidence: 0 });
         }
-        res.json({
-          ok: true,
-          source: 'llm_search',
-          category: choice.category,
-          path: choice.path,
-          confidence: choice.confidence !== undefined ? choice.confidence : 0.7,
+        return res.json({
+          ok: true, source: 'llm_search', category: bestChoice.category,
+          path: bestChoice.path, confidence: bestChoice.confidence !== undefined ? bestChoice.confidence : 0.7,
           alternatives: candidates.slice(0, 5)
         });
-      }).catch(function () {
-        res.json({
-          ok: true,
-          source: 'search',
-          category: candidates[0].name,
-          path: candidates[0].path,
-          confidence: 0.5,
-          alternatives: candidates.slice(0, 5)
+      } catch (e) {
+        return res.json({
+          ok: true, source: 'search', category: candidates[0].name,
+          path: candidates[0].path, confidence: 0.5, alternatives: candidates.slice(0, 5)
         });
-      });
-      return;
+      }
     }
 
-    // 只有1个候选，直接返回
+    // 单候选，直接返回
     var corr = applyCategoryCorrection(title, candidates[0].name, candidates[0].path);
     if (corr) {
       console.log('[分类推荐] 错配纠正:', candidates[0].name, '-> 拒绝(', corr.reason, ')');
       return res.json({ ok: true, source: 'none', category: '', path: '', confidence: 0 });
     }
-    res.json({
-      ok: true,
-      source: 'search',
-      category: candidates[0].name,
-      path: candidates[0].path,
-      confidence: 0.8,
-      alternatives: candidates
+    return res.json({
+      ok: true, source: 'search', category: candidates[0].name,
+      path: candidates[0].path, confidence: 0.8, alternatives: candidates
     });
-      }); // close relCandidates .then
-    }).catch(function (err) {
-      // LLM 提炼失败，回退到本地关键词搜索
-      console.log('[分类推荐] LLM提炼失败，回退本地搜索:', err.message);
-      fallbackLocalSearch(title, aliCategory, res);
-    }); // close extractProductKeywords .then
-  }); // close mappingPromise .then
-}); // close router.post suggest-category
+
+  } catch (err) {
+    // LLM 提炼失败，回退到本地关键词搜索
+    console.log('[分类推荐] LLM提炼失败，回退本地搜索:', err.message);
+    fallbackLocalSearch(title, aliCategory, res);
+  }
+});
 
 // ===== 关键词-类目关联库 =====
 
