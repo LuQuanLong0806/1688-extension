@@ -169,7 +169,10 @@ Vue.component('page-products', {
       fetch('/api/product/' + row.id, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ manualCategory: path || '' })
+        body: JSON.stringify({
+          manualCategory: path || '',
+          dxmCategory: path ? JSON.stringify({ path: path, leafName: row.customCategory || '' }) : ''
+        })
       }).catch(function () {});
     },
     recommendCategory: function (row) {
@@ -389,7 +392,10 @@ Vue.component('page-products', {
         return;
       }
       var body = { customCategory: catValue };
-      if (vm.batchCatPath) body.manualCategory = vm.batchCatPath;
+      if (vm.batchCatPath) {
+        body.manualCategory = vm.batchCatPath;
+        body.dxmCategory = JSON.stringify({ path: vm.batchCatPath, leafName: catValue });
+      }
       Promise.all(
         vm.selectedIds.map(function (id) {
           return fetch('/api/product/' + id, {
