@@ -174,6 +174,8 @@ initDb().then(() => initTreeDb()).then(() => {
 
     // 尝试连接 Turso 云端（静默失败，不影响本地功能）
     var cloudDb = require('./cloud/index');
+    // 初始化分类配置种子数据（首次运行）
+    try { cloudDb.seedCategoryConfig(); } catch (e) {}
     cloudDb.connect().then(function (ok) {
       if (ok) {
         console.log('[云同步] Turso 已连接，知识库云端模式');

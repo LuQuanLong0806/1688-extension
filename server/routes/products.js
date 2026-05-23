@@ -527,7 +527,7 @@ router.post('/product/:id/recommend-category', (req, res) => {
             dbModule.db.run('UPDATE products SET ' + updates.join(', ') + ' WHERE id = ?', params);
             scheduleSave();
             console.log('[AI分类推荐] 产品#' + parsed.id + ' 手动推荐: ' + result.category + ' (置信度:' + result.confidence.toFixed(2) + ', 来源:' + result.source + ')');
-            sseBroadcast('product-category-updated', { id: parsed.id, category: result.category, path: result.path, source: result.source });
+            sseBroadcast('product-category-updated', { id: parsed.id, category: result.category, path: result.path, source: result.source, confidence: result.confidence });
 
             // 自动保存映射
             if (aliCat && result.category) {
@@ -542,8 +542,18 @@ router.post('/product/:id/recommend-category', (req, res) => {
             } catch (learnErr) {}
           }
         } else {
-          console.log('[AI分类推荐] 产品#' + parsed.id + ' 推荐无结果');
-          sseBroadcast('product-category-updated', { id: parsed.id, category: '', source: 'none' });
+          // 低置信度或人工审核 — 把详细结果传给前端
+          var source = result.source || 'none';
+          var confidence = result.confidence || 0;
+          var alternatives = result.alternatives || [];
+          console.log('[AI分类推荐] 产品#' + parsed.id + ' 推荐结果: source=' + source + ' confidence=' + confidence.toFixed(2));
+          sseBroadcast('product-category-updated', {
+            id: parsed.id,
+            category: '',
+            source: source,
+            confidence: confidence,
+            alternatives: alternatives
+          });
         }
       } catch (e) {
         console.error('[AI分类推荐] 产品#' + parsed.id + ' 推荐失败:', e.message);

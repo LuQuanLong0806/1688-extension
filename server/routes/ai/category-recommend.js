@@ -1,4 +1,4 @@
-// AI 分类推荐引擎 — 关键词提取/候选搜索/LLM优选/学习/映射
+// AI 分类推荐引擎 — 关键词提取/计分匹配/互斥拦截/学习/映射
 const express = require('express');
 const router = express.Router();
 
@@ -6,26 +6,167 @@ var dbModule = require('../../db');
 var cloudDb = require('../../cloud/index');
 var providers = require('./providers');
 
-// 关键词清洗：剔除促销/虚词，保留品类/材质/功能/用途核心词
-var NOISE_WORDS = [
-  '爆款', '热销', '新款', '新款上市', '厂家直销', '批发', '包邮', '特价', '促销',
-  '限时', '秒杀', '折扣', '优惠', '满减', '赠品', '现货', '定制', '加工', '代发',
-  '一件代发', '源头工厂', '工厂直供', '厂家直供', '品牌', '正品', '旗舰', '专柜',
-  '同款', '网红', '直播', '推荐', '精选', '热卖', '畅销', '质量保证', '售后',
-  '七天无理由', '退换货', '包邮区', '非偏远包邮', '快递', '物流', '发货',
-  '拍照', '实物', '拍摄', '样品', '拿样', '小批量', '起批', '混批',
-  '春夏', '秋冬', '春款', '夏款', '秋款', '冬款', '春夏新款', '秋冬新款',
-  '2024', '2025', '2026', '最新', '潮流', '时尚', 'ins', 'INS',
-  '百搭', '简约', '韩版', '日系', '欧美', '港风', '复古', '文艺',
-  '可爱', '小清新', 'ins风', '北欧', '轻奢', '高端', '大气', '上档次',
-  '多功能', '二合一', '三合一', '升级', '省心', '省力', '省时',
-  '好用', '实用', '耐用', '经久耐用'
-];
+// ===== 一级大类缓存 + 互斥判定 =====
+
+var TOP_CATEGORIES_CACHE = null;
+function getTopCategories() {
+  if (TOP_CATEGORIES_CACHE) return TOP_CATEGORIES_CACHE;
+  try {
+    TOP_CATEGORIES_CACHE = dbModule.treeGetAll(
+      'SELECT cat_id, cat_name, path FROM dxm_category_tree WHERE cat_level = 1 ORDER BY cat_id'
+    );
+  } catch (e) {
+    TOP_CATEGORIES_CACHE = [];
+  }
+  return TOP_CATEGORIES_CACHE;
+}
+
+// 从 DB 加载互斥组配置（带缓存）
+var MUTEX_CACHE = null;
+var MUTEX_CACHE_TIME = 0;
+var CONFIG_CACHE_TTL = 300000; // 5分钟缓存
+
+function loadMutexGroups() {
+  var now = Date.now();
+  if (MUTEX_CACHE && (now - MUTEX_CACHE_TIME) < CONFIG_CACHE_TTL) return MUTEX_CACHE;
+  try {
+    var rows = dbModule.getAll('SELECT value, group_name FROM category_config WHERE type = \'mutex\' ORDER BY sort_order, id');
+    if (rows && rows.length) {
+      var groupMap = {};
+      rows.forEach(function (r) {
+        if (!groupMap[r.group_name]) groupMap[r.group_name] = [];
+        groupMap[r.group_name].push(r.value);
+      });
+      MUTEX_CACHE = Object.keys(groupMap).map(function (label) {
+        return { names: groupMap[label], label: label };
+      });
+      MUTEX_CACHE_TIME = now;
+      return MUTEX_CACHE;
+    }
+  } catch (e) {}
+  // 降级：使用内置默认值
+  MUTEX_CACHE = [
+    { names: ['家居', '家庭', '家居用品', '家居生活', '生活用品', '日用品', '家居日用', '居家'], label: '家居日用' },
+    { names: ['厨房', '厨房用品', '厨房工具', '餐厨', '餐饮', '餐具'], label: '厨房用品' },
+    { names: ['清洁', '清洁用品', '清洁工具', '家务', '清洁日用'], label: '清洁用品' },
+    { names: ['办公', '办公用品', '文具', '办公文具', '办公设备'], label: '办公用品' },
+    { names: ['美术', '美术用品', '工艺', '手工', '工艺品'], label: '美术工艺' },
+    { names: ['服饰', '服装', '女装', '男装', '童装', '内衣', '鞋靴', '箱包'], label: '服饰鞋包' },
+    { names: ['美妆', '美容', '个护', '个人护理', '化妆', '彩妆', '护肤'], label: '美妆个护' },
+    { names: ['电子', '数码', '手机', '电脑', '电器', '家电'], label: '电子数码' },
+    { names: ['玩具', '母婴', '儿童', '孕婴'], label: '母婴玩具' },
+    { names: ['运动', '户外', '体育', '健身'], label: '运动户外' },
+    { names: ['汽车', '汽配', '车载', '汽车用品'], label: '汽车用品' },
+    { names: ['宠物', '宠物用品'], label: '宠物用品' },
+    { names: ['食品', '零食', '茶叶', '酒水'], label: '食品' },
+    { names: ['包装', '包装用品', '快递', '物流', '邮政'], label: '包装物流' },
+    { names: ['五金', '工具', '五金工具', '家装', '建材', '装修'], label: '五金建材' },
+    { names: ['珠宝', '饰品', '首饰', '钟表'], label: '珠宝饰品' }
+  ];
+  MUTEX_CACHE_TIME = now;
+  return MUTEX_CACHE;
+}
+
+// 从 DB 加载过滤词配置（带缓存）
+var NOISE_CACHE = null;
+var GENERIC_CACHE = null;
+var FILTER_CACHE_TIME = 0;
+
+function loadFilterWords() {
+  var now = Date.now();
+  if (NOISE_CACHE && (now - FILTER_CACHE_TIME) < CONFIG_CACHE_TTL) return;
+  try {
+    var noiseRows = dbModule.getAll('SELECT value FROM category_config WHERE type = \'noise\' ORDER BY id');
+    var genericRows = dbModule.getAll('SELECT value FROM category_config WHERE type = \'generic\' ORDER BY id');
+    if (noiseRows && noiseRows.length) {
+      NOISE_CACHE = noiseRows.map(function (r) { return r.value; });
+    }
+    if (genericRows && genericRows.length) {
+      GENERIC_CACHE = genericRows.map(function (r) { return r.value; });
+    }
+    FILTER_CACHE_TIME = now;
+  } catch (e) {}
+  if (!NOISE_CACHE) NOISE_CACHE = null; // 降级时用硬编码
+  if (!GENERIC_CACHE) GENERIC_CACHE = null;
+}
+
+// 获取当前生效的噪音词列表
+function getNoiseWords() {
+  loadFilterWords();
+  if (NOISE_CACHE) return NOISE_CACHE;
+  return [
+    '爆款', '热销', '新款', '新款上市', '厂家直销', '批发', '包邮', '特价', '促销',
+    '限时', '秒杀', '折扣', '优惠', '满减', '赠品', '现货', '定制', '加工', '代发',
+    '一件代发', '源头工厂', '工厂直供', '厂家直供', '品牌', '正品', '旗舰', '专柜',
+    '同款', '网红', '直播', '推荐', '精选', '热卖', '畅销', '质量保证', '售后',
+    '七天无理由', '退换货', '包邮区', '非偏远包邮', '快递', '物流', '发货',
+    '拍照', '实物', '拍摄', '样品', '拿样', '小批量', '起批', '混批',
+    '春夏', '秋冬', '春款', '夏款', '秋款', '冬款', '春夏新款', '秋冬新款',
+    '2024', '2025', '2026', '最新', '潮流', '时尚', 'ins', 'INS',
+    '百搭', '简约', '韩版', '日系', '欧美', '港风', '复古', '文艺',
+    '可爱', '小清新', 'ins风', '北欧', '轻奢', '高端', '大气', '上档次',
+    '多功能', '二合一', '三合一', '升级', '省心', '省力', '省时',
+    '好用', '实用', '耐用', '经久耐用'
+  ];
+}
+
+// 获取当前生效的泛词列表
+function getGenericWords() {
+  loadFilterWords();
+  if (GENERIC_CACHE) return GENERIC_CACHE;
+  return [
+    '跨境', '外贸', '出口', '进口', '国产',
+    '清洁', '清洗', '去污', '除味', '消毒', '杀菌',
+    '厨房', '浴室', '客厅', '卧室', '阳台', '家用', '户外',
+    '收纳', '整理', '便携', '折叠', '悬挂', '可悬挂',
+    '深度', '加厚', '加大', '大号', '小号',
+    '环保', '防水', '防滑', '防尘', '防霉',
+    '健康', '安全', '食品级', '无毒', '无异味',
+    '豪华', '精致', '精美', '创意', '新款', '新款上市',
+    '不伤', '神器', '好用', '必备', '专用', '通用',
+    '圆形', '方形', '长方形', '双面', '单面',
+    '多功能', '全自动', '半自动',
+    '商业', '商用', '工业', '酒店', '物业'
+  ];
+}
+
+// 判定一个类目路径属于哪个互斥组（返回组索引，-1 表示未匹配）
+function getMutexGroupIndex(pathOrName) {
+  var text = (pathOrName || '').toLowerCase();
+  var groups = loadMutexGroups();
+  for (var i = 0; i < groups.length; i++) {
+    var group = groups[i];
+    for (var j = 0; j < group.names.length; j++) {
+      if (text.indexOf(group.names[j]) >= 0) return i;
+    }
+  }
+  return -1;
+}
+
+// 判断候选类目是否与商品应属大类互斥
+function isMutexConflict(titleKeywords, aliCategoryWords, candidatePath) {
+  // 从标题关键词和1688类目词推断商品应属大类
+  var productGroupSet = {};
+  var allWords = (aliCategoryWords || []).concat(titleKeywords || []);
+  for (var i = 0; i < allWords.length; i++) {
+    var gIdx = getMutexGroupIndex(allWords[i]);
+    if (gIdx >= 0) productGroupSet[gIdx] = true;
+  }
+  var productGroups = Object.keys(productGroupSet);
+  if (productGroups.length === 0) return false; // 无法判定大类，不拦截
+
+  // 判定候选类目所属大类
+  var candidateGroup = getMutexGroupIndex(candidatePath);
+  if (candidateGroup < 0) return false; // 候选未匹配到任何组，不拦截
+
+  // 如果候选所属大类不在商品推断大类内，则互斥
+  return !productGroupSet[candidateGroup];
+}
 
 function cleanTitleKeywords(text) {
   if (!text) return [];
   var t = text;
-  NOISE_WORDS.forEach(function (w) { t = t.replace(new RegExp(w, 'g'), ' '); });
+  getNoiseWords().forEach(function (w) { t = t.replace(new RegExp(w, 'g'), ' '); });
   t = t.replace(/\d+[mgkmlMGKML只件套盒条瓶包箱个支把片张块台套米cmCMmmMM]*/g, ' ');
   t = t.replace(/[A-Z]{1,3}[-]?\d{2,6}/gi, ' ');
   var words = t.split(/[\s\/,|，、：:·\-—\(\)（）\[\]【】{}]+/).filter(function (w) {
@@ -54,66 +195,81 @@ function extractSearchKeywords(title, aliCategory) {
   return wholeWords;
 }
 
-// 二级规则复核
-var CATEGORY_VALIDATION_RULES = [
-  {
-    trigger_keywords: ['洗碗', '厨房', '清洁', '百洁', '刷锅', '抹布', '去污', '垃圾袋', '拖把', '扫帚', '家务'],
-    blocked_categories: ['美术用品', '办公用品', '工艺工具', '剪贴', '印刷', '文具'],
-    reason: '厨房/清洁用品被误分到办公/美术类'
-  },
-  {
-    trigger_keywords: ['手提袋', '礼品袋', '塑料袋', '包装袋', '购物袋', 'opp袋', 'pp袋', 'pvc袋', '牛皮纸袋', '纸袋'],
-    blocked_categories: ['快递', '邮寄', '物流', '包裹包装'],
-    reason: '袋子类产品被误分到快递/物流类'
-  },
-  {
-    trigger_keywords: ['镜子', '化妆镜', '手持镜', '化妆'],
-    blocked_categories: ['五金', '工具', '螺丝', '扳手', '电钻'],
-    reason: '镜子被误分到五金工具类'
-  }
-];
+// ===== 确定性计分算法 =====
 
-function postSelectionValidate(title, categoryName, categoryPath) {
-  if (!title) return null;
-  var pathAndName = (categoryPath || '') + (categoryName || '');
-  for (var i = 0; i < CATEGORY_VALIDATION_RULES.length; i++) {
-    var rule = CATEGORY_VALIDATION_RULES[i];
-    var triggered = false;
-    for (var j = 0; j < rule.trigger_keywords.length; j++) {
-      if (title.indexOf(rule.trigger_keywords[j]) >= 0) { triggered = true; break; }
-    }
-    if (!triggered) continue;
-    for (var k = 0; k < rule.blocked_categories.length; k++) {
-      if (pathAndName.indexOf(rule.blocked_categories[k]) >= 0) {
-        console.log('[分类推荐] 二级复核拦截:', categoryName, '→', rule.reason);
-        return { blocked: true, reason: rule.reason };
-      }
-    }
+// 计算字符串中各词对目标的命中比例
+function calcHitRatio(words, target) {
+  if (!words || !words.length || !target) return 0;
+  var hit = 0;
+  for (var i = 0; i < words.length; i++) {
+    if (target.indexOf(words[i]) >= 0) hit++;
   }
-  return null;
+  return hit / words.length;
 }
 
-// 高频错配纠正表
-var CATEGORY_CORRECTIONS = [
-  { wrong: '美术用品', correct_keywords: ['洗碗', '厨房', '清洁', '百洁', '刷锅', '家务', '抹布'] },
-  { wrong: '刷子和笔清洁用品', correct_keywords: ['洗碗', '厨房', '百洁', '家务', '抹布'] },
-  { wrong: '办公用品', correct_keywords: ['洗碗', '厨房', '清洁', '百洁', '刷锅', '家务', '沐浴', '美妆', '抹布'] },
-  { wrong: '镂空印画刷和海绵擦', correct_keywords: ['洗碗', '厨房', '清洁', '百洁', '刷锅', '家务', '抹布', '去污'] },
-  { wrong: '剪贴', correct_keywords: ['洗碗', '厨房', '清洁', '百洁', '刷锅', '家务'] },
-  { wrong: '工艺工具', correct_keywords: ['洗碗', '厨房', '清洁', '百洁', '刷锅', '家务'] }
-];
+// 对单个候选类目计算匹配分数
+function scoreCategory(titleKeywords, aliCategoryWords, candidate) {
+  var candPath = (candidate.path || '').toLowerCase();
+  var candName = (candidate.name || candidate.cat_name || '').toLowerCase();
+  var candFull = candPath + candName;
 
-function applyCategoryCorrection(title, category, path) {
-  if (!title || !category) return null;
-  for (var i = 0; i < CATEGORY_CORRECTIONS.length; i++) {
-    var rule = CATEGORY_CORRECTIONS[i];
-    if (category.indexOf(rule.wrong) >= 0 || (path && path.indexOf(rule.wrong) >= 0)) {
-      for (var j = 0; j < rule.correct_keywords.length; j++) {
-        if (title.indexOf(rule.correct_keywords[j]) >= 0) {
-          return { corrected: true, reason: '标题包含"' + rule.correct_keywords[j] + '"，"' + rule.wrong + '"为误匹配' };
-        }
-      }
+  var score = 0;
+
+  // 1. 双向重合分（权重 0.5）
+  var aliHitRatio = calcHitRatio(aliCategoryWords, candFull);
+  var titleHitRatio = calcHitRatio(titleKeywords, candFull);
+  var overlapScore = aliHitRatio * 0.6 + titleHitRatio * 0.4;
+  score += overlapScore * 0.5;
+
+  // 2. 精确匹配加分（权重 0.3）
+  var exactBonus = 0;
+  var allKws = aliCategoryWords.concat(titleKeywords);
+  for (var i = 0; i < allKws.length; i++) {
+    var kw = allKws[i];
+    if (candName === kw) { exactBonus = 1.0; break; }
+    if (candName.indexOf(kw) >= 0 || kw.indexOf(candName) >= 0) {
+      if (exactBonus < 0.66) exactBonus = 0.66;
     }
+    if (candPath.indexOf(kw) >= 0) {
+      if (exactBonus < 0.33) exactBonus = 0.33;
+    }
+  }
+  score += exactBonus * 0.3;
+
+  // 3. 叶子节点深度加分（权重 0.1）
+  var depth = (candPath.match(/\//g) || []).length;
+  var depthScore = depth >= 2 ? 1.0 : (depth === 1 ? 0.5 : 0.2);
+  score += depthScore * 0.1;
+
+  // 4. 关联库加权（权重 0.1）
+  if (candidate.fromRel) {
+    var relWeight = Math.min(1.0, (candidate.weight || 1.0) / 5.0);
+    score += relWeight * 0.1;
+  }
+
+  // 5. 惩罚"其他/杂项"类目
+  if (/^其他|杂项|其他（/.test(candidate.name || candidate.cat_name || '')) {
+    score *= 0.5;
+  }
+
+  return Math.min(1.0, score);
+}
+
+// 基于 1688 类目名拆分出关键词
+function splitAliCategoryWords(aliCategory) {
+  if (!aliCategory) return [];
+  return aliCategory.split(/[\/>\/\s,，、：:]+/).filter(function (w) {
+    return w.length >= 2;
+  });
+}
+
+// 互斥拦截验证（替代旧的硬编码规则）
+function postSelectionValidate(title, categoryName, categoryPath) {
+  if (!title) return null;
+  var titleKws = cleanTitleKeywords(title);
+  var pathAndName = (categoryPath || '') + '/' + (categoryName || '');
+  if (isMutexConflict(titleKws, [], pathAndName)) {
+    return { blocked: true, reason: '互斥拦截：候选类目与商品品类跨大类' };
   }
   return null;
 }
@@ -140,7 +296,7 @@ router.post('/suggest-category', async function (req, res) {
   console.log('[分类推荐] 标题:', title, '1688类目:', aliCategory, attrs ? '含规格参数' : '');
 
   try {
-    // Step 1: 查映射表 — 云端优先
+    // Step 1: 查映射表 — 云端优先（保持不变）
     var mappings = aliCategory ? await cloudDb.getMappings(aliCategory) : [];
 
     if (mappings.length === 1) {
@@ -172,34 +328,39 @@ router.post('/suggest-category', async function (req, res) {
       });
     }
 
-    // Step 2: 无映射，LLM 提炼关键词
+    // Step 2: LLM 提取关键词（仅提取，不做分类决策）
     var keywords = await extractProductKeywords(title, aliCategory, attrSummary);
     var localKw = extractSearchKeywords(title, aliCategory);
     localKw.slice(0, 2).forEach(function (kw) {
-      if (keywords.indexOf(kw) < 0) keywords.push(kw);
+      if (keywords.indexOf(kw) < 0 && getGenericWords().indexOf(kw) < 0) keywords.push(kw);
     });
 
-    // Step 3: 同义词扩展 + 关键词关联库查询
+    // Step 3: 1688 类目拆词
+    var aliCategoryWords = splitAliCategoryWords(aliCategory);
+
+    // Step 4: 同义词扩展 + 关键词关联库查询
     var expandedKeywords = await expandWithSynonyms(keywords);
     var relCandidates = await queryKeywordCategoryRel(expandedKeywords, title);
 
     if (relCandidates && relCandidates.length === 1 && relCandidates[0].totalWeight >= 3.0 && relCandidates[0].matchCount >= 2) {
       var topRel = relCandidates[0];
-      console.log('[分类推荐] 关联库高可信命中:', topRel.category, '权重:', topRel.totalWeight, '次数:', topRel.matchCount);
-      return res.json({
-        ok: true, source: 'keyword_rel', category: topRel.category,
-        path: topRel.path, confidence: Math.min(0.95, 0.7 + topRel.totalWeight * 0.03)
-      });
-    }
-    if (relCandidates && relCandidates.length > 0) {
-      console.log('[分类推荐] 关联库命中', relCandidates.length, '个候选，最高权重:', relCandidates[0].totalWeight);
+      // 关联库高可信命中，但仍做互斥验证
+      if (!isMutexConflict(keywords, aliCategoryWords, topRel.path)) {
+        console.log('[分类推荐] 关联库高可信命中:', topRel.category, '权重:', topRel.totalWeight);
+        return res.json({
+          ok: true, source: 'keyword_rel', category: topRel.category,
+          path: topRel.path, confidence: Math.min(0.95, 0.7 + topRel.totalWeight * 0.03)
+        });
+      }
+      console.log('[分类推荐] 关联库命中被互斥拦截:', topRel.category);
     }
 
-    // Step 4: 构建候选池
+    // Step 5: 构建候选池
     var candidates = [];
     var seenPaths = {};
-    var MAX_CANDIDATES = 30;
+    var MAX_CANDIDATES = 50;
 
+    // 关联库候选加入候选池
     if (relCandidates && relCandidates.length > 0) {
       relCandidates.forEach(function (rc) {
         if (!seenPaths[rc.path]) {
@@ -209,8 +370,31 @@ router.post('/suggest-category', async function (req, res) {
       });
     }
 
+    // 数据库搜索候选
     var searchKeywords = keywords.slice(0, Math.max(2, Math.min(6, keywords.length)));
+    // 把 1688 类目词也加入搜索
+    aliCategoryWords.forEach(function (w) {
+      if (searchKeywords.indexOf(w) < 0) searchKeywords.push(w);
+    });
+    searchKeywords = searchKeywords.slice(0, 8);
+
     console.log('[分类推荐] 搜索关键词:', searchKeywords.join(', '));
+
+    // 精确匹配优先
+    for (var k = 0; k < searchKeywords.length && candidates.length < MAX_CANDIDATES; k++) {
+      var exactRows = dbModule.treeGetAll(
+        'SELECT cat_name, path FROM dxm_category_tree WHERE is_leaf = 1 AND cat_name = ? LIMIT 5',
+        [searchKeywords[k]]
+      );
+      for (var r = 0; r < exactRows.length && candidates.length < MAX_CANDIDATES; r++) {
+        if (!seenPaths[exactRows[r].path]) {
+          seenPaths[exactRows[r].path] = true;
+          candidates.push({ name: exactRows[r].cat_name, path: exactRows[r].path, exactMatch: true });
+        }
+      }
+    }
+
+    // 模糊匹配补充
     for (var k = 0; k < searchKeywords.length && candidates.length < MAX_CANDIDATES; k++) {
       var rows = dbModule.treeGetAll(
         'SELECT cat_name, path FROM dxm_category_tree WHERE is_leaf = 1 AND (cat_name LIKE ? OR path LIKE ?) LIMIT 15',
@@ -224,91 +408,73 @@ router.post('/suggest-category', async function (req, res) {
       }
     }
 
-    // 错配纠正过滤
-    var beforeCorrect = candidates.length;
-    if (title && candidates.length > 0) {
-      candidates = candidates.filter(function (c) {
-        var correction = applyCategoryCorrection(title, c.name, c.path);
-        if (correction) console.log('[分类推荐] 纠正过滤:', c.name, '→', correction.reason);
-        return !correction;
+    console.log('[分类推荐] 候选:', candidates.length, '(关联库:', candidates.filter(function(c) { return c.fromRel; }).length, ')');
+
+    // Step 6: 互斥拦截 + 计分排序
+    var titleKws = keywords.map(function (w) { return w.toLowerCase(); });
+    var aliWords = aliCategoryWords.map(function (w) { return w.toLowerCase(); });
+
+    // 互斥过滤
+    var beforeFilter = candidates.length;
+    candidates = candidates.filter(function (c) {
+      if (isMutexConflict(titleKws, aliWords, c.path)) {
+        console.log('[分类推荐] 互斥过滤:', c.name, c.path);
+        return false;
+      }
+      return true;
+    });
+    console.log('[分类推荐] 互斥过滤:', beforeFilter, '→', candidates.length);
+
+    // 计分
+    candidates.forEach(function (c) {
+      c.score = scoreCategory(titleKws, aliWords, c);
+    });
+
+    // 按分数降序排列
+    candidates.sort(function (a, b) { return (b.score || 0) - (a.score || 0); });
+
+    if (candidates.length > 0) {
+      console.log('[分类推荐] 计分TOP3:', candidates.slice(0, 3).map(function (c) {
+        return c.name + '(' + (c.score || 0).toFixed(3) + ')';
+      }).join(', '));
+    }
+
+    // 无候选
+    if (candidates.length === 0) {
+      console.log('[分类推荐] 无有效候选，标记人工审核');
+      return res.json({ ok: true, source: 'manual_review', category: '', path: '', confidence: 0 });
+    }
+
+    // Step 7: 判定输出
+    var best = candidates[0];
+
+    if (best.score >= 0.6) {
+      console.log('[分类推荐] 计分命中:', best.name, '分数:', best.score.toFixed(3));
+      return res.json({
+        ok: true, source: 'score', category: best.name,
+        path: best.path, confidence: Math.min(0.95, best.score),
+        alternatives: candidates.slice(1, 6)
       });
     }
-    candidates.sort(function (a, b) {
-      var aRel = a.fromRel ? 0 : 1;
-      var bRel = b.fromRel ? 0 : 1;
-      if (aRel !== bRel) return aRel - bRel;
-      if (a.fromRel && b.fromRel) return (b.weight || 0) - (a.weight || 0);
-      var aOther = /^其他|杂项|其他（/.test(a.name) ? 1 : 0;
-      var bOther = /^其他|杂项|其他（/.test(b.name) ? 1 : 0;
-      return aOther - bOther;
-    });
-    console.log('[分类推荐] 候选:', candidates.length, '(纠正前:', beforeCorrect, ', 关联库候选:', candidates.filter(function(c) { return c.fromRel; }).length, ')');
 
-    // 无候选，纯 LLM 推荐
-    if (candidates.length === 0) {
-      var suggestion = await suggestCategoryWithLLM(title, aliCategory, attrSummary);
-      if (suggestion) {
-        var corr = applyCategoryCorrection(title, suggestion.category, suggestion.path);
-        if (corr) {
-          console.log('[分类推荐] 错配纠正:', suggestion.category, '-> 拒绝(', corr.reason, ')');
-          return res.json({ ok: true, source: 'none', category: '', path: '', confidence: 0 });
-        }
-        return res.json({
-          ok: true, source: 'llm', category: suggestion.category,
-          path: suggestion.path, confidence: suggestion.confidence || 0.6,
-          alternatives: suggestion.alternatives || []
-        });
-      }
-      return res.json({ ok: true, source: 'none', category: '', path: '', confidence: 0 });
+    if (best.score >= 0.4) {
+      console.log('[分类推荐] 低置信度命中:', best.name, '分数:', best.score.toFixed(3));
+      return res.json({
+        ok: true, source: 'score_low', category: best.name,
+        path: best.path, confidence: best.score,
+        alternatives: candidates.slice(1, 6)
+      });
     }
 
-    // 精确匹配 1688 类目名
-    if (aliCategory && candidates.length > 0) {
-      var exactMatch = candidates.find(function (c) { return c.name === aliCategory; });
-      if (exactMatch) {
-        console.log('[分类推荐] 候选精确匹配1688类目:', exactMatch.name);
-        return res.json({
-          ok: true, source: 'exact_match', category: exactMatch.name,
-          path: exactMatch.path, confidence: 0.95
-        });
-      }
-    }
-
-    // 多候选，LLM 优选
-    if (candidates.length > 1) {
-      try {
-        var bestChoice = await suggestCategoryFromCandidates(title, aliCategory, attrSummary, candidates);
-        var corr = applyCategoryCorrection(title, bestChoice.category, bestChoice.path);
-        if (corr) {
-          console.log('[分类推荐] 错配纠正:', bestChoice.category, '-> 拒绝(', corr.reason, ')');
-          return res.json({ ok: true, source: 'none', category: '', path: '', confidence: 0 });
-        }
-        return res.json({
-          ok: true, source: 'llm_search', category: bestChoice.category,
-          path: bestChoice.path, confidence: bestChoice.confidence !== undefined ? bestChoice.confidence : 0.7,
-          alternatives: candidates.slice(0, 5)
-        });
-      } catch (e) {
-        return res.json({
-          ok: true, source: 'search', category: candidates[0].name,
-          path: candidates[0].path, confidence: 0.5, alternatives: candidates.slice(0, 5)
-        });
-      }
-    }
-
-    // 单候选，直接返回
-    var corr = applyCategoryCorrection(title, candidates[0].name, candidates[0].path);
-    if (corr) {
-      console.log('[分类推荐] 错配纠正:', candidates[0].name, '-> 拒绝(', corr.reason, ')');
-      return res.json({ ok: true, source: 'none', category: '', path: '', confidence: 0 });
-    }
+    // 分数太低，标记人工审核
+    console.log('[分类推荐] 最高分仅', best.score.toFixed(3), '，标记人工审核');
     return res.json({
-      ok: true, source: 'search', category: candidates[0].name,
-      path: candidates[0].path, confidence: 0.8, alternatives: candidates
+      ok: true, source: 'manual_review', category: '', path: '', confidence: 0,
+      alternatives: candidates.slice(0, 5)
     });
 
   } catch (err) {
-    console.log('[分类推荐] LLM提炼失败，回退本地搜索:', err.message);
+    console.log('[分类推荐] 推荐失败，回退本地搜索:', err.message);
     fallbackLocalSearch(title, aliCategory, res);
   }
 });
@@ -381,10 +547,14 @@ async function queryKeywordCategoryRel(keywords, title) {
 
 async function learnKeywordCategoryRel(keywords, categoryName, source, confidence) {
   if (!keywords || !keywords.length || !categoryName) return;
-  if (confidence < 0.6) return;
-  var weight = source === 'manual' ? 3.0 : (confidence >= 0.8 ? 1.5 : 1.0);
+  // 学习门槛：auto >= 0.6, manual >= 0.4
+  if (source !== 'manual' && confidence < 0.6) return;
+  if (source === 'manual' && confidence < 0.4) return;
+  var weight = source === 'manual' ? 3.0 : 1.0;
   for (var i = 0; i < keywords.length; i++) {
     var kw = keywords[i];
+    // 过滤宽泛词，只保留物品品类词
+    if (getGenericWords().indexOf(kw) >= 0) continue;
     var blRows = await cloudDb.getBlacklisted(kw);
     var blHit = (blRows || []).some(function (r) { return r.category_name === categoryName; });
     if (blHit) continue;
@@ -394,28 +564,32 @@ async function learnKeywordCategoryRel(keywords, categoryName, source, confidenc
 
 // LLM 提炼标题核心属性
 function extractProductKeywords(title, aliCategory, attrSummary) {
-  var prompt = '你是一个产品分类专家。请从产品标题中提取用于分类搜索的核心关键词。\n\n';
-  prompt += '提取原则：只提取以下三类信息，排除一切其他内容：\n';
-  prompt += '1. 物品品类（产品到底是什么东西，如"垃圾袋""手提袋""化妆镜""钥匙扣"）\n';
-  prompt += '2. 用途场景（用在什么地方，如"厨房""汽车""办公""户外""物业""酒店"）\n';
-  prompt += '3. 功能描述（做什么用的，如"清洁""收纳""装垃圾""打包"）\n\n';
-  prompt += '必须排除（不要出现在关键词中）：\n';
-  prompt += '- 颜色/外观（黑色、透明、磨砂等）\n';
-  prompt += '- 尺寸/规格（大号、加厚、特大等）\n';
-  prompt += '- 数量/型号（一次性、10个装等）\n';
-  prompt += '- 材质属性（塑料、pvc、pp等，除非材质是品类核心如"不锈钢锅"）\n';
-  prompt += '- 开口方式（平口、背心式等）\n';
-  prompt += '- 风格/图案/节日/促销词/形容词\n\n';
+  var prompt = '你是一个产品分类关键词提取专家。任务：从产品信息中提取核心实体名词。\n\n';
+  prompt += '提取规则：\n';
+  prompt += '1. 只提取"这个产品到底是什么东西"的名词\n';
+  prompt += '2. 必须是具体实物名称，不是功能、用途、场景、材质、风格\n';
+  prompt += '3. 输出2-4个核心品类词，第一个最重要\n\n';
+  prompt += '正确示例（提取的关键词）：\n';
+  prompt += '  "黑色大号垃圾袋加厚平口" → ["垃圾袋"]\n';
+  prompt += '  "双面塑料洗衣刷子家用多功能清洁板刷" → ["洗衣刷", "板刷"]\n';
+  prompt += '  "跨境圆形可悬挂洗头按摩搓澡刷" → ["搓澡刷", "洗澡刷"]\n';
+  prompt += '  "纯棉短袖T恤男夏季新款" → ["T恤", "短袖"]\n';
+  prompt += '  "手提袋礼品袋彩色opp塑料袋" → ["手提袋", "礼品袋", "塑料袋"]\n';
+  prompt += '  "化妆镜手持镜迷你小镜子" → ["化妆镜", "手持镜", "镜子"]\n\n';
+  prompt += '禁止提取（不要出现在结果中）：\n';
+  prompt += '  用途词：厨房、浴室、家用、户外、清洁、收纳、去污\n';
+  prompt += '  材质词：塑料、硅胶、纯棉、不锈钢、陶瓷\n';
+  prompt += '  形容词：加厚、大号、圆形、折叠、便携、多功能\n';
+  prompt += '  营销词：跨境、爆款、新款、批发、热卖、直销\n';
+  prompt += '  功能词：按摩、擦洗、消毒、防水、防滑\n\n';
   var combinedInput = '';
   if (aliCategory) combinedInput += '【平台类目】' + aliCategory + '\n';
   if (title) combinedInput += '【产品标题】' + title + '\n';
   if (attrSummary) combinedInput += '【规格参数】' + attrSummary + '\n';
   prompt += combinedInput;
-  prompt += '\n请结合【平台类目】和【产品标题】综合提炼，类目名是品类判断的核心依据。\n';
-  prompt += '关键词必须是可以直接用来搜索商品分类的名词，不要输出任何形容词或特征描述。\n';
-  prompt += '示例：标题"黑色大号垃圾袋加厚平口物业厨房商用"→ 应提取 ["垃圾袋", "厨房", "物业"] 而不是 ["黑色","大号","加厚","平口"]\n';
-  prompt += '返回JSON格式：\n{"keywords": ["关键词1", "关键词2", ...]}\n';
-  prompt += '要求：3-6个关键词，必须是名词。第一个关键词必须是物品品类名。\n只返回一行JSON。';
+  prompt += '\n请结合【平台类目】优先判断品类。\n';
+  prompt += '返回JSON格式：\n{"keywords": ["核心品类词1", "品类词2"]}\n';
+  prompt += '只返回一行JSON，不要其他文字。';
 
   return providers.extractionLLMRequest('/chat/completions', {
     messages: [{ role: 'user', content: prompt }],
@@ -471,143 +645,30 @@ function fallbackLocalSearch(title, aliCategory, res) {
       }
     }
   }
-  if (title && candidates.length > 0) {
-    candidates = candidates.filter(function (c) {
-      return !applyCategoryCorrection(title, c.name, c.path);
-    });
-  }
   if (candidates.length === 0) {
-    return res.json({ ok: true, source: 'none', category: '', path: '', confidence: 0 });
+    return res.json({ ok: true, source: 'manual_review', category: '', path: '', confidence: 0 });
+  }
+  // 互斥过滤 + 计分
+  var titleKws = keywords.map(function (w) { return w.toLowerCase(); });
+  var aliWords = splitAliCategoryWords(aliCategory).map(function (w) { return w.toLowerCase(); });
+  candidates = candidates.filter(function (c) {
+    return !isMutexConflict(titleKws, aliWords, c.path);
+  });
+  candidates.forEach(function (c) {
+    c.score = scoreCategory(titleKws, aliWords, c);
+  });
+  candidates.sort(function (a, b) { return (b.score || 0) - (a.score || 0); });
+  if (candidates.length === 0) {
+    return res.json({ ok: true, source: 'manual_review', category: '', path: '', confidence: 0 });
   }
   res.json({
     ok: true,
-    source: 'search',
+    source: 'fallback',
     category: candidates[0].name,
     path: candidates[0].path,
-    confidence: 0.5,
-    alternatives: candidates.slice(0, 5)
+    confidence: Math.max(0.3, candidates[0].score || 0.3),
+    alternatives: candidates.slice(1, 6)
   });
-}
-
-// LLM通用指令前缀
-var LLM_SYSTEM_PROMPT = '你是一个跨境电商分类匹配专家，负责将商品归类到正确的店小秘类目。\n\n' +
-  '匹配规则：\n' +
-  '1. 优先匹配三级(叶子)精准类目，无匹配则向上回溯二级、一级\n' +
-  '2. 必须贴合商品实际属性和用途，跨大类禁止匹配（如清洁用品不能归入办公用品/美术用品）\n' +
-  '3. 仅输出唯一最优类目，不额外赘述\n' +
-  '4. 相似度低于60%(confidence<0.6)判定无匹配，直接返回confidence=0\n' +
-  '5. 分析维度：优先标题语义 > 规格参数 > 来源类目\n';
-
-// LLM 推荐分类（无候选时）— 两阶段
-function suggestCategoryWithLLM(title, aliCategory, attrSummary) {
-  var apiKey = providers.getApiKey();
-  if (!apiKey) return Promise.resolve(null);
-
-  var branches = dbModule.treeGetAll(
-    'SELECT DISTINCT path FROM dxm_category_tree WHERE is_leaf = 0 AND cat_level <= 2 AND path LIKE "%/%" ORDER BY path'
-  );
-  if (!branches.length) return Promise.resolve(null);
-
-  var branchList = branches.map(function (b, i) {
-    return (i + 1) + '. ' + b.path;
-  }).join('\n');
-
-  var stage1Prompt = LLM_SYSTEM_PROMPT;
-  stage1Prompt += '\n任务：请从以下分类分支中选择最匹配产品的分支。\n\n';
-  stage1Prompt += '重要：请优先根据产品标题分析产品的实际用途和使用场景，来源平台类目仅供参考。\n';
-  if (title) stage1Prompt += '\n产品标题: ' + title;
-  if (aliCategory) stage1Prompt += '\n来源平台类目（参考）: ' + aliCategory;
-  if (attrSummary) stage1Prompt += '\n规格参数（参考）: ' + attrSummary;
-  stage1Prompt += '\n\n可选分类分支:\n' + branchList;
-  stage1Prompt += '\n\n请返回JSON格式，将序号填入choice字段。示例：如果选第3个，返回 {"choice": 3, "reason": "理由"}\n只返回一行JSON，不要其他文字。';
-
-  return providers.categoryLLMRequest('/chat/completions', {
-    messages: [{ role: 'user', content: stage1Prompt }],
-    temperature: 0.1,
-    max_tokens: 1024
-  }).then(function (result) {
-    var msg = result.choices && result.choices[0] && result.choices[0].message;
-    var text = (msg && msg.content) || '';
-    if (!text && msg && msg.reasoning_content) {
-      var jsonMatch = msg.reasoning_content.match(/\{[^{}]*"choice"[^{}]*\}/);
-      if (jsonMatch) text = jsonMatch[0];
-    }
-    console.log('[分类推荐] 阶段1响应 content:', (msg && msg.content || '').substring(0, 100));
-    if (!text) return null;
-    var parsed;
-    try {
-      var jsonStr = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-      parsed = JSON.parse(jsonStr);
-    } catch (e) {
-      return null;
-    }
-
-    var branchIdx = (parsed.choice || 1) - 1;
-    if (branchIdx < 0 || branchIdx >= branches.length) return null;
-
-    var selectedBranch = branches[branchIdx].path;
-    var leaves = dbModule.treeGetAll(
-      'SELECT cat_name, path FROM dxm_category_tree WHERE is_leaf = 1 AND path LIKE ? LIMIT 50',
-      [selectedBranch + '/%']
-    );
-    if (!leaves.length) {
-      leaves = dbModule.treeGetAll(
-        'SELECT cat_name, path FROM dxm_category_tree WHERE is_leaf = 1 AND path LIKE ? LIMIT 50',
-        [selectedBranch.substring(0, selectedBranch.indexOf('/') + 1) + '%']
-      );
-    }
-    if (!leaves.length) return null;
-
-    if (leaves.length <= 3) {
-      return { category: leaves[0].cat_name, path: leaves[0].path, confidence: 0.6 };
-    }
-
-    var leafList = leaves.slice(0, 30).map(function (l, i) {
-      return (i + 1) + '. ' + l.path;
-    }).join('\n');
-
-    var stage2Prompt = LLM_SYSTEM_PROMPT;
-    stage2Prompt += '\n任务：请从以下叶子分类中选择最匹配产品的分类。\n\n';
-    stage2Prompt += '重要：请优先分析产品标题中的用途和使用场景，来源平台类目仅供参考。\n';
-    if (title) stage2Prompt += '\n产品标题: ' + title;
-    if (aliCategory) stage2Prompt += '\n来源平台类目（参考）: ' + aliCategory;
-    if (attrSummary) stage2Prompt += '\n规格参数（参考）: ' + attrSummary;
-    stage2Prompt += '\n\n候选分类:\n' + leafList;
-    stage2Prompt += '\n\n请返回JSON格式，将序号填入choice字段，confidence为0.0到1.0。示例：如果选第2个且置信度0.85，返回 {"choice": 2, "confidence": 0.85}\n只返回一行JSON。';
-
-    return providers.categoryLLMRequest('/chat/completions', {
-      messages: [{ role: 'user', content: stage2Prompt }],
-      temperature: 0.1,
-      max_tokens: 1024
-    }).then(function (result2) {
-      var msg2 = result2.choices && result2.choices[0] && result2.choices[0].message;
-      var text2 = (msg2 && msg2.content) || '';
-      if (!text2 && msg2 && msg2.reasoning_content) {
-        var jsonMatch2 = msg2.reasoning_content.match(/\{[^{}]*"choice"[^{}]*\}/);
-        if (jsonMatch2) text2 = jsonMatch2[0];
-      }
-      if (!text2) return { category: leaves[0].cat_name, path: leaves[0].path, confidence: 0.5 };
-      console.log('[分类推荐] 阶段2响应:', text2.substring(0, 150));
-      try {
-        var jsonStr2 = text2.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-        var parsed2 = JSON.parse(jsonStr2);
-        var leafIdx = (parsed2.choice || 1) - 1;
-        if (leafIdx >= 0 && leafIdx < leaves.length) {
-          var conf = parsed2.confidence !== undefined ? parsed2.confidence : 0.5;
-          if (conf < 0.6) return { category: '', path: '', confidence: 0 };
-          var llmResult = { category: leaves[leafIdx].cat_name, path: leaves[leafIdx].path, confidence: conf };
-          var validation = postSelectionValidate(title, llmResult.category, llmResult.path);
-          if (validation) {
-            console.log('[分类推荐] 阶段2选择被复核拦截:', llmResult.category, '→', validation.reason);
-            return { category: '', path: '', confidence: 0 };
-          }
-          console.log('[分类推荐] 阶段2选择:', llmResult.category, '置信度:', conf);
-          return llmResult;
-        }
-      } catch (e) {}
-      return { category: leaves[0].cat_name, path: leaves[0].path, confidence: 0.5 };
-    });
-  }).catch(function () { return null; });
 }
 
 // 从映射候选池中 LLM 限定范围择优
@@ -703,62 +764,58 @@ function selectFromMappingCandidates(title, aliCategory, attrSummary, mappings) 
   });
 }
 
-// LLM 从候选中选择最佳
-function suggestCategoryFromCandidates(title, aliCategory, attrSummary, candidates) {
-  var apiKey = providers.getApiKey();
-  if (!apiKey) return Promise.resolve({ category: candidates[0].name, path: candidates[0].path, confidence: 0.5 });
+// ===== 分类配置管理 API =====
 
-  var candidateList = candidates.slice(0, 15).map(function (c, i) {
-    return (i + 1) + '. ' + c.path;
-  }).join('\n');
+// 获取分类配置（按类型）
+router.get('/config', function (req, res) {
+  var type = (req.query.type || '').trim();
+  if (type) {
+    cloudDb.getCategoryConfig(type).then(function (rows) {
+      res.json({ ok: true, list: rows || [] });
+    }).catch(function (e) {
+      res.status(500).json({ error: e.message });
+    });
+  } else {
+    cloudDb.getAllCategoryConfig().then(function (rows) {
+      res.json({ ok: true, list: rows || [] });
+    }).catch(function (e) {
+      res.status(500).json({ error: e.message });
+    });
+  }
+});
 
-  var prompt = LLM_SYSTEM_PROMPT;
-  prompt += '\n任务：请从候选分类路径中选择最匹配产品的一个。\n\n';
-  prompt += '选择标准（按优先级）：\n';
-  prompt += '1. 首先确认产品是什么品类（如"手提袋"是容器/包装用品，不是快递用品）\n';
-  prompt += '2. 优先选择叶子节点名称直接描述产品品类的（如"塑料包装袋"优于"其他"）\n';
-  prompt += '3. 路径层级必须语义匹配（如"包装和配送用品/塑料包装袋"适合塑料袋，"邮寄用品"不适合）\n';
-  prompt += '4. 排除"其他""杂项"类节点，除非没有更精准的匹配\n';
-  prompt += '5. 如果所有候选都不匹配产品品类，confidence设为0.3以下\n\n';
-  if (title) prompt += '产品标题: ' + title + '\n';
-  if (aliCategory) prompt += '来源平台类目（参考）: ' + aliCategory + '\n';
-  if (attrSummary) prompt += '规格参数（参考）: ' + attrSummary + '\n';
-  prompt += '\n候选分类路径:\n' + candidateList;
-  prompt += '\n\n请返回JSON格式，将序号填入choice字段，confidence为0.0到1.0。示例：如果选第5个且置信度0.9，返回 {"choice": 5, "confidence": 0.9}\n只返回一行JSON。';
+// 保存分类配置项
+router.post('/config', function (req, res) {
+  var type = (req.body.type || '').trim();
+  var value = (req.body.value || '').trim();
+  var groupName = (req.body.group_name || '').trim();
+  var description = (req.body.description || '').trim();
+  var sortOrder = parseInt(req.body.sort_order) || 0;
 
-  return providers.categoryLLMRequest('/chat/completions', {
-    messages: [{ role: 'user', content: prompt }],
-    temperature: 0.1,
-    max_tokens: 1024
-  }).then(function (result) {
-    var msg = result.choices && result.choices[0] && result.choices[0].message;
-    var text = (msg && msg.content) || '';
-    if (!text && msg && msg.reasoning_content) {
-      var jsonMatchC = msg.reasoning_content.match(/\{[^{}]*"choice"[^{}]*\}/);
-      if (jsonMatchC) text = jsonMatchC[0];
-    }
-    console.log('[分类推荐] 候选LLM content:', (msg && msg.content || '').substring(0, 150));
-    console.log('[分类推荐] 候选LLM finish_reason:', result.choices && result.choices[0] && result.choices[0].finish_reason);
-    if (!text) return { category: candidates[0].name, path: candidates[0].path, confidence: 0.5 };
-    try {
-      var jsonStr = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-      var parsed = JSON.parse(jsonStr);
-      var idx = (parsed.choice || 1) - 1;
-      if (idx >= 0 && idx < candidates.length) {
-        var conf = parsed.confidence !== undefined ? parsed.confidence : 0.7;
-        if (conf < 0.6) return { category: '', path: '', confidence: 0 };
-        var selected = { category: candidates[idx].name, path: candidates[idx].path, confidence: conf };
-        var validation = postSelectionValidate(title, selected.category, selected.path);
-        if (validation) return { category: '', path: '', confidence: 0 };
-        return selected;
-      }
-    } catch (e) { console.log('[分类推荐] JSON解析失败:', e.message, '原文:', text.substring(0, 100)); }
-    return { category: candidates[0].name, path: candidates[0].path, confidence: 0.5 };
-  }).catch(function (e) {
-    console.log('[分类推荐] suggestCategoryFromCandidates API错误:', e.message);
-    return { category: candidates[0].name, path: candidates[0].path, confidence: 0.5 };
-  });
-}
+  if (!type || !value) return res.status(400).json({ error: 'type 和 value 必填' });
+
+  cloudDb.saveCategoryConfig(type, value, groupName, description, sortOrder);
+  // 清除缓存，下次请求重新加载
+  MUTEX_CACHE = null;
+  NOISE_CACHE = null;
+  GENERIC_CACHE = null;
+
+  res.json({ ok: true, type: type, value: value });
+});
+
+// 删除分类配置项
+router.delete('/config/:id', function (req, res) {
+  var id = parseInt(req.params.id);
+  if (!id) return res.status(400).json({ error: '无效 ID' });
+
+  cloudDb.deleteCategoryConfig(id);
+  // 清除缓存
+  MUTEX_CACHE = null;
+  NOISE_CACHE = null;
+  GENERIC_CACHE = null;
+
+  res.json({ ok: true });
+});
 
 // 自动保存分类映射
 router.post('/save-category-mapping', function (req, res) {

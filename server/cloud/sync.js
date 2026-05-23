@@ -74,6 +74,24 @@ module.exports = function (cloud, db) {
     }
     counts.keyword_blacklist = bl.length;
 
+    var configs = db.getAll('SELECT type, value, group_name, description, sort_order FROM category_config');
+    if (configs.length > 0 && cloud.client.batch) {
+      var batchSize = 200;
+      for (var ci = 0; ci < configs.length; ci += batchSize) {
+        var chunk = configs.slice(ci, ci + batchSize);
+        var stmts = chunk.map(function (c) {
+          return { sql: 'INSERT OR REPLACE INTO category_config (type, value, group_name, description, sort_order) VALUES (?, ?, ?, ?, ?)', args: [c.type, c.value, c.group_name, c.description, c.sort_order] };
+        });
+        try { await cloud.client.batch(stmts); } catch (e) { console.error('[云同步] category_config batch fail:', e.message); }
+      }
+    } else {
+      for (var i = 0; i < configs.length; i++) {
+        await cloud.run('INSERT OR REPLACE INTO category_config (type, value, group_name, description, sort_order) VALUES (?, ?, ?, ?, ?)',
+          [configs[i].type, configs[i].value, configs[i].group_name, configs[i].description, configs[i].sort_order]);
+      }
+    }
+    counts.category_config = configs.length;
+
     console.log('[云同步] 知识库上传完成:', JSON.stringify(counts));
     cloud.lastSyncTime = new Date().toISOString();
     return { ok: true, counts: counts };
@@ -129,6 +147,13 @@ module.exports = function (cloud, db) {
         [cloudBl[i].keyword, cloudBl[i].category_name, cloudBl[i].reason]);
     }
     counts.keyword_blacklist = cloudBl.length;
+
+    var cloudConfigs = await cloud.getAll('SELECT type, value, group_name, description, sort_order FROM category_config');
+    for (var i = 0; i < cloudConfigs.length; i++) {
+      db.run('INSERT OR REPLACE INTO category_config (type, value, group_name, description, sort_order) VALUES (?, ?, ?, ?, ?)',
+        [cloudConfigs[i].type, cloudConfigs[i].value, cloudConfigs[i].group_name, cloudConfigs[i].description, cloudConfigs[i].sort_order]);
+    }
+    counts.category_config = cloudConfigs.length;
 
     console.log('[云同步] 知识库下载完成:', JSON.stringify(counts));
     cloud.lastSyncTime = new Date().toISOString();
@@ -332,6 +357,21 @@ module.exports = function (cloud, db) {
       cloudInsertParams: function (r) { return [r.keyword, r.category_name, r.reason]; },
       cloudUpdate: null,
       label: '黑名单'
+    },
+    'category-config': {
+      localGet: function () { return db.getAll('SELECT type, value, group_name, description, sort_order FROM category_config'); },
+      cloudCols: 'type, value, group_name, description, sort_order',
+      cloudKey: ['type', 'value', 'group_name'],
+      localKeyMatch: function (r) { return 'SELECT id FROM category_config WHERE type = ? AND value = ? AND group_name = ?'; },
+      localKeyParams: function (r) { return [r.type, r.value, r.group_name]; },
+      localInsert: 'INSERT OR REPLACE INTO category_config (type, value, group_name, description, sort_order) VALUES (?, ?, ?, ?, ?)',
+      localInsertParams: function (r) { return [r.type, r.value, r.group_name, r.description, r.sort_order]; },
+      localUpdate: null,
+      cloudTable: 'category_config',
+      cloudInsert: 'INSERT OR REPLACE INTO category_config (type, value, group_name, description, sort_order) VALUES (?, ?, ?, ?, ?)',
+      cloudInsertParams: function (r) { return [r.type, r.value, r.group_name, r.description, r.sort_order]; },
+      cloudUpdate: null,
+      label: '分类配置'
     }
   };
 

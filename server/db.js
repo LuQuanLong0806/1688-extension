@@ -242,6 +242,18 @@ var LOCAL_TABLE_DEFS = [
       reason TEXT DEFAULT '',
       UNIQUE(keyword, category_name)
     )`
+  },
+  {
+    name: 'category_config',
+    ddl: `CREATE TABLE IF NOT EXISTS category_config (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL,
+      value TEXT NOT NULL,
+      group_name TEXT DEFAULT '',
+      description TEXT DEFAULT '',
+      sort_order INTEGER DEFAULT 0,
+      UNIQUE(type, value, group_name)
+    )`
   }
 ];
 

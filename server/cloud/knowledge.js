@@ -92,6 +92,98 @@ module.exports = function (cloud, db) {
     return db.treeGetOne('SELECT path FROM dxm_category_tree WHERE cat_name = ? AND is_leaf = 1 LIMIT 1', [catName]);
   }
 
+  // ===== 分类配置（过滤词/互斥组/泛词） =====
+
+  async function getCategoryConfig(type) {
+    if (cloud.connected) {
+      var rows = await cloud.getAll('SELECT type, value, group_name, description, sort_order FROM category_config WHERE type = ? ORDER BY sort_order, id', [type]);
+      if (rows && rows.length > 0) return rows;
+    }
+    return db.getAll('SELECT type, value, group_name, description, sort_order FROM category_config WHERE type = ? ORDER BY sort_order, id', [type]);
+  }
+
+  async function getAllCategoryConfig() {
+    if (cloud.connected) {
+      var rows = await cloud.getAll('SELECT type, value, group_name, description, sort_order FROM category_config ORDER BY type, sort_order, id');
+      if (rows && rows.length > 0) return rows;
+    }
+    return db.getAll('SELECT type, value, group_name, description, sort_order FROM category_config ORDER BY type, sort_order, id');
+  }
+
+  function saveCategoryConfig(type, value, groupName, description, sortOrder) {
+    db.run('INSERT OR REPLACE INTO category_config (type, value, group_name, description, sort_order) VALUES (?, ?, ?, ?, ?)',
+      [type, value, groupName || '', description || '', sortOrder || 0]);
+    db.scheduleSave();
+    if (cloud.connected) {
+      cloud.run('INSERT OR REPLACE INTO category_config (type, value, group_name, description, sort_order) VALUES (?, ?, ?, ?, ?)',
+        [type, value, groupName || '', description || '', sortOrder || 0]).catch(function () {});
+    }
+  }
+
+  function deleteCategoryConfig(id) {
+    db.run('DELETE FROM category_config WHERE id = ?', [id]);
+    db.scheduleSave();
+    if (cloud.connected) {
+      cloud.run('DELETE FROM category_config WHERE id = ?', [id]).catch(function () {});
+    }
+  }
+
+  function seedCategoryConfig() {
+    var existing = db.getAll('SELECT COUNT(*) as cnt FROM category_config');
+    if (existing && existing.length && existing[0].cnt > 0) return;
+
+    var seeds = [];
+    // 互斥组
+    var groups = [
+      { names: ['家居', '家庭', '家居用品', '家居生活', '生活用品', '日用品', '家居日用', '居家'], label: '家居日用' },
+      { names: ['厨房', '厨房用品', '厨房工具', '餐厨', '餐饮', '餐具'], label: '厨房用品' },
+      { names: ['清洁', '清洁用品', '清洁工具', '家务', '清洁日用'], label: '清洁用品' },
+      { names: ['办公', '办公用品', '文具', '办公文具', '办公设备'], label: '办公用品' },
+      { names: ['美术', '美术用品', '工艺', '手工', '工艺品'], label: '美术工艺' },
+      { names: ['服饰', '服装', '女装', '男装', '童装', '内衣', '鞋靴', '箱包'], label: '服饰鞋包' },
+      { names: ['美妆', '美容', '个护', '个人护理', '化妆', '彩妆', '护肤'], label: '美妆个护' },
+      { names: ['电子', '数码', '手机', '电脑', '电器', '家电'], label: '电子数码' },
+      { names: ['玩具', '母婴', '儿童', '孕婴'], label: '母婴玩具' },
+      { names: ['运动', '户外', '体育', '健身'], label: '运动户外' },
+      { names: ['汽车', '汽配', '车载', '汽车用品'], label: '汽车用品' },
+      { names: ['宠物', '宠物用品'], label: '宠物用品' },
+      { names: ['食品', '零食', '茶叶', '酒水'], label: '食品' },
+      { names: ['包装', '包装用品', '快递', '物流', '邮政'], label: '包装物流' },
+      { names: ['五金', '工具', '五金工具', '家装', '建材', '装修'], label: '五金建材' },
+      { names: ['珠宝', '饰品', '首饰', '钟表'], label: '珠宝饰品' }
+    ];
+    groups.forEach(function (g, gi) {
+      g.names.forEach(function (name) {
+        seeds.push({ type: 'mutex', value: name, group_name: g.label, sort_order: gi });
+      });
+    });
+
+    // 噪音词
+    ['爆款','热销','新款','新款上市','厂家直销','批发','包邮','特价','促销','限时','秒杀','折扣','优惠','满减','赠品','现货','定制','加工','代发',
+     '一件代发','源头工厂','工厂直供','厂家直供','品牌','正品','旗舰','专柜','同款','网红','直播','推荐','精选','热卖','畅销','质量保证','售后',
+     '七天无理由','退换货','包邮区','非偏远包邮','快递','物流','发货','拍照','实物','拍摄','样品','拿样','小批量','起批','混批',
+     '春夏','秋冬','春款','夏款','秋款','冬款','春夏新款','秋冬新款','2024','2025','2026','最新','潮流','时尚','ins','INS',
+     '百搭','简约','韩版','日系','欧美','港风','复古','文艺','可爱','小清新','ins风','北欧','轻奢','高端','大气','上档次',
+     '多功能','二合一','三合一','升级','省心','省力','省时','好用','实用','耐用','经久耐用'].forEach(function (w) {
+      seeds.push({ type: 'noise', value: w });
+    });
+
+    // 泛词
+    ['跨境','外贸','出口','进口','国产','清洁','清洗','去污','除味','消毒','杀菌','厨房','浴室','客厅','卧室','阳台','家用','户外',
+     '收纳','整理','便携','折叠','悬挂','可悬挂','深度','加厚','加大','大号','小号','环保','防水','防滑','防尘','防霉',
+     '健康','安全','食品级','无毒','无异味','豪华','精致','精美','创意','新款','新款上市','不伤','神器','好用','必备','专用','通用',
+     '圆形','方形','长方形','双面','单面','多功能','全自动','半自动','商业','商用','工业','酒店','物业'].forEach(function (w) {
+      seeds.push({ type: 'generic', value: w });
+    });
+
+    seeds.forEach(function (s) {
+      db.run('INSERT OR IGNORE INTO category_config (type, value, group_name, description, sort_order) VALUES (?, ?, ?, ?, ?)',
+        [s.type, s.value, s.group_name || '', s.description || '', s.sort_order || 0]);
+    });
+    db.scheduleSave();
+    console.log('[分类配置] 初始化种子数据:', seeds.length, '条');
+  }
+
   return {
     getMappings: getMappings,
     saveMapping: saveMapping,
@@ -99,6 +191,11 @@ module.exports = function (cloud, db) {
     saveKeywordRel: saveKeywordRel,
     getSynonyms: getSynonyms,
     getBlacklisted: getBlacklisted,
-    getTreePath: getTreePath
+    getTreePath: getTreePath,
+    getCategoryConfig: getCategoryConfig,
+    getAllCategoryConfig: getAllCategoryConfig,
+    saveCategoryConfig: saveCategoryConfig,
+    deleteCategoryConfig: deleteCategoryConfig,
+    seedCategoryConfig: seedCategoryConfig
   };
 };
