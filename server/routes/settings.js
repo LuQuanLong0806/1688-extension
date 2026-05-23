@@ -1,5 +1,6 @@
 const { Router } = require('express');
 const { run, getOne, getAll, sseClients } = require('../db');
+const sec = require('../crypto');
 
 const router = Router();
 
@@ -57,11 +58,13 @@ router.post('/settings/:key', (req, res) => {
   res.json({ ok: true });
 });
 
-// 导出所有设置为 JSON 文件
+// 导出所有设置为 JSON 文件（解密敏感值，导出后为明文，导入后由本机重新加密）
 router.get('/settings-export', (req, res) => {
   const rows = getAll('SELECT key, value FROM settings');
   const data = {};
-  rows.forEach(r => { data[r.key] = r.value; });
+  rows.forEach(r => {
+    data[r.key] = sec.isSensitive(r.key) ? sec.decrypt(r.value) : r.value;
+  });
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Content-Disposition', 'attachment; filename=settings_' + new Date().toISOString().slice(0, 10) + '.json');
   res.json(data);
@@ -76,9 +79,49 @@ router.post('/settings-import', (req, res) => {
   let count = 0;
   for (const [key, value] of Object.entries(data)) {
     if (skipKeys.includes(key)) continue;
-    run('INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)', [key, String(value)]);
+    var val = String(value);
+    if (sec.isSensitive(key) && val.indexOf('ENC:') !== 0) val = sec.encrypt(val);
+    run('INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)', [key, val]);
     count++;
   }
+  // 迁移：旧单 key 格式 → 新多 key 数组格式
+  try {
+    // 智谱：zhipu_api_key（单个字符串）→ zhipu_api_keys（JSON 数组）
+    if (data['zhipu_api_key'] && !data['zhipu_api_keys']) {
+      var oldKey = String(data['zhipu_api_key']).trim();
+      if (oldKey) {
+        run("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('zhipu_api_keys', ?, CURRENT_TIMESTAMP)", [sec.encrypt(JSON.stringify([oldKey]))]);
+      }
+      run("DELETE FROM settings WHERE key = 'zhipu_api_key'");
+    }
+    // ai_configs 内 provider 旧格式迁移
+    if (data['ai_configs']) {
+      var cfg;
+      try { cfg = JSON.parse(data['ai_configs']); } catch (e) { cfg = null; }
+      if (cfg && cfg.providers) {
+        var changed = false;
+        // 通义千问：apiKey 字符串 → apiKeys 数组
+        if (cfg.providers.qwen && cfg.providers.qwen.apiKey && !cfg.providers.qwen.apiKeys) {
+          cfg.providers.qwen.apiKeys = [cfg.providers.qwen.apiKey];
+          delete cfg.providers.qwen.apiKey;
+          changed = true;
+        }
+        // 混元：secretId/secretKey → accounts 数组
+        if (cfg.providers.hunyuan && cfg.providers.hunyuan.secretId && !cfg.providers.hunyuan.accounts) {
+          cfg.providers.hunyuan.accounts = [{ secretId: cfg.providers.hunyuan.secretId, secretKey: cfg.providers.hunyuan.secretKey }];
+          delete cfg.providers.hunyuan.secretId;
+          delete cfg.providers.hunyuan.secretKey;
+          changed = true;
+        }
+        if (changed) {
+          run("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('ai_configs', ?, CURRENT_TIMESTAMP)", [sec.encrypt(JSON.stringify(cfg))]);
+        }
+      }
+    }
+  } catch (e) {
+    console.log('[导入迁移] 迁移异常:', e.message);
+  }
+
   res.json({ ok: true, imported: count });
 });
 

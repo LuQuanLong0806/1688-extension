@@ -148,10 +148,12 @@ router.post('/enhance', function (req, res) {
 });
 
 // ===== ImgBB 图床（免费） =====
+var sec = require('../../crypto');
+
 function getImgbbKey() {
   try {
     var row = require('../../db').getOne("SELECT value FROM settings WHERE key = 'imgbb_api_key'");
-    return row ? row.value : '';
+    return row ? sec.decrypt(row.value) : '';
   } catch (e) {
     return '';
   }
@@ -221,7 +223,8 @@ router.post('/smms-token', function (req, res) {
   if (!key) return res.status(400).json({ error: 'API Key 不能为空' });
   try {
     var db = require('../../db');
-    db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('imgbb_api_key', ?)", [key]);
+    db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('imgbb_api_key', ?)", [sec.encrypt(key)]);
+    db.scheduleSave();
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: '保存失败' });

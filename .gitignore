@@ -6,6 +6,7 @@ server/1688-server/
 *.zip
 server/*.db
 server/*.db.*
+server/.crypto_key
 server/public/uploads/
 server/models/*.onnx
 server/.models/*.onnx

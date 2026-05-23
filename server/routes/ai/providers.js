@@ -1,15 +1,51 @@
-// LLM 多供应商 + 配置管理 + 降级链
+// LLM 多供应商 + 多Token轮换 + 降级链
 const http = require('http');
 const https = require('https');
 const crypto = require('crypto');
+const sec = require('../../crypto');
 
 var API_BASE = 'https://open.bigmodel.cn/api/paas/v4';
 
+// ===== 多 Key 存储 =====
+
 function getApiKey() {
+  var keys = getZhipuKeys();
+  return keys.length ? keys[0] : '';
+}
+
+function getZhipuKeys() {
+  try {
+    var row = require('../../db').getOne("SELECT value FROM settings WHERE key = 'zhipu_api_keys'");
+    if (row && row.value) {
+      var arr = JSON.parse(sec.decrypt(row.value));
+      if (Array.isArray(arr) && arr.length) return arr.filter(function (k) { return k && k.trim(); });
+    }
+  } catch (e) {}
+  // 兼容旧格式：单个 key
   try {
     var row = require('../../db').getOne("SELECT value FROM settings WHERE key = 'zhipu_api_key'");
-    return row ? row.value : '';
-  } catch (e) { return ''; }
+    if (row && row.value) { var v = sec.decrypt(row.value).trim(); if (v) return [v]; }
+  } catch (e) {}
+  return [];
+}
+
+function saveZhipuKeys(keys) {
+  require('../../db').run("INSERT OR REPLACE INTO settings (key, value) VALUES ('zhipu_api_keys', ?)", [sec.encrypt(JSON.stringify(keys))]);
+  require('../../db').scheduleSave();
+}
+
+function getQwenKeys() {
+  var cfg = getProviderConfig('qwen');
+  if (cfg.apiKeys && Array.isArray(cfg.apiKeys) && cfg.apiKeys.length) return cfg.apiKeys.filter(function (k) { return k && k.trim(); });
+  if (cfg.apiKey && cfg.apiKey.trim()) return [cfg.apiKey.trim()]; // 兼容旧格式
+  return [];
+}
+
+function getHunyuanAccounts() {
+  var cfg = getProviderConfig('hunyuan');
+  if (cfg.accounts && Array.isArray(cfg.accounts) && cfg.accounts.length) return cfg.accounts.filter(function (a) { return a.secretId && a.secretKey; });
+  if (cfg.secretId && cfg.secretKey) return [{ secretId: cfg.secretId, secretKey: cfg.secretKey }]; // 兼容旧格式
+  return [];
 }
 
 var AI_USE_CASES = {
@@ -38,6 +74,29 @@ function isRateLimitError(err) {
   for (var i = 0; i < keywords.length; i++) { if (msg.indexOf(keywords[i]) >= 0) return true; }
   return false;
 }
+
+// ===== Key 轮换 & 冷却 =====
+
+var keyCooldowns = {}; // { 'zhipu_0': timestamp, 'qwen_2': timestamp, 'hunyuan_1': timestamp }
+var COOLDOWN_MS = 120000; // 2 分钟冷却
+
+function markKeyCooldown(provider, keyIndex) {
+  keyCooldowns[provider + '_' + keyIndex] = Date.now();
+  console.log('[Key轮换]', provider, 'Key#' + keyIndex, '限流冷却', (COOLDOWN_MS / 1000) + 's');
+}
+
+function isKeyCooling(provider, keyIndex) {
+  var ts = keyCooldowns[provider + '_' + keyIndex];
+  if (!ts) return false;
+  if (Date.now() - ts >= COOLDOWN_MS) { delete keyCooldowns[provider + '_' + keyIndex]; return false; }
+  return true;
+}
+
+function clearKeyCooldown(provider, keyIndex) {
+  delete keyCooldowns[provider + '_' + keyIndex];
+}
+
+// ===== 供应商请求函数（接收凭据参数）=====
 
 function ollamaChatRequest(messages, temperature, maxTokens) {
   return new Promise(function (resolve, reject) {
@@ -68,16 +127,15 @@ function ollamaChatRequest(messages, temperature, maxTokens) {
   });
 }
 
-function qwenChatRequest(messages, temperature, maxTokens) {
+function qwenChatRequest(messages, temperature, maxTokens, apiKey) {
   return new Promise(function (resolve, reject) {
-    var cfg = getProviderConfig('qwen');
-    if (!cfg.apiKey) return reject(new Error('未配置通义千问API Key'));
+    if (!apiKey) return reject(new Error('未配置通义千问API Key'));
     var body = { model: 'qwen-turbo', messages: messages, temperature: temperature || 0.1 };
     if (maxTokens) body.max_tokens = maxTokens;
     var data = JSON.stringify(body);
     var req = https.request({
       hostname: 'dashscope.aliyuncs.com', port: 443, path: '/compatible-mode/v1/chat/completions',
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + cfg.apiKey, 'Content-Length': Buffer.byteLength(data) }
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey, 'Content-Length': Buffer.byteLength(data) }
     }, function (res) {
       var d = '';
       res.on('data', function (c) { d += c; });
@@ -99,10 +157,9 @@ function qwenChatRequest(messages, temperature, maxTokens) {
 function hmacSha256(key, msg) { return crypto.createHmac('sha256', key).update(msg, 'utf8').digest(); }
 function sha256Hex(msg) { return crypto.createHash('sha256').update(msg, 'utf8').digest('hex'); }
 
-function hunyuanChatRequest(messages, temperature, maxTokens) {
+function hunyuanChatRequest(messages, temperature, maxTokens, secretId, secretKey) {
   return new Promise(function (resolve, reject) {
-    var cfg = getProviderConfig('hunyuan');
-    if (!cfg.secretId || !cfg.secretKey) return reject(new Error('未配置腾讯云密钥'));
+    if (!secretId || !secretKey) return reject(new Error('未配置腾讯云密钥'));
     var tcMessages = messages.map(function (m) { return { Role: m.role, Content: m.content }; });
     var reqBody = JSON.stringify({ Model: 'hunyuan-lite', Messages: tcMessages, Temperature: temperature || 0.1, TopP: 0.7 });
     var host = 'hunyuan.tencentcloudapi.com', service = 'hunyuan', action = 'ChatCompletions';
@@ -113,8 +170,8 @@ function hunyuanChatRequest(messages, temperature, maxTokens) {
     var canonicalRequest = ['POST', '/', '', canonicalHeaders, signedHeaders, sha256Hex(reqBody)].join('\n');
     var credentialScope = date + '/' + service + '/tc3_request';
     var stringToSign = ['TC3-HMAC-SHA256', ts, credentialScope, sha256Hex(canonicalRequest)].join('\n');
-    var sig = crypto.createHmac('sha256', hmacSha256(hmacSha256(hmacSha256('TC3' + cfg.secretKey, date), service), 'tc3_request')).update(stringToSign, 'utf8').digest('hex');
-    var auth = 'TC3-HMAC-SHA256 Credential=' + cfg.secretId + '/' + credentialScope + ', SignedHeaders=' + signedHeaders + ', Signature=' + sig;
+    var sig = crypto.createHmac('sha256', hmacSha256(hmacSha256(hmacSha256('TC3' + secretKey, date), service), 'tc3_request')).update(stringToSign, 'utf8').digest('hex');
+    var auth = 'TC3-HMAC-SHA256 Credential=' + secretId + '/' + credentialScope + ', SignedHeaders=' + signedHeaders + ', Signature=' + sig;
     var req = https.request({
       hostname: host, port: 443, path: '/', method: 'POST',
       headers: { 'Content-Type': ct, 'Host': host, 'X-TC-Action': action, 'X-TC-Version': '2023-09-01', 'X-TC-Timestamp': ts.toString(), 'X-TC-Region': 'ap-guangzhou', 'Authorization': auth, 'Content-Length': Buffer.byteLength(reqBody) }
@@ -136,6 +193,8 @@ function hunyuanChatRequest(messages, temperature, maxTokens) {
     req.end();
   });
 }
+
+// ===== 降级链 =====
 
 var CATEGORY_LLM_CHAIN = [
   { name: 'GLM-4.7-Flash', provider: 'zhipu', model: 'glm-4.7-flash' },
@@ -169,39 +228,92 @@ function markModelFail(name) {
 function markModelSuccess(name) { delete modelHealthCache[name]; }
 
 function runLLMChain(chain, apiPath, body) {
-  var zhipuConfig = getAIConfig('category');
   function tryModel(i) {
     if (i >= chain.length) return Promise.reject(new Error('所有模型均不可用'));
     var step = chain[i];
     var stepLabel = step.name + (step.model ? '(' + step.model + ')' : '');
     if (isModelBlocked(step.name)) { console.log('[模型链]', stepLabel, '健康检查不通过，跳过'); return tryModel(i + 1); }
     console.log('[模型链] 尝试:', stepLabel);
+
     if (step.provider === 'zhipu') {
+      var keys = getZhipuKeys();
+      if (!keys.length) return tryModel(i + 1);
       body.model = step.model; body.enable_thinking = false;
-      return zhipuRequest(apiPath, body, { apiKey: zhipuConfig.apiKey }).then(function (r) { markModelSuccess(step.name); return r; }).catch(function (err) { markModelFail(step.name); if (isRateLimitError(err)) { console.log('[模型链]', stepLabel, '限流，切换下一个'); return tryModel(i + 1); } throw err; });
+      return tryKeys('zhipu', keys, 0, function (key) {
+        return zhipuRequest(apiPath, body, { apiKey: key });
+      }).then(function (r) { markModelSuccess(step.name); return r; })
+        .catch(function (err) {
+          if (err && err.message === '__ALL_KEYS_EXHAUSTED__') {
+            markModelFail(step.name);
+            console.log('[模型链]', stepLabel, '所有Key限流，切换下一个供应商');
+            return tryModel(i + 1);
+          }
+          markModelFail(step.name); throw err;
+        });
     }
     if (step.provider === 'qwen') {
-      var qc = getProviderConfig('qwen'); if (!qc.apiKey) return tryModel(i + 1);
-      return qwenChatRequest(body.messages, body.temperature, body.max_tokens).then(function (r) { markModelSuccess(step.name); return r; }).catch(function (err) { markModelFail(step.name); if (isRateLimitError(err)) { console.log('[模型链]', stepLabel, '限流，切换下一个'); return tryModel(i + 1); } throw err; });
+      var keys = getQwenKeys();
+      if (!keys.length) return tryModel(i + 1);
+      return tryKeys('qwen', keys, 0, function (key) {
+        return qwenChatRequest(body.messages, body.temperature, body.max_tokens, key);
+      }).then(function (r) { markModelSuccess(step.name); return r; })
+        .catch(function (err) {
+          if (err && err.message === '__ALL_KEYS_EXHAUSTED__') {
+            markModelFail(step.name);
+            console.log('[模型链]', stepLabel, '所有Key限流，切换下一个供应商');
+            return tryModel(i + 1);
+          }
+          markModelFail(step.name); throw err;
+        });
     }
     if (step.provider === 'hunyuan') {
-      var hc = getProviderConfig('hunyuan'); if (!hc.secretId) return tryModel(i + 1);
-      return hunyuanChatRequest(body.messages, body.temperature, body.max_tokens).then(function (r) { markModelSuccess(step.name); return r; }).catch(function (err) { markModelFail(step.name); if (isRateLimitError(err)) { console.log('[模型链]', stepLabel, '限流，切换下一个'); return tryModel(i + 1); } throw err; });
+      var accounts = getHunyuanAccounts();
+      if (!accounts.length) return tryModel(i + 1);
+      return tryKeys('hunyuan', accounts, 0, function (acc) {
+        return hunyuanChatRequest(body.messages, body.temperature, body.max_tokens, acc.secretId, acc.secretKey);
+      }).then(function (r) { markModelSuccess(step.name); return r; })
+        .catch(function (err) {
+          if (err && err.message === '__ALL_KEYS_EXHAUSTED__') {
+            markModelFail(step.name);
+            console.log('[模型链]', stepLabel, '所有Key限流，切换下一个供应商');
+            return tryModel(i + 1);
+          }
+          markModelFail(step.name); throw err;
+        });
     }
     if (step.provider === 'ollama') {
       return ollamaChatRequest(body.messages, body.temperature, body.max_tokens).then(function (r) { markModelSuccess(step.name); return r; }).catch(function (err) { markModelFail(step.name); console.log('[模型链]', stepLabel, '不可用:', err.message); return tryModel(i + 1); });
     }
     return tryModel(i + 1);
   }
+
+  // 同供应商内多 Key 轮换
+  function tryKeys(provider, keys, keyIdx, callFn) {
+    if (keyIdx >= keys.length) return Promise.reject(new Error('__ALL_KEYS_EXHAUSTED__'));
+    if (isKeyCooling(provider, keyIdx)) return tryKeys(provider, keys, keyIdx + 1, callFn);
+    console.log('[Key轮换]', provider, '尝试Key#' + keyIdx);
+    return callFn(keys[keyIdx])
+      .then(function (r) { clearKeyCooldown(provider, keyIdx); return r; })
+      .catch(function (err) {
+        if (isRateLimitError(err)) {
+          markKeyCooldown(provider, keyIdx);
+          return tryKeys(provider, keys, keyIdx + 1, callFn);
+        }
+        throw err;
+      });
+  }
+
   return tryModel(0);
 }
 
+// ===== 配置管理 =====
+
 function getAIConfigs() {
-  try { var row = require('../../db').getOne("SELECT value FROM settings WHERE key = 'ai_configs'"); if (row && row.value) return JSON.parse(row.value); } catch (e) {}
+  try { var row = require('../../db').getOne("SELECT value FROM settings WHERE key = 'ai_configs'"); if (row && row.value) return JSON.parse(sec.decrypt(row.value)); } catch (e) {}
   return {};
 }
 function saveAIConfigs(configs) {
-  require('../../db').run("INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_configs', ?)", [JSON.stringify(configs)]);
+  require('../../db').run("INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_configs', ?)", [sec.encrypt(JSON.stringify(configs))]);
   require('../../db').scheduleSave();
 }
 function getAIConfig(useCase) {
@@ -246,7 +358,8 @@ function zhipuRequest(apiPath, body, options) {
 
 module.exports = {
   API_BASE, AI_USE_CASES,
-  getApiKey, getAIConfigs, saveAIConfigs, getAIConfig, getProviderConfig, maskApiKey,
+  getApiKey, getZhipuKeys, saveZhipuKeys, getQwenKeys, getHunyuanAccounts,
+  getAIConfigs, saveAIConfigs, getAIConfig, getProviderConfig, maskApiKey,
   zhipuRequest,
   categoryLLMRequest, extractionLLMRequest, runLLMChain,
   imageLLMRequest: function (apiPath, body) { var config = getAIConfig('image'); return zhipuRequest(apiPath, body, { apiKey: config.apiKey }); }

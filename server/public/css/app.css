@@ -933,6 +933,30 @@ body {
 .ai-key-hint { font-size: 12px; color: var(--success); white-space: nowrap; flex-shrink: 0; }
 .ai-key-hint.none { color: var(--danger); }
 
+/* 多 Key 管理标签 */
+.ai-key-list { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; flex: 1; min-width: 0; }
+.ai-key-tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: var(--bg-elevated); border: 1px solid var(--border-subtle);
+  border-radius: var(--radius); padding: 3px 10px; font-size: 12px;
+  color: var(--text-secondary); transition: all var(--transition);
+  font-family: 'Courier New', Courier, monospace; letter-spacing: .3px;
+}
+.ai-key-tag:hover { border-color: var(--accent); color: var(--accent); }
+.ai-key-tag .ivu-icon { cursor: pointer; font-size: 14px; color: var(--text-muted); transition: color var(--transition); margin-left: 2px; }
+.ai-key-tag .ivu-icon:hover { color: var(--danger); }
+.ai-key-count {
+  font-size: 11px; padding: 2px 8px; border-radius: 10px;
+  background: var(--accent-subtle); color: var(--accent);
+  font-weight: 600; white-space: nowrap; flex-shrink: 0;
+}
+.ai-key-empty { font-size: 12px; color: var(--text-muted); font-style: italic; }
+.ai-key-add-row { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.ai-key-add-row .ivu-input-wrapper { width: 220px; }
+.ai-key-add-row .ivu-input { font-size: 12px; }
+.ai-provider-keys { padding: 10px 18px 14px; border-bottom: 1px solid var(--border-subtle); background: var(--bg-elevated); }
+.ai-provider-keys:last-child { border-bottom: none; }
+
 /* 云同步卡片 */
 /* ===== 云同步页面 ===== */
 

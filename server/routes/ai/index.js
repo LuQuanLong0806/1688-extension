@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 
 var providers = require('./providers');
+var sec = require('../../crypto');
 
 // 挂载子路由
 router.use(require('./image-gen'));
@@ -32,7 +33,8 @@ router.post('/save-key', function (req, res) {
   if (!key) return res.status(400).json({ error: '密钥不能为空' });
   try {
     var db = require('../../db');
-    db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('zhipu_api_key', ?)", [key]);
+    db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('zhipu_api_key', ?)", [sec.encrypt(key)]);
+    db.scheduleSave();
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: '保存失败' });
@@ -44,50 +46,6 @@ router.post('/delete-key', function (req, res) {
   try {
     var db = require('../../db');
     db.run("DELETE FROM settings WHERE key = 'zhipu_api_key'");
-    res.json({ ok: true });
-  } catch (e) {
-    res.status(500).json({ error: '删除失败' });
-  }
-});
-
-// ===== 图床配置 (ImgBB) =====
-
-// 获取 ImgBB API Key（脱敏）
-router.get('/smms-token', function (req, res) {
-  try {
-    var db = require('../../db');
-    db.get("SELECT value FROM settings WHERE key = 'imgbb_api_key'", [], function (err, row) {
-      if (err) return res.json({ configured: false, masked: '' });
-      if (!row || !row.value) return res.json({ configured: false, masked: '' });
-      var key = row.value;
-      var masked = key.length > 8 ? key.substring(0, 4) + '****' + key.substring(key.length - 4) : '****';
-      res.json({ configured: true, masked: masked });
-    });
-  } catch (e) {
-    res.json({ configured: false, masked: '' });
-  }
-});
-
-// 保存 ImgBB API Key
-router.post('/smms-token', function (req, res) {
-  var token = (req.body.token || '').trim();
-  if (!token) return res.status(400).json({ error: 'Token不能为空' });
-  try {
-    var db = require('../../db');
-    db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('imgbb_api_key', ?)", [token]);
-    db.scheduleSave();
-    res.json({ ok: true });
-  } catch (e) {
-    res.status(500).json({ error: '保存失败' });
-  }
-});
-
-// 删除 ImgBB API Key
-router.post('/smms-token-delete', function (req, res) {
-  try {
-    var db = require('../../db');
-    db.run("DELETE FROM settings WHERE key = 'imgbb_api_key'");
-    db.scheduleSave();
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: '删除失败' });
@@ -110,19 +68,29 @@ router.get('/configs', function (req, res) {
       models: providers.AI_USE_CASES[uc].models
     };
   });
-  result._global = { apiKey: providers.maskApiKey(providers.getApiKey()), configured: !!providers.getApiKey() };
+  // 智谱多 key
+  var zhipuKeys = providers.getZhipuKeys();
+  result._global = {
+    apiKey: providers.maskApiKey(providers.getApiKey()),
+    configured: !!providers.getApiKey(),
+    keys: zhipuKeys.map(providers.maskApiKey)
+  };
+  // 供应商多 key
+  var qwenKeys = providers.getQwenKeys();
+  var hunyuanAccounts = providers.getHunyuanAccounts();
   var provCfg = configs.providers || {};
   result.providers = {
     qwen: {
       label: '通义千问（阿里云）',
-      apiKey: providers.maskApiKey(provCfg.qwen && provCfg.qwen.apiKey),
-      configured: !!(provCfg.qwen && provCfg.qwen.apiKey)
+      keys: qwenKeys.map(providers.maskApiKey),
+      configured: qwenKeys.length > 0
     },
     hunyuan: {
       label: '腾讯混元（腾讯云）',
-      secretId: providers.maskApiKey(provCfg.hunyuan && provCfg.hunyuan.secretId),
-      secretKey: providers.maskApiKey(provCfg.hunyuan && provCfg.hunyuan.secretKey),
-      configured: !!(provCfg.hunyuan && provCfg.hunyuan.secretId && provCfg.hunyuan.secretKey)
+      accounts: hunyuanAccounts.map(function (a) {
+        return { secretId: providers.maskApiKey(a.secretId), secretKey: providers.maskApiKey(a.secretKey) };
+      }),
+      configured: hunyuanAccounts.length > 0
     },
     ollama: {
       label: '本地模型（Ollama）',
@@ -134,7 +102,7 @@ router.get('/configs', function (req, res) {
   res.json(result);
 });
 
-// 保存配置
+// 保存配置（仅 ollama 和 per-use-case model，key 管理走专用端点）
 router.post('/configs', function (req, res) {
   var updates = req.body;
   var configs = providers.getAIConfigs();
@@ -144,33 +112,17 @@ router.post('/configs', function (req, res) {
     if (!providers.AI_USE_CASES[uc]) return;
     if (!configs[uc]) configs[uc] = {};
     if (updates[uc].model) configs[uc].model = updates[uc].model;
+    // 兼容：如果传来单个 apiKey，追加到对应数组
     if (updates[uc].apiKey && updates[uc].apiKey.indexOf('****') === -1) {
       configs[uc].apiKey = updates[uc].apiKey;
     }
   });
 
-  if (updates.providers) {
+  if (updates.providers && updates.providers.ollama) {
     if (!configs.providers) configs.providers = {};
-    if (updates.providers.qwen) {
-      if (!configs.providers.qwen) configs.providers.qwen = {};
-      if (updates.providers.qwen.apiKey && updates.providers.qwen.apiKey.indexOf('****') === -1) {
-        configs.providers.qwen.apiKey = updates.providers.qwen.apiKey;
-      }
-    }
-    if (updates.providers.hunyuan) {
-      if (!configs.providers.hunyuan) configs.providers.hunyuan = {};
-      if (updates.providers.hunyuan.secretId && updates.providers.hunyuan.secretId.indexOf('****') === -1) {
-        configs.providers.hunyuan.secretId = updates.providers.hunyuan.secretId;
-      }
-      if (updates.providers.hunyuan.secretKey && updates.providers.hunyuan.secretKey.indexOf('****') === -1) {
-        configs.providers.hunyuan.secretKey = updates.providers.hunyuan.secretKey;
-      }
-    }
-    if (updates.providers.ollama) {
-      if (!configs.providers.ollama) configs.providers.ollama = {};
-      if (updates.providers.ollama.model) configs.providers.ollama.model = updates.providers.ollama.model;
-      if (updates.providers.ollama.port) configs.providers.ollama.port = updates.providers.ollama.port;
-    }
+    if (!configs.providers.ollama) configs.providers.ollama = {};
+    if (updates.providers.ollama.model) configs.providers.ollama.model = updates.providers.ollama.model;
+    if (updates.providers.ollama.port) configs.providers.ollama.port = updates.providers.ollama.port;
   }
 
   providers.saveAIConfigs(configs);
@@ -178,19 +130,106 @@ router.post('/configs', function (req, res) {
   res.json({ ok: true });
 });
 
-// 保存全局 key
+// 保存全局 key（兼容旧调用，追加到 zhipu_api_keys）
 router.post('/global-key', function (req, res) {
   var key = (req.body.apiKey || '').trim();
   if (!key) return res.status(400).json({ error: 'API Key 不能为空' });
   if (key.indexOf('****') !== -1) return res.status(400).json({ error: '请输入完整API Key' });
   try {
-    var db = require('../../db');
-    db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('zhipu_api_key', ?)", [key]);
-    db.scheduleSave();
-    console.log('[AI配置] 全局API Key已更新');
+    var keys = providers.getZhipuKeys();
+    if (keys.indexOf(key) === -1) keys.push(key);
+    providers.saveZhipuKeys(keys);
+    console.log('[AI配置] 智谱API Key已添加，共', keys.length, '个');
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: '保存失败' });
+  }
+});
+
+// ===== 多 Key 管理端点 =====
+
+// 智谱 key 管理
+router.post('/zhipu-keys', function (req, res) {
+  var action = req.body.action;
+  var keys = providers.getZhipuKeys();
+  if (action === 'add') {
+    var key = (req.body.key || '').trim();
+    if (!key) return res.status(400).json({ error: 'Key不能为空' });
+    if (keys.indexOf(key) !== -1) return res.status(400).json({ error: 'Key已存在' });
+    keys.push(key);
+    providers.saveZhipuKeys(keys);
+    console.log('[AI配置] 智谱Key已添加，共', keys.length, '个');
+    res.json({ ok: true, count: keys.length });
+  } else if (action === 'delete') {
+    var idx = parseInt(req.body.index);
+    if (isNaN(idx) || idx < 0 || idx >= keys.length) return res.status(400).json({ error: '无效索引' });
+    keys.splice(idx, 1);
+    providers.saveZhipuKeys(keys);
+    console.log('[AI配置] 智谱Key已删除，剩余', keys.length, '个');
+    res.json({ ok: true, count: keys.length });
+  } else {
+    res.status(400).json({ error: '未知操作' });
+  }
+});
+
+// 通义千问 key 管理
+router.post('/qwen-keys', function (req, res) {
+  var action = req.body.action;
+  var configs = providers.getAIConfigs();
+  if (!configs.providers) configs.providers = {};
+  if (!configs.providers.qwen) configs.providers.qwen = {};
+  var keys = providers.getQwenKeys();
+  if (action === 'add') {
+    var key = (req.body.key || '').trim();
+    if (!key) return res.status(400).json({ error: 'Key不能为空' });
+    if (keys.indexOf(key) !== -1) return res.status(400).json({ error: 'Key已存在' });
+    keys.push(key);
+    configs.providers.qwen.apiKeys = keys;
+    delete configs.providers.qwen.apiKey; // 清理旧格式
+    providers.saveAIConfigs(configs);
+    console.log('[AI配置] 通义千问Key已添加，共', keys.length, '个');
+    res.json({ ok: true, count: keys.length });
+  } else if (action === 'delete') {
+    var idx = parseInt(req.body.index);
+    if (isNaN(idx) || idx < 0 || idx >= keys.length) return res.status(400).json({ error: '无效索引' });
+    keys.splice(idx, 1);
+    configs.providers.qwen.apiKeys = keys;
+    providers.saveAIConfigs(configs);
+    console.log('[AI配置] 通义千问Key已删除，剩余', keys.length, '个');
+    res.json({ ok: true, count: keys.length });
+  } else {
+    res.status(400).json({ error: '未知操作' });
+  }
+});
+
+// 腾讯混元账号管理
+router.post('/hunyuan-keys', function (req, res) {
+  var action = req.body.action;
+  var configs = providers.getAIConfigs();
+  if (!configs.providers) configs.providers = {};
+  if (!configs.providers.hunyuan) configs.providers.hunyuan = {};
+  var accounts = providers.getHunyuanAccounts();
+  if (action === 'add') {
+    var sid = (req.body.secretId || '').trim();
+    var skey = (req.body.secretKey || '').trim();
+    if (!sid || !skey) return res.status(400).json({ error: '请填写 SecretId 和 SecretKey' });
+    accounts.push({ secretId: sid, secretKey: skey });
+    configs.providers.hunyuan.accounts = accounts;
+    delete configs.providers.hunyuan.secretId; // 清理旧格式
+    delete configs.providers.hunyuan.secretKey;
+    providers.saveAIConfigs(configs);
+    console.log('[AI配置] 混元账号已添加，共', accounts.length, '个');
+    res.json({ ok: true, count: accounts.length });
+  } else if (action === 'delete') {
+    var idx = parseInt(req.body.index);
+    if (isNaN(idx) || idx < 0 || idx >= accounts.length) return res.status(400).json({ error: '无效索引' });
+    accounts.splice(idx, 1);
+    configs.providers.hunyuan.accounts = accounts;
+    providers.saveAIConfigs(configs);
+    console.log('[AI配置] 混元账号已删除，剩余', accounts.length, '个');
+    res.json({ ok: true, count: accounts.length });
+  } else {
+    res.status(400).json({ error: '未知操作' });
   }
 });
 
