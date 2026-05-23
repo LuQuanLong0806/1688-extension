@@ -5,7 +5,7 @@ var fs = require('fs');
 var path = require('path');
 var https = require('https');
 
-var MODEL_DIR = path.join(__dirname, '..', '.models');
+var MODEL_DIR = path.join(__dirname, '..', 'models');
 var MODEL_FILE = path.join(MODEL_DIR, 'isnet_fp16.onnx');
 var RES_BASE = 'https://staticimgly.com/@imgly/background-removal-data/1.7.0/dist/';
 var RESOURCES_URL = RES_BASE + 'resources.json';
