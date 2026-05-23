@@ -1,14 +1,17 @@
 // 知识库 CRUD — 映射/关键词/同义词/黑名单/分类树路径查询
-// 云端优先读取，降级本地
+// 本地优先读取（低延迟），云端异步写入（保持同步）
 
 module.exports = function (cloud, db) {
 
   async function getMappings(categoryName) {
+    // 本地优先，避免远程 170-240ms 延迟
+    var rows = db.getAll('SELECT custom_category, count, source FROM category_mappings WHERE category_name = ? ORDER BY count DESC, id', [categoryName]);
+    if (rows && rows.length > 0) return rows;
+    // 本地无数据时再查云端
     if (cloud.connected) {
-      var rows = await cloud.getAll('SELECT custom_category, count, source FROM category_mappings WHERE category_name = ? ORDER BY count DESC, id', [categoryName]);
-      if (rows && rows.length > 0) return rows;
+      return await cloud.getAll('SELECT custom_category, count, source FROM category_mappings WHERE category_name = ? ORDER BY count DESC, id', [categoryName]);
     }
-    return db.getAll('SELECT custom_category, count, source FROM category_mappings WHERE category_name = ? ORDER BY count DESC, id', [categoryName]);
+    return [];
   }
 
   async function saveMapping(aliCat, customCat, source) {
@@ -18,6 +21,7 @@ module.exports = function (cloud, db) {
     } else {
       db.run('INSERT INTO category_mappings (category_name, custom_category, count, source) VALUES (?, ?, 1, ?)', [aliCat, customCat, source || 'auto']);
     }
+    db.scheduleSave();
     if (cloud.connected) {
       cloud.run('SELECT id, count FROM category_mappings WHERE category_name = ? AND custom_category = ?', [aliCat, customCat]).then(function (existing) {
         if (existing && existing.rows && existing.rows.length > 0) {
@@ -32,19 +36,22 @@ module.exports = function (cloud, db) {
 
   async function getKeywordRels(keywords) {
     if (!keywords || !keywords.length) return [];
-    if (cloud.connected) {
-      var placeholders = keywords.map(function () { return '?' }).join(',');
-      var rows = await cloud.getAll(
-        'SELECT keyword, category_name, weight, match_count, source FROM keyword_category_rel WHERE valid = 1 AND keyword IN (' + placeholders + ')',
-        keywords
-      );
-      if (rows && rows.length > 0) return rows;
-    }
-    var placeholders2 = keywords.map(function () { return '?' }).join(',');
-    return db.getAll(
-      'SELECT keyword, category_name, weight, match_count, source FROM keyword_category_rel WHERE valid = 1 AND keyword IN (' + placeholders2 + ')',
+    var placeholders = keywords.map(function () { return '?' }).join(',');
+    // 本地优先
+    var rows = db.getAll(
+      'SELECT keyword, category_name, weight, match_count, source FROM keyword_category_rel WHERE valid = 1 AND keyword IN (' + placeholders + ')',
       keywords
     );
+    if (rows && rows.length > 0) return rows;
+    // 本地无数据时再查云端
+    if (cloud.connected) {
+      var placeholders2 = keywords.map(function () { return '?' }).join(',');
+      return await cloud.getAll(
+        'SELECT keyword, category_name, weight, match_count, source FROM keyword_category_rel WHERE valid = 1 AND keyword IN (' + placeholders2 + ')',
+        keywords
+      );
+    }
+    return [];
   }
 
   async function saveKeywordRel(keyword, categoryName, weight, source) {
@@ -55,6 +62,7 @@ module.exports = function (cloud, db) {
     } else {
       db.run('INSERT INTO keyword_category_rel (keyword, category_name, weight, match_count, source) VALUES (?, ?, ?, 1, ?)', [keyword, categoryName, weight, source || 'auto']);
     }
+    db.scheduleSave();
     if (cloud.connected) {
       cloud.run('SELECT id, weight, match_count FROM keyword_category_rel WHERE keyword = ? AND category_name = ?', [keyword, categoryName]).then(function (res) {
         if (res && res.rows && res.rows.length > 0) {
@@ -69,45 +77,55 @@ module.exports = function (cloud, db) {
   }
 
   async function getSynonyms(keyword) {
+    // 本地优先
+    var rows = db.getAll('SELECT word_a, word_b FROM keyword_synonyms WHERE word_a = ? OR word_b = ?', [keyword, keyword]);
+    if (rows && rows.length > 0) return rows;
     if (cloud.connected) {
-      var rows = await cloud.getAll('SELECT word_a, word_b FROM keyword_synonyms WHERE word_a = ? OR word_b = ?', [keyword, keyword]);
-      if (rows && rows.length > 0) return rows;
+      return await cloud.getAll('SELECT word_a, word_b FROM keyword_synonyms WHERE word_a = ? OR word_b = ?', [keyword, keyword]);
     }
-    return db.getAll('SELECT word_a, word_b FROM keyword_synonyms WHERE word_a = ? OR word_b = ?', [keyword, keyword]);
+    return [];
   }
 
   async function getBlacklisted(keyword) {
+    // 本地优先
+    var rows = db.getAll('SELECT category_name FROM keyword_blacklist WHERE keyword = ?', [keyword]);
+    if (rows && rows.length > 0) return rows;
     if (cloud.connected) {
-      var rows = await cloud.getAll('SELECT category_name FROM keyword_blacklist WHERE keyword = ?', [keyword]);
-      if (rows && rows.length > 0) return rows;
+      return await cloud.getAll('SELECT category_name FROM keyword_blacklist WHERE keyword = ?', [keyword]);
     }
-    return db.getAll('SELECT category_name FROM keyword_blacklist WHERE keyword = ?', [keyword]);
+    return [];
   }
 
   async function getTreePath(catName) {
+    // 本地优先（treeDb 是本地分类树库）
+    var row = db.treeGetOne('SELECT path FROM dxm_category_tree WHERE cat_name = ? AND is_leaf = 1 LIMIT 1', [catName]);
+    if (row) return row;
     if (cloud.connected) {
-      var row = await cloud.getOne('SELECT path FROM dxm_category_tree WHERE cat_name = ? AND is_leaf = 1 LIMIT 1', [catName]);
-      if (row) return row;
+      return await cloud.getOne('SELECT path FROM dxm_category_tree WHERE cat_name = ? AND is_leaf = 1 LIMIT 1', [catName]);
     }
-    return db.treeGetOne('SELECT path FROM dxm_category_tree WHERE cat_name = ? AND is_leaf = 1 LIMIT 1', [catName]);
+    return null;
   }
 
   // ===== 分类配置（过滤词/互斥组/泛词） =====
 
   async function getCategoryConfig(type) {
+    // 本地优先
+    var rows = db.getAll('SELECT type, value, group_name, description, sort_order FROM category_config WHERE type = ? ORDER BY sort_order, id', [type]);
+    if (rows && rows.length > 0) return rows;
     if (cloud.connected) {
-      var rows = await cloud.getAll('SELECT type, value, group_name, description, sort_order FROM category_config WHERE type = ? ORDER BY sort_order, id', [type]);
-      if (rows && rows.length > 0) return rows;
+      return await cloud.getAll('SELECT type, value, group_name, description, sort_order FROM category_config WHERE type = ? ORDER BY sort_order, id', [type]);
     }
-    return db.getAll('SELECT type, value, group_name, description, sort_order FROM category_config WHERE type = ? ORDER BY sort_order, id', [type]);
+    return [];
   }
 
   async function getAllCategoryConfig() {
+    // 本地优先
+    var rows = db.getAll('SELECT type, value, group_name, description, sort_order FROM category_config ORDER BY type, sort_order, id');
+    if (rows && rows.length > 0) return rows;
     if (cloud.connected) {
-      var rows = await cloud.getAll('SELECT type, value, group_name, description, sort_order FROM category_config ORDER BY type, sort_order, id');
-      if (rows && rows.length > 0) return rows;
+      return await cloud.getAll('SELECT type, value, group_name, description, sort_order FROM category_config ORDER BY type, sort_order, id');
     }
-    return db.getAll('SELECT type, value, group_name, description, sort_order FROM category_config ORDER BY type, sort_order, id');
+    return [];
   }
 
   function saveCategoryConfig(type, value, groupName, description, sortOrder) {
