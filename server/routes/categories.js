@@ -69,9 +69,12 @@ router.get('/category-mappings/by-dxm', (req, res) => {
   res.json(result);
 });
 
-// 分组列表（带商品数量统计）
+// 分组列表（带商品数量统计、分页）
 router.get('/category-mappings/grouped', (req, res) => {
   const keyword = (req.query.keyword || '').trim();
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const pageSize = Math.max(1, Math.min(200, parseInt(req.query.pageSize) || 20));
+  const offset = (page - 1) * pageSize;
   let rows;
   if (keyword) {
     rows = getAll('SELECT id, category_name, custom_category FROM category_mappings WHERE custom_category LIKE ? ORDER BY custom_category, category_name', ['%' + keyword + '%']);
@@ -99,7 +102,9 @@ router.get('/category-mappings/grouped', (req, res) => {
     const treeRow = treeGetOne('SELECT path FROM dxm_category_tree WHERE cat_name = ? AND is_leaf = 1 LIMIT 1', [g.customCategory]);
     g.path = treeRow ? treeRow.path : g.customCategory;
   });
-  res.json(result);
+  const total = result.length;
+  const paged = result.slice(offset, offset + pageSize);
+  res.json({ list: paged, total: total, page: page, pageSize: pageSize });
 });
 
 // 删除整个DXM类目映射（必须在 :id 之前）

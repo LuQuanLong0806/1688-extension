@@ -5,6 +5,9 @@ Vue.component('page-categories', {
       loading: false,
       list: [],
       keyword: '',
+      page: 1,
+      pageSize: 20,
+      total: 0,
       treeStatus: { total: 0, lastSync: null, levels: 0 },
       // 维护映射弹窗
       modalVisible: false,
@@ -34,16 +37,19 @@ Vue.component('page-categories', {
       vm.loading = true;
       var params = new URLSearchParams();
       if (vm.keyword.trim()) params.set('keyword', vm.keyword.trim());
+      params.set('page', vm.page);
+      params.set('pageSize', vm.pageSize);
       fetch('/api/category-mappings/grouped?' + params.toString())
         .then(function (r) { return r.json(); })
         .then(function (data) {
-          vm.list = data;
+          vm.list = data.list || [];
+          vm.total = data.total || 0;
           vm.loading = false;
         })
         .catch(function () { vm.loading = false; });
     },
-    doSearch: function () { this.loadList(); },
-    clearSearch: function () { this.keyword = ''; this.loadList(); },
+    doSearch: function () { this.page = 1; this.loadList(); },
+    clearSearch: function () { this.keyword = ''; this.page = 1; this.loadList(); },
     loadTreeStatus: function () {
       var vm = this;
       fetch('/api/dxm-tree/status').then(function (r) { return r.json(); }).then(function (s) {
@@ -70,6 +76,15 @@ Vue.component('page-categories', {
             }).catch(function () { vm.$Message.error('删除失败'); });
         }
       });
+    },
+    changePage: function (p) {
+      this.page = p;
+      this.loadList();
+    },
+    changePageSize: function (size) {
+      this.pageSize = size;
+      this.page = 1;
+      this.loadList();
     },
     // 打开维护映射弹窗
     openModal: function (row) {
@@ -243,12 +258,17 @@ Vue.component('page-categories', {
           <i-button type="primary" icon="ios-search" @click="doSearch">搜索</i-button>
         </div>
         <div class="action-bar-right">
-          <span style="font-size:13px;color:#888">共 <strong style="color:#333">{{ list.length }}</strong> 个已映射类目</span>
+          <span style="font-size:13px;color:#888">共 <strong style="color:#333">{{ total }}</strong> 个已映射类目</span>
           <i-button type="success" icon="md-add" @click="openAddDialog">新增映射</i-button>
           <i-button icon="md-refresh" @click="loadList">刷新</i-button>
         </div>
       </div>
       <i-table :columns="columns" :data="list" :loading="loading" stripe style="margin-bottom:0;"></i-table>
+      <div style="padding:12px 20px;display:flex;justify-content:flex-end;background:#fff;border-top:1px solid #f0f0f0">
+        <Page :current="page" :total="total" :page-size="pageSize" :page-size-opts="[10,20,50,100]"
+          show-total show-sizer show-elevator
+          @on-change="changePage" @on-page-size-change="changePageSize" />
+      </div>
       <!-- 维护映射弹窗 -->
       <modal v-model="modalVisible" :title="'维护映射 - ' + modalDxmName" :mask-closable="false" width="600" footer-hide>
         <div v-if="modalPath" style="font-size:12px;color:#999;margin-bottom:12px;padding:8px;background:#f9f9f9;border-radius:4px;word-break:break-all">{{ modalPath }}</div>

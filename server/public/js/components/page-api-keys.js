@@ -8,12 +8,17 @@ Vue.component('page-api-keys', {
       providers: {},
       editData: {},
       imgbbStatus: { configured: false, masked: '' },
-      imgbbKey: ''
+      imgbbKey: '',
+      tursoUrl: '',
+      tursoToken: '',
+      tursoStatus: { connected: false, config: false },
+      tursoSaving: false
     };
   },
   mounted: function () {
     this.loadConfigs();
     this.loadImgbb();
+    this.loadTurso();
   },
   methods: {
     loadConfigs: function () {
@@ -184,13 +189,85 @@ Vue.component('page-api-keys', {
           if (d.ok) { vm.$Message.success('ImgBB API Key 已删除'); vm.loadImgbb(); }
           vm.saving = null;
         }).catch(function () { vm.$Message.error('删除失败'); vm.saving = null; });
+    },
+    loadTurso: function () {
+      var vm = this;
+      fetch('/api/sync/config').then(function (r) { return r.json(); }).then(function (data) {
+        vm.tursoUrl = data.url || '';
+        vm.tursoToken = data.token || '';
+        vm.tursoStatus = { connected: data.status ? data.status.connected : false, config: data.configured };
+      }).catch(function () {});
+    },
+    saveTurso: function () {
+      var vm = this;
+      var url = (vm.tursoUrl || '').trim();
+      var token = (vm.tursoToken || '').trim();
+      if (!url || !token) { vm.$Message.warning('请填写 URL 和 Token'); return; }
+      vm.tursoSaving = true;
+      fetch('/api/sync/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: url, token: token })
+      }).then(function (r) { return r.json(); }).then(function (data) {
+        if (data.ok) { vm.$Message.success(data.message); vm.loadTurso(); }
+        else vm.$Message.error(data.message || '连接失败');
+        vm.tursoSaving = false;
+      }).catch(function () { vm.$Message.error('保存失败'); vm.tursoSaving = false; });
+    },
+    testTurso: function () {
+      var vm = this;
+      vm.tursoSaving = true;
+      fetch('/api/sync/test', { method: 'POST' })
+        .then(function (r) { return r.json(); }).then(function (data) {
+          if (data.ok) vm.$Message.success('连接成功');
+          else vm.$Message.error(data.message || '连接失败');
+          vm.loadTurso();
+          vm.tursoSaving = false;
+        }).catch(function () { vm.$Message.error('测试失败'); vm.tursoSaving = false; });
+    },
+    exportSettings: function () {
+      window.open('/api/settings-export', '_blank');
+    },
+    importSettings: function () {
+      var vm = this;
+      var input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.json';
+      input.onchange = function (e) {
+        var file = e.target.files[0];
+        if (!file) return;
+        var reader = new FileReader();
+        reader.onload = function (ev) {
+          try {
+            var data = JSON.parse(ev.target.result);
+            fetch('/api/settings-import', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(data)
+            }).then(function (r) { return r.json(); }).then(function (res) {
+              if (res.ok) vm.$Message.success('导入成功，共 ' + res.imported + ' 项');
+              else vm.$Message.error(res.error || '导入失败');
+            }).catch(function () { vm.$Message.error('导入失败'); });
+          } catch (err) {
+            vm.$Message.error('文件格式错误');
+          }
+        };
+        reader.readAsText(file);
+      };
+      input.click();
     }
   },
   template: `
     <div style="padding:0">
-      <div style="margin-bottom:24px">
-        <h3 style="margin:0 0 6px;font-size:18px;color:var(--text-primary)">AI模型配置</h3>
-        <p style="margin:0;font-size:13px;color:var(--text-muted)">配置各AI功能的模型和密钥，限流时自动切换备用</p>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
+        <div>
+          <h3 style="margin:0 0 6px;font-size:18px;color:var(--text-primary)">AI模型配置</h3>
+          <p style="margin:0;font-size:13px;color:var(--text-muted)">配置各AI功能的模型和密钥，限流时自动切换备用</p>
+        </div>
+        <div style="display:flex;gap:8px;flex-shrink:0">
+          <i-button @click="exportSettings" style="border-radius:var(--radius);font-size:13px;padding:6px 16px"><icon type="md-download" style="margin-right:4px"></icon>导出设置</i-button>
+          <i-button type="primary" @click="importSettings" style="border-radius:var(--radius);font-size:13px;padding:6px 16px"><icon type="md-upload" style="margin-right:4px"></icon>导入设置</i-button>
+        </div>
       </div>
 
       <div v-if="loading" style="text-align:center;padding:40px;color:var(--text-muted)">加载中...</div>
@@ -275,6 +352,7 @@ Vue.component('page-api-keys', {
         <div class="ai-module">
           <div class="ai-module-header">
             <span class="ai-module-title">智能检测</span>
+            <span style="font-size:12px;color:var(--text-muted);margin-left:8px">自动识别商品图片违规、质检问题</span>
           </div>
           <div class="ai-provider-row">
             <div class="ai-provider-info">
@@ -297,6 +375,7 @@ Vue.component('page-api-keys', {
         <div class="ai-module">
           <div class="ai-module-header">
             <span class="ai-module-title">图片生成</span>
+            <span style="font-size:12px;color:var(--text-muted);margin-left:8px">AI生成商品主图、详情图</span>
           </div>
           <div class="ai-provider-row">
             <div class="ai-provider-info">
@@ -335,6 +414,31 @@ Vue.component('page-api-keys', {
                 style="width:220px"></i-input>
               <i-button type="primary" size="small" :loading="saving === 'imgbb'" @click="saveImgbb()">保存</i-button>
               <i-button v-if="imgbbStatus.configured" size="small" :loading="saving === 'imgbb'" @click="deleteImgbb()">删除</i-button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ====== Turso 连接配置 ====== -->
+        <div class="ai-module">
+          <div class="ai-module-header">
+            <span class="ai-module-title">Turso 连接配置</span>
+            <span style="font-size:12px;color:var(--text-muted);margin-left:8px">云端数据库，多设备同步知识库和商品数据</span>
+            <span v-if="tursoStatus.connected" style="font-size:12px;color:var(--success);margin-left:8px">已连接</span>
+            <span v-else-if="tursoStatus.config" style="font-size:12px;color:#ff9900;margin-left:8px">已配置（未连接）</span>
+            <span v-else style="font-size:12px;color:var(--text-muted);margin-left:8px">未配置</span>
+          </div>
+          <div class="ai-provider-row" style="flex-wrap:wrap;gap:10px">
+            <div style="display:flex;gap:10px;align-items:center;width:100%">
+              <span style="width:100px;flex-shrink:0;color:var(--text-secondary);font-size:13px">Database URL</span>
+              <i-input v-model="tursoUrl" size="small" placeholder="libsql://your-db-name.turso.io" style="flex:1"></i-input>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;width:100%">
+              <span style="width:100px;flex-shrink:0;color:var(--text-secondary);font-size:13px">Auth Token</span>
+              <i-input v-model="tursoToken" type="password" password size="small" placeholder="eyJ..." style="flex:1"></i-input>
+            </div>
+            <div style="display:flex;gap:8px;margin-left:110px">
+              <i-button type="primary" size="small" :loading="tursoSaving" @click="saveTurso()">保存并连接</i-button>
+              <i-button size="small" :loading="tursoSaving" @click="testTurso()">测试连接</i-button>
             </div>
           </div>
         </div>

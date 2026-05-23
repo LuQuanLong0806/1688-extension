@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>商品采集管理平台</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="https://unpkg.com/view-design@4.7.0/dist/styles/iview.css">
   <link rel="stylesheet" href="css/theme-jd.css">
   <link rel="stylesheet" href="css/theme-1688.css">
@@ -31,6 +32,10 @@
         </div>
         <div class="header-right">
           <span class="header-badge">已采集 {{ stats.total }} 条</span>
+          <div class="header-theme-toggle" @click="toggleTheme" :title="'切换主题: ' + themeName">
+            <span>🎨</span>
+            <span>{{ themeName }}</span>
+          </div>
         </div>
       </header>
 
@@ -66,10 +71,6 @@
               <span class="menu-text">云同步</span>
             </li>
           </ul>
-          <div class="sidebar-toggle" @click="toggleTheme" :title="'当前: ' + themeName">
-            <span style="font-size:14px;margin-right:4px">🎨</span>
-            <span class="menu-text" style="font-size:11px">{{ themeName }}</span>
-          </div>
           <div class="sidebar-toggle" @click="sidebarCollapsed = !sidebarCollapsed" :title="sidebarCollapsed ? '展开菜单' : '收起菜单'">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
               <path v-if="sidebarCollapsed" d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>

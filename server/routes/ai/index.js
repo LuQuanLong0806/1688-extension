@@ -50,6 +50,50 @@ router.post('/delete-key', function (req, res) {
   }
 });
 
+// ===== 图床配置 (ImgBB) =====
+
+// 获取 ImgBB API Key（脱敏）
+router.get('/smms-token', function (req, res) {
+  try {
+    var db = require('../../db');
+    db.get("SELECT value FROM settings WHERE key = 'imgbb_api_key'", [], function (err, row) {
+      if (err) return res.json({ configured: false, masked: '' });
+      if (!row || !row.value) return res.json({ configured: false, masked: '' });
+      var key = row.value;
+      var masked = key.length > 8 ? key.substring(0, 4) + '****' + key.substring(key.length - 4) : '****';
+      res.json({ configured: true, masked: masked });
+    });
+  } catch (e) {
+    res.json({ configured: false, masked: '' });
+  }
+});
+
+// 保存 ImgBB API Key
+router.post('/smms-token', function (req, res) {
+  var token = (req.body.token || '').trim();
+  if (!token) return res.status(400).json({ error: 'Token不能为空' });
+  try {
+    var db = require('../../db');
+    db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('imgbb_api_key', ?)", [token]);
+    db.scheduleSave();
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: '保存失败' });
+  }
+});
+
+// 删除 ImgBB API Key
+router.post('/smms-token-delete', function (req, res) {
+  try {
+    var db = require('../../db');
+    db.run("DELETE FROM settings WHERE key = 'imgbb_api_key'");
+    db.scheduleSave();
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: '删除失败' });
+  }
+});
+
 // ===== AI 模型配置管理 =====
 
 // 获取所有配置（key 脱敏）

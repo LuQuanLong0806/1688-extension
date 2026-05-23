@@ -4,8 +4,6 @@ Vue.component('page-cloud-sync', {
     return {
       loading: false,
       saving: false,
-      tursoUrl: '',
-      tursoToken: '',
       status: { connected: false, lastSyncTime: null, config: false },
       syncing: false,
       syncingType: '',
@@ -68,81 +66,16 @@ Vue.component('page-cloud-sync', {
       this.syncing = false;
       this.syncingType = '';
     },
-    exportSettings: function () {
-      window.open('/api/settings-export', '_blank');
-    },
-    importSettings: function () {
-      var vm = this;
-      var input = document.createElement('input');
-      input.type = 'file';
-      input.accept = '.json';
-      input.onchange = function (e) {
-        var file = e.target.files[0];
-        if (!file) return;
-        var reader = new FileReader();
-        reader.onload = function (ev) {
-          try {
-            var data = JSON.parse(ev.target.result);
-            fetch('/api/settings-import', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(data)
-            }).then(function (r) { return r.json(); }).then(function (res) {
-              if (res.ok) vm.$Message.success('导入成功，共 ' + res.imported + ' 项');
-              else vm.$Message.error(res.error || '导入失败');
-            }).catch(function () { vm.$Message.error('导入失败'); });
-          } catch (err) {
-            vm.$Message.error('文件格式错误');
-          }
-        };
-        reader.readAsText(file);
-      };
-      input.click();
-    },
     loadConfig: function () {
       var vm = this;
       vm.loading = true;
       fetch('/api/sync/config')
         .then(function (r) { return r.json(); })
         .then(function (data) {
-          vm.tursoUrl = data.url || '';
-          vm.tursoToken = data.token || '';
           vm.status = { connected: data.status ? data.status.connected : false, lastSyncTime: data.status ? data.status.lastSyncTime : null, config: data.configured };
           vm.loading = false;
         })
         .catch(function () { vm.loading = false; });
-    },
-    saveConfig: function () {
-      var vm = this;
-      var url = (vm.tursoUrl || '').trim();
-      var token = (vm.tursoToken || '').trim();
-      if (!url || !token) { vm.$Message.warning('请填写 URL 和 Token'); return; }
-      vm.saving = true;
-      fetch('/api/sync/config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url, token: token })
-      })
-        .then(function (r) { return r.json(); })
-        .then(function (data) {
-          if (data.ok) { vm.$Message.success(data.message); vm.loadConfig(); }
-          else vm.$Message.error(data.message || '连接失败');
-          vm.saving = false;
-        })
-        .catch(function () { vm.$Message.error('保存失败'); vm.saving = false; });
-    },
-    testConnection: function () {
-      var vm = this;
-      vm.saving = true;
-      fetch('/api/sync/test', { method: 'POST' })
-        .then(function (r) { return r.json(); })
-        .then(function (data) {
-          if (data.ok) vm.$Message.success('连接成功');
-          else vm.$Message.error(data.message || '连接失败');
-          vm.loadConfig();
-          vm.saving = false;
-        })
-        .catch(function () { vm.$Message.error('测试失败'); vm.saving = false; });
     },
     initCloud: function () {
       var vm = this;
@@ -207,89 +140,78 @@ Vue.component('page-cloud-sync', {
   },
   template: '\
     <div style="padding:0">\
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">\
-        <h3 style="margin:0;font-size:18px;color:var(--text-primary)">云同步</h3>\
-        <div style="display:flex;align-items:center;gap:12px">\
-          <Tag :color="statusColor" style="font-size:13px">{{ statusText }}</Tag>\
-          <span style="color:var(--text-muted);font-size:12px">上次同步: {{ lastSyncText }}</span>\
-        </div>\
-      </div>\
 \
-      <!-- 连接配置 + 快捷操作 -->\
-      <div style="display:flex;gap:16px;margin-bottom:20px">\
-        <div style="flex:1;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius);overflow:hidden">\
-          <div style="padding:10px 16px;border-bottom:1px solid var(--border-subtle);font-size:14px;font-weight:600;color:var(--text-primary)">Turso 连接配置</div>\
-          <div style="padding:16px">\
-            <div style="display:flex;gap:10px;margin-bottom:10px;align-items:center">\
-              <span style="width:90px;flex-shrink:0;color:var(--text-secondary)">Database URL</span>\
-              <Input v-model="tursoUrl" placeholder="libsql://your-db-name.turso.io" />\
-            </div>\
-            <div style="display:flex;gap:10px;margin-bottom:10px;align-items:center">\
-              <span style="width:90px;flex-shrink:0;color:var(--text-secondary)">Auth Token</span>\
-              <Input v-model="tursoToken" type="password" placeholder="eyJ..." />\
-            </div>\
-            <div style="display:flex;gap:8px">\
-              <Button type="primary" :loading="saving" @click="saveConfig">保存并连接</Button>\
-              <Button :loading="saving" @click="testConnection">测试连接</Button>\
-            </div>\
+      <!-- 顶部状态栏 -->\
+      <div class="sync-banner" :class="status.connected ? \'is-connected\' : \'is-idle\'">\
+        <div class="sync-banner-left">\
+          <div class="sync-banner-dot"></div>\
+          <div class="sync-banner-info">\
+            <h3 style="margin:0;font-size:18px;color:var(--text-primary)">云同步</h3>\
+            <span class="sync-banner-sub">{{ statusText }} · 上次同步 {{ lastSyncText }}</span>\
           </div>\
         </div>\
-        <div style="flex:1;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius);overflow:hidden;display:flex;flex-direction:column">\
-          <div style="padding:10px 16px;border-bottom:1px solid var(--border-subtle);font-size:14px;font-weight:600;color:var(--text-primary)">快捷操作</div>\
-          <div class="sync-quick-btns" style="padding:16px;flex:1;display:flex;flex-direction:column;gap:10px;justify-content:center">\
-            <Button type="warning" long :loading="isBusy(\'init\')" @click="initCloud" style="font-size:14px;padding:10px;text-align:center">初始化云端</Button>\
-            <Button type="primary" long :loading="isBusy(\'sync\')" @click="fullSync" style="font-size:14px;padding:10px;text-align:center">双向同步（知识库）</Button>\
-          </div>\
-          <div style="padding:0 16px 12px;color:var(--text-muted);font-size:11px">初始化 = 建表+上传；双向同步 = 知识库一键合并</div>\
+        <div class="sync-banner-actions">\
+          <Button type="warning" :loading="isBusy(\'init\')" @click="initCloud">\
+            <icon type="md-cloud-upload" style="margin-right:4px"></icon>初始化云端\
+          </Button>\
+          <Button type="primary" :loading="isBusy(\'sync\')" @click="fullSync">\
+            <icon type="md-sync" style="margin-right:4px"></icon>双向同步（知识库）\
+          </Button>\
         </div>\
       </div>\
 \
       <!-- 知识库 -->\
-      <div class="sync-section-title">知识库</div>\
-      <div class="sync-grid sync-grid--kb">\
-        <div v-for="t in sections[0].tables" :key="t.key" class="sync-card">\
-          <div class="sync-card-icon">{{ t.icon }}</div>\
-          <div class="sync-card-body">\
-            <div class="sync-card-label">{{ t.label }}</div>\
-            <div class="sync-card-desc">{{ t.desc }}</div>\
-          </div>\
-          <div class="sync-card-actions">\
-            <Button size="small" :loading="isBusy(t.key + \'-push\')" @click="doAction(t, \'push\')">上传</Button>\
-            <Button size="small" :loading="isBusy(t.key + \'-pull\')" @click="doAction(t, \'pull\')">拉取</Button>\
-            <Button size="small" type="primary" :loading="isBusy(t.key + \'-sync\')" @click="doAction(t, \'sync\')">双向</Button>\
+      <div class="sync-group">\
+        <div class="sync-group-head">\
+          <span class="sync-group-title">知识库</span>\
+          <span class="sync-group-desc">映射、关联、同义词、黑名单</span>\
+        </div>\
+        <div class="sync-grid">\
+          <div v-for="t in sections[0].tables" :key="t.key" class="sync-card">\
+            <div class="sync-card-icon">{{ t.icon }}</div>\
+            <div class="sync-card-body">\
+              <div class="sync-card-label">{{ t.label }}</div>\
+              <div class="sync-card-desc">{{ t.desc }}</div>\
+            </div>\
+            <div class="sync-card-actions">\
+              <Button :loading="isBusy(t.key + \'-push\')" @click="doAction(t, \'push\')">上传</Button>\
+              <Button :loading="isBusy(t.key + \'-pull\')" @click="doAction(t, \'pull\')">拉取</Button>\
+              <Button type="primary" :loading="isBusy(t.key + \'-sync\')" @click="doAction(t, \'sync\')">双向</Button>\
+            </div>\
           </div>\
         </div>\
       </div>\
 \
       <!-- 大数据量 -->\
-      <div class="sync-section-title">大数据量</div>\
-      <div class="sync-grid sync-grid--big">\
-        <div v-for="t in sections[1].tables" :key="t.key" class="sync-card">\
-          <div class="sync-card-icon">{{ t.icon }}</div>\
-          <div class="sync-card-body">\
-            <div class="sync-card-label">{{ t.label }}</div>\
-            <div class="sync-card-desc">{{ t.desc }}</div>\
-          </div>\
-          <div class="sync-card-actions">\
-            <Button size="small" :loading="isBusy(t.key + \'-push\')" @click="doAction(t, \'push\')">上传</Button>\
-            <Button size="small" :loading="isBusy(t.key + \'-pull\')" @click="doAction(t, \'pull\')">拉取</Button>\
-            <Button size="small" type="primary" :loading="isBusy(t.key + \'-sync\')" @click="doAction(t, \'sync\')">双向</Button>\
+      <div class="sync-group">\
+        <div class="sync-group-head">\
+          <span class="sync-group-title">大数据量</span>\
+          <span class="sync-group-desc">分类库、商品数据，操作前需确认</span>\
+        </div>\
+        <div class="sync-grid">\
+          <div v-for="t in sections[1].tables" :key="t.key" class="sync-card">\
+            <div class="sync-card-icon">{{ t.icon }}</div>\
+            <div class="sync-card-body">\
+              <div class="sync-card-label">{{ t.label }}</div>\
+              <div class="sync-card-desc">{{ t.desc }}</div>\
+            </div>\
+            <div class="sync-card-actions">\
+              <Button :loading="isBusy(t.key + \'-push\')" @click="doAction(t, \'push\')">上传</Button>\
+              <Button :loading="isBusy(t.key + \'-pull\')" @click="doAction(t, \'pull\')">拉取</Button>\
+              <Button type="primary" :loading="isBusy(t.key + \'-sync\')" @click="doAction(t, \'sync\')">双向</Button>\
+            </div>\
           </div>\
         </div>\
       </div>\
 \
-      <!-- 设置导入导出 -->\
-      <div class="sync-section-title">设置（本地文件）</div>\
-      <div style="display:flex;gap:12px;margin-bottom:20px">\
-        <Button icon="md-download" @click="exportSettings">导出设置</Button>\
-        <Button icon="md-upload" @click="importSettings">导入设置</Button>\
-        <span style="color:var(--text-muted);font-size:12px;line-height:32px">导出API密钥、价格公式等配置为JSON文件，拷贝到其他机器导入即可</span>\
+      <!-- 最近结果 -->\
+      <div v-if="syncResult" class="sync-result">\
+        <div class="sync-result-head">\
+          <icon type="md-checkmark-circle" style="color:var(--success);margin-right:6px"></icon>\
+          <span>最近操作结果</span>\
+        </div>\
+        <pre class="sync-result-body">{{ JSON.stringify(syncResult, null, 2) }}</pre>\
       </div>\
 \
-      <!-- 最近结果 -->\
-      <div v-if="syncResult" style="margin-top:20px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius);overflow:hidden">\
-        <div style="padding:10px 16px;border-bottom:1px solid var(--border-subtle);font-size:14px;font-weight:600;color:var(--text-primary)">最近操作结果</div>\
-        <pre style="font-size:12px;white-space:pre-wrap;background:var(--bg-elevated);padding:12px;border-radius:6px;max-height:300px;overflow:auto;margin:12px;color:var(--text-secondary)">{{ JSON.stringify(syncResult, null, 2) }}</pre>\
-      </div>\
     </div>'
 });
