@@ -154,13 +154,13 @@ Vue.component('page-api-keys', {
     }
   },
   template: `
-    <div class="list-card" style="padding:24px">
+    <div style="padding:0">
       <div style="margin-bottom:24px">
-        <h3 style="margin:0 0 6px;font-size:18px;color:#333">AI模型配置</h3>
-        <p style="margin:0;font-size:13px;color:#808695">配置各AI功能的模型和密钥，限流时自动切换备用</p>
+        <h3 style="margin:0 0 6px;font-size:18px;color:var(--text-primary)">AI模型配置</h3>
+        <p style="margin:0;font-size:13px;color:var(--text-muted)">配置各AI功能的模型和密钥，限流时自动切换备用</p>
       </div>
 
-      <div v-if="loading" style="text-align:center;padding:40px;color:#999">加载中...</div>
+      <div v-if="loading" style="text-align:center;padding:40px;color:var(--text-muted)">加载中...</div>
 
       <template v-else>
 
@@ -168,7 +168,7 @@ Vue.component('page-api-keys', {
         <div class="ai-module">
           <div class="ai-module-header">
             <span class="ai-module-title">分类推荐</span>
-            <span style="font-size:12px;color:#aaa;margin-left:8px">智谱 → 通义千问 → 腾讯混元 自动切换</span>
+            <span style="font-size:12px;color:var(--text-muted);margin-left:8px">智谱 → 通义千问 → 腾讯混元 自动切换</span>
           </div>
 
           <!-- 智谱 -->
@@ -226,7 +226,7 @@ Vue.component('page-api-keys', {
             <div class="ai-provider-info">
               <span class="ai-pname">本地模型</span>
               <span class="ai-pmodel">Ollama</span>
-              <span class="ai-pfree" style="background:#e8f0ff;color:#2d8cf0">断网可用</span>
+              <span class="ai-pfree" style="background:var(--info-bg);color:var(--info)">断网可用</span>
             </div>
             <div class="ai-provider-action">
               <span v-if="providers.ollama && providers.ollama.configured" class="ai-key-hint">{{ providers.ollama.model }}:{{ providers.ollama.port }}</span>
@@ -283,11 +283,11 @@ Vue.component('page-api-keys', {
         </div>
 
         <!-- 说明 -->
-        <div style="margin-top:12px;padding:10px 14px;background:#f8f8f8;border-radius:6px;font-size:12px;color:#999;line-height:1.8">
+        <div style="margin-top:12px;padding:10px 14px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius);font-size:12px;color:var(--text-muted);line-height:1.8">
           <icon type="ios-information-circle" style="margin-right:4px"></icon>
-          智谱AI：<a href="https://open.bigmodel.cn" target="_blank" style="color:#2d8cf0">open.bigmodel.cn</a> &nbsp;|&nbsp;
-          通义千问：<a href="https://dashscope.console.aliyun.com" target="_blank" style="color:#2d8cf0">DashScope 控制台</a> &nbsp;|&nbsp;
-          腾讯混元：<a href="https://console.cloud.tencent.com/cam/capi" target="_blank" style="color:#2d8cf0">API密钥管理</a>
+          智谱AI：<a href="https://open.bigmodel.cn" target="_blank" style="color:var(--accent)">open.bigmodel.cn</a> &nbsp;|&nbsp;
+          通义千问：<a href="https://dashscope.console.aliyun.com" target="_blank" style="color:var(--accent)">DashScope 控制台</a> &nbsp;|&nbsp;
+          腾讯混元：<a href="https://console.cloud.tencent.com/cam/capi" target="_blank" style="color:var(--accent)">API密钥管理</a>
         </div>
       </template>
     </div>`

@@ -434,55 +434,57 @@ Vue.component('page-products', {
           <tooltip content="刷新" placement="top"><i-button icon="md-refresh" shape="circle" @click="loadList()"></i-button></tooltip>
         </div>
       </div>
-      <i-table :columns="columns" :data="list" :loading="loading" stripe @on-selection-change="onSelectionChange" style="margin-bottom:0;">
-        <template slot="preview" slot-scope="{ row }">
-          <div v-if="!getSkuImage(row)" class="cell-thumb-ph"></div>
-          <img v-else :src="getSkuImage(row)" loading="lazy" class="cell-thumb"
-            @mouseenter="$root.$refs.thumbPreview.open(getSkuImage(row), $event)"
-            @mousemove="$root.$refs.thumbPreview.move($event)"
-            @mouseleave="$root.$refs.thumbPreview.close()" />
-        </template>
-        <template slot="title" slot-scope="{ row }">
-          <a v-if="row.source_url" :href="row.source_url" target="_blank"
-            style="word-break:break-all;line-height:1.4;color:#333;text-decoration:none;cursor:pointer;display:inline"
-            @mouseenter="$event.target.style.color='#ff6a00';$event.target.style.textDecoration='underline'"
-            @mouseleave="$event.target.style.color='#333';$event.target.style.textDecoration='none'">{{ row.title || '-' }}</a>
-          <span v-else style="word-break:break-all;line-height:1.4;display:inline">{{ row.title || '-' }}</span>
-          <span :class="row.status === 1 ? 'status-tag status-used' : 'status-tag status-unused'" style="margin-left:6px;vertical-align:middle">{{ row.status === 1 ? '已发布' : '未发布' }}</span>
-        </template>
-        <template slot="aliCategory" slot-scope="{ row }">
-          <span style="font-size:12px;color:#666;word-break:break-all">{{ (row.category && (row.category.leafCategoryName || row.category.categoryPath)) || '-' }}</span>
-        </template>
-        <template slot="category" slot-scope="{ row }">
-          <div style="display:flex;align-items:center;gap:4px">
-            <category-picker :value="row.customCategory || ''"
-              placeholder="搜索或选择分类"
-              @input="saveCategory(row, $event)"
-              @path="saveCategoryPath(row, $event)" />
-            <button v-if="!row.customCategory" class="btn-recommend"
-              :class="{ loading: recommending[row.id] }"
-              :disabled="recommending[row.id]"
-              @click="recommendCategory(row)"
-              :title="recommending[row.id] ? '推荐中...' : 'AI推荐分类'">
-              <span v-if="recommending[row.id]">⏳</span>
-              <span v-else>🤖</span>
-            </button>
-          </div>
-        </template>
-        <template slot="sku" slot-scope="{ row }">
-          <template v-if="!getSkuText(row)">
-            <span style="color:#ccc">-</span>
+      <div class="table-wrap">
+        <i-table :columns="columns" :data="list" :loading="loading" stripe @on-selection-change="onSelectionChange" style="margin-bottom:0;">
+          <template slot="preview" slot-scope="{ row }">
+            <div v-if="!getSkuImage(row)" class="cell-thumb-ph"></div>
+            <img v-else :src="getSkuImage(row)" loading="lazy" class="cell-thumb"
+              @mouseenter="$root.$refs.thumbPreview.open(getSkuImage(row), $event)"
+              @mousemove="$root.$refs.thumbPreview.move($event)"
+              @mouseleave="$root.$refs.thumbPreview.close()" />
           </template>
-          <span v-else style="font-size:12px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-all">{{ getSkuText(row) }}</span>
-        </template>
-        <template slot="actions" slot-scope="{ row }">
-          <div class="action-btns">
-            <Button type="primary" size="small" icon="ios-eye" @click="$root.openDetail(row.id)">详情</Button>
-            <Button type="success" size="small" icon="md-paper-plane" @click="openAdd(row.id)">发布</Button>
-            <Button type="error" size="small" icon="ios-trash" @click="deleteProduct(row.id)">删除</Button>
-          </div>
-        </template>
-      </i-table>
+          <template slot="title" slot-scope="{ row }">
+            <a v-if="row.source_url" :href="row.source_url" target="_blank"
+              style="word-break:break-all;line-height:1.4;color:#333;text-decoration:none;cursor:pointer;display:inline"
+              @mouseenter="$event.target.style.color='#ff6a00';$event.target.style.textDecoration='underline'"
+              @mouseleave="$event.target.style.color='#333';$event.target.style.textDecoration='none'">{{ row.title || '-' }}</a>
+            <span v-else style="word-break:break-all;line-height:1.4;display:inline">{{ row.title || '-' }}</span>
+            <span :class="row.status === 1 ? 'status-tag status-used' : 'status-tag status-unused'" style="margin-left:6px;vertical-align:middle">{{ row.status === 1 ? '已发布' : '未发布' }}</span>
+          </template>
+          <template slot="aliCategory" slot-scope="{ row }">
+            <span style="font-size:12px;color:#666;word-break:break-all">{{ (row.category && (row.category.leafCategoryName || row.category.categoryPath)) || '-' }}</span>
+          </template>
+          <template slot="category" slot-scope="{ row }">
+            <div style="display:flex;align-items:center;gap:4px">
+              <category-picker :value="row.customCategory || ''"
+                placeholder="搜索或选择分类"
+                @input="saveCategory(row, $event)"
+                @path="saveCategoryPath(row, $event)" />
+              <button v-if="!row.customCategory" class="btn-recommend"
+                :class="{ loading: recommending[row.id] }"
+                :disabled="recommending[row.id]"
+                @click="recommendCategory(row)"
+                :title="recommending[row.id] ? '推荐中...' : 'AI推荐分类'">
+                <span v-if="recommending[row.id]">⏳</span>
+                <span v-else>🤖</span>
+              </button>
+            </div>
+          </template>
+          <template slot="sku" slot-scope="{ row }">
+            <template v-if="!getSkuText(row)">
+              <span style="color:#ccc">-</span>
+            </template>
+            <span v-else style="font-size:12px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-all">{{ getSkuText(row) }}</span>
+          </template>
+          <template slot="actions" slot-scope="{ row }">
+            <div class="action-btns">
+              <Button type="primary" size="small" icon="ios-eye" @click="$root.openDetail(row.id)">详情</Button>
+              <Button type="success" size="small" icon="md-paper-plane" @click="openAdd(row.id)">发布</Button>
+              <Button type="error" size="small" icon="ios-trash" @click="deleteProduct(row.id)">删除</Button>
+            </div>
+          </template>
+        </i-table>
+      </div>
       <div class="pagination-wrap">
         <page :total="total" :current="page" :page-size="pageSize"
           :page-size-opts="[10,20,50,100]" show-total show-elevator show-sizer

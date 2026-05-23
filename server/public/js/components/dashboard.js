@@ -1,7 +1,8 @@
 // 仪表盘页面组件
 Vue.component('page-dashboard', {
   props: {
-    stats: { type: Object, default: function () { return { total: 0, unused: 0, used: 0, totalCategories: 0 }; } }
+    stats: { type: Object, default: function () { return { total: 0, unused: 0, used: 0, totalCategories: 0 }; } },
+    theme: { type: String, default: '1688' }
   },
   data: function () {
     return { recentList: [], charts: {} };
@@ -16,7 +17,21 @@ Vue.component('page-dashboard', {
     var vm = this;
     this.$nextTick(function () { vm.initCharts(); });
   },
+  watch: {
+    theme: function () {
+      var vm = this;
+      this.$nextTick(function () { vm.initCharts(); });
+    }
+  },
   methods: {
+    themeColors: function () {
+      var palettes = {
+        '1688': { accent: '#ff6a00', accentLight: 'rgba(255,106,0,.25)', tooltipBg: '#fff', tooltipBorder: '#e8e8e8', tooltipText: '#333', axisLine: '#e0e0e0', splitLine: '#f5f5f5', axisLabel: '#999', catLabel: '#555', gaugeBg: '#f0f0f0', gaugeLabel: '#333', gaugeTitle: '#999', emptyText: '#ccc' },
+        'jd': { accent: '#e4393c', accentLight: 'rgba(228,57,60,.25)', tooltipBg: '#fff', tooltipBorder: '#e8e8e8', tooltipText: '#333', axisLine: '#e0e0e0', splitLine: '#f5f5f5', axisLabel: '#999', catLabel: '#555', gaugeBg: '#f0f0f0', gaugeLabel: '#333', gaugeTitle: '#999', emptyText: '#ccc' },
+        'fresh': { accent: '#0ea5e9', accentLight: 'rgba(14,165,233,.25)', tooltipBg: '#fff', tooltipBorder: '#e2e8f0', tooltipText: '#1e293b', axisLine: '#d4dbe5', splitLine: '#e2e8f0', axisLabel: '#94a3b8', catLabel: '#475569', gaugeBg: '#e2e8f0', gaugeLabel: '#1e293b', gaugeTitle: '#94a3b8', emptyText: '#94a3b8' }
+      };
+      return palettes[this.theme] || palettes['1688'];
+    },
     goProducts: function () { this.$emit('switch-view', 'products'); },
     loadRecent: function () {
       var vm = this;
@@ -42,21 +57,23 @@ Vue.component('page-dashboard', {
       if (this.charts.trend) this.charts.trend.dispose();
       var chart = echarts.init(el);
       this.charts.trend = chart;
+      var c = this.themeColors();
+      var accentColor = c.accent;
       fetch('/api/product/trend?days=7').then(function (r) { return r.json(); })
         .then(function (data) {
           var dates = data.map(function (d) { return d.date.substring(5); });
           var counts = data.map(function (d) { return d.count; });
           chart.setOption({
-            tooltip: { trigger: 'axis', backgroundColor: '#fff', borderColor: '#eee', textStyle: { color: '#333' } },
+            tooltip: { trigger: 'axis', backgroundColor: c.tooltipBg, borderColor: c.tooltipBorder, textStyle: { color: c.tooltipText } },
             grid: { top: 20, right: 20, bottom: 30, left: 45 },
-            xAxis: { type: 'category', data: dates, axisLine: { lineStyle: { color: '#e0e0e0' } }, axisLabel: { color: '#999' }, boundaryGap: false },
-            yAxis: { type: 'value', minInterval: 1, axisLine: { show: false }, splitLine: { lineStyle: { color: '#f5f5f5' } }, axisLabel: { color: '#999' } },
+            xAxis: { type: 'category', data: dates, axisLine: { lineStyle: { color: c.axisLine } }, axisLabel: { color: c.axisLabel }, boundaryGap: false },
+            yAxis: { type: 'value', minInterval: 1, axisLine: { show: false }, splitLine: { lineStyle: { color: c.splitLine } }, axisLabel: { color: c.axisLabel } },
             series: [{
               type: 'line', data: counts, smooth: true, symbol: 'circle', symbolSize: 6,
-              lineStyle: { width: 2, color: '#ff6a00' },
-              itemStyle: { color: '#ff6a00' },
+              lineStyle: { width: 2, color: accentColor },
+              itemStyle: { color: accentColor },
               areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                { offset: 0, color: 'rgba(255,106,0,0.25)' }, { offset: 1, color: 'rgba(255,106,0,0.02)' }
+                { offset: 0, color: c.accentLight }, { offset: 1, color: c.accentLight.replace(/[\d.]+\)$/, '0.02)') }
               ]) }
             }]
           });
@@ -69,11 +86,12 @@ Vue.component('page-dashboard', {
       if (this.charts.status) this.charts.status.dispose();
       var chart = echarts.init(el);
       this.charts.status = chart;
+      var c = this.themeColors();
       fetch('/api/product/dxm-category-top?limit=10').then(function (r) { return r.json(); })
         .then(function (data) {
           if (!Array.isArray(data) || !data.length) {
             chart.setOption({
-              title: { text: '暂无数据', left: 'center', top: 'center', textStyle: { color: '#ccc', fontSize: 14, fontWeight: 'normal' } }
+              title: { text: '暂无数据', left: 'center', top: 'center', textStyle: { color: c.emptyText, fontSize: 14, fontWeight: 'normal' } }
             });
             return;
           }
@@ -82,19 +100,19 @@ Vue.component('page-dashboard', {
           var counts = data.map(function (d) { return d.count; });
           var colors = data.map(function (d, i) {
             var rank = data.length - i;
-            if (rank === 1) return '#ff4500';
-            if (rank === 2) return '#ff6a00';
-            if (rank === 3) return '#ff9a4d';
-            return '#ffcc80';
+            if (rank === 1) return c.accent;
+            if (rank === 2) return c.accent + 'cc';
+            if (rank === 3) return c.accent + '99';
+            return c.accent + '66';
           });
           chart.setOption({
-            tooltip: { trigger: 'axis', backgroundColor: '#fff', borderColor: '#eee', textStyle: { color: '#333' } },
+            tooltip: { trigger: 'axis', backgroundColor: c.tooltipBg, borderColor: c.tooltipBorder, textStyle: { color: c.tooltipText } },
             grid: { top: 10, right: 40, bottom: 10, left: 10, containLabel: true },
-            xAxis: { type: 'value', minInterval: 1, axisLine: { show: false }, splitLine: { lineStyle: { color: '#f5f5f5' } }, axisLabel: { color: '#999' } },
-            yAxis: { type: 'category', data: names, axisLine: { lineStyle: { color: '#e0e0e0' } }, axisLabel: { color: '#555', fontSize: 13 } },
+            xAxis: { type: 'value', minInterval: 1, axisLine: { show: false }, splitLine: { lineStyle: { color: c.splitLine } }, axisLabel: { color: c.axisLabel } },
+            yAxis: { type: 'category', data: names, axisLine: { lineStyle: { color: c.axisLine } }, axisLabel: { color: c.catLabel, fontSize: 13 } },
             series: [{
               type: 'bar', data: counts, barWidth: 18,
-              label: { show: true, position: 'right', color: '#555', fontSize: 13, fontWeight: 'bold' },
+              label: { show: true, position: 'right', color: c.catLabel, fontSize: 13, fontWeight: 'bold' },
               itemStyle: {
                 borderRadius: [0, 10, 10, 0],
                 color: function (params) { return colors[params.dataIndex]; }
@@ -105,7 +123,7 @@ Vue.component('page-dashboard', {
         })
         .catch(function () {
           chart.setOption({
-            title: { text: '暂无数据', left: 'center', top: 'center', textStyle: { color: '#ccc', fontSize: 14, fontWeight: 'normal' } }
+            title: { text: '暂无数据', left: 'center', top: 'center', textStyle: { color: c.emptyText, fontSize: 14, fontWeight: 'normal' } }
           });
         });
     },
@@ -115,17 +133,18 @@ Vue.component('page-dashboard', {
       if (this.charts.usage) this.charts.usage.dispose();
       var chart = echarts.init(el);
       this.charts.usage = chart;
+      var c = this.themeColors();
       var total = this.stats.total || 1;
       var pct = Math.round((this.stats.used / total) * 100);
       chart.setOption({
         series: [{
           type: 'gauge', startAngle: 200, endAngle: -20, radius: '85%', center: ['50%', '55%'],
           min: 0, max: 100, splitNumber: 5,
-          axisLine: { lineStyle: { width: 16, color: [[pct / 100, '#ff6a00'], [1, '#f0f0f0']] } },
+          axisLine: { lineStyle: { width: 16, color: [[pct / 100, c.accent], [1, c.gaugeBg]] } },
           axisTick: { show: false }, splitLine: { show: false }, axisLabel: { show: false },
           pointer: { show: false },
-          title: { offsetCenter: [0, '30%'], fontSize: 13, color: '#999' },
-          detail: { offsetCenter: [0, '0%'], fontSize: 32, fontWeight: 700, color: '#333', formatter: '{value}%' },
+          title: { offsetCenter: [0, '30%'], fontSize: 13, color: c.gaugeTitle },
+          detail: { offsetCenter: [0, '0%'], fontSize: 32, fontWeight: 700, color: c.gaugeLabel, formatter: '{value}%' },
           data: [{ value: pct, name: '发布率' }]
         }]
       });
@@ -173,7 +192,7 @@ Vue.component('page-dashboard', {
         <div class="chart-card">
           <div class="chart-card-header">
             <span>最近采集</span>
-            <a href="javascript:void(0)" @click="goProducts" style="font-size:13px;color:#ff6a00;">查看全部 &rarr;</a>
+            <a href="javascript:void(0)" @click="goProducts" style="font-size:13px;color:var(--accent);">查看全部 &rarr;</a>
           </div>
           <div class="chart-card-body" style="height:auto;padding:0 20px;">
             <ul class="recent-list">
@@ -188,7 +207,7 @@ Vue.component('page-dashboard', {
                   {{ item.status === 0 ? '未发布' : '已发布' }}
                 </span>
               </li>
-              <li v-if="!recentList.length" style="justify-content:center;color:#ccc;padding:20px 0;">暂无数据</li>
+              <li v-if="!recentList.length" style="justify-content:center;color:var(--text-muted);padding:20px 0;">暂无数据</li>
             </ul>
           </div>
         </div>

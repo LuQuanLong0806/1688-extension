@@ -206,40 +206,42 @@ Vue.component('page-cloud-sync', {
     }
   },
   template: '\
-    <div class="list-card" style="padding:24px">\
+    <div style="padding:0">\
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">\
-        <h3 style="margin:0;font-size:18px">云同步</h3>\
+        <h3 style="margin:0;font-size:18px;color:var(--text-primary)">云同步</h3>\
         <div style="display:flex;align-items:center;gap:12px">\
           <Tag :color="statusColor" style="font-size:13px">{{ statusText }}</Tag>\
-          <span style="color:#808695;font-size:12px">上次同步: {{ lastSyncText }}</span>\
+          <span style="color:var(--text-muted);font-size:12px">上次同步: {{ lastSyncText }}</span>\
         </div>\
       </div>\
 \
       <!-- 连接配置 + 快捷操作 -->\
       <div style="display:flex;gap:16px;margin-bottom:20px">\
-        <Card style="flex:1">\
-          <p slot="title">Turso 连接配置</p>\
-          <div style="display:flex;gap:10px;margin-bottom:10px;align-items:center">\
-            <span style="width:90px;flex-shrink:0;color:#515a6e">Database URL</span>\
-            <Input v-model="tursoUrl" placeholder="libsql://your-db-name.turso.io" />\
+        <div style="flex:1;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius);overflow:hidden">\
+          <div style="padding:10px 16px;border-bottom:1px solid var(--border-subtle);font-size:14px;font-weight:600;color:var(--text-primary)">Turso 连接配置</div>\
+          <div style="padding:16px">\
+            <div style="display:flex;gap:10px;margin-bottom:10px;align-items:center">\
+              <span style="width:90px;flex-shrink:0;color:var(--text-secondary)">Database URL</span>\
+              <Input v-model="tursoUrl" placeholder="libsql://your-db-name.turso.io" />\
+            </div>\
+            <div style="display:flex;gap:10px;margin-bottom:10px;align-items:center">\
+              <span style="width:90px;flex-shrink:0;color:var(--text-secondary)">Auth Token</span>\
+              <Input v-model="tursoToken" type="password" placeholder="eyJ..." />\
+            </div>\
+            <div style="display:flex;gap:8px">\
+              <Button type="primary" :loading="saving" @click="saveConfig">保存并连接</Button>\
+              <Button :loading="saving" @click="testConnection">测试连接</Button>\
+            </div>\
           </div>\
-          <div style="display:flex;gap:10px;margin-bottom:10px;align-items:center">\
-            <span style="width:90px;flex-shrink:0;color:#515a6e">Auth Token</span>\
-            <Input v-model="tursoToken" type="password" placeholder="eyJ..." />\
+        </div>\
+        <div style="flex:1;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius);overflow:hidden;display:flex;flex-direction:column">\
+          <div style="padding:10px 16px;border-bottom:1px solid var(--border-subtle);font-size:14px;font-weight:600;color:var(--text-primary)">快捷操作</div>\
+          <div class="sync-quick-btns" style="padding:16px;flex:1;display:flex;flex-direction:column;gap:10px;justify-content:center">\
+            <Button type="warning" long :loading="isBusy(\'init\')" @click="initCloud" style="font-size:14px;padding:10px;text-align:center">初始化云端</Button>\
+            <Button type="primary" long :loading="isBusy(\'sync\')" @click="fullSync" style="font-size:14px;padding:10px;text-align:center">双向同步（知识库）</Button>\
           </div>\
-          <div style="display:flex;gap:8px">\
-            <Button type="primary" :loading="saving" @click="saveConfig">保存并连接</Button>\
-            <Button :loading="saving" @click="testConnection">测试连接</Button>\
-          </div>\
-        </Card>\
-        <Card style="flex:1">\
-          <p slot="title">快捷操作</p>\
-          <div style="display:flex;flex-direction:column;gap:10px;justify-content:center;height:calc(100% - 40px)">\
-            <Button type="warning" long :loading="isBusy(\'init\')" @click="initCloud" style="font-size:14px;padding:10px">初始化云端</Button>\
-            <Button type="primary" long :loading="isBusy(\'sync\')" @click="fullSync" style="font-size:14px;padding:10px">双向同步（知识库）</Button>\
-          </div>\
-          <div style="margin-top:10px;color:#808695;font-size:11px">初始化 = 建表+上传；双向同步 = 知识库一键合并</div>\
-        </Card>\
+          <div style="padding:0 16px 12px;color:var(--text-muted);font-size:11px">初始化 = 建表+上传；双向同步 = 知识库一键合并</div>\
+        </div>\
       </div>\
 \
       <!-- 知识库 -->\
@@ -261,7 +263,6 @@ Vue.component('page-cloud-sync', {
 \
       <!-- 大数据量 -->\
       <div class="sync-section-title">大数据量</div>\
-      <div class="sync-section-title">大数据量</div>\
       <div class="sync-grid sync-grid--big">\
         <div v-for="t in sections[1].tables" :key="t.key" class="sync-card">\
           <div class="sync-card-icon">{{ t.icon }}</div>\
@@ -282,13 +283,13 @@ Vue.component('page-cloud-sync', {
       <div style="display:flex;gap:12px;margin-bottom:20px">\
         <Button icon="md-download" @click="exportSettings">导出设置</Button>\
         <Button icon="md-upload" @click="importSettings">导入设置</Button>\
-        <span style="color:#808695;font-size:12px;line-height:32px">导出API密钥、价格公式等配置为JSON文件，拷贝到其他机器导入即可</span>\
+        <span style="color:var(--text-muted);font-size:12px;line-height:32px">导出API密钥、价格公式等配置为JSON文件，拷贝到其他机器导入即可</span>\
       </div>\
 \
       <!-- 最近结果 -->\
-      <Card v-if="syncResult" style="margin-top:20px">\
-        <p slot="title">最近操作结果</p>\
-        <pre style="font-size:12px;white-space:pre-wrap;background:#f8f8f8;padding:12px;border-radius:6px;max-height:300px;overflow:auto">{{ JSON.stringify(syncResult, null, 2) }}</pre>\
-      </Card>\
+      <div v-if="syncResult" style="margin-top:20px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius);overflow:hidden">\
+        <div style="padding:10px 16px;border-bottom:1px solid var(--border-subtle);font-size:14px;font-weight:600;color:var(--text-primary)">最近操作结果</div>\
+        <pre style="font-size:12px;white-space:pre-wrap;background:var(--bg-elevated);padding:12px;border-radius:6px;max-height:300px;overflow:auto;margin:12px;color:var(--text-secondary)">{{ JSON.stringify(syncResult, null, 2) }}</pre>\
+      </div>\
     </div>'
 });

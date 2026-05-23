@@ -1,10 +1,13 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="1688">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>商品采集管理平台</title>
   <link rel="stylesheet" href="https://unpkg.com/view-design@4.7.0/dist/styles/iview.css">
+  <link rel="stylesheet" href="css/theme-jd.css">
+  <link rel="stylesheet" href="css/theme-1688.css">
+  <link rel="stylesheet" href="css/theme-fresh.css">
   <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
@@ -14,7 +17,7 @@
       <header class="admin-header">
         <div class="header-left">
           <div class="header-toggle-btn" @click="sidebarCollapsed = !sidebarCollapsed" :title="sidebarCollapsed ? '展开菜单' : '收起菜单'">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
               <line x1="3" y1="6" x2="21" y2="6"/>
               <line x1="3" y1="12" x2="21" y2="12"/>
               <line x1="3" y1="18" x2="21" y2="18"/>
@@ -63,6 +66,10 @@
               <span class="menu-text">云同步</span>
             </li>
           </ul>
+          <div class="sidebar-toggle" @click="toggleTheme" :title="'当前: ' + themeName">
+            <span style="font-size:14px;margin-right:4px">🎨</span>
+            <span class="menu-text" style="font-size:11px">{{ themeName }}</span>
+          </div>
           <div class="sidebar-toggle" @click="sidebarCollapsed = !sidebarCollapsed" :title="sidebarCollapsed ? '展开菜单' : '收起菜单'">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
               <path v-if="sidebarCollapsed" d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
@@ -73,7 +80,9 @@
 
         <!-- Content — dynamic component -->
         <main class="admin-content">
-          <component :is="currentView" :stats="stats" @switch-view="switchView" @open-detail="openDetail"></component>
+          <div class="page-wrap" :class="'page-wrap--' + currentView">
+            <component :is="currentView" :stats="stats" :theme="theme" @switch-view="switchView" @open-detail="openDetail"></component>
+          </div>
         </main>
       </div>
     </div>
