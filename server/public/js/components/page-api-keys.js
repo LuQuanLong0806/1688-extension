@@ -6,11 +6,14 @@ Vue.component('page-api-keys', {
       saving: null,
       configs: {},
       providers: {},
-      editData: {}
+      editData: {},
+      imgbbStatus: { configured: false, masked: '' },
+      imgbbKey: ''
     };
   },
   mounted: function () {
     this.loadConfigs();
+    this.loadImgbb();
   },
   methods: {
     loadConfigs: function () {
@@ -151,6 +154,36 @@ Vue.component('page-api-keys', {
           vm.saving = null;
         })
         .catch(function () { vm.$Message.error('保存失败'); vm.saving = null; });
+    },
+    loadImgbb: function () {
+      var vm = this;
+      fetch('/api/ai/smms-token').then(function (r) { return r.json(); }).then(function (d) {
+        vm.imgbbStatus = { configured: !!d.configured, masked: d.masked || '' };
+      }).catch(function () {});
+    },
+    saveImgbb: function () {
+      var vm = this;
+      var key = (vm.imgbbKey || '').trim();
+      if (!key) { vm.$Message.warning('请输入 ImgBB API Key'); return; }
+      vm.saving = 'imgbb';
+      fetch('/api/ai/smms-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: key })
+      }).then(function (r) { return r.json(); }).then(function (d) {
+        if (d.ok) { vm.$Message.success('ImgBB API Key 已保存'); vm.imgbbKey = ''; vm.loadImgbb(); }
+        else vm.$Message.error(d.error || '保存失败');
+        vm.saving = null;
+      }).catch(function () { vm.$Message.error('保存失败'); vm.saving = null; });
+    },
+    deleteImgbb: function () {
+      var vm = this;
+      vm.saving = 'imgbb';
+      fetch('/api/ai/smms-token-delete', { method: 'POST' })
+        .then(function (r) { return r.json(); }).then(function (d) {
+          if (d.ok) { vm.$Message.success('ImgBB API Key 已删除'); vm.loadImgbb(); }
+          vm.saving = null;
+        }).catch(function () { vm.$Message.error('删除失败'); vm.saving = null; });
     }
   },
   template: `
@@ -278,6 +311,30 @@ Vue.component('page-api-keys', {
                 :placeholder="(configs.image && configs.image.apiKey) ? '输入新Key覆盖' : '请输入API Key'"
                 style="width:220px"></i-input>
               <i-button type="primary" size="small" :loading="saving === 'image'" @click="saveImageKey()">保存</i-button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ====== 图床配置 ====== -->
+        <div class="ai-module">
+          <div class="ai-module-header">
+            <span class="ai-module-title">图床配置</span>
+            <span style="font-size:12px;color:var(--text-muted);margin-left:8px">拼图/编辑器复制图片地址使用</span>
+          </div>
+          <div class="ai-provider-row">
+            <div class="ai-provider-info">
+              <span class="ai-pname">ImgBB</span>
+              <span class="ai-pmodel">api.imgbb.com</span>
+              <a href="https://api.imgbb.com/" target="_blank" style="font-size:11px;color:var(--accent)">免费申请</a>
+            </div>
+            <div class="ai-provider-action">
+              <span v-if="imgbbStatus.configured" class="ai-key-hint">{{ imgbbStatus.masked }}</span>
+              <span v-else class="ai-key-hint none">未设置</span>
+              <i-input v-model="imgbbKey" type="password" password size="small"
+                :placeholder="imgbbStatus.configured ? '输入新Key覆盖' : '请输入 API Key'"
+                style="width:220px"></i-input>
+              <i-button type="primary" size="small" :loading="saving === 'imgbb'" @click="saveImgbb()">保存</i-button>
+              <i-button v-if="imgbbStatus.configured" size="small" :loading="saving === 'imgbb'" @click="deleteImgbb()">删除</i-button>
             </div>
           </div>
         </div>
