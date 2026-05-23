@@ -2,7 +2,7 @@
 
 > 测试日期: 2026-05-24
 > 测试框架: Jest 30.4.2 + Supertest 7.2.2
-> 测试结果: **12 套件, 203 测试, 全部通过**
+> 测试结果: **13 套件, 251 测试, 全部通过**
 
 ---
 
@@ -92,7 +92,54 @@
 
 ---
 
-## 三、修复文件清单
+## 三、多电脑数据合并问题（同步逻辑审计）
+
+> 测试文件: `server/__tests__/unit/sync.test.js` (48 tests)
+> 审计文件: `server/cloud/sync.js`
+
+### 问题 9: 商品字段更新不同步 — 多电脑间编辑丢失 ⚠️ 未修复
+
+**严重程度**: 高
+**文件**: `server/cloud/sync.js:227-260` (uploadProducts), `server/cloud/sync.js:262-289` (downloadProducts)
+**描述**:
+- `uploadProducts` 使用 `INSERT OR IGNORE`：如果云端已存在同 `source_url` 的商品，后续的标题、分类、自定义类目等字段修改不会被同步到云端。
+- `downloadProducts` 对已存在的商品只同步 `deleted` 状态，不同步 `title`、`category`、`custom_category`、`dxm_category`、`manual_category`、`status` 等字段。
+
+**影响场景**: 电脑A修改了商品的自定义分类，同步后电脑B看不到该修改。
+
+**建议修复方案**: uploadProducts 改为逐条比对，对已存在的商品使用 `UPDATE` 同步最新字段；downloadProducts 对已存在的商品同步非空字段更新（可用 `updated_at` 时间戳判断哪边更新）。
+
+### 问题 10: keyword_category_rel 的 valid 字段不同步 ⚠️ 未修复
+
+**严重程度**: 中
+**文件**: `server/cloud/sync.js:26-40` (uploadLocalToCloud), `server/cloud/sync.js:121-136` (downloadCloudToLocal)
+**描述**: 双向同步时只合并 `weight` 和 `match_count`（使用 Math.max），但 `valid` 和 `source` 字段不更新。如果电脑A将某关键词标记为无效（`valid=0`），电脑B不会收到这个标记。
+
+**影响场景**: 用户在一台电脑上标记某关键词为无效后，另一台电脑该关键词仍显示有效。
+
+**建议修复方案**: valid 字段应取两边的最小值（任一方标记无效则全局无效），或基于 `updated_at` 时间戳取最新值。
+
+### 问题 11: category_config 下载时 INSERT OR REPLACE 可能覆盖本地修改 ⚠️ 未修复
+
+**严重程度**: 中
+**文件**: `server/cloud/sync.js:152-155` (downloadCloudToLocal)
+**描述**: `downloadCloudToLocal` 对 `category_config` 使用 `INSERT OR REPLACE`，会无条件用云端数据覆盖本地数据。如果电脑A修改了配置的 `sort_order` 或 `description`，电脑B推送旧数据到云端后，电脑A在下次 pull 时会被旧数据覆盖。
+
+**影响场景**: 多电脑修改同一条分类配置时，最后 pull 的一台会覆盖其他修改。
+
+**建议修复方案**: 改为逐条比对，用 `updated_at` 时间戳决定保留哪一方的修改，或仅在本地不存在时插入（`INSERT OR IGNORE`），修改类操作通过专门的 `pushTable` 推送到云端。
+
+### 问题 12: 黑名单 reason 字段不同步 ⚠️ 未修复
+
+**严重程度**: 低
+**文件**: `server/cloud/sync.js:138-148` (downloadCloudToLocal)
+**描述**: `keyword_blacklist` 使用 `INSERT OR IGNORE`，如果本地和云端有同一条黑名单（keyword + category_name 相同），本地已有的 `reason` 不会被云端版本更新，云端版本也不会被本地版本更新。
+
+**影响场景**: 两台电脑对同一黑名单条目设置了不同的 reason，永远不会同步。
+
+---
+
+## 四、修复文件清单（问题1-8）
 
 | 文件 | 修改内容 |
 |------|----------|
@@ -104,7 +151,7 @@
 
 ---
 
-## 四、测试中观察到的好实践
+## 五、测试中观察到的好实践
 
 1. **参数校验完整**: 绝大多数 API 端点都有合理的参数校验和 400 错误返回
 2. **SQL 参数化**: 所有 SQL 查询都使用参数化绑定，无 SQL 注入风险
@@ -115,7 +162,7 @@
 
 ---
 
-## 五、测试命令
+## 六、测试命令
 
 ```bash
 cd server
@@ -124,7 +171,7 @@ npm test
 
 ---
 
-## 六、文件清单
+## 七、文件清单
 
 ```
 server/__tests__/
@@ -136,7 +183,8 @@ server/__tests__/
 │   ├── category-keywords.test.js # 关键词提取 (12 tests)
 │   ├── category-mutex.test.js   # 互斥组 (14 tests)
 │   ├── cleanup.test.js          # 清理服务 (3 tests)
-│   └── providers.test.js        # LLM供应商配置 (14 tests)
+│   ├── providers.test.js        # LLM供应商配置 (14 tests)
+│   └── sync.test.js             # 多电脑数据合并同步逻辑 (48 tests)
 ├── routes/
 │   ├── settings.test.js         # 设置管理 (16 tests)
 │   ├── categories.test.js       # 类目管理 (29 tests)
