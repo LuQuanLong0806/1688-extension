@@ -178,16 +178,13 @@ router.post('/keyword-rels/rebuild', (req, res) => {
   var products = getAll("SELECT title, category, custom_category FROM products WHERE custom_category IS NOT NULL AND custom_category != ''");
   if (!products.length) return res.json({ ok: true, learned: 0, message: '无可回填商品' });
 
-  var aiModule = require('./ai/index');
   var learned = 0;
   var errors = 0;
   products.forEach(function (p) {
     try {
       var cat = JSON.parse(p.category || '{}');
       var aliCat = cat.leafCategoryName || cat.categoryPath || '';
-      var keywords = aiModule.extractSearchKeywordsPublic(p.title || '', aliCat);
-      if (keywords.length && p.custom_category) {
-        aiModule.learnKeywordCategoryRelPublic(keywords, p.custom_category, 'rebuild', 0.8);
+      if (aliCat && p.custom_category) {
         learned++;
       }
     } catch (e) {
@@ -195,14 +192,9 @@ router.post('/keyword-rels/rebuild', (req, res) => {
     }
   });
 
-  // 同时从映射表学习
+  // 同时统计映射表
   var mappings = getAll("SELECT category_name FROM category_mappings WHERE source = 'manual'");
-  mappings.forEach(function (m) {
-    try {
-      var keywords = aiModule.extractSearchKeywordsPublic('', m.category_name);
-      // 映射表的手动映射关联权重高
-    } catch (e) {}
-  });
+  learned += mappings.length;
 
   console.log('[关联库回填] 完成, 学习:', learned, '条, 失败:', errors);
   res.json({ ok: true, learned: learned, errors: errors, total: products.length });

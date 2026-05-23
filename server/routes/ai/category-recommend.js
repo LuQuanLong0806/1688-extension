@@ -333,6 +333,21 @@ router.post('/suggest-category', async function (req, res) {
       });
     }
 
+    // Step 1.5: 1688类目与店小秘叶子节点完全一致则直接命中
+    if (aliCategory) {
+      var exactLeaf = dbModule.treeGetOne(
+        'SELECT cat_name, path FROM dxm_category_tree WHERE is_leaf = 1 AND cat_name = ? LIMIT 1',
+        [aliCategory]
+      );
+      if (exactLeaf) {
+        console.log('[分类推荐] 1688类目与叶子节点完全一致:', exactLeaf.cat_name);
+        return res.json({
+          ok: true, source: 'exact_match', category: exactLeaf.cat_name,
+          path: exactLeaf.path, confidence: 0.95
+        });
+      }
+    }
+
     // Step 2: LLM 提取关键词（仅提取，不做分类决策）
     var llmResult = await extractProductKeywords(title, aliCategory, attrSummary);
     var keywords = llmResult.keywords || [];
@@ -345,39 +360,10 @@ router.post('/suggest-category', async function (req, res) {
     // Step 3: 1688 类目拆词
     var aliCategoryWords = splitAliCategoryWords(aliCategory);
 
-    // Step 4: 同义词扩展 + 关键词关联库查询
-    var expandedKeywords = await expandWithSynonyms(keywords);
-    var relCandidates = await queryKeywordCategoryRel(expandedKeywords, title);
-
-    if (relCandidates && relCandidates.length === 1 && relCandidates[0].totalWeight >= 3.0 && relCandidates[0].matchCount >= 2) {
-      var topRel = relCandidates[0];
-      // 关联库高可信命中，但仍做互斥验证（含 categoryHint）
-      var relMutexWords = aliCategoryWords.slice();
-      if (categoryHint && relMutexWords.indexOf(categoryHint) < 0) relMutexWords.push(categoryHint);
-      if (!isMutexConflict(keywords, relMutexWords, topRel.path)) {
-        console.log('[分类推荐] 关联库高可信命中:', topRel.category, '权重:', topRel.totalWeight);
-        return res.json({
-          ok: true, source: 'keyword_rel', category: topRel.category,
-          path: topRel.path, confidence: Math.min(0.95, 0.7 + topRel.totalWeight * 0.03)
-        });
-      }
-      console.log('[分类推荐] 关联库命中被互斥拦截:', topRel.category);
-    }
-
-    // Step 5: 构建候选池
+    // Step 4: 构建候选池
     var candidates = [];
     var seenPaths = {};
     var MAX_CANDIDATES = 50;
-
-    // 关联库候选加入候选池
-    if (relCandidates && relCandidates.length > 0) {
-      relCandidates.forEach(function (rc) {
-        if (!seenPaths[rc.path]) {
-          seenPaths[rc.path] = true;
-          candidates.push({ name: rc.category, path: rc.path, weight: rc.totalWeight, fromRel: true });
-        }
-      });
-    }
 
     // 数据库搜索候选
     var searchKeywords = keywords.slice(0, Math.max(2, Math.min(6, keywords.length)));
@@ -494,93 +480,9 @@ router.post('/suggest-category', async function (req, res) {
   }
 });
 
-// ===== 关键词-类目关联库 =====
-
-function expandWithSynonyms(keywords) {
-  if (!keywords || !keywords.length) return keywords;
-  var expanded = keywords.slice();
-  var added = {};
-  keywords.forEach(function (kw) { added[kw] = true; });
-  var promises = keywords.map(function (kw) {
-    return cloudDb.getSynonyms(kw).then(function (synRows) {
-      (synRows || []).forEach(function (r) {
-        var syn = r.word_a === kw ? r.word_b : r.word_a;
-        if (!added[syn]) { added[syn] = true; expanded.push(syn); }
-      });
-    });
-  });
-  return Promise.all(promises).then(function () { return expanded; }).catch(function () { return expanded; });
-}
-
-async function queryKeywordCategoryRel(keywords, title) {
-  if (!keywords || !keywords.length) return [];
-  var blacklisted = {};
-  var blPromises = keywords.map(function (kw) {
-    return cloudDb.getBlacklisted(kw).then(function (blRows) {
-      (blRows || []).forEach(function (r) { blacklisted[kw + '|' + r.category_name] = true; });
-    });
-  });
-  await Promise.all(blPromises).catch(function () {});
-
-  var relRows = await cloudDb.getKeywordRels(keywords);
-  if (!relRows || !relRows.length) return [];
-
-  var catMap = {};
-  for (var i = 0; i < relRows.length; i++) {
-    var r = relRows[i];
-    if (blacklisted[r.keyword + '|' + r.category_name]) continue;
-    if (title) {
-      var validation = postSelectionValidate(title, r.category_name, '');
-      if (validation) continue;
-    }
-    if (!catMap[r.category_name]) {
-      var pathRow = await cloudDb.getTreePath(r.category_name);
-      catMap[r.category_name] = {
-        category: r.category_name,
-        path: pathRow ? pathRow.path : r.category_name,
-        totalWeight: 0,
-        matchCount: 0,
-        keywordCount: 0,
-        hasManual: false
-      };
-    }
-    catMap[r.category_name].totalWeight += (r.weight || 1.0);
-    catMap[r.category_name].matchCount += (r.match_count || 1);
-    catMap[r.category_name].keywordCount++;
-    if (r.source === 'manual') catMap[r.category_name].hasManual = true;
-  }
-
-  var result = Object.values(catMap).sort(function (a, b) {
-    if (a.hasManual !== b.hasManual) return a.hasManual ? -1 : 1;
-    if (b.keywordCount !== a.keywordCount) return b.keywordCount - a.keywordCount;
-    if (b.totalWeight !== a.totalWeight) return b.totalWeight - a.totalWeight;
-    return b.matchCount - a.matchCount;
-  });
-
-  return result.slice(0, 10);
-}
-
-async function learnKeywordCategoryRel(keywords, categoryName, source, confidence) {
-  if (!keywords || !keywords.length || !categoryName) return;
-  // 学习门槛：auto >= 0.6, manual >= 0.4
-  if (source !== 'manual' && confidence < 0.6) return;
-  if (source === 'manual' && confidence < 0.4) return;
-  var weight = source === 'manual' ? 3.0 : 1.0;
-  for (var i = 0; i < keywords.length; i++) {
-    var kw = keywords[i];
-    // 过滤宽泛词，只保留物品品类词
-    if (getGenericWords().indexOf(kw) >= 0) continue;
-    var blRows = await cloudDb.getBlacklisted(kw);
-    var blHit = (blRows || []).some(function (r) { return r.category_name === categoryName; });
-    if (blHit) continue;
-    await cloudDb.saveKeywordRel(kw, categoryName, weight, source || 'auto');
-  }
-}
-
-// LLM 一次性完成：关键词提取 + 同义词生成 + 属性分析
-// 一次调用，最大化产出，避免多次调用触发限流
+// LLM 提取关键词 + 品类提示（一次调用，避免限流）
 function extractProductKeywords(title, aliCategory, attrSummary) {
-  var prompt = '你是产品分类分析专家。请从产品信息中完成以下3项任务（一次输出）：\n\n';
+  var prompt = '你是产品分类分析专家。请从产品信息中完成以下2项任务（一次输出）：\n\n';
 
   prompt += '任务1 — 核心品类词：只提取"这个产品到底是什么东西"的名词\n';
   prompt += '  正确示例："跨境圆形可悬挂洗头按摩搓澡刷" → ["搓澡刷", "洗澡刷"]\n';
@@ -588,12 +490,7 @@ function extractProductKeywords(title, aliCategory, attrSummary) {
   prompt += '  正确示例："纯棉短袖T恤男夏季新款" → ["T恤"]\n';
   prompt += '  禁止提取：材质词、形容词、营销词、功能词、用途词\n\n';
 
-  prompt += '任务2 — 同义词：为核心品类词生成同义/近义词（买家可能搜的词）\n';
-  prompt += '  示例："搓澡刷" → ["浴刷", "沐浴刷", "身体刷"]\n';
-  prompt += '  示例："垃圾袋" → ["垃圾袋", "垃圾包", "废物袋"]\n';
-  prompt += '  每个词2-4个同义词，如果品类词本身就是最常用词，可以少给\n\n';
-
-  prompt += '任务3 — 产品品类判定：根据标题和类目，判断该产品属于什么品类大类\n';
+  prompt += '任务2 — 产品品类判定：根据标题和类目，判断该产品属于什么品类大类\n';
   prompt += '  输出一个简短品类描述，如"洗浴用品"、"包装袋"、"服装"、"清洁工具"\n\n';
 
   var combinedInput = '';
@@ -603,7 +500,7 @@ function extractProductKeywords(title, aliCategory, attrSummary) {
   prompt += combinedInput;
   prompt += '\n请结合【平台类目】优先判断品类。\n';
   prompt += '返回JSON格式（只返回一行）：\n';
-  prompt += '{"keywords": ["核心词1", "核心词2"], "synonyms": {"核心词1": ["同义词a", "同义词b"], "核心词2": ["同义词c"]}, "category_hint": "品类大类"}\n';
+  prompt += '{"keywords": ["核心词1", "核心词2"], "category_hint": "品类大类"}\n';
   prompt += '只返回一行JSON，不要其他文字。';
 
   return providers.extractionLLMRequest('/chat/completions', {
@@ -617,78 +514,40 @@ function extractProductKeywords(title, aliCategory, attrSummary) {
       var m = msg.reasoning_content.match(/\{[^{}]*"keywords"[^{}]*\}/);
       if (m) text = m[0];
     }
-    if (!text) return { keywords: [], synonyms: {}, categoryHint: '' };
+    if (!text) return { keywords: [], categoryHint: '' };
     try {
       var jsonStr = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-      // 尝试提取完整JSON（包含synonyms）
-      var fullParsed = null;
-      try { fullParsed = JSON.parse(jsonStr); } catch (e) {
-        // 如果完整JSON解析失败，尝试提取含keywords的部分
+      var parsed = null;
+      try { parsed = JSON.parse(jsonStr); } catch (e) {
         var m2 = jsonStr.match(/\{[^{}]*"keywords"[^{}]*\}/);
-        if (m2) { fullParsed = JSON.parse(m2[0]); }
+        if (m2) { parsed = JSON.parse(m2[0]); }
       }
-      if (!fullParsed || !Array.isArray(fullParsed.keywords)) return { keywords: [], synonyms: {}, categoryHint: '' };
+      if (!parsed || !Array.isArray(parsed.keywords)) return { keywords: [], categoryHint: '' };
 
       var noiseWords = ['六一','儿童节','圣诞','元旦','新年','春节','情人节','国庆','中秋','端午',
         '卡通','可爱','创意','简约','复古','ins','韩版','日系','欧美','网红',
         '批发','现货','特价','热卖','直销','厂家','定制','新款','同款','爆款',
         '礼物','礼品','伴手礼','赠品','福利','奖品'];
-      var filtered = fullParsed.keywords.filter(function (kw) {
+      var filtered = parsed.keywords.filter(function (kw) {
         return !noiseWords.some(function (nw) { return kw === nw || kw.indexOf(nw) >= 0; });
       });
-      if (!filtered.length) filtered = fullParsed.keywords.slice(0, 3);
+      if (!filtered.length) filtered = parsed.keywords.slice(0, 3);
 
-      // 提取同义词，后台异步保存到 synonym 表
-      var synonyms = fullParsed.synonyms || {};
-      var categoryHint = fullParsed.category_hint || '';
-      if (Object.keys(synonyms).length > 0) {
-        saveSynonymsAsync(synonyms);
-      }
+      var categoryHint = parsed.category_hint || '';
       if (categoryHint) {
         console.log('[分类推荐] LLM品类提示:', categoryHint);
       }
 
-      console.log('[分类推荐] LLM提炼关键词:', filtered.join(', '), Object.keys(synonyms).length > 0 ? '(含同义词)' : '');
-      return { keywords: filtered, synonyms: synonyms, categoryHint: categoryHint };
+      console.log('[分类推荐] LLM提炼关键词:', filtered.join(', '));
+      return { keywords: filtered, categoryHint: categoryHint };
     } catch (e) {
       console.log('[分类推荐] LLM提炼JSON解析失败:', text.substring(0, 100));
-      return { keywords: [], synonyms: {}, categoryHint: '' };
+      return { keywords: [], categoryHint: '' };
     }
   }).catch(function (err) {
     console.log('[分类推荐] LLM提炼请求失败:', err.message);
-    return { keywords: [], synonyms: {}, categoryHint: '' };
+    return { keywords: [], categoryHint: '' };
   });
-}
-
-// 异步保存同义词到数据库（不阻塞主流程）
-function saveSynonymsAsync(synonyms) {
-  Object.keys(synonyms).forEach(function (kw) {
-    var syns = synonyms[kw];
-    if (!Array.isArray(syns)) return;
-    syns.forEach(function (syn) {
-      if (!syn || syn === kw || syn.length < 2) return;
-      cloudDb.getSynonyms(kw).then(function (existing) {
-        var alreadySaved = (existing || []).some(function (r) {
-          return (r.word_a === kw && r.word_b === syn) || (r.word_a === syn && r.word_b === kw);
-        });
-        if (!alreadySaved) {
-          // 保存到本地 DB（dbModule.run 内部会自动 scheduleSave）
-          dbModule.run(
-            'INSERT OR IGNORE INTO keyword_synonyms (word_a, word_b) VALUES (?, ?)',
-            [kw, syn]
-          );
-          // 同步到云端
-          if (cloudDb.cloudRun) {
-            cloudDb.cloudRun(
-              'INSERT OR IGNORE INTO keyword_synonyms (word_a, word_b) VALUES (?, ?)',
-              [kw, syn]
-            ).catch(function () {});
-          }
-        }
-      }).catch(function () {});
-    });
-  });
-  console.log('[分类推荐] 同义词后台保存中, 词数:', Object.keys(synonyms).length);
 }
 
 function fallbackLocalSearch(title, aliCategory, res) {
@@ -856,7 +715,6 @@ router.post('/save-category-mapping', function (req, res) {
 
 module.exports = router;
 module.exports.extractSearchKeywordsPublic = extractSearchKeywords;
-module.exports.learnKeywordCategoryRelPublic = learnKeywordCategoryRel;
 module.exports.clearConfigCache = clearConfigCache;
 
 // 测试用导出（仅单元测试使用）

@@ -236,5 +236,4 @@ router.post('/hunyuan-keys', function (req, res) {
 // 导出 router + category-recommend 的公共函数（兼容 products.js 调用）
 module.exports = router;
 module.exports.extractSearchKeywordsPublic = categoryRouter.extractSearchKeywordsPublic;
-module.exports.learnKeywordCategoryRelPublic = categoryRouter.learnKeywordCategoryRelPublic;
 module.exports.clearConfigCache = categoryRouter.clearConfigCache;

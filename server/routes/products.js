@@ -175,14 +175,7 @@ router.post('/product', (req, res) => {
     const row = insertProduct(sourceUrl, title, category, customCategory, dxmCategoryVal, manualCategoryVal, mainImages, descImages, detailImages, attrs, skus);
     updateCategoryStats(category, customCategory);
 
-    // 推荐成功后的学习逻辑
-    if (recResult && recResult.category && recResult.confidence >= 0.6) {
-      try {
-        var aiModule = require('./ai/index');
-        var learnKeywords = aiModule.extractSearchKeywordsPublic(title || '', aliCat);
-        aiModule.learnKeywordCategoryRelPublic(learnKeywords, recResult.category, 'auto', recResult.confidence);
-      } catch (learnErr) {}
-    }
+    // 自动保存映射
     if (aliCat && customCategory && recResult && recResult.confidence >= 0.7) {
       cloudDb.saveMapping(aliCat, customCategory, 'auto');
     }
@@ -286,15 +279,6 @@ async function doRecommendAndSave(title, aliCat, attrs, productId) {
       scheduleSave();
       sseBroadcast('product-category-updated', { id: productId, category: result.category, path: result.path, source: result.source });
 
-      if (result.category && result.confidence >= 0.6) {
-        try {
-          var aiModule = require('./ai/index');
-          var learnKeywords = aiModule.extractSearchKeywordsPublic(title, aliCat);
-          aiModule.learnKeywordCategoryRelPublic(learnKeywords, result.category, 'auto', result.confidence);
-        } catch (learnErr) {
-          console.log('[采集推荐] 关键词学习失败:', learnErr.message);
-        }
-      }
       if (aliCat && result.category && result.confidence >= 0.7) {
         var existingMap = getOne('SELECT id, count FROM category_mappings WHERE category_name = ? AND custom_category = ?', [aliCat, result.category]);
         if (existingMap) {
@@ -434,10 +418,6 @@ router.put('/product/:id', (req, res) => {
       const catName = cat.leafCategoryName || cat.categoryPath;
       if (catName) {
         cloudDb.saveMapping(catName, req.body.customCategory, 'manual');
-        // 学习关键词-类目关联（手动设置权重高）
-        var aiModule = require('./ai/index');
-        var learnKws = aiModule.extractSearchKeywordsPublic(product.title || '', catName);
-        aiModule.learnKeywordCategoryRelPublic(learnKws, req.body.customCategory, 'manual', 1.0);
       }
     } catch (e) {}
   }
@@ -534,12 +514,6 @@ router.post('/product/:id/recommend-category', (req, res) => {
               cloudDb.saveMapping(aliCat, result.category, 'auto');
               console.log('[AI分类推荐] 自动保存映射:', aliCat, '→', result.category);
             }
-            // 学习关键词-类目关联
-            try {
-              var aiModule = require('./ai/index');
-              var learnKws = aiModule.extractSearchKeywordsPublic(title, aliCat);
-              aiModule.learnKeywordCategoryRelPublic(learnKws, result.category, 'auto', result.confidence);
-            } catch (learnErr) {}
           }
         } else {
           // 低置信度或人工审核 — 把详细结果传给前端
