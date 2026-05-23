@@ -101,6 +101,7 @@ new Vue({
       if (data.url && this.$refs.detailModal) {
         this.$refs.detailModal.updateImageUrl(data.field, data.index, data.url);
       }
+      this.showMeituEditor = false;
     }
   }
 });

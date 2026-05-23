@@ -265,7 +265,13 @@ function initMeituCollage() {
   function addToPool(src) {
     var id = nextId++;
     imagePool.push({ id: id, src: src });
+    // 自动选中最新添加的图片
+    if (imagePool.length === 1 || !selectedPoolId) {
+      selectedPoolId = id;
+    }
     buildPool();
+    updatePropBar();
+    updateEditBtn();
     return id;
   }
 
@@ -562,7 +568,9 @@ function initMeituCollage() {
   }
 
   // ========== Paste ==========
-  document.addEventListener('paste', function (e) {
+  function onPaste(e) {
+    // 仅在拼图页面激活时响应
+    if (!document.getElementById('canvasBoard')) return;
     var items = e.clipboardData && e.clipboardData.items;
     if (items) {
       for (var i = 0; i < items.length; i++) {
@@ -578,7 +586,9 @@ function initMeituCollage() {
       e.preventDefault();
       loadURL(text, function (src) { addToPool(src); });
     }
-  });
+  }
+  document.removeEventListener('paste', onPaste);
+  document.addEventListener('paste', onPaste);
 
   // ========== Batch Paste ==========
   document.getElementById('btnPasteUrl').addEventListener('click', function () {
@@ -718,7 +728,7 @@ function initMeituCollage() {
       canvasItems = canvasItems.filter(function (c) { return c.poolId !== pid; });
     });
     buildPool();
-    renderCanvas();
+    buildCanvasItems();
     updatePoolDelBtn();
   });
 
@@ -728,7 +738,7 @@ function initMeituCollage() {
     imagePool = [];
     canvasItems = [];
     buildPool();
-    renderCanvas();
+    buildCanvasItems();
     updatePoolDelBtn();
   });
 
@@ -1072,12 +1082,14 @@ function initMeituCollage() {
   document.getElementById('edRedo').addEventListener('click', editorRedo);
 
   // Keyboard shortcuts
-  document.addEventListener('keydown', function (e) {
-    if (!editorModal.classList.contains('show')) return;
+  function onEditorKeydown(e) {
+    if (!editorModal || !editorModal.classList.contains('show')) return;
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
     if (e.ctrlKey && e.key === 'z') { e.preventDefault(); editorUndo(); }
     if (e.ctrlKey && e.key === 'y') { e.preventDefault(); editorRedo(); }
-  });
+  }
+  document.removeEventListener('keydown', onEditorKeydown);
+  document.addEventListener('keydown', onEditorKeydown);
 
   // ===== Open editor — collect all images =====
   btnEditImage.addEventListener('click', function () {
@@ -2058,4 +2070,30 @@ function initMeituCollage() {
   // ========== Init ==========
   applyMode();
   updateEditBtn();
+
+  // 暴露外部导入接口：接收URL数组，逐张下载并加入图片池
+  window._meituImportImages = function (urls) {
+    if (!urls || !urls.length) return;
+    showToast('正在导入 ' + urls.length + ' 张图片...', 'loading');
+    var loaded = 0;
+    urls.forEach(function (url) {
+      loadURL(url, function (src) {
+        addToPool(src);
+        loaded++;
+        if (loaded >= urls.length) {
+          showToast('已导入 ' + loaded + ' 张图片', 'ok');
+        }
+      });
+    });
+  };
+
+  // 暴露获取图片池接口（供去中文工具读取）
+  window._meituGetPool = function () {
+    return imagePool.map(function (p) { return { id: p.id, src: p.src }; });
+  };
+
+  // 暴露直接添加 base64 图片到池
+  window._meituAddToPool = function (src) {
+    addToPool(src);
+  };
 }

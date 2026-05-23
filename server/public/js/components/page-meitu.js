@@ -1,14 +1,21 @@
 // 小秘美图 — 拼图 + 去中文双标签页
 Vue.component('page-meitu', {
   data: function () {
-    return { activeTab: 'collage' };
+    return { activeTab: 'collage', sourceProduct: null, _replaceField: 'main_images' };
   },
   watch: {
     activeTab: function (tab) {
       var vm = this;
+      // v-if 销毁重建 DOM，必须重置 _init 让 init 函数重新绑定事件
+      if (tab === 'collage') {
+        if (typeof initMeituCollage === 'function') initMeituCollage._init = false;
+      } else {
+        if (typeof initMeituTextCleaner === 'function') initMeituTextCleaner._init = false;
+      }
       this.$nextTick(function () {
         if (tab === 'collage') {
           if (typeof initMeituCollage === 'function') initMeituCollage();
+          vm.checkPendingImport();
         } else {
           if (typeof initMeituTextCleaner === 'function') initMeituTextCleaner();
         }
@@ -17,9 +24,121 @@ Vue.component('page-meitu', {
   },
   mounted: function () {
     var vm = this;
+    try {
+      var pid = sessionStorage.getItem('__meitu_source_product');
+      if (pid) vm.sourceProduct = pid;
+    } catch (e) {}
     this.$nextTick(function () {
-      if (typeof initMeituCollage === 'function') initMeituCollage();
+      if (typeof initMeituCollage === 'function') {
+        initMeituCollage._init = false;
+        initMeituCollage();
+      }
+      vm.checkPendingImport();
     });
+  },
+  beforeDestroy: function () {
+    if (typeof initMeituCollage === 'function') initMeituCollage._init = false;
+    if (typeof initMeituTextCleaner === 'function') initMeituTextCleaner._init = false;
+  },
+  methods: {
+    checkPendingImport: function () {
+      try {
+        var raw = sessionStorage.getItem('__meitu_pending_import');
+        if (!raw) return;
+        sessionStorage.removeItem('__meitu_pending_import');
+        var urls = JSON.parse(raw);
+        if (urls && urls.length && typeof window._meituImportImages === 'function') {
+          window._meituImportImages(urls);
+        }
+      } catch (e) {}
+    },
+    replaceToProduct: function (images) {
+      var vm = this;
+      if (!vm.sourceProduct) { vm.$Message.warning('未检测到来源商品'); return; }
+      if (!images || !images.length) { vm.$Message.warning('没有可替换的图片'); return; }
+      vm.$Modal.confirm({
+        title: '替换回商品',
+        render: function (h) {
+          return h('div', [
+            h('p', { style: 'margin-bottom:10px' }, '选择追加到哪个位置：'),
+            h('RadioGroup', { props: { value: 'main_images' }, on: { 'on-change': function (v) { vm._replaceField = v; } } }, [
+              h('Radio', { props: { label: 'main_images' } }, '主图'),
+              h('Radio', { props: { label: 'detail_images' } }, '详情图')
+            ]),
+            h('p', { style: 'margin-top:10px;font-size:12px;color:#999' } }, '将 ' + images.length + ' 张图片追加到原商品')
+          ]);
+        },
+        onOk: function () {
+          var field = vm._replaceField || 'main_images';
+          // 上传图片到服务器获取URL
+          var uploaded = 0;
+          var uploadedUrls = [];
+          vm.$Message.loading({ content: '正在上传图片...', duration: 0 });
+          images.forEach(function (src) {
+            fetch('/api/upload-image', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ dataUrl: src, productId: vm.sourceProduct, field: field })
+            }).then(function (r) { return r.json(); }).then(function (d) {
+              if (d.url) uploadedUrls.push(d.url);
+              uploaded++;
+              if (uploaded >= images.length) {
+                vm.$Message.destroy();
+                vm.appendImagesToProduct(field, uploadedUrls);
+              }
+            }).catch(function () {
+              uploaded++;
+              if (uploaded >= images.length) {
+                vm.$Message.destroy();
+                if (uploadedUrls.length) vm.appendImagesToProduct(field, uploadedUrls);
+                else vm.$Message.error('上传失败');
+              }
+            });
+          });
+        }
+      });
+    },
+    appendImagesToProduct: function (field, urls) {
+      var vm = this;
+      fetch('/api/product/' + vm.sourceProduct).then(function (r) { return r.json(); }).then(function (product) {
+        var existing = product[field] || [];
+        // 归一化为 URL 数组
+        var normalized = existing.map(function (item) {
+          return typeof item === 'string' ? item : (item && item.url) || '';
+        }).filter(Boolean);
+        // 去重：只追加不存在的图片
+        var existingSet = {};
+        normalized.forEach(function (u) { existingSet[u] = true; });
+        var newUrls = urls.filter(function (u) { return !existingSet[u]; });
+        if (!newUrls.length) { vm.$Message.info('所有图片已存在，无需追加'); return; }
+        newUrls.forEach(function (u) { normalized.push(u); });
+        var payload = {};
+        if (field === 'main_images') {
+          payload.mainImages = normalized.map(function (u) { return { url: u, _selected: true }; });
+        } else {
+          payload.detailImages = normalized.map(function (u) { return { url: u, _selected: true }; });
+        }
+        fetch('/api/product/' + vm.sourceProduct, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }).then(function () {
+          vm.$Message.success('已追加 ' + newUrls.length + ' 张图片到商品');
+        }).catch(function () { vm.$Message.error('保存失败'); });
+      }).catch(function () { vm.$Message.error('获取商品信息失败'); });
+    },
+    replaceFromCollage: function () {
+      if (typeof window._meituGetPool !== 'function') { this.$Message.warning('拼图模块未加载'); return; }
+      var pool = window._meituGetPool();
+      if (!pool || !pool.length) { this.$Message.warning('图片列表为空'); return; }
+      this.replaceToProduct(pool.map(function (p) { return p.src; }));
+    },
+    replaceFromCleaner: function () {
+      if (typeof window._meituGetCleanedImages !== 'function') { this.$Message.warning('请先执行去中文操作'); return; }
+      var cleaned = window._meituGetCleanedImages();
+      if (!cleaned || !cleaned.length) { this.$Message.warning('没有已清理的图片'); return; }
+      this.replaceToProduct(cleaned.map(function (c) { return c.src; }));
+    }
   },
   template: `
     <div class="meitu-page">
@@ -56,6 +175,9 @@ Vue.component('page-meitu', {
               <button class="sb-btn primary" id="btnGenCollage">生成拼图</button>
               <button class="sb-btn primary" id="btnExport">导出拼图</button>
               <button class="sb-btn danger" id="btnClear">清空画布</button>
+            </div>
+            <div class="sb-section" v-if="sourceProduct">
+              <button class="sb-btn primary" style="background:linear-gradient(135deg,#2e7d32,#43a047);border-color:#2e7d32;font-weight:bold" @click="replaceFromCollage">替换回商品</button>
             </div>
           </div>
           <div class="collage-main">
@@ -224,6 +346,7 @@ Vue.component('page-meitu', {
             </div>
             <div class="sb-section">
               <div class="sb-title">📥 图片输入</div>
+              <button class="sb-btn primary" id="btnImportFromCollage" style="margin-bottom:4px">从拼图列表导入</button>
               <textarea class="sb-text-input" id="imageUrlInput" rows="3" placeholder="粘贴图片URL（多个换行分隔）"></textarea>
               <button class="sb-btn" id="btnLoadUrl">加载URL图片</button>
               <button class="sb-btn" id="btnUpload">上传本地图片</button>
@@ -253,12 +376,16 @@ Vue.component('page-meitu', {
               <div class="sb-title">💾 导出</div>
               <button class="sb-btn" id="btnDownload">下载结果图</button>
               <button class="sb-btn" id="btnCopyUrl">复制到图床</button>
+              <button class="sb-btn primary" id="btnAddToCollage">添加到拼图列表</button>
             </div>
             <div class="sb-section">
               <div class="sb-title">🔄 批量模式</div>
               <div class="sb-hint" id="batchHint">尚未添加图片</div>
               <button class="sb-btn" id="btnBatchClean" disabled>批量去中文</button>
               <div class="sb-hint" id="batchProgress"></div>
+            </div>
+            <div class="sb-section" v-if="sourceProduct">
+              <button class="sb-btn primary" style="background:linear-gradient(135deg,#2e7d32,#43a047);border-color:#2e7d32;font-weight:bold" @click="replaceFromCleaner">替换回商品</button>
             </div>
           </div>
           <div class="cleaner-canvas-area" id="canvasArea">

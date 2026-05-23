@@ -50,10 +50,8 @@ Vue.component('meitu-editor', {
       aiPrompt: '电商产品主图，纯白背景，高清简约',
       aiModel: 'cogview-3-flash',
       aiSize: '1024x1024',
-      aiApiKey: '',
       aiKeyConfigured: false,
-      aiKeyMasked: '',
-      aiKeyEditing: false
+      aiKeyMasked: ''
     };
   },
   watch: {
@@ -812,6 +810,11 @@ Vue.component('meitu-editor', {
 
     saveToServer: function () {
       var vm = this;
+      // 未修改过，直接用原图链接，不上传
+      if (vm.history.length <= 1 && vm.imageUrl) {
+        vm.$emit('saved', { url: vm.imageUrl, field: vm.field, index: vm.index });
+        return;
+      }
       vm.saving = true;
       var dataUrl = vm.canvas.toDataURL({ format: 'jpeg', quality: 0.92 });
       fetch('/api/upload-image', {
@@ -1129,53 +1132,11 @@ Vue.component('meitu-editor', {
     // ===== AI文生图 =====
     checkAiKey: function () {
       var vm = this;
-      fetch('/api/ai/get-key').then(function (r) { return r.json(); }).then(function (d) {
-        vm.aiKeyConfigured = d.configured;
-        vm.aiKeyMasked = d.masked || '';
+      fetch('/api/ai/configs').then(function (r) { return r.json(); }).then(function (d) {
+        var hasKey = !!(d._global && d._global.apiKey);
+        vm.aiKeyConfigured = hasKey;
+        vm.aiKeyMasked = hasKey ? d._global.apiKey : '';
       }).catch(function () {});
-    },
-
-    saveAiKey: function () {
-      var vm = this;
-      if (!vm.aiApiKey.trim()) { vm.$Message.warning('请输入API密钥'); return; }
-      fetch('/api/ai/save-key', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: vm.aiApiKey.trim() })
-      }).then(function (r) { return r.json(); }).then(function (d) {
-        if (d.ok) {
-          vm.aiKeyConfigured = true;
-          vm.aiKeyEditing = false;
-          vm.aiApiKey = '';
-          vm.$Message.success('API密钥已保存');
-          vm.checkAiKey();
-        } else {
-          vm.$Message.error(d.error || '保存失败');
-        }
-      }).catch(function () { vm.$Message.error('保存失败'); });
-    },
-
-    startEditKey: function () {
-      this.aiKeyEditing = true;
-      this.aiApiKey = '';
-    },
-
-    deleteAiKey: function () {
-      var vm = this;
-      vm.$Modal.confirm({
-        title: '删除API密钥',
-        content: '确定要删除已保存的智谱API密钥吗？',
-        onOk: function () {
-          fetch('/api/ai/delete-key', { method: 'POST' }).then(function (r) { return r.json(); }).then(function (d) {
-            if (d.ok) {
-              vm.aiKeyConfigured = false;
-              vm.aiKeyMasked = '';
-              vm.aiKeyEditing = false;
-              vm.$Message.success('密钥已删除');
-            }
-          });
-        }
-      });
     },
 
     aiTextToImage: function () {
@@ -1636,25 +1597,14 @@ Vue.component('meitu-editor', {
           <!-- AI面板 -->
           <div v-if="activeTool==='ai'" class="meitu-panel-section">
             <div class="meitu-panel-title">智谱AI</div>
-            <!-- 密钥管理 -->
+            <!-- 密钥状态 -->
             <div style="margin-bottom:10px;padding:8px;background:#2a2a4a;border-radius:4px">
               <div v-if="!aiKeyConfigured" style="display:flex;flex-direction:column;gap:6px">
                 <div style="color:#fdba3b;font-size:11px">未配置API密钥</div>
-                <i-input v-model="aiApiKey" type="password" placeholder="输入智谱API密钥" size="small" />
-                <i-button type="warning" size="small" long @click="saveAiKey">保存密钥</i-button>
+                <div style="color:#999;font-size:11px">请在「AI模型配置」页面设置智谱AI Key</div>
               </div>
-              <div v-else style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+              <div v-else style="display:flex;align-items:center;gap:6px">
                 <span style="color:#67c23a;font-size:11px">✓ 已配置 {{ aiKeyMasked }}</span>
-                <i-button size="small" @click="startEditKey">修改</i-button>
-                <i-button size="small" type="error" @click="deleteAiKey">删除</i-button>
-              </div>
-            </div>
-            <!-- 修改密钥弹层 -->
-            <div v-if="aiKeyEditing" style="margin-bottom:10px;display:flex;flex-direction:column;gap:6px">
-              <i-input v-model="aiApiKey" type="password" placeholder="输入新的API密钥" size="small" />
-              <div style="display:flex;gap:6px">
-                <i-button type="warning" size="small" @click="saveAiKey">保存</i-button>
-                <i-button size="small" @click="aiKeyEditing=false">取消</i-button>
               </div>
             </div>
             <!-- AI功能 -->

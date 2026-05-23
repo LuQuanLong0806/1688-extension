@@ -593,7 +593,8 @@ function initMeituTextCleaner() {
   });
 
   // 粘贴
-  document.addEventListener('paste', function (e) {
+  function onCleanerPaste(e) {
+    if (!document.getElementById('canvasArea')) return;
     var items = e.clipboardData.items;
     for (var i = 0; i < items.length; i++) {
       if (items[i].type.indexOf('image') === 0) {
@@ -602,7 +603,58 @@ function initMeituTextCleaner() {
         return;
       }
     }
+  }
+  document.removeEventListener('paste', onCleanerPaste);
+  document.addEventListener('paste', onCleanerPaste);
+
+  // ========== 从拼图导入 ==========
+  document.getElementById('btnImportFromCollage').addEventListener('click', function () {
+    if (typeof window._meituGetPool !== 'function') { showToast('拼图模块未加载', 'err'); return; }
+    var pool = window._meituGetPool();
+    if (!pool || !pool.length) { showToast('拼图列表为空', 'err'); return; }
+    showToast('导入 ' + pool.length + ' 张图片...', 'loading');
+    var loaded = 0;
+    pool.forEach(function (item) {
+      var src = item.src || item;
+      urlToBase64(src).then(function (b64) {
+        imageQueue.push({
+          id: nextQueueId++,
+          src: b64,
+          base64: b64.replace(/^data:image\/\w+;base64,/, ''),
+          status: 'pending',
+          result: null
+        });
+        loaded++;
+        if (loaded === 1) loadFromBase64(imageQueue[0].base64);
+        if (loaded >= pool.length) {
+          updateImageQueue();
+          showToast('已导入 ' + pool.length + ' 张图片', 'ok');
+        }
+      }).catch(function () { loaded++; });
+    });
   });
+
+  // ========== 添加到拼图列表 ==========
+  document.getElementById('btnAddToCollage').addEventListener('click', function () {
+    if (!cleanedImageSrc) { showToast('请先执行去中文操作', 'err'); return; }
+    if (typeof window._meituAddToPool !== 'function') { showToast('拼图模块未加载', 'err'); return; }
+    window._meituAddToPool(cleanedImageSrc);
+    showToast('已添加到拼图列表', 'ok');
+  });
+
+  // 暴露获取清理后图片接口
+  window._meituGetCleanedImages = function () {
+    var results = [];
+    imageQueue.forEach(function (item) {
+      if (item.status === 'done' && item.result && item.result.cleaned) {
+        results.push({ src: item.result.cleaned, original: item.src });
+      }
+    });
+    if (cleanedImageSrc && results.length === 0) {
+      results.push({ src: cleanedImageSrc });
+    }
+    return results;
+  };
 
   // ========== 初始化 ==========
   checkServices();

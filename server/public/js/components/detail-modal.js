@@ -149,6 +149,31 @@ Vue.component('detail-modal', {
       window.open('https://www.dianxiaomi.com/web/temu/add?collectId=' + this.editable.id, '_blank');
     },
     close: function () { this.$emit('update:visible', false); },
+    goToMeitu: function () {
+      var vm = this;
+      if (!vm.editable) return;
+      var urls = [];
+      var mainImgs = vm.editable.main_images || [];
+      vm.selectedMainIndexes.forEach(function (i) { if (mainImgs[i]) urls.push(mainImgs[i]); });
+      var detailImgs = vm.editable.detail_images || [];
+      vm.selectedDetailIndexes.forEach(function (i) { if (detailImgs[i]) urls.push(detailImgs[i]); });
+      var skuImgs = vm.skuImages || [];
+      skuImgs.forEach(function (item) {
+        if (vm.isSkuImageChecked(item) && item.url) urls.push(item.url);
+      });
+      urls = urls.filter(function (u) { return u && u.trim(); });
+      var skuImgs = vm.skuImages || [];
+      skuImgs.forEach(function (item) {
+        if (vm.isSkuImageChecked(item) && item.url) urls.push(item.url);
+      });
+      if (!urls.length) { vm.$Message.warning('请先选中要处理的图片'); return; }
+      // 存入 sessionStorage 供 meitu 页面读取
+      try { sessionStorage.setItem('__meitu_pending_import', JSON.stringify(urls)); } catch (e) {}
+      // 存储商品ID以便后续回写
+      try { sessionStorage.setItem('__meitu_source_product', vm.editable.id); } catch (e) {}
+      vm.$emit('update:visible', false);
+      vm.$root.switchView('page-meitu');
+    },
     toggleSkuAll: function (checked) {
       var vm = this;
       if (checked) {
@@ -285,12 +310,22 @@ Vue.component('detail-modal', {
         index: index
       });
     },
+    editImageWithMeitu: function (url, field, index) {
+      this.$root.openMeituEditor({
+        url: url,
+        productId: this.editable ? this.editable.id : '',
+        field: field,
+        index: index
+      });
+    },
     updateImageUrl: function (field, index, newUrl) {
       if (!this.editable) return;
       if (field === 'main_images' && this.editable.main_images) {
         this.$set(this.editable.main_images, index, newUrl);
       } else if (field === 'detail_images' && this.editable.detail_images) {
         this.$set(this.editable.detail_images, index, newUrl);
+      } else if (field === 'sku_image' && this.editable.skus && this.editable.skus[index]) {
+        this.$set(this.editable.skus[index], 'image', newUrl);
       }
     },
     // 拖拽替换SKU图
@@ -475,7 +510,7 @@ Vue.component('detail-modal', {
               <div class="sku-img-check">
                 <checkbox :value="isMainImageChecked(i)" @click.native.stop></checkbox>
               </div>
-              <!-- img-edit-btn hidden -->
+              <div class="img-action img-edit" @click.stop="editImageWithMeitu(url, 'main_images', i)" title="编辑图片">✎</div>
               <div class="img-del" @click.stop="removeMainImage(i)">&times;</div>
             </div>
           </div>
@@ -502,7 +537,7 @@ Vue.component('detail-modal', {
               <div class="sku-img-check">
                 <checkbox :value="isDetailImageChecked(i)" @click.native.stop></checkbox>
               </div>
-              <!-- img-edit-btn hidden -->
+              <div class="img-action img-edit" @click.stop="editImageWithMeitu(url, 'detail_images', i)" title="编辑图片">✎</div>
               <div class="img-del" @click.stop="removeDetailImage(i)">&times;</div>
             </div>
           </div>
@@ -525,6 +560,7 @@ Vue.component('detail-modal', {
               <div class="sku-img-check">
                 <checkbox :value="isSkuImageChecked(item)" @click.native.stop></checkbox>
               </div>
+              <div class="img-action img-edit" @click.stop="editImageWithMeitu(item.url, 'sku_image', item.skuIndex)" title="编辑图片">✎</div>
               <div class="sku-img-label">{{ editable.skus[item.skuIndex].name || editable.skus[item.skuIndex].customName || '' }}</div>
             </div>
           </div>
@@ -590,13 +626,13 @@ Vue.component('detail-modal', {
                   <td><i-input v-model="sku.customName" :placeholder="sku.name || '-'" style="width:200px" /></td>
                   <td><i-input v-model="sku.price" type="number" number style="width:100px" @on-change="calcSellPrice(sku)" /></td>
                   <td><i-input v-model="sku.sellPrice" type="number" number placeholder="售价" style="width:100px" /></td>
-                  <td style="min-width:280px">
+                  <td style="min-width:340px">
                     <div style="display:flex;justify-content:space-around;align-items:center">
-                      <i-input v-model="sku.dimensions[0]" type="number" number style="width:80px" />
-                      <span style="color:#bbb">×</span>
-                      <i-input v-model="sku.dimensions[1]" type="number" number style="width:80px" />
-                      <span style="color:#bbb">×</span>
-                      <i-input v-model="sku.dimensions[2]" type="number" number style="width:80px" />
+                      <i-input v-model="sku.dimensions[0]" type="number" number style="width:100px" />
+                      <span style="color:#bbb;padding:0 2px">×</span>
+                      <i-input v-model="sku.dimensions[1]" type="number" number style="width:100px" />
+                      <span style="color:#bbb;padding:0 2px">×</span>
+                      <i-input v-model="sku.dimensions[2]" type="number" number style="width:100px" />
                     </div>
                   </td>
                   <td><i-input v-model="sku.weight" type="number" number style="width:80px" /></td>
@@ -611,6 +647,7 @@ Vue.component('detail-modal', {
         <div class="detail-footer-fixed">
           <i-button type="primary" icon="md-checkmark" @click="saveProduct">保存</i-button>
           <i-button type="success" icon="md-paper-plane" @click="openAdd">发布</i-button>
+          <i-button type="warning" icon="md-images" @click="goToMeitu">去美图</i-button>
           <i-button :type="editable.status === 0 ? 'success' : 'error'" @click="toggleStatus">
             {{ editable.status === 0 ? '标记已发布' : '标记未发布' }}
           </i-button>

@@ -616,6 +616,16 @@ body {
 }
 .img-grid .img-item .img-del:hover { background: #e53935; }
 .img-grid .img-item:hover .img-del { display: flex; }
+.img-grid .img-item .img-action {
+  position: absolute; top: 4px; left: 4px;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: rgba(0,0,0,.55); color: #fff;
+  display: none; align-items: center; justify-content: center;
+  font-size: 13px; cursor: pointer; line-height: 1;
+  transition: background .15s;
+}
+.img-grid .img-item .img-action:hover { background: var(--accent); }
+.img-grid .img-item:hover .img-action { display: flex; }
 
 .attr-tags { display: flex; flex-wrap: wrap; gap: 8px; }
 .attr-tags .attr-tag {
