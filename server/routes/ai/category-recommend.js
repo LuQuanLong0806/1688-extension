@@ -6,20 +6,7 @@ var dbModule = require('../../db');
 var cloudDb = require('../../cloud/index');
 var providers = require('./providers');
 
-// ===== 一级大类缓存 + 互斥判定 =====
-
-var TOP_CATEGORIES_CACHE = null;
-function getTopCategories() {
-  if (TOP_CATEGORIES_CACHE) return TOP_CATEGORIES_CACHE;
-  try {
-    TOP_CATEGORIES_CACHE = dbModule.treeGetAll(
-      'SELECT cat_id, cat_name, path FROM dxm_category_tree WHERE cat_level = 1 ORDER BY cat_id'
-    );
-  } catch (e) {
-    TOP_CATEGORIES_CACHE = [];
-  }
-  return TOP_CATEGORIES_CACHE;
-}
+// ===== 互斥组配置 =====
 
 // 从 DB 加载互斥组配置（带缓存）
 var MUTEX_CACHE = null;
@@ -197,17 +184,21 @@ function extractSearchKeywords(title, aliCategory) {
 
 // ===== 确定性计分算法 =====
 
-// 计算字符串中各词对目标的命中比例
-function calcHitRatio(words, target) {
-  if (!words || !words.length || !target) return 0;
-  var hit = 0;
+// 计算关键词命中候选的详细数据
+function calcHitDetail(words, candFull, candName, candPath) {
+  var hitWords = [];
+  var nameHit = false;
+  var pathHit = false;
   for (var i = 0; i < words.length; i++) {
-    if (target.indexOf(words[i]) >= 0) hit++;
+    if (candName === words[i]) { hitWords.push(words[i]); nameHit = true; }
+    else if (candName.indexOf(words[i]) >= 0 || words[i].indexOf(candName) >= 0) { hitWords.push(words[i]); nameHit = true; }
+    else if (candPath.indexOf(words[i]) >= 0) { hitWords.push(words[i]); pathHit = true; }
   }
-  return hit / words.length;
+  return { ratio: words.length ? hitWords.length / words.length : 0, nameHit: nameHit, pathHit: pathHit, hitWords: hitWords };
 }
 
 // 对单个候选类目计算匹配分数
+// 三级优先：双方重合 > 仅1688类目词 > 仅标题关键词
 function scoreCategory(titleKeywords, aliCategoryWords, candidate) {
   var candPath = (candidate.path || '').toLowerCase();
   var candName = (candidate.name || candidate.cat_name || '').toLowerCase();
@@ -215,23 +206,37 @@ function scoreCategory(titleKeywords, aliCategoryWords, candidate) {
 
   var score = 0;
 
-  // 1. 双向重合分（权重 0.5）
-  var aliHitRatio = calcHitRatio(aliCategoryWords, candFull);
-  var titleHitRatio = calcHitRatio(titleKeywords, candFull);
-  var overlapScore = aliHitRatio * 0.6 + titleHitRatio * 0.4;
-  score += overlapScore * 0.5;
+  // 1. 三级优先重合分（权重 0.5）
+  var aliDetail = calcHitDetail(aliCategoryWords, candFull, candName, candPath);
+  var titleDetail = calcHitDetail(titleKeywords, candFull, candName, candPath);
+
+  // 双方重合词（1688词和标题词都命中同一个候选）
+  var overlapWords = aliDetail.hitWords.filter(function (w) {
+    return titleDetail.hitWords.indexOf(w) >= 0;
+  });
+  var overlapRatio = aliCategoryWords.length && titleKeywords.length ? overlapWords.length / Math.max(aliCategoryWords.length, titleKeywords.length) : 0;
+  var aliOnlyRatio = Math.max(0, aliDetail.ratio - overlapRatio);
+  var titleOnlyRatio = Math.max(0, titleDetail.ratio - overlapRatio);
+
+  // 三级加权：重合 0.5，仅1688 0.3，仅标题 0.2
+  score += (overlapRatio * 0.5 + aliOnlyRatio * 0.3 + titleOnlyRatio * 0.2) * 0.5;
 
   // 2. 精确匹配加分（权重 0.3）
   var exactBonus = 0;
-  var allKws = aliCategoryWords.concat(titleKeywords);
-  for (var i = 0; i < allKws.length; i++) {
-    var kw = allKws[i];
+  // 1688类目精确匹配权重更高
+  for (var i = 0; i < aliCategoryWords.length; i++) {
+    var kw = aliCategoryWords[i];
     if (candName === kw) { exactBonus = 1.0; break; }
-    if (candName.indexOf(kw) >= 0 || kw.indexOf(candName) >= 0) {
-      if (exactBonus < 0.66) exactBonus = 0.66;
-    }
-    if (candPath.indexOf(kw) >= 0) {
-      if (exactBonus < 0.33) exactBonus = 0.33;
+    if (candName.indexOf(kw) >= 0 || kw.indexOf(candName) >= 0) { if (exactBonus < 0.8) exactBonus = 0.8; }
+    if (candPath.indexOf(kw) >= 0) { if (exactBonus < 0.4) exactBonus = 0.4; }
+  }
+  // 标题精确匹配权重稍低
+  if (exactBonus < 1.0) {
+    for (var i = 0; i < titleKeywords.length; i++) {
+      var kw = titleKeywords[i];
+      if (candName === kw) { if (exactBonus < 0.7) exactBonus = 0.7; break; }
+      if (candName.indexOf(kw) >= 0 || kw.indexOf(candName) >= 0) { if (exactBonus < 0.5) exactBonus = 0.5; }
+      if (candPath.indexOf(kw) >= 0) { if (exactBonus < 0.3) exactBonus = 0.3; }
     }
   }
   score += exactBonus * 0.3;
@@ -329,7 +334,9 @@ router.post('/suggest-category', async function (req, res) {
     }
 
     // Step 2: LLM 提取关键词（仅提取，不做分类决策）
-    var keywords = await extractProductKeywords(title, aliCategory, attrSummary);
+    var llmResult = await extractProductKeywords(title, aliCategory, attrSummary);
+    var keywords = llmResult.keywords || [];
+    var categoryHint = llmResult.categoryHint || '';
     var localKw = extractSearchKeywords(title, aliCategory);
     localKw.slice(0, 2).forEach(function (kw) {
       if (keywords.indexOf(kw) < 0 && getGenericWords().indexOf(kw) < 0) keywords.push(kw);
@@ -344,8 +351,10 @@ router.post('/suggest-category', async function (req, res) {
 
     if (relCandidates && relCandidates.length === 1 && relCandidates[0].totalWeight >= 3.0 && relCandidates[0].matchCount >= 2) {
       var topRel = relCandidates[0];
-      // 关联库高可信命中，但仍做互斥验证
-      if (!isMutexConflict(keywords, aliCategoryWords, topRel.path)) {
+      // 关联库高可信命中，但仍做互斥验证（含 categoryHint）
+      var relMutexWords = aliCategoryWords.slice();
+      if (categoryHint && relMutexWords.indexOf(categoryHint) < 0) relMutexWords.push(categoryHint);
+      if (!isMutexConflict(keywords, relMutexWords, topRel.path)) {
         console.log('[分类推荐] 关联库高可信命中:', topRel.category, '权重:', topRel.totalWeight);
         return res.json({
           ok: true, source: 'keyword_rel', category: topRel.category,
@@ -413,11 +422,17 @@ router.post('/suggest-category', async function (req, res) {
     // Step 6: 互斥拦截 + 计分排序
     var titleKws = keywords.map(function (w) { return w.toLowerCase(); });
     var aliWords = aliCategoryWords.map(function (w) { return w.toLowerCase(); });
+    // categoryHint 辅助互斥组判定：作为额外的产品大类锚点
+    var mutexAliWords = aliWords.slice();
+    if (categoryHint) {
+      var hintLower = categoryHint.toLowerCase();
+      if (mutexAliWords.indexOf(hintLower) < 0) mutexAliWords.push(hintLower);
+    }
 
     // 互斥过滤
     var beforeFilter = candidates.length;
     candidates = candidates.filter(function (c) {
-      if (isMutexConflict(titleKws, aliWords, c.path)) {
+      if (isMutexConflict(titleKws, mutexAliWords, c.path)) {
         console.log('[分类推荐] 互斥过滤:', c.name, c.path);
         return false;
       }
@@ -562,39 +577,39 @@ async function learnKeywordCategoryRel(keywords, categoryName, source, confidenc
   }
 }
 
-// LLM 提炼标题核心属性
+// LLM 一次性完成：关键词提取 + 同义词生成 + 属性分析
+// 一次调用，最大化产出，避免多次调用触发限流
 function extractProductKeywords(title, aliCategory, attrSummary) {
-  var prompt = '你是一个产品分类关键词提取专家。任务：从产品信息中提取核心实体名词。\n\n';
-  prompt += '提取规则：\n';
-  prompt += '1. 只提取"这个产品到底是什么东西"的名词\n';
-  prompt += '2. 必须是具体实物名称，不是功能、用途、场景、材质、风格\n';
-  prompt += '3. 输出2-4个核心品类词，第一个最重要\n\n';
-  prompt += '正确示例（提取的关键词）：\n';
-  prompt += '  "黑色大号垃圾袋加厚平口" → ["垃圾袋"]\n';
-  prompt += '  "双面塑料洗衣刷子家用多功能清洁板刷" → ["洗衣刷", "板刷"]\n';
-  prompt += '  "跨境圆形可悬挂洗头按摩搓澡刷" → ["搓澡刷", "洗澡刷"]\n';
-  prompt += '  "纯棉短袖T恤男夏季新款" → ["T恤", "短袖"]\n';
-  prompt += '  "手提袋礼品袋彩色opp塑料袋" → ["手提袋", "礼品袋", "塑料袋"]\n';
-  prompt += '  "化妆镜手持镜迷你小镜子" → ["化妆镜", "手持镜", "镜子"]\n\n';
-  prompt += '禁止提取（不要出现在结果中）：\n';
-  prompt += '  用途词：厨房、浴室、家用、户外、清洁、收纳、去污\n';
-  prompt += '  材质词：塑料、硅胶、纯棉、不锈钢、陶瓷\n';
-  prompt += '  形容词：加厚、大号、圆形、折叠、便携、多功能\n';
-  prompt += '  营销词：跨境、爆款、新款、批发、热卖、直销\n';
-  prompt += '  功能词：按摩、擦洗、消毒、防水、防滑\n\n';
+  var prompt = '你是产品分类分析专家。请从产品信息中完成以下3项任务（一次输出）：\n\n';
+
+  prompt += '任务1 — 核心品类词：只提取"这个产品到底是什么东西"的名词\n';
+  prompt += '  正确示例："跨境圆形可悬挂洗头按摩搓澡刷" → ["搓澡刷", "洗澡刷"]\n';
+  prompt += '  正确示例："黑色大号垃圾袋加厚平口" → ["垃圾袋"]\n';
+  prompt += '  正确示例："纯棉短袖T恤男夏季新款" → ["T恤"]\n';
+  prompt += '  禁止提取：材质词、形容词、营销词、功能词、用途词\n\n';
+
+  prompt += '任务2 — 同义词：为核心品类词生成同义/近义词（买家可能搜的词）\n';
+  prompt += '  示例："搓澡刷" → ["浴刷", "沐浴刷", "身体刷"]\n';
+  prompt += '  示例："垃圾袋" → ["垃圾袋", "垃圾包", "废物袋"]\n';
+  prompt += '  每个词2-4个同义词，如果品类词本身就是最常用词，可以少给\n\n';
+
+  prompt += '任务3 — 产品品类判定：根据标题和类目，判断该产品属于什么品类大类\n';
+  prompt += '  输出一个简短品类描述，如"洗浴用品"、"包装袋"、"服装"、"清洁工具"\n\n';
+
   var combinedInput = '';
   if (aliCategory) combinedInput += '【平台类目】' + aliCategory + '\n';
   if (title) combinedInput += '【产品标题】' + title + '\n';
   if (attrSummary) combinedInput += '【规格参数】' + attrSummary + '\n';
   prompt += combinedInput;
   prompt += '\n请结合【平台类目】优先判断品类。\n';
-  prompt += '返回JSON格式：\n{"keywords": ["核心品类词1", "品类词2"]}\n';
+  prompt += '返回JSON格式（只返回一行）：\n';
+  prompt += '{"keywords": ["核心词1", "核心词2"], "synonyms": {"核心词1": ["同义词a", "同义词b"], "核心词2": ["同义词c"]}, "category_hint": "品类大类"}\n';
   prompt += '只返回一行JSON，不要其他文字。';
 
   return providers.extractionLLMRequest('/chat/completions', {
     messages: [{ role: 'user', content: prompt }],
     temperature: 0.1,
-    max_tokens: 200
+    max_tokens: 400
   }).then(function (result) {
     var msg = result.choices && result.choices[0] && result.choices[0].message;
     var text = (msg && msg.content) || '';
@@ -602,30 +617,78 @@ function extractProductKeywords(title, aliCategory, attrSummary) {
       var m = msg.reasoning_content.match(/\{[^{}]*"keywords"[^{}]*\}/);
       if (m) text = m[0];
     }
-    if (!text) return [];
+    if (!text) return { keywords: [], synonyms: {}, categoryHint: '' };
     try {
       var jsonStr = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-      var parsed = JSON.parse(jsonStr);
-      if (Array.isArray(parsed.keywords) && parsed.keywords.length) {
-        var noiseWords = ['六一','儿童节','圣诞','元旦','新年','春节','情人节','国庆','中秋','端午',
-          '卡通','可爱','创意','简约','复古','ins','韩版','日系','欧美','网红',
-          '批发','现货','特价','热卖','直销','厂家','定制','新款','同款','爆款',
-          '礼物','礼品','伴手礼','赠品','福利','奖品'];
-        var filtered = parsed.keywords.filter(function (kw) {
-          return !noiseWords.some(function (nw) { return kw === nw || kw.indexOf(nw) >= 0; });
-        });
-        if (!filtered.length) filtered = parsed.keywords.slice(0, 3);
-        console.log('[分类推荐] LLM提炼关键词:', filtered.join(', '));
-        return filtered;
+      // 尝试提取完整JSON（包含synonyms）
+      var fullParsed = null;
+      try { fullParsed = JSON.parse(jsonStr); } catch (e) {
+        // 如果完整JSON解析失败，尝试提取含keywords的部分
+        var m2 = jsonStr.match(/\{[^{}]*"keywords"[^{}]*\}/);
+        if (m2) { fullParsed = JSON.parse(m2[0]); }
       }
+      if (!fullParsed || !Array.isArray(fullParsed.keywords)) return { keywords: [], synonyms: {}, categoryHint: '' };
+
+      var noiseWords = ['六一','儿童节','圣诞','元旦','新年','春节','情人节','国庆','中秋','端午',
+        '卡通','可爱','创意','简约','复古','ins','韩版','日系','欧美','网红',
+        '批发','现货','特价','热卖','直销','厂家','定制','新款','同款','爆款',
+        '礼物','礼品','伴手礼','赠品','福利','奖品'];
+      var filtered = fullParsed.keywords.filter(function (kw) {
+        return !noiseWords.some(function (nw) { return kw === nw || kw.indexOf(nw) >= 0; });
+      });
+      if (!filtered.length) filtered = fullParsed.keywords.slice(0, 3);
+
+      // 提取同义词，后台异步保存到 synonym 表
+      var synonyms = fullParsed.synonyms || {};
+      var categoryHint = fullParsed.category_hint || '';
+      if (Object.keys(synonyms).length > 0) {
+        saveSynonymsAsync(synonyms);
+      }
+      if (categoryHint) {
+        console.log('[分类推荐] LLM品类提示:', categoryHint);
+      }
+
+      console.log('[分类推荐] LLM提炼关键词:', filtered.join(', '), Object.keys(synonyms).length > 0 ? '(含同义词)' : '');
+      return { keywords: filtered, synonyms: synonyms, categoryHint: categoryHint };
     } catch (e) {
       console.log('[分类推荐] LLM提炼JSON解析失败:', text.substring(0, 100));
+      return { keywords: [], synonyms: {}, categoryHint: '' };
     }
-    return [];
   }).catch(function (err) {
     console.log('[分类推荐] LLM提炼请求失败:', err.message);
-    return [];
+    return { keywords: [], synonyms: {}, categoryHint: '' };
   });
+}
+
+// 异步保存同义词到数据库（不阻塞主流程）
+function saveSynonymsAsync(synonyms) {
+  Object.keys(synonyms).forEach(function (kw) {
+    var syns = synonyms[kw];
+    if (!Array.isArray(syns)) return;
+    syns.forEach(function (syn) {
+      if (!syn || syn === kw || syn.length < 2) return;
+      cloudDb.getSynonyms(kw).then(function (existing) {
+        var alreadySaved = (existing || []).some(function (r) {
+          return (r.word_a === kw && r.word_b === syn) || (r.word_a === syn && r.word_b === kw);
+        });
+        if (!alreadySaved) {
+          // 保存到本地 DB（dbModule.run 内部会自动 scheduleSave）
+          dbModule.run(
+            'INSERT OR IGNORE INTO keyword_synonyms (word_a, word_b) VALUES (?, ?)',
+            [kw, syn]
+          );
+          // 同步到云端
+          if (cloudDb.cloudRun) {
+            cloudDb.cloudRun(
+              'INSERT OR IGNORE INTO keyword_synonyms (word_a, word_b) VALUES (?, ?)',
+              [kw, syn]
+            ).catch(function () {});
+          }
+        }
+      }).catch(function () {});
+    });
+  });
+  console.log('[分类推荐] 同义词后台保存中, 词数:', Object.keys(synonyms).length);
 }
 
 function fallbackLocalSearch(title, aliCategory, res) {
@@ -794,7 +857,9 @@ router.post('/config', function (req, res) {
 
   if (!type || !value) return res.status(400).json({ error: 'type 和 value 必填' });
 
-  cloudDb.saveCategoryConfig(type, value, groupName, description, sortOrder);
+  cloudDb.saveCategoryConfig(type, value, groupName, description, sortOrder).catch(function (e) {
+    console.log('[分类配置] 保存失败:', e.message);
+  });
   // 清除缓存，下次请求重新加载
   MUTEX_CACHE = null;
   NOISE_CACHE = null;
@@ -808,7 +873,9 @@ router.delete('/config/:id', function (req, res) {
   var id = parseInt(req.params.id);
   if (!id) return res.status(400).json({ error: '无效 ID' });
 
-  cloudDb.deleteCategoryConfig(id);
+  cloudDb.deleteCategoryConfig(id).catch(function (e) {
+    console.log('[分类配置] 删除失败:', e.message);
+  });
   // 清除缓存
   MUTEX_CACHE = null;
   NOISE_CACHE = null;
@@ -840,3 +907,14 @@ router.post('/save-category-mapping', function (req, res) {
 module.exports = router;
 module.exports.extractSearchKeywordsPublic = extractSearchKeywords;
 module.exports.learnKeywordCategoryRelPublic = learnKeywordCategoryRel;
+
+// 测试用导出（仅单元测试使用）
+module.exports._test = {
+  scoreCategory: scoreCategory,
+  isMutexConflict: isMutexConflict,
+  getMutexGroupIndex: getMutexGroupIndex,
+  splitAliCategoryWords: splitAliCategoryWords,
+  cleanTitleKeywords: cleanTitleKeywords,
+  calcHitDetail: calcHitDetail,
+  loadMutexGroups: loadMutexGroups
+};

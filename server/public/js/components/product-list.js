@@ -203,16 +203,19 @@ Vue.component('page-products', {
         try {
           var data = JSON.parse(e.data);
           vm.$set(vm.recommending, data.id, false);
-          if (data.category) {
-            vm.$Message.success('AI分类推荐: ' + data.category);
-          } else if (data.skipped) {
+          if (data.skipped) {
             vm.$Message.info('已有手动分类，跳过AI推荐');
           } else if (data.source === 'manual_review') {
             vm.$Message.warning({ content: 'AI无法自动分类，请手动选择', duration: 5 });
-          } else if (data.source === 'score_low' && data.alternatives && data.alternatives.length) {
-            var topAlt = data.alternatives[0];
-            var altName = topAlt.name || topAlt.category || '';
-            vm.$Message.warning({ content: 'AI推荐不确定（' + (data.confidence * 100).toFixed(0) + '%），最接近: ' + altName, duration: 6 });
+          } else if (data.source === 'score_low') {
+            var bestName = data.category || (data.alternatives && data.alternatives[0] && (data.alternatives[0].name || data.alternatives[0].category)) || '';
+            if (bestName) {
+              vm.$Message.warning({ content: 'AI推荐不确定（' + (data.confidence * 100).toFixed(0) + '%），最接近: ' + bestName, duration: 6 });
+            } else {
+              vm.$Message.warning('AI分类推荐无匹配结果');
+            }
+          } else if (data.category) {
+            vm.$Message.success('AI分类推荐: ' + data.category);
           } else {
             vm.$Message.warning('AI分类推荐无匹配结果');
           }

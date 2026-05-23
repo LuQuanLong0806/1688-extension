@@ -547,9 +547,10 @@ router.post('/product/:id/recommend-category', (req, res) => {
           var confidence = result.confidence || 0;
           var alternatives = result.alternatives || [];
           console.log('[AI分类推荐] 产品#' + parsed.id + ' 推荐结果: source=' + source + ' confidence=' + confidence.toFixed(2));
+          // score_low 保留最佳候选名称，前端用来提示用户
           sseBroadcast('product-category-updated', {
             id: parsed.id,
-            category: '',
+            category: source === 'score_low' ? (result.category || '') : '',
             source: source,
             confidence: confidence,
             alternatives: alternatives
