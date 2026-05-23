@@ -989,10 +989,11 @@ function initMeituCollage() {
   var editorCenter = document.querySelector('.editor-center');
   var editorCanvasWrap = document.getElementById('editorCanvasWrap');
 
-  // 点击画布外部区域时退出涂抹模式
+  // 点击画布外部区域时退出涂抹模式（排除左侧工具栏）
   document.querySelector('.editor-body').addEventListener('click', function (e) {
     if (!editorDrawMode) return;
     if (editorCenter.contains(e.target)) return;
+    if (e.target.closest('.editor-left')) return;
     exitDrawMode();
   });
 
