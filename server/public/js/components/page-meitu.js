@@ -77,7 +77,7 @@ Vue.component('page-meitu', {
               h('Radio', { props: { label: 'main_images' } }, '主图'),
               h('Radio', { props: { label: 'detail_images' } }, '详情图')
             ]),
-            h('p', { style: 'margin-top:10px;font-size:12px;color:#999' }, '将 ' + images.length + ' 张图片追加到原商品')
+            h('p', { style: 'margin-top:10px;font-size:12px;color:var(--text-muted)' }, '将 ' + images.length + ' 张图片追加到原商品')
           ]);
         },
         onOk: function () {
@@ -271,7 +271,7 @@ Vue.component('page-meitu', {
                 <div class="acc-section open" data-mode="erase">
                   <div class="acc-header">AI消除 <span class="acc-icon">🧹</span></div>
                   <div class="acc-body"><div class="acc-inner">
-                    <div style="font-size:11px;color:#999;margin-bottom:6px">点击快捷工具栏按钮激活涂抹，松手自动调用AI消除</div>
+                    <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">点击快捷工具栏按钮激活涂抹，松手自动调用AI消除</div>
                     <div class="acc-btn-row" style="margin-bottom:6px">
                       <button class="acc-btn active" id="edEraseBrush">画笔</button>
                       <button class="acc-btn" id="edEraseBox">框选</button>
@@ -301,7 +301,7 @@ Vue.component('page-meitu', {
                 <div class="acc-section" data-mode="mosaic">
                   <div class="acc-header">马赛克 <span class="acc-icon">🔲</span></div>
                   <div class="acc-body"><div class="acc-inner">
-                    <div style="font-size:11px;color:#999;margin-bottom:6px">点击快捷工具栏按钮激活涂抹，松手自动应用</div>
+                    <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">点击快捷工具栏按钮激活涂抹，松手自动应用</div>
                     <div class="acc-btn-row" style="margin-bottom:6px">
                       <button class="acc-btn active" id="edMosBrush">画笔</button>
                       <button class="acc-btn" id="edMosBox">框选</button>

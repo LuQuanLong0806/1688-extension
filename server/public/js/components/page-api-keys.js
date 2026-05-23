@@ -424,7 +424,7 @@ Vue.component('page-api-keys', {
             <span class="ai-module-title">Turso 连接配置</span>
             <span style="font-size:12px;color:var(--text-muted);margin-left:8px">云端数据库，多设备同步知识库和商品数据</span>
             <span v-if="tursoStatus.connected" style="font-size:12px;color:var(--success);margin-left:8px">已连接</span>
-            <span v-else-if="tursoStatus.config" style="font-size:12px;color:#ff9900;margin-left:8px">已配置（未连接）</span>
+            <span v-else-if="tursoStatus.config" style="font-size:12px;color:var(--accent);margin-left:8px">已配置（未连接）</span>
             <span v-else style="font-size:12px;color:var(--text-muted);margin-left:8px">未配置</span>
           </div>
           <div class="ai-provider-row" style="flex-wrap:wrap;gap:10px">

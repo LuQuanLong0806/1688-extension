@@ -189,7 +189,7 @@ Vue.component('page-categories', {
           key: 'customCategory',
           minWidth: 160,
           render: function (h, params) {
-            return h('span', { style: { color: '#333', fontWeight: '500' } }, params.row.customCategory);
+            return h('span', { style: { color: 'var(--text-primary)', fontWeight: '500' } }, params.row.customCategory);
           }
         },
         {
@@ -197,7 +197,7 @@ Vue.component('page-categories', {
           key: 'path',
           minWidth: 260,
           render: function (h, params) {
-            return h('span', { style: { fontSize: '12px', color: '#888', wordBreak: 'break-all', lineHeight: '1.4' } }, params.row.path || '-');
+            return h('span', { style: { fontSize: '12px', color: 'var(--text-muted)', wordBreak: 'break-all', lineHeight: '1.4' } }, params.row.path || '-');
           }
         },
         {
@@ -206,7 +206,7 @@ Vue.component('page-categories', {
           align: 'center',
           render: function (h, params) {
             var cnt = params.row.productCount || 0;
-            return h('span', { style: { fontWeight: '500', color: cnt ? '#333' : '#ccc' } }, cnt);
+            return h('span', { style: { fontWeight: '500', color: cnt ? 'var(--text-primary)' : 'var(--text-muted)' } }, cnt);
           }
         },
         {
@@ -217,7 +217,7 @@ Vue.component('page-categories', {
             var tags = cats.map(function (c) {
               return h('Tag', { style: { marginRight: '4px', marginBottom: '2px' } }, c.categoryName);
             });
-            return h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '2px' } }, tags.length ? tags : [h('span', { style: { color: '#ccc' } }, '-')]);
+            return h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '2px' } }, tags.length ? tags : [h('span', { style: { color: 'var(--text-muted)' } }, '-')]);
           }
         },
         {
@@ -242,71 +242,71 @@ Vue.component('page-categories', {
   },
   template: `
     <div class="list-card">
-      <div style="padding:12px 20px;background:#f6f8fa;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
-        <span style="font-weight:500;color:#333">分类树同步</span>
-        <span style="font-size:13px;color:#888">共 <strong style="color:#333">{{ treeStatus.total }}</strong> 个分类</span>
-        <span v-if="treeStatus.lastSync" style="font-size:13px;color:#888">最后同步: {{ treeStatus.lastSync }}</span>
-        <span v-if="treeStatus.levels" style="font-size:13px;color:#888">层级: {{ treeStatus.levels }}</span>
+      <div style="padding:12px 20px;background:var(--bg-elevated);border-bottom:1px solid var(--border-subtle);display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+        <span style="font-weight:500;color:var(--text-primary)">分类树同步</span>
+        <span style="font-size:13px;color:var(--text-secondary)">共 <strong style="color:var(--text-primary)">{{ treeStatus.total }}</strong> 个分类</span>
+        <span v-if="treeStatus.lastSync" style="font-size:13px;color:var(--text-secondary)">最后同步: {{ treeStatus.lastSync }}</span>
+        <span v-if="treeStatus.levels" style="font-size:13px;color:var(--text-secondary)">层级: {{ treeStatus.levels }}</span>
         <i-button v-if="treeStatus.total === 0" type="info" size="small" @click="$Message.info('请在店小秘页面右键小蜜蜂 → 同步类目树')">前往同步</i-button>
       </div>
       <div class="action-bar">
         <div class="action-bar-left">
-          <span style="font-weight:500;color:#333">店小秘类目映射</span>
+          <span style="font-weight:500;color:var(--text-primary)">店小秘类目映射</span>
           <i-input v-model="keyword" placeholder="搜索店小秘类目" style="width:220px" @on-enter="doSearch" @on-clear="clearSearch" clearable>
             <icon type="ios-search" slot="prefix"></icon>
           </i-input>
           <i-button type="primary" icon="ios-search" @click="doSearch">搜索</i-button>
         </div>
         <div class="action-bar-right">
-          <span style="font-size:13px;color:#888">共 <strong style="color:#333">{{ total }}</strong> 个已映射类目</span>
+          <span style="font-size:13px;color:var(--text-secondary)">共 <strong style="color:var(--text-primary)">{{ total }}</strong> 个已映射类目</span>
           <i-button type="success" icon="md-add" @click="openAddDialog">新增映射</i-button>
           <i-button icon="md-refresh" @click="loadList">刷新</i-button>
         </div>
       </div>
       <i-table :columns="columns" :data="list" :loading="loading" stripe style="margin-bottom:0;"></i-table>
-      <div style="padding:12px 20px;display:flex;justify-content:flex-end;background:#fff;border-top:1px solid #f0f0f0">
+      <div style="padding:12px 20px;display:flex;justify-content:flex-end;background:var(--bg-surface);border-top:1px solid var(--border-subtle)">
         <Page :current="page" :total="total" :page-size="pageSize" :page-size-opts="[10,20,50,100]"
           show-total show-sizer show-elevator
           @on-change="changePage" @on-page-size-change="changePageSize" />
       </div>
       <!-- 维护映射弹窗 -->
       <modal v-model="modalVisible" :title="'维护映射 - ' + modalDxmName" :mask-closable="false" width="600" footer-hide>
-        <div v-if="modalPath" style="font-size:12px;color:#999;margin-bottom:12px;padding:8px;background:#f9f9f9;border-radius:4px;word-break:break-all">{{ modalPath }}</div>
+        <div v-if="modalPath" style="font-size:12px;color:var(--text-muted);margin-bottom:12px;padding:8px;background:var(--bg-elevated);border-radius:var(--radius);word-break:break-all">{{ modalPath }}</div>
         <!-- 新增映射 -->
         <div style="margin-bottom:16px">
-          <div style="font-size:13px;color:#666;margin-bottom:8px">新增1688类目映射</div>
+          <div style="font-size:13px;color:var(--text-secondary);margin-bottom:8px">新增1688类目映射</div>
           <div style="position:relative">
             <i-input v-model="addKeyword" placeholder="输入1688类目名称搜索..." @on-input="onAddInput" style="width:100%">
               <icon type="ios-search" slot="prefix"></icon>
             </i-input>
-            <div v-if="addOptions.length" style="position:absolute;top:34px;left:0;right:0;z-index:1050;background:#fff;border:1px solid #dcdee2;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.15);max-height:200px;overflow-y:auto">
+            <div v-if="addOptions.length" style="position:absolute;top:34px;left:0;right:0;z-index:1050;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-hover);max-height:200px;overflow-y:auto">
               <div v-for="cat in addOptions" :key="cat.name"
-                style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #f5f5f5;display:flex;justify-content:space-between;align-items:center"
-                @mouseenter="$event.target.style.background='#f0f7ff'"
+                style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border-subtle);display:flex;justify-content:space-between;align-items:center"
+                @mouseenter="$event.target.style.background='var(--accent-subtle)'"
                 @mouseleave="$event.target.style.background=''"
                 @click="addMapping(cat)">
-                <span style="font-size:13px;color:#333">{{ cat.name }}</span>
-                <span style="font-size:11px;color:#999">{{ cat.count }}件商品</span>
+                <span style="font-size:13px;color:var(--text-primary)">{{ cat.name }}</span>
+                <span style="font-size:11px;color:var(--text-muted)">{{ cat.count }}件商品</span>
               </div>
             </div>
           </div>
         </div>
         <!-- 已绑定列表 -->
-        <div style="font-size:13px;color:#666;margin-bottom:8px">已绑定的1688类目</div>
-        <div v-if="modalLoading" style="text-align:center;padding:20px;color:#999">加载中...</div>
-        <div v-else-if="!modalList.length" style="text-align:center;padding:20px;color:#999">暂无绑定</div>
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:8px">已绑定的1688类目</div>
+        <div v-if="modalLoading" style="text-align:center;padding:20px;color:var(--text-muted)">加载中...</div>
+        <div v-else-if="!modalList.length" style="text-align:center;padding:20px;color:var(--text-muted)">暂无绑定</div>
         <table v-else style="width:100%;border-collapse:collapse;font-size:13px">
           <thead>
-            <tr style="background:#f6f8fa">
-              <th style="padding:8px 12px;text-align:left;border-bottom:1px solid #e8e8e8">1688类目</th>
-              <th style="padding:8px 12px;text-align:center;border-bottom:1px solid #e8e8e8;width:80px">商品数</th>
-              <th style="padding:8px 12px;text-align:center;border-bottom:1px solid #e8e8e8;width:80px">操作</th>
+            <tr style="background:var(--bg-elevated)">
+              <th style="padding:8px 12px;text-align:left;border-bottom:1px solid var(--border)">1688类目</th>
+              <th style="padding:8px 12px;text-align:center;border-bottom:1px solid var(--border);width:80px">商品数</th>
+              <th style="padding:8px 12px;text-align:center;border-bottom:1px solid var(--border);width:80px">操作</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="item in modalList" :key="item.id" style="border-bottom:1px solid #f5f5f5">
-              <td style="padding:8px 12px;color:#1890ff">{{ item.categoryName }}</td>
-              <td style="padding:8px 12px;text-align:center;color:#333">{{ item.productCount || 0 }}</td>
+            <tr v-for="item in modalList" :key="item.id" style="border-bottom:1px solid var(--border-subtle)">
+              <td style="padding:8px 12px;color:var(--accent)">{{ item.categoryName }}</td>
+              <td style="padding:8px 12px;text-align:center;color:var(--text-primary)">{{ item.productCount || 0 }}</td>
               <td style="padding:8px 12px;text-align:center">
                 <i-button type="error" size="small" icon="ios-trash" @click="deleteMapItem(item)"></i-button>
               </td>
@@ -317,14 +317,14 @@ Vue.component('page-categories', {
       <!-- 新增映射弹窗（顶栏） -->
       <modal v-model="addVisible" title="新增类目映射" :mask-closable="false" width="520">
         <div style="margin-bottom:16px">
-          <div style="font-size:13px;color:#666;margin-bottom:8px">店小秘类目</div>
+          <div style="font-size:13px;color:var(--text-secondary);margin-bottom:8px">店小秘类目</div>
           <category-picker :value="addDxmSelected"
             placeholder="搜索店小秘类目..."
             @input="onAddDxmInput"
             @path="onAddDxmPath" />
         </div>
         <div style="margin-bottom:16px">
-          <div style="font-size:13px;color:#666;margin-bottom:8px">1688类目（可多选）</div>
+          <div style="font-size:13px;color:var(--text-secondary);margin-bottom:8px">1688类目（可多选）</div>
           <i-select v-model="addAliSelected" multiple filterable placeholder="选择1688类目">
             <i-option v-for="c in addAliList" :key="c" :value="c">{{ c }}</i-option>
           </i-select>

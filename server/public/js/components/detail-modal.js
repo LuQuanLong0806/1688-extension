@@ -470,7 +470,7 @@ Vue.component('detail-modal', {
               <category-picker :value="editable.customCategory" @input="function(v) { editable.customCategory = v }" @path="function(p) { editable.manualCategory = p }" placeholder="搜索或选择分类" style="width:600px" />
             </span>
             <span class="label">1688类目</span><span class="value">
-              <span style="color:#666;font-size:14px">{{ originCategory }}</span>
+              <span style="color:var(--text-secondary);font-size:14px">{{ originCategory }}</span>
             </span>
             <span class="label">状态</span><span class="value">
               <span :class="'status-tag ' + (editable.status === 0 ? 'status-unused' : 'status-used')">{{ editable.status === 0 ? '未发布' : '已发布' }}</span>
@@ -484,7 +484,7 @@ Vue.component('detail-modal', {
           <div class="detail-section-title">
             主图 ({{ editable.main_images.length }})
             <checkbox :value="allMainSelected()" @on-change="toggleAllMainImages" style="margin-left:12px;vertical-align:middle"></checkbox>
-            <span style="font-size:12px;color:#999;margin-left:4px;vertical-align:middle">全选</span>
+            <span style="font-size:12px;color:var(--text-muted);margin-left:4px;vertical-align:middle">全选</span>
           </div>
           <div class="img-grid">
             <div class="img-item sku-img-checkable" v-for="(url, i) in editable.main_images" :key="'m'+i"
@@ -511,7 +511,7 @@ Vue.component('detail-modal', {
           <div class="detail-section-title">
             详情图 ({{ editable.detail_images.length }})
             <checkbox :value="allDetailSelected()" @on-change="toggleAllDetailImages" style="margin-left:12px;vertical-align:middle"></checkbox>
-            <span style="font-size:12px;color:#999;margin-left:4px;vertical-align:middle">全选</span>
+            <span style="font-size:12px;color:var(--text-muted);margin-left:4px;vertical-align:middle">全选</span>
           </div>
           <div class="img-grid">
             <div class="img-item sku-img-checkable" v-for="(url, i) in editable.detail_images" :key="'di'+i"
@@ -535,7 +535,7 @@ Vue.component('detail-modal', {
 
         <!-- SKU图（可勾选，关联SKU列表，可拖拽替换） -->
         <div class="detail-section" v-if="skuImages.length">
-          <div class="detail-section-title">SKU图 ({{ skuImages.length }}) <span v-if="dragImageUrl" style="font-size:12px;color:#2d8cf0;font-weight:400;margin-left:8px">← 拖拽主图/详情图到此处替换</span></div>
+          <div class="detail-section-title">SKU图 ({{ skuImages.length }}) <span v-if="dragImageUrl" style="font-size:12px;color:var(--accent);font-weight:400;margin-left:8px">← 拖拽主图/详情图到此处替换</span></div>
           <div class="img-grid">
             <div class="img-item sku-img-checkable sku-img-card" v-for="(item, i) in skuImages" :key="'si'+i"
               :class="{ 'sku-img-unchecked': !isSkuImageChecked(item), 'img-drag-over': dragOverSkuImgIdx === i }"
@@ -582,11 +582,11 @@ Vue.component('detail-modal', {
           <div class="batch-popover batch-popover-float" v-if="showBatchReplace"
             @mouseenter="clearBatchHide" @mouseleave="scheduleBatchHide">
             <div style="margin-bottom:6px">
-              <span style="font-size:12px;color:#666">查找内容</span>
+              <span style="font-size:12px;color:var(--text-secondary)">查找内容</span>
               <i-input v-model="batchFind" size="small" placeholder="要替换的文本" style="margin-top:4px" />
             </div>
             <div style="margin-bottom:8px">
-              <span style="font-size:12px;color:#666">替换为</span>
+              <span style="font-size:12px;color:var(--text-secondary)">替换为</span>
               <i-input v-model="batchReplace" size="small" placeholder="替换后的文本" style="margin-top:4px" />
             </div>
             <i-button type="primary" size="small" long @click="doBatchReplace">执行替换</i-button>
@@ -597,7 +597,7 @@ Vue.component('detail-modal', {
                 <th class="sku-check-col"><checkbox :value="allSkuSelected" @on-change="toggleSkuAll"></checkbox></th>
                 <th>图片</th><th>SKU名称</th>
                 <th>自定义名称 <span class="th-action" @click="openBatchReplace" @mouseenter="clearBatchHide" @mouseleave="scheduleBatchHide">批量替换</span></th>
-                <th>进价</th><th>售价 <a style="font-size:11px;font-weight:400;color:#2d8cf0;cursor:pointer" @click="showPriceFormula=true">公式设置</a></th><th>尺寸(cm)</th><th>重量</th>
+                <th>进价</th><th>售价 <a style="font-size:11px;font-weight:400;color:var(--accent);cursor:pointer" @click="showPriceFormula=true">公式设置</a></th><th>尺寸(cm)</th><th>重量</th>
               </tr></thead>
               <tbody>
                 <tr v-for="(sku, i) in editable.skus" :key="'s'+i" :class="{ 'sku-row-checked': isSkuChecked(i) }">
@@ -619,9 +619,9 @@ Vue.component('detail-modal', {
                   <td style="min-width:340px">
                     <div style="display:flex;justify-content:space-around;align-items:center">
                       <i-input v-model="sku.dimensions[0]" type="number" number style="width:100px" />
-                      <span style="color:#bbb;padding:0 2px">×</span>
+                      <span style="color:var(--text-muted);padding:0 2px">×</span>
                       <i-input v-model="sku.dimensions[1]" type="number" number style="width:100px" />
-                      <span style="color:#bbb;padding:0 2px">×</span>
+                      <span style="color:var(--text-muted);padding:0 2px">×</span>
                       <i-input v-model="sku.dimensions[2]" type="number" number style="width:100px" />
                     </div>
                   </td>
@@ -646,15 +646,15 @@ Vue.component('detail-modal', {
 
         <!-- 价格公式配置 -->
         <modal v-model="showPriceFormula" title="售价公式配置" width="520" footer-hide>
-          <div style="margin-bottom:12px;font-size:13px;color:#808695">
+          <div style="margin-bottom:12px;font-size:13px;color:var(--text-secondary)">
             根据进价区间自动计算售价，公式中用 <code>price</code> 代表进价。
             如：<code>price * 3</code>、<code>price * 2.5 + 5</code>
           </div>
           <div v-for="(f, i) in priceFormulas" :key="i" style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
             <i-input v-model="f.min" type="number" number size="small" style="width:80px" placeholder="最低" />
-            <span style="color:#999">~</span>
+            <span style="color:var(--text-muted)">~</span>
             <i-input v-model="f.max" type="number" number size="small" style="width:80px" placeholder="最高" />
-            <span style="color:#999">=</span>
+            <span style="color:var(--text-muted)">=</span>
             <i-input v-model="f.expr" size="small" style="flex:1" placeholder="price * 2.5" />
             <i-button size="small" type="error" icon="md-trash" @click="removeFormulaRow(i)"></i-button>
           </div>

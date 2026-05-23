@@ -402,17 +402,17 @@ Vue.component('page-products', {
         <i-input v-model="keyword" placeholder="搜索标题..." clearable style="width:220px" @on-enter="loadList(1)" @on-clear="loadList(1)">
           <icon type="ios-search" slot="prefix"></icon>
         </i-input>
-        <span style="font-size:13px;color:#666;white-space:nowrap">状态</span>
+        <span style="font-size:13px;color:var(--text-secondary);white-space:nowrap">状态</span>
         <i-select v-model="statusFilter" clearable placeholder="全部状态" style="width:130px" @on-change="loadList(1)">
           <i-option value="all">全部状态</i-option>
           <i-option value="0">未发布</i-option>
           <i-option value="1">已发布</i-option>
         </i-select>
-        <span style="font-size:13px;color:#666;white-space:nowrap">类目</span>
+        <span style="font-size:13px;color:var(--text-secondary);white-space:nowrap">类目</span>
         <i-select v-model="categoryFilter" clearable filterable placeholder="全部类目" style="width:150px" @on-change="loadList(1)">
           <i-option v-for="c in categoryList" :key="c" :value="c">{{ c }}</i-option>
         </i-select>
-        <span style="font-size:13px;color:#666;white-space:nowrap">店小秘类目</span>
+        <span style="font-size:13px;color:var(--text-secondary);white-space:nowrap">店小秘类目</span>
         <i-select v-model="dxmCategoryFilter" clearable filterable placeholder="店小秘类目" style="width:160px" @on-change="loadList(1)">
           <i-option value="_none">未映射</i-option>
           <i-option v-for="d in dxmCategoryList" :key="d" :value="d">{{ d }}</i-option>
@@ -445,14 +445,14 @@ Vue.component('page-products', {
           </template>
           <template slot="title" slot-scope="{ row }">
             <a v-if="row.source_url" :href="row.source_url" target="_blank"
-              style="word-break:break-all;line-height:1.4;color:#333;text-decoration:none;cursor:pointer;display:inline"
+              style="word-break:break-all;line-height:1.4;color:var(--text-primary);text-decoration:none;cursor:pointer;display:inline"
               @mouseenter="$event.target.style.color='#ff6a00';$event.target.style.textDecoration='underline'"
-              @mouseleave="$event.target.style.color='#333';$event.target.style.textDecoration='none'">{{ row.title || '-' }}</a>
+              @mouseleave="$event.target.style.color='var(--text-primary)';$event.target.style.textDecoration='none'">{{ row.title || '-' }}</a>
             <span v-else style="word-break:break-all;line-height:1.4;display:inline">{{ row.title || '-' }}</span>
             <span :class="row.status === 1 ? 'status-tag status-used' : 'status-tag status-unused'" style="margin-left:6px;vertical-align:middle">{{ row.status === 1 ? '已发布' : '未发布' }}</span>
           </template>
           <template slot="aliCategory" slot-scope="{ row }">
-            <span style="font-size:12px;color:#666;word-break:break-all">{{ (row.category && (row.category.leafCategoryName || row.category.categoryPath)) || '-' }}</span>
+            <span style="font-size:12px;color:var(--text-secondary);word-break:break-all">{{ (row.category && (row.category.leafCategoryName || row.category.categoryPath)) || '-' }}</span>
           </template>
           <template slot="category" slot-scope="{ row }">
             <div style="display:flex;align-items:center;gap:4px">
@@ -472,7 +472,7 @@ Vue.component('page-products', {
           </template>
           <template slot="sku" slot-scope="{ row }">
             <template v-if="!getSkuText(row)">
-              <span style="color:#ccc">-</span>
+              <span style="color:var(--text-muted)">-</span>
             </template>
             <span v-else style="font-size:12px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-all">{{ getSkuText(row) }}</span>
           </template>
@@ -492,7 +492,7 @@ Vue.component('page-products', {
       </div>
       <modal v-model="batchCatVisible" title="批量设置类目" :mask-closable="false" width="500">
         <div style="margin-bottom:12px">
-          <p style="margin-bottom:8px;color:#666">已选择 <strong>{{ selectedIds.length }}</strong> 条商品</p>
+          <p style="margin-bottom:8px;color:var(--text-secondary)">已选择 <strong>{{ selectedIds.length }}</strong> 条商品</p>
           <category-picker v-model="batchCatValue" placeholder="搜索或选择分类" @path="function(p) { batchCatPath = p }" />
         </div>
         <div slot="footer">

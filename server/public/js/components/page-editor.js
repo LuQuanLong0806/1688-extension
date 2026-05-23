@@ -166,8 +166,8 @@ Vue.component('page-editor', {
       <div class="page-editor-body">
         <div class="editor-loading" v-if="loading || removingBg">
           <div class="editor-loading-inner">
-            <icon type="ios-loading" size="40" class="editor-spin-icon" style="color:#fdba3b"></icon>
-            <div style="margin-top:12px;color:#999">{{ removingBg ? bgProgress : '加载编辑器中...' }}</div>
+            <icon type="ios-loading" size="40" class="editor-spin-icon" style="color:var(--accent)"></icon>
+            <div style="margin-top:12px;color:var(--text-muted)">{{ removingBg ? bgProgress : '加载编辑器中...' }}</div>
           </div>
         </div>
         <div id="__page_editor_container" class="editor-canvas-area"></div>

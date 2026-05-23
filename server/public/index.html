@@ -29,13 +29,13 @@
           </div>
           <span class="header-title">商品采集管理平台</span>
           <span class="header-subtitle">1688 数据采集与管理系统</span>
-        </div>
-        <div class="header-right">
-          <span class="header-badge">已采集 {{ stats.total }} 条</span>
           <div class="header-theme-toggle" @click="toggleTheme" :title="'切换主题: ' + themeName">
             <span>🎨</span>
             <span>{{ themeName }}</span>
           </div>
+        </div>
+        <div class="header-right">
+          <span class="header-badge">已采集 {{ stats.total }} 条</span>
         </div>
       </header>
 

@@ -38,9 +38,9 @@ Vue.component('page-cloud-sync', {
       return '未配置';
     },
     statusColor: function () {
-      if (this.status.connected) return '#19be6b';
-      if (this.status.config) return '#ff9900';
-      return '#bbbec4';
+      if (this.status.connected) return 'var(--success)';
+      if (this.status.config) return 'var(--accent)';
+      return 'var(--text-muted)';
     },
     lastSyncText: function () {
       if (!this.status.lastSyncTime) return '从未同步';
@@ -81,7 +81,7 @@ Vue.component('page-cloud-sync', {
       var vm = this;
       vm.$Modal.confirm({
         title: '初始化云端',
-        content: '<p>将建表并上传本地所有知识库数据到 Turso。</p><p style="color:#ed4014;margin-top:6px">分类库和商品需单独同步。</p>',
+        content: '<p>将建表并上传本地所有知识库数据到 Turso。</p><p style="color:var(--danger);margin-top:6px">分类库和商品需单独同步。</p>',
         onOk: function () {
           vm.setBusy('init');
           fetch('/api/sync/init', { method: 'POST' })
@@ -95,7 +95,7 @@ Vue.component('page-cloud-sync', {
       var vm = this;
       vm.$Modal.confirm({
         title: '双向同步',
-        content: '<p>合并云端和本地知识库（映射、关联、同义词、黑名单），取最大值不丢数据。</p><p style="color:#2d8cf0;margin-top:6px">分类库和商品需单独同步。</p>',
+        content: '<p>合并云端和本地知识库（映射、关联、同义词、黑名单），取最大值不丢数据。</p><p style="color:var(--accent);margin-top:6px">分类库和商品需单独同步。</p>',
         onOk: function () {
           vm.setBusy('sync');
           fetch('/api/sync/sync', { method: 'POST' })
@@ -130,7 +130,7 @@ Vue.component('page-cloud-sync', {
       if (t.confirm) {
         vm.$Modal.confirm({
           title: label + actionLabel,
-          content: '<p>确定要' + actionLabel + label + '吗？</p><p style="color:#ed4014;margin-top:6px">数据量较大，可能需要较长时间。</p>',
+          content: '<p>确定要' + actionLabel + label + '吗？</p><p style="color:var(--danger);margin-top:6px">数据量较大，可能需要较长时间。</p>',
           onOk: run
         });
       } else {

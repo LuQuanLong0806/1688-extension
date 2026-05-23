@@ -138,28 +138,28 @@ Vue.component('category-picker', {
       <div style="display:flex;position:relative">
         <div style="flex:1;position:relative">
           <input type="text" v-model="keyword" :placeholder="placeholder"
-            style="width:100%;height:32px;padding:0 24px 0 8px;border:1px solid #dcdee2;border-radius:4px;font-size:13px;outline:none;box-sizing:border-box"
+            style="width:100%;height:32px;padding:0 24px 0 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;outline:none;box-sizing:border-box"
             @input="onInputChange"
             @blur="onInputBlur" />
           <i v-if="keyword" class="ivu-icon ivu-icon-ios-close-circle"
-            style="position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:16px;color:#808695;cursor:pointer"
+            style="position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:16px;color:var(--text-secondary);cursor:pointer"
             @mousedown.prevent="clearValue"></i>
         </div>
       </div>
-      <div v-if="dropdownVisible && searchOptions.length" :style="Object.assign({background:'#fff',border:'1px solid #dcdee2',borderRadius:'4px',boxShadow:'0 2px 8px rgba(0,0,0,.15)',overflowY:'auto'}, dropStyle)">
+      <div v-if="dropdownVisible && searchOptions.length" :style="Object.assign({background:'var(--bg-surface)',border:'1px solid var(--border)',borderRadius:'var(--radius)',boxShadow:'var(--shadow)',overflowY:'auto'}, dropStyle)">
         <div v-for="item in searchOptions" :key="item.catId"
-          style="padding:6px 10px;cursor:pointer;border-bottom:1px solid #f5f5f5"
-          @mouseenter="$event.target.style.background='#f0f7ff'"
+          style="padding:6px 10px;cursor:pointer;border-bottom:1px solid var(--border)"
+          @mouseenter="$event.target.style.background='var(--bg-elevated)'"
           @mouseleave="$event.target.style.background=''"
           @mousedown.prevent="selectOption(item)">
-          <div style="font-size:13px;color:#333">{{ item.catName }}</div>
-          <div v-if="item.path" style="font-size:12px;color:#999;margin-top:1px;word-break:break-all">{{ item.path }}</div>
+          <div style="font-size:13px;color:var(--text-primary)">{{ item.catName }}</div>
+          <div v-if="item.path" style="font-size:12px;color:var(--text-muted);margin-top:1px;word-break:break-all">{{ item.path }}</div>
         </div>
       </div>
-      <div v-if="dropdownVisible && !searchOptions.length && keyword && !searchLoading" :style="Object.assign({background:'#fff',border:'1px solid #dcdee2',borderRadius:'4px',boxShadow:'0 2px 8px rgba(0,0,0,.15)',padding:'10px',textAlign:'center',color:'#999',fontSize:'13px'}, dropStyle)">
+      <div v-if="dropdownVisible && !searchOptions.length && keyword && !searchLoading" :style="Object.assign({background:'var(--bg-surface)',border:'1px solid var(--border)',borderRadius:'var(--radius)',boxShadow:'var(--shadow)',padding:'10px',textAlign:'center',color:'var(--text-muted)',fontSize:'13px'}, dropStyle)">
         无匹配结果
       </div>
-      <div v-if="currentPath" style="font-size:11px;color:#999;margin-top:2px;padding-left:2px;word-break:break-all;line-height:1.3">
+      <div v-if="currentPath" style="font-size:11px;color:var(--text-muted);margin-top:2px;padding-left:2px;word-break:break-all;line-height:1.3">
         {{ currentPath }}
       </div>
     </div>`
