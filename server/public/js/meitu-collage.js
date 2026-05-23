@@ -2096,4 +2096,17 @@ function initMeituCollage() {
   window._meituAddToPool = function (src) {
     addToPool(src);
   };
+
+  // 暴露单图编辑接口：导入一张图并自动打开编辑器
+  window._meituEditSingleImage = function (url) {
+    if (!url) return;
+    loadURL(url, function (src) {
+      var id = addToPool(src);
+      // 等池渲染完再打开编辑器
+      setTimeout(function () {
+        var poolItem = imagePool.find(function (p) { return p.id === id; });
+        if (poolItem) openEditor(poolItem.src);
+      }, 200);
+    });
+  };
 }

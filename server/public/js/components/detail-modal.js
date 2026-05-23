@@ -161,18 +161,12 @@ Vue.component('detail-modal', {
       skuImgs.forEach(function (item) {
         if (vm.isSkuImageChecked(item) && item.url) urls.push(item.url);
       });
-      urls = urls.filter(function (u) { return u && u.trim(); });
-      var skuImgs = vm.skuImages || [];
-      skuImgs.forEach(function (item) {
-        if (vm.isSkuImageChecked(item) && item.url) urls.push(item.url);
-      });
       if (!urls.length) { vm.$Message.warning('请先选中要处理的图片'); return; }
       // 存入 sessionStorage 供 meitu 页面读取
       try { sessionStorage.setItem('__meitu_pending_import', JSON.stringify(urls)); } catch (e) {}
       // 存储商品ID以便后续回写
       try { sessionStorage.setItem('__meitu_source_product', vm.editable.id); } catch (e) {}
-      vm.$emit('update:visible', false);
-      vm.$root.switchView('page-meitu');
+      vm.$root.showCollageModal = true;
     },
     toggleSkuAll: function (checked) {
       var vm = this;
@@ -302,21 +296,17 @@ Vue.component('detail-modal', {
     onSkuImgLeave: function () {
       this.$root.$refs.thumbPreview.close();
     },
-    editImage: function (url, field, index) {
-      this.$emit('open-image-editor', {
-        url: url,
-        productId: this.editable ? this.editable.id : '',
-        field: field,
-        index: index
-      });
-    },
     editImageWithMeitu: function (url, field, index) {
-      this.$root.openMeituEditor({
-        url: url,
-        productId: this.editable ? this.editable.id : '',
-        field: field,
-        index: index
-      });
+      try {
+        sessionStorage.setItem('__meitu_edit_image', JSON.stringify({
+          url: url,
+          productId: this.editable ? this.editable.id : '',
+          field: field,
+          index: index
+        }));
+      } catch (e) {}
+      try { sessionStorage.setItem('__meitu_source_product', this.editable ? this.editable.id : ''); } catch (e) {}
+      this.$root.showCollageModal = true;
     },
     updateImageUrl: function (field, index, newUrl) {
       if (!this.editable) return;
@@ -647,7 +637,7 @@ Vue.component('detail-modal', {
         <div class="detail-footer-fixed">
           <i-button type="primary" icon="md-checkmark" @click="saveProduct">保存</i-button>
           <i-button type="success" icon="md-paper-plane" @click="openAdd">发布</i-button>
-          <i-button type="warning" icon="md-images" @click="goToMeitu">去美图</i-button>
+          <i-button type="warning" icon="md-images" @click="goToMeitu">小秘美图</i-button>
           <i-button :type="editable.status === 0 ? 'success' : 'error'" @click="toggleStatus">
             {{ editable.status === 0 ? '标记已发布' : '标记未发布' }}
           </i-button>

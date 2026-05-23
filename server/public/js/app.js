@@ -13,18 +13,8 @@ new Vue({
     previewVisible: false,
     previewList: [],
     previewIdx: 0,
-    // image editor
-    showImageEditor: false,
-    editorImageUrl: '',
-    editorProductId: '',
-    editorField: 'main_images',
-    editorIndex: 0,
-    // meitu editor modal
-    showMeituEditor: false,
-    meituImageUrl: '',
-    meituProductId: '',
-    meituField: 'main_images',
-    meituIndex: 0
+    // collage modal
+    showCollageModal: false
   },
   computed: {
     themeName: function () {
@@ -52,6 +42,10 @@ new Vue({
       localStorage.setItem('theme', this.theme);
     },
     switchView: function (view) {
+      if (view === 'page-meitu') {
+        this.showCollageModal = true;
+        return;
+      }
       this.currentView = view;
       if (view === 'page-dashboard') {
         this.loadStats();
@@ -76,32 +70,6 @@ new Vue({
       this.previewIdx = idx;
       this.previewVisible = true;
     },
-    closePreview: function () { this.previewVisible = false; },
-    // image editor
-    openImageEditor: function (opts) {
-      this.editorImageUrl = opts.url || '';
-      this.editorProductId = opts.productId || '';
-      this.editorField = opts.field || 'main_images';
-      this.editorIndex = opts.index || 0;
-      this.showImageEditor = true;
-    },
-    onImageEditorSaved: function (data) {
-      if (data.url && this.$refs.detailModal) {
-        this.$refs.detailModal.updateImageUrl(data.field, data.index, data.url);
-      }
-    },
-    openMeituEditor: function (opts) {
-      this.meituImageUrl = opts.url || '';
-      this.meituProductId = opts.productId || '';
-      this.meituField = opts.field || 'main_images';
-      this.meituIndex = opts.index || 0;
-      this.showMeituEditor = true;
-    },
-    onMeituEditorSaved: function (data) {
-      if (data.url && this.$refs.detailModal) {
-        this.$refs.detailModal.updateImageUrl(data.field, data.index, data.url);
-      }
-      this.showMeituEditor = false;
-    }
+    closePreview: function () { this.previewVisible = false; }
   }
 });

@@ -34,6 +34,7 @@ Vue.component('page-meitu', {
         initMeituCollage();
       }
       vm.checkPendingImport();
+      vm.checkPendingEditImage();
     });
   },
   beforeDestroy: function () {
@@ -52,6 +53,17 @@ Vue.component('page-meitu', {
         }
       } catch (e) {}
     },
+    checkPendingEditImage: function () {
+      try {
+        var raw = sessionStorage.getItem('__meitu_edit_image');
+        if (!raw) return;
+        sessionStorage.removeItem('__meitu_edit_image');
+        var data = JSON.parse(raw);
+        if (data && data.url && typeof window._meituEditSingleImage === 'function') {
+          window._meituEditSingleImage(data.url);
+        }
+      } catch (e) {}
+    },
     replaceToProduct: function (images) {
       var vm = this;
       if (!vm.sourceProduct) { vm.$Message.warning('未检测到来源商品'); return; }
@@ -65,7 +77,7 @@ Vue.component('page-meitu', {
               h('Radio', { props: { label: 'main_images' } }, '主图'),
               h('Radio', { props: { label: 'detail_images' } }, '详情图')
             ]),
-            h('p', { style: 'margin-top:10px;font-size:12px;color:#999' } }, '将 ' + images.length + ' 张图片追加到原商品')
+            h('p', { style: 'margin-top:10px;font-size:12px;color:#999' }, '将 ' + images.length + ' 张图片追加到原商品')
           ]);
         },
         onOk: function () {
