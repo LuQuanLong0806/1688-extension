@@ -6,13 +6,13 @@ const cloudDb = require('../cloud/index');
 const router = Router();
 
 // 公共：插入商品到数据库
-function insertProduct(sourceUrl, title, category, customCategory, dxmCategory, mainImages, descImages, detailImages, attrs, skus) {
+function insertProduct(sourceUrl, title, category, customCategory, dxmCategory, manualCategory, mainImages, descImages, detailImages, attrs, skus) {
   dbModule.db.run(
-    `INSERT INTO products (source_url, title, category, custom_category, dxm_category, main_images, desc_images, detail_images, attrs, skus)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO products (source_url, title, category, custom_category, dxm_category, manual_category, main_images, desc_images, detail_images, attrs, skus)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       sourceUrl || '', title || '', JSON.stringify(category || {}),
-      customCategory || '', dxmCategory || '',
+      customCategory || '', dxmCategory || '', manualCategory || '',
       JSON.stringify(mainImages || []), JSON.stringify(descImages || []),
       JSON.stringify(detailImages || []), JSON.stringify(attrs || []), JSON.stringify(skus || [])
     ]
@@ -161,15 +161,18 @@ router.post('/product', (req, res) => {
     ? doRecommendAndGetResult(title, aliCat, attrs)
     : Promise.resolve(null);
 
+  var manualCategoryVal = '';
+
   recommendPromise.then(function (recResult) {
     if (recResult && recResult.category && recResult.confidence >= 0.5) {
       customCategory = recResult.category;
       if (recResult.path) {
         dxmCategoryVal = JSON.stringify({ path: recResult.path, leafName: recResult.category });
+        manualCategoryVal = recResult.path;
       }
     }
 
-    const row = insertProduct(sourceUrl, title, category, customCategory, dxmCategoryVal, mainImages, descImages, detailImages, attrs, skus);
+    const row = insertProduct(sourceUrl, title, category, customCategory, dxmCategoryVal, manualCategoryVal, mainImages, descImages, detailImages, attrs, skus);
     updateCategoryStats(category, customCategory);
 
     // 推荐成功后的学习逻辑
@@ -191,7 +194,7 @@ router.post('/product', (req, res) => {
     res.json({ ok: true, id: row.id, recommendation: recResult, customCategory: customCategory });
   }).catch(function (err) {
     console.error('[采集] 推荐失败，不带分类入库:', err.message);
-    const row = insertProduct(sourceUrl, title, category, '', '', mainImages, descImages, detailImages, attrs, skus);
+    const row = insertProduct(sourceUrl, title, category, '', '', '', mainImages, descImages, detailImages, attrs, skus);
     updateCategoryStats(category, '');
     scheduleSave();
     sseBroadcast('product-added', { id: row.id, title: title || '' });
@@ -407,7 +410,9 @@ router.put('/product/:id', (req, res) => {
   for (const [key, col] of Object.entries(allowedFields)) {
     if (req.body[key] !== undefined) {
       let val = req.body[key];
-      if (['main_images', 'desc_images', 'detail_images', 'attrs', 'skus', 'dxm_category'].includes(col) || Array.isArray(val)) {
+      if (col === 'dxm_category' && val === '') {
+        // 清空时直接存空字符串，不做JSON.stringify
+      } else if (['main_images', 'desc_images', 'detail_images', 'attrs', 'skus', 'dxm_category'].includes(col) || Array.isArray(val)) {
         val = JSON.stringify(val);
       }
       fields.push(`${col} = ?`);
@@ -498,6 +503,12 @@ router.post('/product/:id/recommend-category', (req, res) => {
       try {
         var result = JSON.parse(body);
         if (result.ok && result.category && result.confidence >= 0.6) {
+          // 如果已有手动分类，不覆盖
+          if (parsed.manualCategory) {
+            console.log('[AI分类推荐] 产品#' + parsed.id + ' 已有手动分类，跳过覆盖');
+            sseBroadcast('product-category-updated', { id: parsed.id, category: null, skipped: true });
+            return;
+          }
           var updates = [];
           var params = [];
           if (result.category) {
@@ -508,6 +519,8 @@ router.post('/product/:id/recommend-category', (req, res) => {
             var dxmCat = JSON.stringify({ path: result.path, leafName: result.category });
             updates.push('dxm_category = ?');
             params.push(dxmCat);
+            updates.push('manual_category = ?');
+            params.push(result.path);
           }
           if (updates.length) {
             params.push(parsed.id);
@@ -539,6 +552,7 @@ router.post('/product/:id/recommend-category', (req, res) => {
   });
   aiReq.on('error', function (e) {
     console.error('[AI分类推荐] 产品#' + parsed.id + ' 请求失败:', e.message);
+    sseBroadcast('product-category-updated', { id: parsed.id, category: '', source: 'error' });
   });
   aiReq.write(postData);
   aiReq.end();

@@ -67,11 +67,12 @@ Vue.component('page-categories', {
       var vm = this;
       this.$Modal.confirm({
         title: '确认删除',
-        content: '确认删除店小秘类目「' + row.customCategory + '」的所有映射？关联的1688类目将自动解除绑定。',
+        content: '确认删除店小秘类目「' + row.customCategory + '」的所有映射？通过该映射分类的' + row.productCount + '条商品分类也将被清空。',
         onOk: function () {
           fetch('/api/category-mappings/dxm/' + encodeURIComponent(row.customCategory), { method: 'DELETE' })
-            .then(function () {
-              vm.$Message.success('已删除');
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+              vm.$Message.success('已删除，清空 ' + (data.cleared || 0) + ' 条商品分类');
               vm.loadList();
             }).catch(function () { vm.$Message.error('删除失败'); });
         }
@@ -111,13 +112,15 @@ Vue.component('page-categories', {
       var vm = this;
       this.$Modal.confirm({
         title: '确认删除',
-        content: '确认解除1688类目「' + item.categoryName + '」与店小秘类目的绑定？',
+        content: '确认解除1688类目「' + item.categoryName + '」与店小秘类目的绑定？通过该映射分类的' + item.productCount + '条商品分类也将被清空。',
         onOk: function () {
-          fetch('/api/category-mappings/' + item.id, { method: 'DELETE' }).then(function () {
-            vm.$Message.success('已解除');
-            vm.loadModalList();
-            vm.loadList();
-          }).catch(function () { vm.$Message.error('解除失败'); });
+          fetch('/api/category-mappings/' + item.id, { method: 'DELETE' })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+              vm.$Message.success('已解除，清空 ' + (data.cleared || 0) + ' 条商品分类');
+              vm.loadModalList();
+              vm.loadList();
+            }).catch(function () { vm.$Message.error('解除失败'); });
         }
       });
     },

@@ -1,5 +1,5 @@
 const { Router } = require('express');
-const { run, getOne, getAll, treeGetOne } = require('../db');
+const { run, getOne, getAll, treeGetOne, scheduleSave } = require('../db');
 const cloudDb = require('../cloud/index');
 
 const router = Router();
@@ -107,27 +107,51 @@ router.get('/category-mappings/grouped', (req, res) => {
   res.json({ list: paged, total: total, page: page, pageSize: pageSize });
 });
 
+// 清空通过映射分类的产品（同时清 custom_category, manual_category, dxm_category）
+function clearProductsByMapping(categoryName, customCategory) {
+  if (!categoryName || !customCategory) return 0;
+  var likePattern = '%"%' + categoryName + '"%';
+  var rows = getAll(
+    "SELECT id FROM products WHERE category LIKE ? AND custom_category = ?",
+    [likePattern, customCategory]
+  );
+  if (!rows.length) return 0;
+  run(
+    "UPDATE products SET custom_category = '', manual_category = '', dxm_category = '' WHERE category LIKE ? AND custom_category = ?",
+    [likePattern, customCategory]
+  );
+  scheduleSave();
+  return rows.length;
+}
+
 // 删除整个DXM类目映射（必须在 :id 之前）
 router.delete('/category-mappings/dxm/:name', (req, res) => {
   const dxmName = decodeURIComponent(req.params.name);
   const bound = getAll("SELECT category_name FROM category_mappings WHERE custom_category = ?", [dxmName]);
   run("DELETE FROM category_mappings WHERE custom_category = ?", [dxmName]);
+  var cleared = 0;
   bound.forEach(r => {
-    run("UPDATE products SET custom_category = '' WHERE category LIKE ?", ['%"' + r.category_name + '"%']);
+    cleared += clearProductsByMapping(r.category_name, dxmName);
   });
   if (cloudDb.connected) {
     cloudDb.cloudRun("DELETE FROM category_mappings WHERE custom_category = ?", [dxmName]).catch(function () {});
   }
-  res.json({ ok: true });
+  res.json({ ok: true, cleared: cleared });
 });
 
 // 删除单条映射
 router.delete('/category-mappings/:id', (req, res) => {
-  run('DELETE FROM category_mappings WHERE id = ?', [parseInt(req.params.id)]);
-  if (cloudDb.connected) {
-    cloudDb.cloudRun('DELETE FROM category_mappings WHERE id = ?', [parseInt(req.params.id)]).catch(function () {});
+  const id = parseInt(req.params.id);
+  const mapping = getOne('SELECT category_name, custom_category FROM category_mappings WHERE id = ?', [id]);
+  var cleared = 0;
+  if (mapping) {
+    cleared = clearProductsByMapping(mapping.category_name, mapping.custom_category);
   }
-  res.json({ ok: true });
+  run('DELETE FROM category_mappings WHERE id = ?', [id]);
+  if (cloudDb.connected) {
+    cloudDb.cloudRun('DELETE FROM category_mappings WHERE id = ?', [id]).catch(function () {});
+  }
+  res.json({ ok: true, cleared: cleared });
 });
 
 // 新增映射（已存在则跳过）

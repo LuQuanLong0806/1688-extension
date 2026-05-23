@@ -49,6 +49,15 @@ Vue.component('detail-modal', {
           while (s.dimensions.length < 3) s.dimensions.push('');
           if (s.sellPrice === undefined) s.sellPrice = '';
         });
+        // 自动计算售价（仅对尚未设置售价的 SKU）
+        var vm = this;
+        vm.$nextTick(function () {
+          if (vm.priceFormulas.length) {
+            (vm.editable.skus || []).forEach(function (s) {
+              if (!s.sellPrice && s.price) vm.calcSellPrice(s);
+            });
+          }
+        });
         // 主图选中状态
         var savedMain = [];
         var mainImgs = val.main_images || [];
@@ -267,6 +276,7 @@ Vue.component('detail-modal', {
         title: vm.editable.title,
         customCategory: vm.editable.customCategory,
         manualCategory: vm.editable.manualCategory,
+        dxmCategory: vm.editable.customCategory ? undefined : '',
         mainImages: mainImages,
         descImages: vm.editable.desc_images,
         detailImages: detailImages,
@@ -467,7 +477,7 @@ Vue.component('detail-modal', {
               <i-input v-model="editable.title" type="textarea" :rows="2" style="width:600px;font-size:14px" />
             </span>
             <span class="label">选择分类</span><span class="value">
-              <category-picker :value="editable.customCategory" @input="function(v) { editable.customCategory = v }" @path="function(p) { editable.manualCategory = p }" placeholder="搜索或选择分类" style="width:600px" />
+              <category-picker :value="editable.customCategory" @input="function(v) { editable.customCategory = v; if (!v) { editable.manualCategory = ''; editable.dxmCategory = ''; } }" @path="function(p) { editable.manualCategory = p }" placeholder="搜索或选择分类" style="width:600px" />
             </span>
             <span class="label">1688类目</span><span class="value">
               <span style="color:var(--text-secondary);font-size:14px">{{ originCategory }}</span>
@@ -597,7 +607,7 @@ Vue.component('detail-modal', {
                 <th class="sku-check-col"><checkbox :value="allSkuSelected" @on-change="toggleSkuAll"></checkbox></th>
                 <th>图片</th><th>SKU名称</th>
                 <th>自定义名称 <span class="th-action" @click="openBatchReplace" @mouseenter="clearBatchHide" @mouseleave="scheduleBatchHide">批量替换</span></th>
-                <th>进价</th><th>售价 <a style="font-size:11px;font-weight:400;color:var(--accent);cursor:pointer" @click="showPriceFormula=true">公式设置</a></th><th>尺寸(cm)</th><th>重量</th>
+                <th>进价</th><th>售价 <span style="margin-left:6px;font-size:11px;font-weight:400"><a style="color:var(--success);cursor:pointer" @click="applyPriceFormula">自动计算</a><span style="color:var(--border);margin:0 4px">|</span><a style="color:var(--text-muted);cursor:pointer" @click="showPriceFormula=true">公式设置</a></span></th><th>尺寸(cm)</th><th>重量</th>
               </tr></thead>
               <tbody>
                 <tr v-for="(sku, i) in editable.skus" :key="'s'+i" :class="{ 'sku-row-checked': isSkuChecked(i) }">

@@ -146,11 +146,16 @@ Vue.component('page-products', {
     saveCategory: function (row, val) {
       if (val === undefined) return;
       row.customCategory = val;
+      if (!val) row.manualCategory = '';
       var vm = this;
       fetch('/api/product/' + row.id, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customCategory: val || '' })
+        body: JSON.stringify({
+          customCategory: val || '',
+          manualCategory: val ? undefined : '',
+          dxmCategory: val ? undefined : ''
+        })
       })
         .then(function () {
           vm.$Message.success('已保存');
@@ -200,6 +205,8 @@ Vue.component('page-products', {
           vm.$set(vm.recommending, data.id, false);
           if (data.category) {
             vm.$Message.success('AI分类推荐: ' + data.category);
+          } else if (data.skipped) {
+            vm.$Message.info('已有手动分类，跳过AI推荐');
           } else {
             vm.$Message.warning('AI分类推荐无匹配结果');
           }
