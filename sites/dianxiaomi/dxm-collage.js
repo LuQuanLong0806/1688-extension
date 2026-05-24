@@ -6,6 +6,7 @@
   var imagePool = [];
   var canvasItems = [];
   var boardW = 800, boardH = 800;
+  var viewScale = 1;
   try { var sb = JSON.parse(localStorage.getItem(BOARD_KEY)); if (sb && sb.w > 0 && sb.h > 0) { boardW = sb.w; boardH = sb.h; } } catch (e) {}
 
   var nextId = 1;
@@ -154,8 +155,13 @@
   function applyBoardSize() {
     canvasBoard.style.width = boardW + 'px';
     canvasBoard.style.height = boardH + 'px';
-    canvasSizeEl.textContent = boardW + ' × ' + boardH;
+    applyViewScale();
+    canvasSizeEl.textContent = boardW + ' × ' + boardH + ' (' + Math.round(viewScale * 100) + '%)';
     saveBoard();
+  }
+  function applyViewScale() {
+    canvasWrap.style.transform = 'scale(' + viewScale + ')';
+    canvasWrap.style.transformOrigin = 'center center';
   }
   function setupBoardResize(handle, dir) {
     handle.addEventListener('mousedown', function (e) {
@@ -174,6 +180,20 @@
   setupBoardResize(document.getElementById('resizeR'), 'r');
   setupBoardResize(document.getElementById('resizeB'), 'b');
   setupBoardResize(document.getElementById('resizeRB'), 'rb');
+
+  // 滚轮缩放画布视图
+  var canvasAreaEl = document.querySelector('.canvas-area');
+  if (canvasAreaEl) {
+    canvasAreaEl.addEventListener('wheel', function (e) {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        var delta = e.deltaY > 0 ? -0.1 : 0.1;
+        viewScale = Math.max(0.2, Math.min(3, viewScale + delta));
+        applyViewScale();
+        canvasSizeEl.textContent = boardW + ' × ' + boardH + ' (' + Math.round(viewScale * 100) + '%)';
+      }
+    }, { passive: false });
+  }
 
   // ========== Custom — Image Pool ==========
   function computeNextId() {
@@ -283,8 +303,8 @@
     var poolItem = imagePool.find(function (p) { return p.id === poolId; });
     if (!poolItem) return;
     var rect = canvasBoard.getBoundingClientRect();
-    var x = e.clientX - rect.left - 200;
-    var y = e.clientY - rect.top - 200;
+    var x = (e.clientX - rect.left) / viewScale - 200;
+    var y = (e.clientY - rect.top) / viewScale - 200;
     var maxZ = canvasItems.reduce(function (m, c) { return Math.max(m, c.z || 0); }, 0);
     canvasItems.push({
       id: nextId++, poolId: poolItem.id, src: poolItem.src,
@@ -472,8 +492,10 @@
       e.preventDefault(); selectItem(item.id);
       var startX = e.clientX, startY = e.clientY, origX = item.x, origY = item.y;
       function onMove(ev) {
-        item.x = origX + (ev.clientX - startX);
-        item.y = origY + (ev.clientY - startY);
+        var dx = (ev.clientX - startX) / viewScale;
+        var dy = (ev.clientY - startY) / viewScale;
+        item.x = origX + dx;
+        item.y = origY + dy;
         div.style.left = item.x + 'px';
         div.style.top = item.y + 'px';
       }
@@ -528,8 +550,10 @@
       e.preventDefault(); selectItem(item.id);
       var startX = e.clientX, startY = e.clientY, origX = item.x, origY = item.y;
       function onMove(ev) {
-        item.x = origX + (ev.clientX - startX);
-        item.y = origY + (ev.clientY - startY);
+        var dx = (ev.clientX - startX) / viewScale;
+        var dy = (ev.clientY - startY) / viewScale;
+        item.x = origX + dx;
+        item.y = origY + dy;
         div.style.left = item.x + 'px';
         div.style.top = item.y + 'px';
       }
