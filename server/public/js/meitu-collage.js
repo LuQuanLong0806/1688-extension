@@ -7,12 +7,12 @@ function initMeituCollage() {
   // ========== State ==========
   var imagePool = [];
   var canvasItems = [];
+  var uploadedUrlCache = {}; // src hash → ImgBB URL，避免重复上传
   var boardW = 800, boardH = 800;
   try { var sb = JSON.parse(localStorage.getItem(BOARD_KEY)); if (sb && sb.w > 0 && sb.h > 0) { boardW = sb.w; boardH = sb.h; } } catch (e) {}
 
   var nextId = 1;
   var selectedItemId = null;
-  var selectedPoolId = null;
 
   var serverBase = '';
   try { serverBase = localStorage.getItem(SERVER_KEY) || ''; } catch (e) {}
@@ -187,7 +187,7 @@ function initMeituCollage() {
     }
     imagePool.forEach(function (item) {
       var div = document.createElement('div');
-      div.className = 'pool-item' + (item.id === selectedPoolId ? ' active' : '');
+      div.className = 'pool-item';
       div.draggable = true;
       div.dataset.poolId = item.id;
       var img = document.createElement('img');
@@ -195,11 +195,7 @@ function initMeituCollage() {
       div.appendChild(img);
       var ck = document.createElement('div');
       ck.className = 'pool-check';
-      ck.addEventListener('click', function (e) {
-        e.stopPropagation();
-        ck.classList.toggle('checked');
-        updatePoolDelBtn();
-      });
+      // checkbox 点击由父 div 统一处理
       div.appendChild(ck);
       var onCanvas = canvasItems.some(function (c) { return c.poolId === item.id; });
       if (onCanvas) div.classList.add('on-canvas');
@@ -210,15 +206,15 @@ function initMeituCollage() {
         e.stopPropagation();
         imagePool = imagePool.filter(function (p) { return p.id !== item.id; });
         canvasItems = canvasItems.filter(function (c) { return c.poolId !== item.id; });
-        if (selectedPoolId === item.id) selectedPoolId = null;
         buildPool();
         buildCanvasItems();
         updatePropBar(); updateEditBtn();
       });
       div.appendChild(rm);
       div.addEventListener('click', function (e) {
-        if (e.target.classList.contains('pool-check') || e.target.classList.contains('pool-rm')) return;
-        selectPoolItem(item.id);
+        if (e.target.classList.contains('pool-rm')) return;
+        ck.classList.toggle('checked');
+        updatePoolDelBtn();
       });
       div.addEventListener('dragstart', function (e) {
         e.dataTransfer.setData('text/plain', String(item.id));
@@ -265,12 +261,11 @@ function initMeituCollage() {
   function addToPool(src) {
     var id = nextId++;
     imagePool.push({ id: id, src: src });
-    // 自动选中最新添加的图片
-    if (imagePool.length === 1 || !selectedPoolId) {
-      selectedPoolId = id;
-    }
     buildPool();
-    updatePropBar();
+    // 自动勾选新增的图片
+    var el = document.querySelector('.pool-item[data-pool-id="' + id + '"] .pool-check');
+    if (el) el.classList.add('checked');
+    updatePoolDelBtn();
     updateEditBtn();
     return id;
   }
@@ -306,24 +301,8 @@ function initMeituCollage() {
 
   function getSelectedItem() { return canvasItems.find(function (c) { return c.id === selectedItemId; }); }
 
-  function selectPoolItem(poolId) {
-    selectedPoolId = poolId;
-    selectedItemId = null;
-    canvasBoard.querySelectorAll('.canvas-item,.canvas-text-item').forEach(function (el) { el.classList.remove('selected'); });
-    buildPool();
-    updatePropBar();
-    updateEditBtn();
-  }
-
-  function clearPoolSelection() {
-    selectedPoolId = null;
-    document.querySelectorAll('.pool-item').forEach(function (el) { el.classList.remove('active'); });
-  }
-
   function selectItem(id) {
     selectedItemId = id;
-    selectedPoolId = null;
-    clearPoolSelection();
     canvasBoard.querySelectorAll('.canvas-item,.canvas-text-item').forEach(function (el) {
       var itemId = parseInt(el.dataset.itemId);
       var isSel = itemId === id;
@@ -384,15 +363,6 @@ function initMeituCollage() {
     item.z = maxZ + 1; buildCanvasItems();
   });
   document.getElementById('propDelete').addEventListener('click', function () {
-    if (selectedPoolId) {
-      imagePool = imagePool.filter(function (p) { return p.id !== selectedPoolId; });
-      canvasItems = canvasItems.filter(function (c) { return c.poolId !== selectedPoolId; });
-      selectedPoolId = null;
-      buildPool();
-      buildCanvasItems();
-      updatePropBar(); updateEditBtn();
-      return;
-    }
     var item = getSelectedItem(); if (!item) return;
     canvasItems = canvasItems.filter(function (c) { return c.id !== item.id; });
     selectedItemId = null;
@@ -629,7 +599,7 @@ function initMeituCollage() {
   // ========== Clear ==========
   document.getElementById('btnClear').addEventListener('click', function () {
     canvasItems = []; selectedItemId = null; buildCanvasItems();
-    selectedPoolId = null; buildPool(); updatePropBar(); updateEditBtn();
+    buildPool(); updatePropBar(); updateEditBtn();
   });
 
   // ========== 生成拼图（生成图片并push到图片列表）==========
@@ -662,6 +632,7 @@ function initMeituCollage() {
       showToast('2/3 上传到图床...', 'loading');
       var base64 = ensureMinSize(canvas, 800).toDataURL('image/png');
       uploadToSmms(base64).then(function (url) {
+        uploadedUrlCache[srcToCacheKey(base64)] = url;
         copyCollageBtn.textContent = '⏳ 复制中...';
         showToast('3/3 复制地址...', 'loading');
         return navigator.clipboard.writeText(url).then(function () {
@@ -882,29 +853,19 @@ function initMeituCollage() {
 
   // ========== Selected image helpers ==========
   function getSelectedImageSrc() {
-    if (selectedPoolId) {
-      var poolItem = imagePool.find(function (p) { return p.id === selectedPoolId; });
-      if (poolItem) return poolItem.src;
-    }
     var item = getSelectedItem();
     if (item && item.src) return item.src;
+    // 画布无选中时，取第一个勾选的图片
+    var ck = document.querySelector('.pool-check.checked');
+    if (ck) {
+      var poolId = parseInt(ck.parentElement.dataset.poolId);
+      var p = imagePool.find(function (p) { return p.id === poolId; });
+      if (p) return p.src;
+    }
     return null;
   }
 
   function updateSelectedImage(newSrc) {
-    if (selectedPoolId) {
-      var poolItem = imagePool.find(function (p) { return p.id === selectedPoolId; });
-      if (poolItem) {
-        poolItem.src = newSrc;
-        canvasItems.forEach(function (c) {
-          if (c.poolId === poolItem.id) c.src = newSrc;
-        });
-        buildPool();
-        buildCanvasItems();
-        updatePropBar();
-        return;
-      }
-    }
     var item = getSelectedItem();
     if (item && item.src) {
       item.src = newSrc;
@@ -913,6 +874,22 @@ function initMeituCollage() {
       });
       buildCanvasItems();
       updatePropBar();
+      return;
+    }
+    // 画布无选中时，更新第一个勾选的图片
+    var ck = document.querySelector('.pool-check.checked');
+    if (ck) {
+      var poolId = parseInt(ck.parentElement.dataset.poolId);
+      var poolItem = imagePool.find(function (p) { return p.id === poolId; });
+      if (poolItem) {
+        poolItem.src = newSrc;
+        canvasItems.forEach(function (c) {
+          if (c.poolId === poolItem.id) c.src = newSrc;
+        });
+        buildPool();
+        buildCanvasItems();
+        updatePropBar();
+      }
     }
   }
 
@@ -1351,7 +1328,13 @@ function initMeituCollage() {
     targets.forEach(function (src, idx) {
       chain = chain.then(function () {
         showEditorLoading('上传图片到图床 (' + (idx + 1) + '/' + targets.length + ')...');
-        return uploadToSmms(src).then(function (url) { urls.push(url); });
+        // 优先使用缓存
+        var cached = uploadedUrlCache[srcToCacheKey(src)];
+        if (cached) { urls.push(cached); return; }
+        return uploadToSmms(src).then(function (url) {
+          uploadedUrlCache[srcToCacheKey(src)] = url;
+          urls.push(url);
+        });
       });
     });
     chain.then(function () {
@@ -2091,6 +2074,29 @@ function initMeituCollage() {
   // 暴露获取图片池接口（供去中文工具读取）
   window._meituGetPool = function () {
     return imagePool.map(function (p) { return { id: p.id, src: p.src }; });
+  };
+
+  // 暴露获取勾选图片接口
+  window._meituGetChecked = function () {
+    var checked = [];
+    document.querySelectorAll('.pool-check.checked').forEach(function (ck) {
+      var poolId = parseInt(ck.parentElement.dataset.poolId);
+      var p = imagePool.find(function (p) { return p.id === poolId; });
+      if (p) checked.push({ id: p.id, src: p.src });
+    });
+    return checked;
+  };
+
+  // 图床上传缓存：避免同一图片重复上传到 ImgBB
+  function srcToCacheKey(src) {
+    // base64 太长无法做 key，用前100字符+长度做指纹
+    return (src || '').substring(0, 100) + '|' + (src || '').length;
+  }
+  window._meituGetUploadedUrl = function (src) {
+    return uploadedUrlCache[srcToCacheKey(src)] || null;
+  };
+  window._meituCacheUploadedUrl = function (src, url) {
+    uploadedUrlCache[srcToCacheKey(src)] = url;
   };
 
   // 暴露直接添加 base64 图片到池

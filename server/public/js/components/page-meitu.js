@@ -1,7 +1,7 @@
 // 小秘美图 — 拼图 + 去中文双标签页
 Vue.component('page-meitu', {
   data: function () {
-    return { activeTab: 'collage', sourceProduct: null, _replaceField: 'main_images' };
+    return { activeTab: 'collage', sourceProduct: null };
   },
   watch: {
     activeTab: function (tab) {
@@ -68,46 +68,46 @@ Vue.component('page-meitu', {
       var vm = this;
       if (!vm.sourceProduct) { vm.$Message.warning('未检测到来源商品'); return; }
       if (!images || !images.length) { vm.$Message.warning('没有可替换的图片'); return; }
-      vm.$Modal.confirm({
-        title: '替换回商品',
-        render: function (h) {
-          return h('div', [
-            h('p', { style: 'margin-bottom:10px' }, '选择追加到哪个位置：'),
-            h('RadioGroup', { props: { value: 'main_images' }, on: { 'on-change': function (v) { vm._replaceField = v; } } }, [
-              h('Radio', { props: { label: 'main_images' } }, '主图'),
-              h('Radio', { props: { label: 'detail_images' } }, '详情图')
-            ]),
-            h('p', { style: 'margin-top:10px;font-size:12px;color:var(--text-muted)' }, '将 ' + images.length + ' 张图片追加到原商品')
-          ]);
-        },
-        onOk: function () {
-          var field = vm._replaceField || 'main_images';
-          // 上传图片到服务器获取URL
-          var uploaded = 0;
-          var uploadedUrls = [];
-          vm.$Message.loading({ content: '正在上传图片...', duration: 0 });
-          images.forEach(function (src) {
-            fetch('/api/upload-image', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ dataUrl: src, productId: vm.sourceProduct, field: field })
-            }).then(function (r) { return r.json(); }).then(function (d) {
-              if (d.url) uploadedUrls.push(d.url);
-              uploaded++;
-              if (uploaded >= images.length) {
-                vm.$Message.destroy();
-                vm.appendImagesToProduct(field, uploadedUrls);
-              }
-            }).catch(function () {
-              uploaded++;
-              if (uploaded >= images.length) {
-                vm.$Message.destroy();
-                if (uploadedUrls.length) vm.appendImagesToProduct(field, uploadedUrls);
-                else vm.$Message.error('上传失败');
-              }
-            });
-          });
+      var field = 'main_images';
+      var uploaded = 0;
+      var uploadedUrls = [];
+      vm.$Message.loading({ content: '正在上传图片到图床...', duration: 0 });
+      images.forEach(function (src) {
+        // 优先使用缓存（"复制拼图地址"可能已上传过）
+        var cached = typeof window._meituGetUploadedUrl === 'function' ? window._meituGetUploadedUrl(src) : null;
+        if (cached) {
+          uploadedUrls.push(cached);
+          uploaded++;
+          if (uploaded >= images.length) {
+            vm.$Message.destroy();
+            vm.appendImagesToProduct(field, uploadedUrls);
+          }
+          return;
         }
+        var base64 = src.indexOf('data:') === 0 ? src.replace(/^data:image\/\w+;base64,/, '') : src;
+        fetch('/api/ai/smms-upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image_base64: src })
+        }).then(function (r) { return r.json(); }).then(function (d) {
+          if (d.url) {
+            uploadedUrls.push(d.url);
+            if (typeof window._meituCacheUploadedUrl === 'function') window._meituCacheUploadedUrl(src, d.url);
+          }
+          uploaded++;
+          if (uploaded >= images.length) {
+            vm.$Message.destroy();
+            if (uploadedUrls.length) vm.appendImagesToProduct(field, uploadedUrls);
+            else vm.$Message.error('上传失败');
+          }
+        }).catch(function () {
+          uploaded++;
+          if (uploaded >= images.length) {
+            vm.$Message.destroy();
+            if (uploadedUrls.length) vm.appendImagesToProduct(field, uploadedUrls);
+            else vm.$Message.error('上传失败');
+          }
+        });
       });
     },
     appendImagesToProduct: function (field, urls) {
@@ -141,9 +141,10 @@ Vue.component('page-meitu', {
     },
     replaceFromCollage: function () {
       if (typeof window._meituGetPool !== 'function') { this.$Message.warning('拼图模块未加载'); return; }
-      var pool = window._meituGetPool();
-      if (!pool || !pool.length) { this.$Message.warning('图片列表为空'); return; }
-      this.replaceToProduct(pool.map(function (p) { return p.src; }));
+      var checked = typeof window._meituGetChecked === 'function' ? window._meituGetChecked() : [];
+      var images = checked.length > 0 ? checked : window._meituGetPool();
+      if (!images || !images.length) { this.$Message.warning('图片列表为空'); return; }
+      this.replaceToProduct(images.map(function (p) { return p.src; }));
     },
     replaceFromCleaner: function () {
       if (typeof window._meituGetCleanedImages !== 'function') { this.$Message.warning('请先执行去中文操作'); return; }
@@ -189,7 +190,7 @@ Vue.component('page-meitu', {
               <button class="sb-btn danger" id="btnClear">清空画布</button>
             </div>
             <div class="sb-section" v-if="sourceProduct">
-              <button class="sb-btn primary" style="background:linear-gradient(135deg,#2e7d32,#43a047);border-color:#2e7d32;font-weight:bold" @click="replaceFromCollage">替换回商品</button>
+              <button class="sb-btn primary" style="background:linear-gradient(135deg,#2e7d32,#43a047);border-color:#2e7d32;font-weight:bold" @click="replaceFromCollage">添加到主图</button>
             </div>
           </div>
           <div class="collage-main">
