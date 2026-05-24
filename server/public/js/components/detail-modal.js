@@ -251,6 +251,19 @@ Vue.component('detail-modal', {
         vm.$emit('status-changed');
       }).catch(function () { vm.$Message.error('状态更新失败'); });
     },
+    saveAndPublish: function () {
+      var vm = this;
+      if (!vm.editable) return;
+      vm.$Message.loading({ content: '正在保存...', duration: 0 });
+      vm.saveProduct(true).then(function () {
+        vm.$Message.destroy();
+        vm.$Message.success('保存成功，正在跳转发布...');
+        vm.openAdd();
+      }).catch(function () {
+        vm.$Message.destroy();
+        vm.$Message.error('保存失败');
+      });
+    },
     copyUrl: function () {
       var vm = this;
       if (!vm.editable) return;
@@ -259,9 +272,9 @@ Vue.component('detail-modal', {
         vm.$Message.success('已复制');
       }).catch(function () { vm.$Message.error('复制失败'); });
     },
-    saveProduct: function () {
+    saveProduct: function (silent) {
       var vm = this;
-      if (!vm.editable) return;
+      if (!vm.editable) return Promise.resolve();
       var skus = JSON.parse(JSON.stringify(vm.editable.skus || []));
       skus.forEach(function (s, i) {
         s._selected = vm.selectedSkuIndexes.indexOf(i) >= 0;
@@ -283,14 +296,17 @@ Vue.component('detail-modal', {
         skus: skus,
         status: vm.editable.status
       };
-      fetch('/api/product/' + vm.editable.id, {
+      return fetch('/api/product/' + vm.editable.id, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       }).then(function () {
-        vm.$Message.success('保存成功');
+        if (!silent) vm.$Message.success('保存成功');
         vm.$emit('status-changed');
-      }).catch(function () { vm.$Message.error('保存失败'); });
+      }).catch(function (e) {
+        if (!silent) vm.$Message.error('保存失败');
+        throw e;
+      });
     },
     openPreview: function (imgs, idx) {
       this.$root.openPreview(imgs, idx);
@@ -646,7 +662,7 @@ Vue.component('detail-modal', {
         <!-- 底部固定操作栏 -->
         <div class="detail-footer-fixed">
           <i-button type="primary" icon="md-checkmark" @click="saveProduct">保存</i-button>
-          <i-button type="success" icon="md-paper-plane" @click="openAdd">发布</i-button>
+          <i-button type="success" icon="md-paper-plane" @click="saveAndPublish">保存并发布</i-button>
           <i-button type="warning" icon="md-images" @click="goToMeitu">小秘美图</i-button>
           <i-button :type="editable.status === 0 ? 'success' : 'error'" @click="toggleStatus">
             {{ editable.status === 0 ? '标记已发布' : '标记未发布' }}
