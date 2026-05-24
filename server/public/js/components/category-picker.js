@@ -53,30 +53,14 @@ Vue.component('category-picker', {
       if (!input) return;
       var rect = input.getBoundingClientRect();
       var w = Math.max(360, rect.width);
-      var left = rect.left;
-      var spaceBelow = window.innerHeight - rect.bottom - 8;
-      var spaceAbove = rect.top - 8;
-      if (spaceBelow >= 150) {
-        // 下方空间足够，向下弹出
-        this.dropStyle = {
-          position: 'fixed',
-          top: (rect.bottom + 2) + 'px',
-          left: left + 'px',
-          minWidth: w + 'px',
-          maxHeight: Math.min(260, spaceBelow) + 'px',
-          zIndex: 9999
-        };
-      } else {
-        // 下方空间不足，向上弹出
-        this.dropStyle = {
-          position: 'fixed',
-          bottom: (window.innerHeight - rect.top + 2) + 'px',
-          left: left + 'px',
-          minWidth: w + 'px',
-          maxHeight: Math.min(260, spaceAbove) + 'px',
-          zIndex: 9999
-        };
-      }
+      this.dropStyle = {
+        position: 'absolute',
+        top: '34px',
+        left: '0px',
+        minWidth: w + 'px',
+        maxHeight: '260px',
+        zIndex: 9999
+      };
     },
     doSearch: function (kw) {
       var vm = this;
@@ -127,12 +111,13 @@ Vue.component('category-picker', {
     }
   },
   template: `
-    <div style="width:100%">
+    <div style="width:100%;position:relative">
       <div style="display:flex;position:relative">
         <div style="flex:1;position:relative">
           <input type="text" v-model="keyword" :placeholder="placeholder"
             style="width:100%;height:32px;padding:0 24px 0 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;outline:none;box-sizing:border-box"
             @input="onInputChange"
+            @focus="updateDropPos"
             @blur="onInputBlur" />
           <i v-if="keyword" class="ivu-icon ivu-icon-ios-close-circle"
             style="position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:16px;color:var(--text-secondary);cursor:pointer"

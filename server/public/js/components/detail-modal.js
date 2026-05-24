@@ -106,15 +106,10 @@ Vue.component('detail-modal', {
   computed: {
     skuImages: function () {
       if (!this.editable || !this.editable.skus) return [];
-      var vm = this;
       var imgs = [];
       this.editable.skus.forEach(function (s, i) {
         if (s.image) {
-          var indexes = [];
-          vm.editable.skus.forEach(function (s2, j) {
-            if (s2.image === s.image) indexes.push(j);
-          });
-          imgs.push({ url: s.image, indexes: indexes, skuIndex: i });
+          imgs.push({ url: s.image, skuIndex: i });
         }
       });
       return imgs;
@@ -195,22 +190,12 @@ Vue.component('detail-modal', {
       return this.selectedSkuIndexes.indexOf(idx) >= 0;
     },
     toggleSkuImage: function (item) {
-      var vm = this;
-      var allChecked = item.indexes.every(function (i) { return vm.selectedSkuIndexes.indexOf(i) >= 0; });
-      if (allChecked) {
-        item.indexes.forEach(function (i) {
-          var pos = vm.selectedSkuIndexes.indexOf(i);
-          if (pos >= 0) vm.selectedSkuIndexes.splice(pos, 1);
-        });
-      } else {
-        item.indexes.forEach(function (i) {
-          if (vm.selectedSkuIndexes.indexOf(i) < 0) vm.selectedSkuIndexes.push(i);
-        });
-      }
+      var pos = this.selectedSkuIndexes.indexOf(item.skuIndex);
+      if (pos >= 0) this.selectedSkuIndexes.splice(pos, 1);
+      else this.selectedSkuIndexes.push(item.skuIndex);
     },
     isSkuImageChecked: function (item) {
-      var vm = this;
-      return item.indexes.some(function (i) { return vm.selectedSkuIndexes.indexOf(i) >= 0; });
+      return this.selectedSkuIndexes.indexOf(item.skuIndex) >= 0;
     },
     toggleDetailImage: function (idx) {
       var pos = this.selectedDetailIndexes.indexOf(idx);
