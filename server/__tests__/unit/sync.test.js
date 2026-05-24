@@ -512,22 +512,57 @@ describe('saveProductToLocalAndCloud', () => {
     dbRun(localDb, "INSERT INTO products (source_url, title) VALUES ('https://detail.1688.com/offer1.html', '毛巾')");
     sync.saveProductToLocalAndCloud(
       'https://detail.1688.com/offer1.html',
-      '毛巾', '{}', '', '', '[]', '[]', '[]', '[]'
+      '毛巾', '{}', '', '', '', '[]', '[]', '[]', '[]', '[]'
     );
     // 等待异步云端写入
     await new Promise(r => setTimeout(r, 50));
     expect(cloudCount('products')).toBe(1);
   });
 
-  test('云端已存在时 INSERT OR IGNORE 不覆盖', async () => {
+  test('云端已存在时 ON CONFLICT 不覆盖已有字段', async () => {
     dbRun(cloudDb, "INSERT INTO products (source_url, title) VALUES ('https://detail.1688.com/offer1.html', '旧标题')");
     syncModule.saveProductToLocalAndCloud(
       'https://detail.1688.com/offer1.html',
-      '新标题', '{}', '', '', '[]', '[]', '[]', '[]'
+      '新标题', '{}', '', '', '', '[]', '[]', '[]', '[]', '[]'
     );
     await new Promise(r => setTimeout(r, 50));
     const cloudRow = dbGetOne(cloudDb, "SELECT title FROM products WHERE source_url = 'https://detail.1688.com/offer1.html'");
-    expect(cloudRow.title).toBe('旧标题'); // INSERT OR IGNORE 不覆盖
+    expect(cloudRow.title).toBe('旧标题'); // ON CONFLICT 只补全 updated_at，不覆盖 title
+  });
+
+  test('saveProductToLocalAndCloud 包含 created_at 和 manual_category', async () => {
+    const cloud = createMockCloud();
+    const db = createMockDb();
+    const sync = require('../../cloud/sync')(cloud, db);
+    sync.saveProductToLocalAndCloud(
+      'https://detail.1688.com/offer-new.html',
+      '新产品', '{}', '', '', '家居/毛巾',
+      '[]', '[]', '[]', '[]', '[]'
+    );
+    await new Promise(r => setTimeout(r, 50));
+    const cloudRow = dbGetOne(cloudDb, "SELECT created_at, manual_category FROM products WHERE source_url = 'https://detail.1688.com/offer-new.html'");
+    expect(cloudRow.created_at).toBeTruthy(); // 不为空
+    expect(cloudRow.manual_category).toBe('家居/毛巾');
+  });
+
+  test('uploadProducts 补全云端 NULL created_at', async () => {
+    // 云端已有产品但 created_at 为空（模拟旧版本 bug）
+    dbRun(cloudDb, "INSERT INTO products (source_url, title, created_at) VALUES ('https://detail.1688.com/offer1.html', '毛巾', NULL)");
+    // 本地有正确 created_at
+    dbRun(localDb, "INSERT INTO products (source_url, title, created_at) VALUES ('https://detail.1688.com/offer1.html', '毛巾', '2025-01-15 10:30:00')");
+    await syncModule.uploadProducts();
+    const cloudRow = dbGetOne(cloudDb, "SELECT created_at FROM products WHERE source_url = 'https://detail.1688.com/offer1.html'");
+    expect(cloudRow.created_at).toBe('2025-01-15 10:30:00');
+  });
+
+  test('downloadProducts 补全本地空 created_at', async () => {
+    // 本地有产品但 created_at 为空
+    dbRun(localDb, "INSERT INTO products (source_url, title, created_at) VALUES ('https://detail.1688.com/offer1.html', '毛巾', NULL)");
+    // 云端有正确 created_at
+    dbRun(cloudDb, "INSERT INTO products (source_url, title, created_at) VALUES ('https://detail.1688.com/offer1.html', '毛巾', '2025-03-20 14:00:00')");
+    await syncModule.downloadProducts();
+    const localRow = dbGetOne(localDb, "SELECT created_at FROM products WHERE source_url = 'https://detail.1688.com/offer1.html'");
+    expect(localRow.created_at).toBe('2025-03-20 14:00:00');
   });
 });
 

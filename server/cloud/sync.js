@@ -236,7 +236,7 @@ module.exports = function (cloud, db) {
       var chunk = products.slice(batch, batch + batchSize);
       var stmts = chunk.map(function (p) {
         return {
-          sql: 'INSERT OR IGNORE INTO products (source_url, title, main_images, desc_images, detail_images, attrs, skus, category, custom_category, dxm_category, manual_category, status, deleted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          sql: 'INSERT INTO products (source_url, title, main_images, desc_images, detail_images, attrs, skus, category, custom_category, dxm_category, manual_category, status, deleted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(source_url) DO UPDATE SET created_at = COALESCE(products.created_at, excluded.created_at), updated_at = COALESCE(products.updated_at, excluded.updated_at), manual_category = CASE WHEN products.manual_category IS NULL OR products.manual_category = \'\' THEN excluded.manual_category ELSE products.manual_category END',
           args: [p.source_url, p.title, p.main_images || '', p.desc_images || '', p.detail_images || '', p.attrs || '', p.skus || '', p.category || '', p.custom_category || '', p.dxm_category || '', p.manual_category || '', p.status || 0, p.deleted || 0, p.created_at || '', p.updated_at || '']
         };
       });
@@ -269,13 +269,17 @@ module.exports = function (cloud, db) {
     for (var i = 0; i < cloudProducts.length; i++) {
       var p = cloudProducts[i];
       var isDeleted = p.deleted && Number(p.deleted) === 1;
-      var local = db.getOne('SELECT id, deleted as local_deleted FROM products WHERE source_url = ?', [p.source_url]);
+      var local = db.getOne('SELECT id, deleted as local_deleted, created_at as local_created_at FROM products WHERE source_url = ?', [p.source_url]);
       if (!local) {
         if (isDeleted) { skipped++; continue; }
         db.run('INSERT INTO products (source_url, title, main_images, desc_images, detail_images, attrs, skus, category, custom_category, dxm_category, manual_category, status, deleted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
           [p.source_url, p.title, p.main_images, p.desc_images, p.detail_images, p.attrs, p.skus, p.category, p.custom_category, p.dxm_category, p.manual_category, p.status, 0, p.created_at, p.updated_at]);
         added++;
       } else {
+        // 补全 created_at：如果本地为空则用云端的，如果云端为空则更新云端
+        if (!local.local_created_at && p.created_at) {
+          db.run('UPDATE products SET created_at = ? WHERE id = ?', [p.created_at, local.id]);
+        }
         if (isDeleted && !local.local_deleted) {
           db.run('UPDATE products SET deleted = 1 WHERE id = ?', [local.id]);
           deletedSynced++;
@@ -288,11 +292,12 @@ module.exports = function (cloud, db) {
     return { ok: true, cloudTotal: cloudProducts.length, added: added, skipped: skipped, deletedSynced: deletedSynced };
   }
 
-  function saveProductToLocalAndCloud(sourceUrl, title, category, customCategory, dxmCategory, mainImages, descImages, detailImages, attrs, skus) {
+  function saveProductToLocalAndCloud(sourceUrl, title, category, customCategory, dxmCategory, manualCategory, mainImages, descImages, detailImages, attrs, skus) {
     if (!cloud.connected) return;
+    var now = new Date().toISOString().replace('T', ' ').substring(0, 19);
     cloud.run(
-      'INSERT OR IGNORE INTO products (source_url, title, main_images, desc_images, detail_images, attrs, skus, category, custom_category, dxm_category, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)',
-      [sourceUrl || '', title || '', mainImages || '', descImages || '', detailImages || '', attrs || '', skus || '', category || '', customCategory || '', dxmCategory || '']
+      'INSERT INTO products (source_url, title, main_images, desc_images, detail_images, attrs, skus, category, custom_category, dxm_category, manual_category, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?) ON CONFLICT(source_url) DO UPDATE SET updated_at = COALESCE(products.updated_at, excluded.updated_at)',
+      [sourceUrl || '', title || '', mainImages || '', descImages || '', detailImages || '', attrs || '', skus || '', category || '', customCategory || '', dxmCategory || '', manualCategory || '', now, now]
     ).catch(function () {});
   }
 

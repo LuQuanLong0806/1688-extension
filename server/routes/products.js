@@ -20,6 +20,7 @@ function insertProduct(sourceUrl, title, category, customCategory, dxmCategory, 
   // 异步同步到云端
   cloudDb.saveProductToLocalAndCloud(
     sourceUrl, title, JSON.stringify(category || {}), customCategory || '', dxmCategory || '',
+    manualCategory || '',
     JSON.stringify(mainImages || []), JSON.stringify(descImages || []),
     JSON.stringify(detailImages || []), JSON.stringify(attrs || []), JSON.stringify(skus || [])
   );
