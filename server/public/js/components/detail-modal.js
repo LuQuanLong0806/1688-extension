@@ -15,6 +15,7 @@ Vue.component('detail-modal', {
       dragSourceField: '',
       dragOverSkuIdx: -1,
       dragOverSkuImgIdx: -1,
+      _scrollTimer: null,
       batchFind: '',
       batchReplace: '',
       showBatchReplace: false,
@@ -343,12 +344,38 @@ Vue.component('detail-modal', {
       this.dragImageUrl = url;
       this.dragSourceField = field;
       this.dragSourceIdx = idx;
+      var vm = this;
+      vm._boundDragScroll = function (e) { vm.onDragScroll(e); };
+      document.addEventListener('dragover', vm._boundDragScroll);
     },
     onDragEnd: function () {
       this.dragImageUrl = '';
       this.dragSourceField = '';
       this.dragSourceIdx = -1;
       this.dragOverSkuIdx = -1;
+      this.dragOverSkuImgIdx = -1;
+      clearInterval(this._scrollTimer);
+      this._scrollTimer = null;
+      if (this._boundDragScroll) {
+        document.removeEventListener('dragover', this._boundDragScroll);
+        this._boundDragScroll = null;
+      }
+    },
+    onDragScroll: function (e) {
+      var vm = this;
+      if (!vm.dragImageUrl) return;
+      var el = document.querySelector('.detail-modal-fullscreen .ivu-modal-body');
+      if (!el) return;
+      var rect = el.getBoundingClientRect();
+      var y = e.clientY;
+      var zone = 60;
+      clearInterval(vm._scrollTimer);
+      vm._scrollTimer = null;
+      if (y < rect.top + zone) {
+        vm._scrollTimer = setInterval(function () { el.scrollTop -= 8; }, 16);
+      } else if (y > rect.bottom - zone) {
+        vm._scrollTimer = setInterval(function () { el.scrollTop += 8; }, 16);
+      }
     },
     isDragSource: function (field, idx) {
       return this.dragSourceField === field && this.dragSourceIdx === idx;
