@@ -112,34 +112,28 @@ Vue.component('page-meitu', {
     },
     appendImagesToProduct: function (field, urls) {
       var vm = this;
-      fetch('/api/product/' + vm.sourceProduct).then(function (r) { return r.json(); }).then(function (product) {
-        var existing = product[field] || [];
+      // 直接更新详情弹窗的 editable 数据（不保存到数据库，用户确认后自行保存）
+      var detailModal = vm.$root.$refs.detailModal;
+      if (detailModal && detailModal.editable) {
+        var existing = detailModal.editable[field] || [];
         // 归一化为 URL 数组
         var normalized = existing.map(function (item) {
           return typeof item === 'string' ? item : (item && item.url) || '';
         }).filter(Boolean);
-        // 去重：只追加不存在的图片
+        // 去重追加
         var existingSet = {};
         normalized.forEach(function (u) { existingSet[u] = true; });
-        var newUrls = urls.filter(function (u) { return !existingSet[u]; });
-        if (!newUrls.length) { vm.$Message.info('所有图片已存在，无需追加'); return; }
-        newUrls.forEach(function (u) { normalized.push(u); });
-        var payload = {};
-        if (field === 'main_images') {
-          payload.mainImages = normalized;
-        } else {
-          payload.detailImages = normalized;
-        }
-        fetch('/api/product/' + vm.sourceProduct, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        }).then(function (r) { return r.json(); }).then(function () {
-          vm.$Message.success('已追加 ' + newUrls.length + ' 张图片到商品');
-          // 通知详情页刷新主图
-          vm.$emit('images-updated', { field: field, urls: newUrls });
-        }).catch(function () { vm.$Message.error('保存失败'); });
-      }).catch(function () { vm.$Message.error('获取商品信息失败'); });
+        var added = 0;
+        urls.forEach(function (u) {
+          if (!existingSet[u]) { normalized.push(u); added++; }
+        });
+        if (!added) { vm.$Message.info('所有图片已存在，无需追加'); return; }
+        // 更新详情弹窗数据
+        vm.$set(detailModal.editable, field, normalized);
+        vm.$Message.success('已添加 ' + added + ' 张图片到主图，请保存商品以生效');
+      } else {
+        vm.$Message.warning('请先打开商品详情');
+      }
     },
     replaceFromCollage: function () {
       if (typeof window._meituGetPool !== 'function') { this.$Message.warning('拼图模块未加载'); return; }
