@@ -3,24 +3,32 @@ const dbModule = require('../db');
 const { run, getOne, getAll, scheduleSave, saveNow, sseBroadcast, parseRow, treeGetOne } = dbModule;
 const cloudDb = require('../cloud/index');
 
+function localNow() {
+  var d = new Date();
+  var pad = function (n) { return n < 10 ? '0' + n : '' + n; };
+  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+}
+
 const router = Router();
 
 // 公共：插入商品到数据库
 function insertProduct(sourceUrl, title, category, customCategory, dxmCategory, manualCategory, mainImages, descImages, detailImages, attrs, skus) {
+  var now = localNow();
   dbModule.db.run(
-    `INSERT INTO products (source_url, title, category, custom_category, dxm_category, manual_category, main_images, desc_images, detail_images, attrs, skus)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO products (source_url, title, category, custom_category, dxm_category, manual_category, main_images, desc_images, detail_images, attrs, skus, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       sourceUrl || '', title || '', JSON.stringify(category || {}),
       customCategory || '', dxmCategory || '', manualCategory || '',
       JSON.stringify(mainImages || []), JSON.stringify(descImages || []),
-      JSON.stringify(detailImages || []), JSON.stringify(attrs || []), JSON.stringify(skus || [])
+      JSON.stringify(detailImages || []), JSON.stringify(attrs || []), JSON.stringify(skus || []),
+      now, now
     ]
   );
   // 异步同步到云端
   cloudDb.saveProductToLocalAndCloud(
     sourceUrl, title, JSON.stringify(category || {}), customCategory || '', dxmCategory || '',
-    manualCategory || '',
+    manualCategory || '', now,
     JSON.stringify(mainImages || []), JSON.stringify(descImages || []),
     JSON.stringify(detailImages || []), JSON.stringify(attrs || []), JSON.stringify(skus || [])
   );

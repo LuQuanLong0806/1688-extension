@@ -292,12 +292,11 @@ module.exports = function (cloud, db) {
     return { ok: true, cloudTotal: cloudProducts.length, added: added, skipped: skipped, deletedSynced: deletedSynced };
   }
 
-  function saveProductToLocalAndCloud(sourceUrl, title, category, customCategory, dxmCategory, manualCategory, mainImages, descImages, detailImages, attrs, skus) {
+  function saveProductToLocalAndCloud(sourceUrl, title, category, customCategory, dxmCategory, manualCategory, createdAt, mainImages, descImages, detailImages, attrs, skus) {
     if (!cloud.connected) return;
-    var now = new Date().toISOString().replace('T', ' ').substring(0, 19);
     cloud.run(
       'INSERT INTO products (source_url, title, main_images, desc_images, detail_images, attrs, skus, category, custom_category, dxm_category, manual_category, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?) ON CONFLICT(source_url) DO UPDATE SET updated_at = COALESCE(products.updated_at, excluded.updated_at)',
-      [sourceUrl || '', title || '', mainImages || '', descImages || '', detailImages || '', attrs || '', skus || '', category || '', customCategory || '', dxmCategory || '', manualCategory || '', now, now]
+      [sourceUrl || '', title || '', mainImages || '', descImages || '', detailImages || '', attrs || '', skus || '', category || '', customCategory || '', dxmCategory || '', manualCategory || '', createdAt || '', createdAt || '']
     ).catch(function () {});
   }
 

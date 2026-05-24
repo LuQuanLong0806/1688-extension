@@ -512,7 +512,7 @@ describe('saveProductToLocalAndCloud', () => {
     dbRun(localDb, "INSERT INTO products (source_url, title) VALUES ('https://detail.1688.com/offer1.html', '毛巾')");
     sync.saveProductToLocalAndCloud(
       'https://detail.1688.com/offer1.html',
-      '毛巾', '{}', '', '', '', '[]', '[]', '[]', '[]', '[]'
+      '毛巾', '{}', '', '', '', '2025-05-25 03:00:00', '[]', '[]', '[]', '[]', '[]'
     );
     // 等待异步云端写入
     await new Promise(r => setTimeout(r, 50));
@@ -523,7 +523,7 @@ describe('saveProductToLocalAndCloud', () => {
     dbRun(cloudDb, "INSERT INTO products (source_url, title) VALUES ('https://detail.1688.com/offer1.html', '旧标题')");
     syncModule.saveProductToLocalAndCloud(
       'https://detail.1688.com/offer1.html',
-      '新标题', '{}', '', '', '', '[]', '[]', '[]', '[]', '[]'
+      '新标题', '{}', '', '', '', '2025-05-25 03:00:00', '[]', '[]', '[]', '[]', '[]'
     );
     await new Promise(r => setTimeout(r, 50));
     const cloudRow = dbGetOne(cloudDb, "SELECT title FROM products WHERE source_url = 'https://detail.1688.com/offer1.html'");
@@ -536,12 +536,12 @@ describe('saveProductToLocalAndCloud', () => {
     const sync = require('../../cloud/sync')(cloud, db);
     sync.saveProductToLocalAndCloud(
       'https://detail.1688.com/offer-new.html',
-      '新产品', '{}', '', '', '家居/毛巾',
+      '新产品', '{}', '', '', '家居/毛巾', '2025-05-25 03:00:00',
       '[]', '[]', '[]', '[]', '[]'
     );
     await new Promise(r => setTimeout(r, 50));
     const cloudRow = dbGetOne(cloudDb, "SELECT created_at, manual_category FROM products WHERE source_url = 'https://detail.1688.com/offer-new.html'");
-    expect(cloudRow.created_at).toBeTruthy(); // 不为空
+    expect(cloudRow.created_at).toBe('2025-05-25 03:00:00');
     expect(cloudRow.manual_category).toBe('家居/毛巾');
   });
 
