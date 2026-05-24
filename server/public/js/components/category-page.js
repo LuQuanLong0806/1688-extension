@@ -23,7 +23,12 @@ Vue.component('page-categories', {
       addDxmSelected: '',
       addDxmPath: '',
       addAliList: [],
-      addAliSelected: []
+      addAliSelected: [],
+      // 批量补全
+      batchBackfillVisible: false,
+      batchBackfillList: [],
+      batchBackfillSelected: [],
+      batchBackfillLoading: false
     };
   },
   mounted: function () {
@@ -153,6 +158,28 @@ Vue.component('page-categories', {
         vm.loadList();
       }).catch(function () { vm.$Message.error('绑定失败'); });
     },
+    // 补全路径
+    backfillPath: function (row) {
+      var vm = this;
+      this.$Modal.confirm({
+        title: '补全路径',
+        content: '确认补全类目「' + row.customCategory + '」下所有缺少路径的商品？共 ' + (row.productCount || 0) + ' 件商品。',
+        onOk: function () {
+          fetch('/api/products/backfill-path', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ customCategory: row.customCategory })
+          }).then(function (r) { return r.json(); }).then(function (data) {
+            if (data.updated > 0) {
+              vm.$Message.success('已补全 ' + data.updated + ' 件商品的路径: ' + data.path);
+            } else {
+              vm.$Message.info(data.message || '无需补全');
+            }
+            vm.loadList();
+          }).catch(function () { vm.$Message.error('补全失败'); });
+        }
+      });
+    },
     // === 新增映射弹窗（顶栏按钮）===
     openAddDialog: function () {
       this.addVisible = true;
@@ -181,6 +208,53 @@ Vue.component('page-categories', {
         vm.addVisible = false;
         vm.loadList();
       }).catch(function () { vm.$Message.error('创建映射失败'); });
+    },
+    // 批量补全路径
+    openBatchBackfill: function () {
+      var vm = this;
+      vm.batchBackfillSelected = [];
+      vm.batchBackfillLoading = false;
+      fetch('/api/category-mappings/grouped?pageSize=9999')
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          vm.batchBackfillList = (data.list || []).filter(function (row) { return !row.path; });
+          vm.batchBackfillVisible = true;
+        });
+    },
+    batchBackfillAll: function () {
+      this.batchBackfillSelected = this.batchBackfillList.map(function (r) { return r.customCategory; });
+    },
+    doBatchBackfill: function () {
+      var vm = this;
+      if (!vm.batchBackfillSelected.length) { vm.$Message.warning('请选择类目'); return; }
+      vm.batchBackfillLoading = true;
+      var total = vm.batchBackfillSelected.length;
+      var done = 0;
+      var totalUpdated = 0;
+      vm.batchBackfillSelected.forEach(function (cat) {
+        fetch('/api/products/backfill-path', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ customCategory: cat })
+        }).then(function (r) { return r.json(); }).then(function (data) {
+          done++;
+          totalUpdated += (data.updated || 0);
+          if (done >= total) {
+            vm.batchBackfillLoading = false;
+            vm.$Message.success('批量补全完成，共更新 ' + totalUpdated + ' 件商品');
+            vm.batchBackfillVisible = false;
+            vm.loadList();
+          }
+        }).catch(function () {
+          done++;
+          if (done >= total) {
+            vm.batchBackfillLoading = false;
+            vm.$Message.info('批量补全完成，共更新 ' + totalUpdated + ' 件商品');
+            vm.batchBackfillVisible = false;
+            vm.loadList();
+          }
+        });
+      });
     }
   },
   computed: {
@@ -225,14 +299,18 @@ Vue.component('page-categories', {
         },
         {
           title: '操作',
-          width: 200,
+          width: 280,
           align: 'center',
           render: function (h, params) {
-            return h('div', { style: { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' } }, [
+            return h('div', { style: { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px', flexWrap: 'wrap' } }, [
               h('Button', {
                 props: { type: 'primary', size: 'small', icon: 'md-settings' },
                 on: { click: function () { vm.openModal(params.row); } }
               }, '维护映射'),
+              h('Button', {
+                props: { type: 'warning', size: 'small', icon: 'md-git-pull-request' },
+                on: { click: function () { vm.backfillPath(params.row); } }
+              }, '补全路径'),
               h('Button', {
                 props: { type: 'error', size: 'small', icon: 'ios-trash' },
                 on: { click: function () { vm.deleteDxmCategory(params.row); } }
@@ -263,6 +341,7 @@ Vue.component('page-categories', {
         <div class="action-bar-right">
           <span style="font-size:13px;color:var(--text-secondary)">共 <strong style="color:var(--text-primary)">{{ total }}</strong> 个已映射类目</span>
           <i-button type="success" icon="md-add" @click="openAddDialog">新增映射</i-button>
+          <i-button type="warning" icon="md-git-pull-request" @click="openBatchBackfill">批量补全</i-button>
           <i-button icon="md-refresh" @click="loadList">刷新</i-button>
         </div>
       </div>
@@ -335,6 +414,28 @@ Vue.component('page-categories', {
         <div slot="footer">
           <i-button @click="addVisible = false">取消</i-button>
           <i-button type="primary" @click="submitAddMapping">确认映射</i-button>
+        </div>
+      </modal>
+      <!-- 批量补全弹窗 -->
+      <modal v-model="batchBackfillVisible" title="批量补全路径" :mask-closable="false" width="520">
+        <div v-if="!batchBackfillList.length" style="text-align:center;padding:20px;color:var(--text-muted)">所有类目已有路径，无需补全</div>
+        <div v-else>
+          <div style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:13px;color:var(--text-secondary)">以下类目缺少完整路径，勾选需要补全的类目</span>
+            <a style="font-size:13px;cursor:pointer" @click="batchBackfillAll">全选</a>
+          </div>
+          <checkbox-group v-model="batchBackfillSelected">
+            <div v-for="row in batchBackfillList" :key="row.customCategory" style="padding:4px 0">
+              <checkbox :label="row.customCategory">
+                <span style="color:var(--text-primary)">{{ row.customCategory }}</span>
+                <span style="color:var(--text-muted);margin-left:4px">({{ row.productCount || 0 }}件)</span>
+              </checkbox>
+            </div>
+          </checkbox-group>
+        </div>
+        <div slot="footer">
+          <i-button @click="batchBackfillVisible = false">取消</i-button>
+          <i-button type="primary" :loading="batchBackfillLoading" :disabled="!batchBackfillSelected.length" @click="doBatchBackfill">补全 ({{ batchBackfillSelected.length }})</i-button>
         </div>
       </modal>
     </div>`

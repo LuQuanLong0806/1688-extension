@@ -132,6 +132,7 @@ router.post('/product', (req, res) => {
 
   let customCategory = '';
   let dxmCategoryVal = '';
+  let manualCategoryFromExisting = '';
   if (category) {
     const catName = category.leafCategoryName || category.categoryPath;
     if (catName) {
@@ -144,12 +145,22 @@ router.post('/product', (req, res) => {
           customCategory = catRow.custom_name;
         }
       }
+      // 优先从已有商品复用路径
       const existing = getOne(
-        "SELECT dxm_category FROM products WHERE category LIKE ? AND dxm_category IS NOT NULL AND dxm_category != '' LIMIT 1",
+        "SELECT dxm_category, manual_category FROM products WHERE category LIKE ? AND dxm_category IS NOT NULL AND dxm_category != '' LIMIT 1",
         ['%"' + catName + '"%']
       );
       if (existing && existing.dxm_category) {
         dxmCategoryVal = existing.dxm_category;
+        manualCategoryFromExisting = existing.manual_category || '';
+      }
+      // 如果没有复用到路径，从分类树查找
+      if (customCategory && !manualCategoryFromExisting) {
+        const treeRow = treeGetOne('SELECT path FROM dxm_category_tree WHERE cat_name = ? AND is_leaf = 1 LIMIT 1', [customCategory]);
+        if (treeRow && treeRow.path) {
+          dxmCategoryVal = JSON.stringify({ path: treeRow.path, leafName: customCategory });
+          manualCategoryFromExisting = treeRow.path;
+        }
       }
     }
   }
@@ -161,7 +172,7 @@ router.post('/product', (req, res) => {
     ? doRecommendAndGetResult(title, aliCat, attrs)
     : Promise.resolve(null);
 
-  var manualCategoryVal = '';
+  var manualCategoryVal = manualCategoryFromExisting;
 
   recommendPromise.then(function (recResult) {
     if (recResult && recResult.category && recResult.confidence >= 0.5) {
@@ -262,6 +273,8 @@ async function doRecommendAndSave(title, aliCat, attrs, productId) {
     if (result.path) {
       updates.push('dxm_category = ?');
       params.push(JSON.stringify({ path: result.path, leafName: result.category }));
+      updates.push('manual_category = ?');
+      params.push(result.path);
     }
     if (updates.length) {
       params.push(productId);
@@ -582,6 +595,31 @@ router.post('/product/batch-status', (req, res) => {
     run(`UPDATE products SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`, [status, ...validIds]);
   }
   res.json({ ok: true, updated: ids.length });
+});
+
+// 补全指定类目下商品的完整路径
+router.patch('/products/backfill-path', (req, res) => {
+  const { customCategory } = req.body;
+  if (!customCategory) return res.status(400).json({ error: '缺少 customCategory' });
+
+  // 从分类树查找完整路径
+  const treeRow = treeGetOne('SELECT path, cat_id FROM dxm_category_tree WHERE cat_name = ? AND is_leaf = 1 LIMIT 1', [customCategory]);
+  if (!treeRow || !treeRow.path) {
+    return res.json({ ok: true, updated: 0, message: '分类树中未找到该类目的路径' });
+  }
+
+  // 更新该类目下所有缺少路径的商品
+  dbModule.db.run(
+    `UPDATE products SET manual_category = ?, dxm_category = ?, updated_at = CURRENT_TIMESTAMP
+     WHERE custom_category = ? AND (manual_category IS NULL OR manual_category = '')
+       AND deleted = 0`,
+    [treeRow.path, JSON.stringify({ path: treeRow.path, leafName: customCategory }), customCategory],
+    function (err) {
+      if (err) return res.status(500).json({ error: err.message });
+      scheduleSave();
+      res.json({ ok: true, updated: this.changes || 0, path: treeRow.path });
+    }
+  );
 });
 
 module.exports = router;

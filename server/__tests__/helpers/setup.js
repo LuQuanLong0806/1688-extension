@@ -544,6 +544,24 @@ function createProductsRouter(cloudDb) {
     res.json({ ok: true, updated: ids.length });
   });
 
+  // 补全指定类目下商品的完整路径
+  router.patch('/products/backfill-path', (req, res) => {
+    const { customCategory } = req.body;
+    if (!customCategory) return res.status(400).json({ error: '缺少 customCategory' });
+    const treeRow = treeGetOne('SELECT path, cat_id FROM dxm_category_tree WHERE cat_name = ? AND is_leaf = 1 LIMIT 1', [customCategory]);
+    if (!treeRow || !treeRow.path) {
+      return res.json({ ok: true, updated: 0, message: '分类树中未找到该类目的路径' });
+    }
+    const before = getOne("SELECT COUNT(*) as cnt FROM products WHERE custom_category = ? AND (manual_category IS NULL OR manual_category = '') AND deleted = 0", [customCategory]);
+    run(
+      `UPDATE products SET manual_category = ?, dxm_category = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE custom_category = ? AND (manual_category IS NULL OR manual_category = '')
+         AND deleted = 0`,
+      [treeRow.path, JSON.stringify({ path: treeRow.path, leafName: customCategory }), customCategory]
+    );
+    res.json({ ok: true, updated: before ? before.cnt : 0, path: treeRow.path });
+  });
+
   return router;
 }
 
