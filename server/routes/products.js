@@ -348,7 +348,7 @@ router.get('/product', (req, res) => {
   const total = countRow ? countRow.count : 0;
   const offset = (page - 1) * pageSize;
   const list = getAll(
-    `SELECT id, source_url, title, category, custom_category, dxm_category, attrs, skus, main_images, status, created_at, updated_at
+    `SELECT id, source_url, title, category, custom_category, manual_category, dxm_category, attrs, skus, main_images, status, created_at, updated_at
      FROM products ${whereClause}
      ORDER BY created_at DESC, id DESC
      LIMIT ? OFFSET ?`,
@@ -359,6 +359,7 @@ router.get('/product', (req, res) => {
     ...row,
     category: row.category ? JSON.parse(row.category) : {},
     customCategory: row.custom_category || '',
+    manualCategory: row.manual_category || '',
     dxmCategory: row.dxm_category ? JSON.parse(row.dxm_category) : null,
     attrs: JSON.parse(row.attrs || '[]'),
     skuCount: JSON.parse(row.skus || '[]').length

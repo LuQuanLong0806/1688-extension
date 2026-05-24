@@ -20,6 +20,7 @@ Vue.component('detail-modal', {
       showBatchReplace: false,
       showPriceFormula: false,
       priceFormulas: [],
+      saving: false,
       _batchHideTimer: null
     };
   },
@@ -275,6 +276,7 @@ Vue.component('detail-modal', {
     saveProduct: function (silent) {
       var vm = this;
       if (!vm.editable) return Promise.resolve();
+      if (!silent) vm.saving = true;
       var skus = JSON.parse(JSON.stringify(vm.editable.skus || []));
       skus.forEach(function (s, i) {
         s._selected = vm.selectedSkuIndexes.indexOf(i) >= 0;
@@ -301,10 +303,16 @@ Vue.component('detail-modal', {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       }).then(function () {
-        if (!silent) vm.$Message.success('保存成功');
+        if (!silent) {
+          vm.saving = false;
+          vm.$Message.success('保存成功');
+        }
         vm.$emit('status-changed');
       }).catch(function (e) {
-        if (!silent) vm.$Message.error('保存失败');
+        if (!silent) {
+          vm.saving = false;
+          vm.$Message.error('保存失败');
+        }
         throw e;
       });
     },
@@ -493,7 +501,7 @@ Vue.component('detail-modal', {
               <i-input v-model="editable.title" type="textarea" :rows="2" style="width:600px;font-size:14px" />
             </span>
             <span class="label">选择分类</span><span class="value">
-              <category-picker :value="editable.customCategory" @input="function(v) { editable.customCategory = v; if (!v) { editable.manualCategory = ''; editable.dxmCategory = ''; } }" @path="function(p) { editable.manualCategory = p }" placeholder="搜索或选择分类" style="width:600px" />
+              <category-picker :value="editable.customCategory" :path="editable.manualCategory || ''" @input="function(v) { editable.customCategory = v; if (!v) { editable.manualCategory = ''; editable.dxmCategory = ''; } }" @path="function(p) { editable.manualCategory = p }" placeholder="搜索或选择分类" style="width:600px" />
             </span>
             <span class="label">1688类目</span><span class="value">
               <span style="color:var(--text-secondary);font-size:14px">{{ originCategory }}</span>
@@ -661,7 +669,7 @@ Vue.component('detail-modal', {
 
         <!-- 底部固定操作栏 -->
         <div class="detail-footer-fixed">
-          <i-button type="primary" icon="md-checkmark" @click="saveProduct">保存</i-button>
+          <i-button type="primary" icon="md-checkmark" :loading="saving" @click="saveProduct()">保存</i-button>
           <i-button type="success" icon="md-paper-plane" @click="saveAndPublish">保存并发布</i-button>
           <i-button type="warning" icon="md-images" @click="goToMeitu">小秘美图</i-button>
           <i-button :type="editable.status === 0 ? 'success' : 'error'" @click="toggleStatus">

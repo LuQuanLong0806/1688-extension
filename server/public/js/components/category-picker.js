@@ -4,6 +4,7 @@
 Vue.component('category-picker', {
   props: {
     value: { type: String, default: '' },
+    path: { type: String, default: '' },
     placeholder: { type: String, default: '搜索分类' }
   },
   data: function () {
@@ -12,7 +13,7 @@ Vue.component('category-picker', {
       searchOptions: [],
       searchLoading: false,
       dropdownVisible: false,
-      currentPath: '',
+      currentPath: this.path || '',
       _selecting: false,
       _searchTimer: null,
       dropStyle: { top: '0px', left: '0px', minWidth: '360px' }
@@ -21,30 +22,12 @@ Vue.component('category-picker', {
   watch: {
     value: function (v) {
       if (!this._selecting) this.keyword = v || '';
-      this.loadPath();
+    },
+    path: function (p) {
+      this.currentPath = p || '';
     }
   },
-  created: function () {
-    this.loadPath();
-  },
   methods: {
-    loadPath: function () {
-      if (!this.value) {
-        this.currentPath = '';
-        return;
-      }
-      var vm = this;
-      fetch('/api/dxm-tree/resolve-path?name=' + encodeURIComponent(this.value))
-        .then(function (r) {
-          return r.json();
-        })
-        .then(function (data) {
-          vm.currentPath = data.path || '';
-        })
-        .catch(function () {
-          vm.currentPath = '';
-        });
-    },
     onInputChange: function () {
       var vm = this;
       // 选中分类后赋值会触发 on-change，此时跳过搜索
@@ -70,18 +53,30 @@ Vue.component('category-picker', {
       if (!input) return;
       var rect = input.getBoundingClientRect();
       var w = Math.max(360, rect.width);
-      var top = rect.bottom + 2;
       var left = rect.left;
-      // 防止超出屏幕底部
-      var maxH = Math.min(260, window.innerHeight - top - 8);
-      this.dropStyle = {
-        position: 'fixed',
-        top: top + 'px',
-        left: left + 'px',
-        minWidth: w + 'px',
-        maxHeight: Math.max(80, maxH) + 'px',
-        zIndex: 9999
-      };
+      var spaceBelow = window.innerHeight - rect.bottom - 8;
+      var spaceAbove = rect.top - 8;
+      if (spaceBelow >= 150) {
+        // 下方空间足够，向下弹出
+        this.dropStyle = {
+          position: 'fixed',
+          top: (rect.bottom + 2) + 'px',
+          left: left + 'px',
+          minWidth: w + 'px',
+          maxHeight: Math.min(260, spaceBelow) + 'px',
+          zIndex: 9999
+        };
+      } else {
+        // 下方空间不足，向上弹出
+        this.dropStyle = {
+          position: 'fixed',
+          bottom: (window.innerHeight - rect.top + 2) + 'px',
+          left: left + 'px',
+          minWidth: w + 'px',
+          maxHeight: Math.min(260, spaceAbove) + 'px',
+          zIndex: 9999
+        };
+      }
     },
     doSearch: function (kw) {
       var vm = this;
@@ -118,9 +113,7 @@ Vue.component('category-picker', {
       setTimeout(function () {
         vm.dropdownVisible = false;
         if (!vm._selecting) {
-          // 未选中任何选项，恢复原值
           vm.keyword = vm.value || '';
-          vm.loadPath();
         }
       }, 150);
     },

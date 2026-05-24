@@ -130,17 +130,35 @@ Vue.component('page-meitu', {
         if (!added) { vm.$Message.info('所有图片已存在，无需追加'); return; }
         // 更新详情弹窗数据
         vm.$set(detailModal.editable, field, normalized);
+        // 默认选中新添加的图片
+        var selectedField = field === 'main_images' ? 'selectedMainIndexes'
+          : field === 'detail_images' ? 'selectedDetailIndexes' : null;
+        if (selectedField) {
+          var existing = detailModal[selectedField] || [];
+          var newIndexes = existing.slice();
+          for (var i = normalized.length - added; i < normalized.length; i++) {
+            newIndexes.push(i);
+          }
+          detailModal[selectedField] = newIndexes;
+        }
         vm.$Message.success('已添加 ' + added + ' 张图片到主图，请保存商品以生效');
       } else {
         vm.$Message.warning('请先打开商品详情');
       }
     },
     replaceFromCollage: function () {
-      if (typeof window._meituGetPool !== 'function') { this.$Message.warning('拼图模块未加载'); return; }
-      var checked = typeof window._meituGetChecked === 'function' ? window._meituGetChecked() : [];
-      var images = checked.length > 0 ? checked : window._meituGetPool();
-      if (!images || !images.length) { this.$Message.warning('图片列表为空'); return; }
-      this.replaceToProduct(images.map(function (p) { return p.src; }));
+      var vm = this;
+      if (typeof window._meituExportCanvas !== 'function') { vm.$Message.warning('拼图模块未加载'); return; }
+      vm.$Message.loading({ content: '正在生成拼图...', duration: 0 });
+      window._meituExportCanvas(function (dataUrl) {
+        if (!dataUrl) {
+          vm.$Message.destroy();
+          vm.$Message.warning('画布为空，请先拼图');
+          return;
+        }
+        vm.$Message.destroy();
+        vm.replaceToProduct([dataUrl]);
+      });
     },
     replaceFromCleaner: function () {
       if (typeof window._meituGetCleanedImages !== 'function') { this.$Message.warning('请先执行去中文操作'); return; }

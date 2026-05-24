@@ -478,7 +478,7 @@ Vue.component('page-products', {
           </template>
           <template slot="category" slot-scope="{ row }">
             <div style="display:flex;align-items:center;gap:4px">
-              <category-picker :value="row.customCategory || ''"
+              <category-picker :value="row.customCategory || ''" :path="row.manualCategory || ''"
                 placeholder="搜索或选择分类"
                 @input="saveCategory(row, $event)"
                 @path="saveCategoryPath(row, $event)" />

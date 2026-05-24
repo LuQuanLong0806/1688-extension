@@ -2128,6 +2128,14 @@ function initMeituCollage() {
     addToPool(src);
   };
 
+  // 暴露导出画布拼图为 base64（供"添加到主图"使用）
+  window._meituExportCanvas = function (callback) {
+    if (!canvasItems.length) { callback(null); return; }
+    renderCustomCanvas(function (c) {
+      callback(ensureMinSize(c, 800).toDataURL('image/png'));
+    });
+  };
+
   // 暴露单图编辑接口：导入一张图并自动打开编辑器
   window._meituEditSingleImage = function (url) {
     if (!url) return;
