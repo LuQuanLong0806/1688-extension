@@ -42,8 +42,8 @@
 
 /* 主区域 */
 .collage-main { flex: 1; display: flex; overflow: hidden; }
-.custom-area { flex: 1; overflow: hidden; }
-.custom-body { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.custom-area { flex: 1; overflow: auto; }
+.custom-body { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .canvas-area { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; overflow: auto; background: linear-gradient(45deg,#e8e8e8 25%,transparent 25%),linear-gradient(-45deg,#e8e8e8 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#e8e8e8 75%),linear-gradient(-45deg,transparent 75%,#e8e8e8 75%); background-size: 16px 16px; background-position: 0 0,0 8px,8px -8px,-8px 0; background-color: #f5f5f5; }
 .canvas-wrap { position: relative; display: inline-block; }
 .canvas-board { position: relative; background: #fff; box-shadow: 0 2px 16px rgba(0,0,0,.12); overflow: hidden; border-radius: 2px; }
