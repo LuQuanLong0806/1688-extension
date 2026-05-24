@@ -471,7 +471,19 @@ Vue.component('detail-modal', {
   },
   template: `
     <modal v-model="visible" class="detail-modal-fullscreen" @on-cancel="close"
-      :title="editable ? (editable.title || ('商品 #' + editable.id)) : '商品详情'" fullscreen footer-hide>
+      fullscreen footer-hide>
+      <template slot="header">
+        <a v-if="editable && editable.source_url" :href="editable.source_url" target="_blank"
+          style="font-size:16px;font-weight:600;color:var(--text-primary);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;transition:color .15s;display:flex;align-items:center;gap:6px"
+          @mouseenter="$event.target.closest('a').style.color='var(--accent)'"
+          @mouseleave="$event.target.closest('a').style.color='var(--text-primary)'">
+          {{ editable ? (editable.title || ('商品 #' + editable.id)) : '商品详情' }}
+          <i class="ivu-icon ivu-icon-md-open" style="font-size:14px;opacity:.5"></i>
+        </a>
+        <span v-else style="font-size:16px;font-weight:600;color:var(--text-primary)">
+          {{ editable ? (editable.title || ('商品 #' + editable.id)) : '商品详情' }}
+        </span>
+      </template>
       <template v-if="editable">
 
         <!-- 基本信息（置顶） -->
