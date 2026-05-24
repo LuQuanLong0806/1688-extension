@@ -10,19 +10,19 @@ Vue.component('page-cloud-sync', {
       syncResult: null,
       sections: [
         {
+          title: '大数据量',
+          tables: [
+            { key: 'tree', label: '店小秘分类库', icon: '🌲', desc: '数千条分类数据，操作前弹窗确认', confirm: true },
+            { key: 'product', label: '商品数据', icon: '📦', desc: '用商品链接去重，不覆盖已有状态', confirm: true }
+          ]
+        },
+        {
           title: '知识库',
           tables: [
             { key: 'mappings', label: '类目映射', icon: '🏷️', desc: '1688类目 ↔ DXM类目对应关系', confirm: false },
             { key: 'keyword-rels', label: '关键词关联', icon: '🔗', desc: '关键词与DXM类目的权重关联', confirm: false },
             { key: 'synonyms', label: '同义词', icon: '📝', desc: '关键词同义词扩展', confirm: false },
             { key: 'blacklist', label: '黑名单', icon: '🚫', desc: '关键词-类目禁止关联', confirm: false }
-          ]
-        },
-        {
-          title: '大数据量',
-          tables: [
-            { key: 'tree', label: '店小秘分类库', icon: '🌲', desc: '数千条分类数据，操作前弹窗确认', confirm: true },
-            { key: 'product', label: '商品数据', icon: '📦', desc: '用商品链接去重，不覆盖已有状态', confirm: true }
           ]
         }
       ]
@@ -160,11 +160,11 @@ Vue.component('page-cloud-sync', {
         </div>\
       </div>\
 \
-      <!-- 知识库 -->\
+      <!-- 大数据量 -->\
       <div class="sync-group">\
         <div class="sync-group-head">\
-          <span class="sync-group-title">知识库</span>\
-          <span class="sync-group-desc">映射、关联、同义词、黑名单</span>\
+          <span class="sync-group-title">大数据量</span>\
+          <span class="sync-group-desc">分类库、商品数据，操作前需确认</span>\
         </div>\
         <div class="sync-grid">\
           <div v-for="t in sections[0].tables" :key="t.key" class="sync-card">\
@@ -182,11 +182,11 @@ Vue.component('page-cloud-sync', {
         </div>\
       </div>\
 \
-      <!-- 大数据量 -->\
+      <!-- 知识库 -->\
       <div class="sync-group">\
         <div class="sync-group-head">\
-          <span class="sync-group-title">大数据量</span>\
-          <span class="sync-group-desc">分类库、商品数据，操作前需确认</span>\
+          <span class="sync-group-title">知识库</span>\
+          <span class="sync-group-desc">映射、关联、同义词、黑名单</span>\
         </div>\
         <div class="sync-grid">\
           <div v-for="t in sections[1].tables" :key="t.key" class="sync-card">\
