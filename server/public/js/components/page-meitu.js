@@ -126,16 +126,18 @@ Vue.component('page-meitu', {
         newUrls.forEach(function (u) { normalized.push(u); });
         var payload = {};
         if (field === 'main_images') {
-          payload.mainImages = normalized.map(function (u) { return { url: u, _selected: true }; });
+          payload.mainImages = normalized;
         } else {
-          payload.detailImages = normalized.map(function (u) { return { url: u, _selected: true }; });
+          payload.detailImages = normalized;
         }
         fetch('/api/product/' + vm.sourceProduct, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
-        }).then(function () {
+        }).then(function (r) { return r.json(); }).then(function () {
           vm.$Message.success('已追加 ' + newUrls.length + ' 张图片到商品');
+          // 通知详情页刷新主图
+          vm.$emit('images-updated', { field: field, urls: newUrls });
         }).catch(function () { vm.$Message.error('保存失败'); });
       }).catch(function () { vm.$Message.error('获取商品信息失败'); });
     },
