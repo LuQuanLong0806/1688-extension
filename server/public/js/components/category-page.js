@@ -161,22 +161,29 @@ Vue.component('page-categories', {
     // 补全路径
     backfillPath: function (row) {
       var vm = this;
+      var missing = row.missingPathCount || 0;
+      if (!missing) { vm.$Message.info('该类目下无缺少路径的商品'); return; }
       this.$Modal.confirm({
         title: '补全路径',
-        content: '确认补全类目「' + row.customCategory + '」下所有缺少路径的商品？共 ' + (row.productCount || 0) + ' 件商品。',
+        content: '确认补全类目「' + row.customCategory + '」下 ' + missing + ' 件缺少路径的商品？',
+        loading: true,
         onOk: function () {
           fetch('/api/products/backfill-path', {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ customCategory: row.customCategory })
           }).then(function (r) { return r.json(); }).then(function (data) {
+            vm.$Modal.remove();
             if (data.updated > 0) {
-              vm.$Message.success('已补全 ' + data.updated + ' 件商品的路径: ' + data.path);
+              vm.$Message.success('已补全 ' + data.updated + ' 件商品: ' + data.path);
             } else {
               vm.$Message.info(data.message || '无需补全');
             }
             vm.loadList();
-          }).catch(function () { vm.$Message.error('补全失败'); });
+          }).catch(function () {
+            vm.$Modal.remove();
+            vm.$Message.error('补全失败');
+          });
         }
       });
     },
@@ -217,7 +224,7 @@ Vue.component('page-categories', {
       fetch('/api/category-mappings/grouped?pageSize=9999')
         .then(function (r) { return r.json(); })
         .then(function (data) {
-          vm.batchBackfillList = (data.list || []).filter(function (row) { return !row.path; });
+          vm.batchBackfillList = (data.list || []).filter(function (row) { return (row.missingPathCount || 0) > 0; });
           vm.batchBackfillVisible = true;
         });
     },
@@ -428,7 +435,7 @@ Vue.component('page-categories', {
             <div v-for="row in batchBackfillList" :key="row.customCategory" style="padding:4px 0">
               <checkbox :label="row.customCategory">
                 <span style="color:var(--text-primary)">{{ row.customCategory }}</span>
-                <span style="color:var(--text-muted);margin-left:4px">({{ row.productCount || 0 }}件)</span>
+                <span style="color:var(--text-muted);margin-left:4px">(缺路径 {{ row.missingPathCount || 0 }} 件)</span>
               </checkbox>
             </div>
           </checkbox-group>

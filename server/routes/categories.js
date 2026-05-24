@@ -101,6 +101,9 @@ router.get('/category-mappings/grouped', (req, res) => {
   result.forEach(g => {
     const treeRow = treeGetOne('SELECT path FROM dxm_category_tree WHERE cat_name = ? AND is_leaf = 1 LIMIT 1', [g.customCategory]);
     g.path = treeRow ? treeRow.path : g.customCategory;
+    // 统计该类目下缺少路径的商品数
+    const missRow = getOne("SELECT COUNT(*) as cnt FROM products WHERE custom_category = ? AND (manual_category IS NULL OR manual_category = '') AND deleted = 0", [g.customCategory]);
+    g.missingPathCount = missRow ? missRow.cnt : 0;
   });
   const total = result.length;
   const paged = result.slice(offset, offset + pageSize);

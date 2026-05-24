@@ -548,18 +548,42 @@ function createProductsRouter(cloudDb) {
   router.patch('/products/backfill-path', (req, res) => {
     const { customCategory } = req.body;
     if (!customCategory) return res.status(400).json({ error: '缺少 customCategory' });
-    const treeRow = treeGetOne('SELECT path, cat_id FROM dxm_category_tree WHERE cat_name = ? AND is_leaf = 1 LIMIT 1', [customCategory]);
-    if (!treeRow || !treeRow.path) {
-      return res.json({ ok: true, updated: 0, message: '分类树中未找到该类目的路径' });
-    }
-    const before = getOne("SELECT COUNT(*) as cnt FROM products WHERE custom_category = ? AND (manual_category IS NULL OR manual_category = '') AND deleted = 0", [customCategory]);
-    run(
-      `UPDATE products SET manual_category = ?, dxm_category = ?, updated_at = CURRENT_TIMESTAMP
-       WHERE custom_category = ? AND (manual_category IS NULL OR manual_category = '')
-         AND deleted = 0`,
-      [treeRow.path, JSON.stringify({ path: treeRow.path, leafName: customCategory }), customCategory]
+
+    // 1. 先从已有 dxm_category 提取路径
+    const products = getAll(
+      `SELECT id, dxm_category FROM products WHERE custom_category = ? AND (manual_category IS NULL OR manual_category = '') AND dxm_category IS NOT NULL AND dxm_category != '' AND deleted = 0`,
+      [customCategory]
     );
-    res.json({ ok: true, updated: before ? before.cnt : 0, path: treeRow.path });
+    let updated = 0;
+    (products || []).forEach(function (p) {
+      try {
+        var dxm = JSON.parse(p.dxm_category);
+        if (dxm && dxm.path) {
+          run('UPDATE products SET manual_category = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [dxm.path, p.id]);
+          updated++;
+        }
+      } catch (e) {}
+    });
+
+    // 2. 再用分类树路径补全剩余的
+    const treeRow = treeGetOne('SELECT path FROM dxm_category_tree WHERE cat_name = ? AND is_leaf = 1 LIMIT 1', [customCategory]);
+    if (treeRow && treeRow.path) {
+      const remaining = getOne(
+        "SELECT COUNT(*) as cnt FROM products WHERE custom_category = ? AND (manual_category IS NULL OR manual_category = '') AND deleted = 0",
+        [customCategory]
+      );
+      if (remaining && remaining.cnt > 0) {
+        run(
+          `UPDATE products SET manual_category = ?, dxm_category = ?, updated_at = CURRENT_TIMESTAMP
+           WHERE custom_category = ? AND (manual_category IS NULL OR manual_category = '')
+             AND deleted = 0`,
+          [treeRow.path, JSON.stringify({ path: treeRow.path, leafName: customCategory }), customCategory]
+        );
+        updated += remaining.cnt;
+      }
+    }
+
+    res.json({ ok: true, updated: updated, path: treeRow ? treeRow.path : '' });
   });
 
   return router;
