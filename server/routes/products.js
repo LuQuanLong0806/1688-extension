@@ -475,7 +475,7 @@ router.put('/product/:id', (req, res) => {
       if (req.body.status !== undefined) { cloudUpdates.push('status = ?'); cloudParams.push(req.body.status); }
       if (cloudUpdates.length) {
         cloudUpdates.push('updated_at = CURRENT_TIMESTAMP');
-        cloudParams.push(srcRow.uid);
+        cloudParams.push(uid);
         cloudDb.cloudRun('UPDATE products SET ' + cloudUpdates.join(', ') + ' WHERE uid = ?', cloudParams).catch(function () {});
       }
     }
