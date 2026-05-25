@@ -300,9 +300,23 @@ module.exports = function (cloud, db) {
         skipped++;
       }
     }
-    db.scheduleSave();
-    console.log('[云同步] 商品下载完成, 云端:', cloudProducts.length, '新增:', added, '更新:', updated, '跳过:', skipped, '删除同步:', deletedSynced);
-    return { ok: true, cloudTotal: cloudProducts.length, added: added, updated: updated, skipped: skipped, deletedSynced: deletedSynced };
+    // 物理清理：本地 deleted=1 且云端不存在 → 安全删除
+    var cloudUids = {};
+    for (var ci = 0; ci < cloudProducts.length; ci++) {
+      if (cloudProducts[ci].uid) cloudUids[cloudProducts[ci].uid] = true;
+    }
+    var localDeleted = db.getAll("SELECT id, uid FROM products WHERE deleted = 1 AND uid IS NOT NULL AND uid != ''");
+    var purged = 0;
+    for (var pi = 0; pi < localDeleted.length; pi++) {
+      if (!cloudUids[localDeleted[pi].uid]) {
+        db.run('DELETE FROM products WHERE id = ?', [localDeleted[pi].id]);
+        purged++;
+      }
+    }
+    if (purged) db.scheduleSave();
+
+    console.log('[云同步] 商品下载完成, 云端:', cloudProducts.length, '新增:', added, '更新:', updated, '跳过:', skipped, '删除同步:', deletedSynced, '物理清理:', purged);
+    return { ok: true, cloudTotal: cloudProducts.length, added: added, updated: updated, skipped: skipped, deletedSynced: deletedSynced, purged: purged };
   }
 
   function saveProductToLocalAndCloud(uid, sourceUrl, title, category, customCategory, dxmCategory, manualCategory, createdAt, mainImages, descImages, detailImages, attrs, skus) {
@@ -466,9 +480,29 @@ module.exports = function (cloud, db) {
         }
       }
     }
-    db.scheduleSave();
-    console.log('[云同步] ' + def.label + '拉取完成: 新增', added, '更新', updated);
-    return { ok: true, table: def.label, cloudTotal: cloudRows.length, added: added, updated: updated };
+    // 物理清理：本地有但云端没有的记录，说明已被另一端删除
+    var purged = 0;
+    if (def.cloudKey && def.cloudKey.length) {
+      var cloudKeys = {};
+      for (var ki = 0; ki < cloudRows.length; ki++) {
+        var keyVals = def.cloudKey.map(function (k) { return cloudRows[ki][k]; });
+        cloudKeys[keyVals.join('\x00')] = true;
+      }
+      var localAll = def.localGet();
+      for (var li = 0; li < localAll.length; li++) {
+        var localKeyVals = def.cloudKey.map(function (k) { return localAll[li][k]; });
+        var localKey = localKeyVals.join('\x00');
+        if (!cloudKeys[localKey]) {
+          var delWhere = def.cloudKey.map(function (k) { return k + ' = ?'; }).join(' AND ');
+          db.run('DELETE FROM ' + def.cloudTable + ' WHERE ' + delWhere, localKeyVals);
+          purged++;
+        }
+      }
+    }
+    if (purged) db.scheduleSave();
+
+    console.log('[云同步] ' + def.label + '拉取完成: 新增', added, '更新', updated, '清理', purged);
+    return { ok: true, table: def.label, cloudTotal: cloudRows.length, added: added, updated: updated, purged: purged };
   }
 
   return {

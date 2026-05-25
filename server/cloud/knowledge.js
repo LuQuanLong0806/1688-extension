@@ -139,10 +139,11 @@ module.exports = function (cloud, db) {
   }
 
   function deleteCategoryConfig(id) {
+    var row = db.getOne('SELECT type, value, group_name FROM category_config WHERE id = ?', [id]);
     db.run('DELETE FROM category_config WHERE id = ?', [id]);
     db.scheduleSave();
-    if (cloud.connected) {
-      cloud.run('DELETE FROM category_config WHERE id = ?', [id]).catch(function () {});
+    if (cloud.connected && row) {
+      cloud.run('DELETE FROM category_config WHERE type = ? AND value = ? AND group_name = ?', [row.type, row.value, row.group_name]).catch(function () {});
     }
   }
 

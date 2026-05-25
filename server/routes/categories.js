@@ -137,7 +137,9 @@ router.delete('/category-mappings/dxm/:name', (req, res) => {
     cleared += clearProductsByMapping(r.category_name, dxmName);
   });
   if (cloudDb.connected) {
-    cloudDb.cloudRun("DELETE FROM category_mappings WHERE custom_category = ?", [dxmName]).catch(function () {});
+    bound.forEach(r => {
+      cloudDb.cloudRun("DELETE FROM category_mappings WHERE category_name = ? AND custom_category = ?", [r.category_name, dxmName]).catch(function () {});
+    });
   }
   res.json({ ok: true, cleared: cleared });
 });
@@ -151,8 +153,8 @@ router.delete('/category-mappings/:id', (req, res) => {
     cleared = clearProductsByMapping(mapping.category_name, mapping.custom_category);
   }
   run('DELETE FROM category_mappings WHERE id = ?', [id]);
-  if (cloudDb.connected) {
-    cloudDb.cloudRun('DELETE FROM category_mappings WHERE id = ?', [id]).catch(function () {});
+  if (cloudDb.connected && mapping) {
+    cloudDb.cloudRun('DELETE FROM category_mappings WHERE category_name = ? AND custom_category = ?', [mapping.category_name, mapping.custom_category]).catch(function () {});
   }
   res.json({ ok: true, cleared: cleared });
 });
@@ -228,9 +230,11 @@ router.get('/keyword-rels', (req, res) => {
 
 // 标记关联为无效
 router.delete('/keyword-rels/:id', (req, res) => {
-  run('UPDATE keyword_category_rel SET valid = 0 WHERE id = ?', [parseInt(req.params.id)]);
-  if (cloudDb.connected) {
-    cloudDb.cloudRun('UPDATE keyword_category_rel SET valid = 0 WHERE id = ?', [parseInt(req.params.id)]).catch(function () {});
+  const id = parseInt(req.params.id);
+  const rel = getOne('SELECT keyword, category_name FROM keyword_category_rel WHERE id = ?', [id]);
+  run('UPDATE keyword_category_rel SET valid = 0 WHERE id = ?', [id]);
+  if (cloudDb.connected && rel) {
+    cloudDb.cloudRun('UPDATE keyword_category_rel SET valid = 0 WHERE keyword = ? AND category_name = ?', [rel.keyword, rel.category_name]).catch(function () {});
   }
   res.json({ ok: true });
 });
@@ -240,9 +244,10 @@ router.post('/keyword-rels/batch-invalidate', (req, res) => {
   const ids = req.body.ids;
   if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ error: '请提供ids数组' });
   ids.forEach(id => {
+    var rel = getOne('SELECT keyword, category_name FROM keyword_category_rel WHERE id = ?', [parseInt(id)]);
     run('UPDATE keyword_category_rel SET valid = 0 WHERE id = ?', [parseInt(id)]);
-    if (cloudDb.connected) {
-      cloudDb.cloudRun('UPDATE keyword_category_rel SET valid = 0 WHERE id = ?', [parseInt(id)]).catch(function () {});
+    if (cloudDb.connected && rel) {
+      cloudDb.cloudRun('UPDATE keyword_category_rel SET valid = 0 WHERE keyword = ? AND category_name = ?', [rel.keyword, rel.category_name]).catch(function () {});
     }
   });
   res.json({ ok: true });
@@ -279,9 +284,11 @@ router.post('/keyword-synonyms', (req, res) => {
 
 // 删除同义词
 router.delete('/keyword-synonyms/:id', (req, res) => {
-  run('DELETE FROM keyword_synonyms WHERE id = ?', [parseInt(req.params.id)]);
-  if (cloudDb.connected) {
-    cloudDb.cloudRun('DELETE FROM keyword_synonyms WHERE id = ?', [parseInt(req.params.id)]).catch(function () {});
+  const id = parseInt(req.params.id);
+  const syn = getOne('SELECT word_a, word_b FROM keyword_synonyms WHERE id = ?', [id]);
+  run('DELETE FROM keyword_synonyms WHERE id = ?', [id]);
+  if (cloudDb.connected && syn) {
+    cloudDb.cloudRun('DELETE FROM keyword_synonyms WHERE word_a = ? AND word_b = ?', [syn.word_a, syn.word_b]).catch(function () {});
   }
   res.json({ ok: true });
 });
@@ -317,9 +324,11 @@ router.post('/keyword-blacklist', (req, res) => {
 
 // 删除黑名单
 router.delete('/keyword-blacklist/:id', (req, res) => {
-  run('DELETE FROM keyword_blacklist WHERE id = ?', [parseInt(req.params.id)]);
-  if (cloudDb.connected) {
-    cloudDb.cloudRun('DELETE FROM keyword_blacklist WHERE id = ?', [parseInt(req.params.id)]).catch(function () {});
+  const id = parseInt(req.params.id);
+  const bl = getOne('SELECT keyword, category_name FROM keyword_blacklist WHERE id = ?', [id]);
+  run('DELETE FROM keyword_blacklist WHERE id = ?', [id]);
+  if (cloudDb.connected && bl) {
+    cloudDb.cloudRun('DELETE FROM keyword_blacklist WHERE keyword = ? AND category_name = ?', [bl.keyword, bl.category_name]).catch(function () {});
   }
   res.json({ ok: true });
 });

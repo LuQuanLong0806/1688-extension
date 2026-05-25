@@ -48,7 +48,7 @@ Vue.component('page-products', {
         {
           title: '标题',
           key: 'title',
-          width: 220,
+          minWidth: 180,
           ellipsis: false,
           tooltip: false,
           slot: 'title'
@@ -61,7 +61,7 @@ Vue.component('page-products', {
         },
         {
           title: '选择分类',
-          width: 240,
+          minWidth: 200,
           slot: 'category'
         },
         {
@@ -180,6 +180,7 @@ Vue.component('page-products', {
     },
     recommendCategory: function (row) {
       var vm = this;
+      if (!row.uid) { vm.$Message.warning('商品缺少唯一标识'); return; }
       vm.$set(vm.recommending, row.uid, true);
       fetch('/api/product/' + row.uid + '/recommend-category', { method: 'POST' })
         .then(function (r) { return r.json(); })
@@ -208,7 +209,8 @@ Vue.component('page-products', {
       es.addEventListener('product-category-updated', function (e) {
         try {
           var data = JSON.parse(e.data);
-          vm.$set(vm.recommending, data.uid, false);
+          var uid = data.uid || data.id;
+          if (uid) vm.$set(vm.recommending, uid, false);
           if (data.skipped) {
             vm.$Message.info('已有手动分类，跳过AI推荐');
           } else if (data.source === 'manual_review') {
@@ -425,6 +427,7 @@ Vue.component('page-products', {
   template: `
     <div class="list-card">
       <div class="filter-bar">
+        <span style="font-size:13px;color:var(--text-secondary);white-space:nowrap">标题</span>
         <i-input v-model="keyword" placeholder="搜索标题..." clearable style="width:220px" @on-enter="loadList(1)" @on-clear="loadList(1)">
           <icon type="ios-search" slot="prefix"></icon>
         </i-input>
@@ -434,20 +437,20 @@ Vue.component('page-products', {
           <i-option value="0">未发布</i-option>
           <i-option value="1">已发布</i-option>
         </i-select>
+        <span style="font-size:13px;color:var(--text-secondary);white-space:nowrap">店小秘类目</span>
+        <i-select v-model="dxmCategoryFilter" clearable filterable placeholder="店小秘类目" style="width:160px" @on-change="loadList(1)">
+          <i-option value="_none">未映射</i-option>
+          <i-option v-for="d in dxmCategoryList" :key="d" :value="d">{{ d }}</i-option>
+        </i-select>
+        <span style="font-size:13px;color:var(--text-secondary);white-space:nowrap">1688类目</span>
+        <i-select v-model="categoryFilter" clearable filterable placeholder="全部类目" style="width:150px" @on-change="loadList(1)">
+          <i-option v-for="c in categoryList" :key="c" :value="c">{{ c }}</i-option>
+        </i-select>
         <span style="font-size:13px;color:var(--text-secondary);white-space:nowrap">删除</span>
         <i-select v-model="deletedFilter" style="width:110px" @on-change="loadList(1)">
           <i-option value="0">正常</i-option>
           <i-option value="1">已删除</i-option>
           <i-option value="all">全部</i-option>
-        </i-select>
-        <span style="font-size:13px;color:var(--text-secondary);white-space:nowrap">类目</span>
-        <i-select v-model="categoryFilter" clearable filterable placeholder="全部类目" style="width:150px" @on-change="loadList(1)">
-          <i-option v-for="c in categoryList" :key="c" :value="c">{{ c }}</i-option>
-        </i-select>
-        <span style="font-size:13px;color:var(--text-secondary);white-space:nowrap">店小秘类目</span>
-        <i-select v-model="dxmCategoryFilter" clearable filterable placeholder="店小秘类目" style="width:160px" @on-change="loadList(1)">
-          <i-option value="_none">未映射</i-option>
-          <i-option v-for="d in dxmCategoryList" :key="d" :value="d">{{ d }}</i-option>
         </i-select>
         <i-button type="primary" icon="ios-search" @click="loadList(1)">搜索</i-button>
       </div>
@@ -488,7 +491,7 @@ Vue.component('page-products', {
           </template>
           <template slot="category" slot-scope="{ row }">
             <div style="display:flex;align-items:center;gap:4px">
-              <category-picker :value="row.customCategory || ''" :path="row.manualCategory || ''"
+              <category-picker :value="row.customCategory || ''" :path="row.manualCategory || (row.dxmCategory ? row.dxmCategory.path : '')"
                 placeholder="搜索或选择分类"
                 @input="saveCategory(row, $event)"
                 @path="saveCategoryPath(row, $event)" />

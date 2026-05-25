@@ -528,7 +528,7 @@ router.post('/product/:id/recommend-category', (req, res) => {
           // 如果已有手动分类，不覆盖
           if (parsed.manualCategory) {
             console.log('[AI分类推荐] 产品#' + parsed.id + ' 已有手动分类，跳过覆盖');
-            sseBroadcast('product-category-updated', { id: parsed.id, category: null, skipped: true });
+            sseBroadcast('product-category-updated', { uid: parsed.uid, category: null, skipped: true });
             return;
           }
           var updates = [];
@@ -565,7 +565,7 @@ router.post('/product/:id/recommend-category', (req, res) => {
           console.log('[AI分类推荐] 产品#' + parsed.id + ' 推荐结果: source=' + source + ' confidence=' + confidence.toFixed(2));
           // score_low 保留最佳候选名称，前端用来提示用户
           sseBroadcast('product-category-updated', {
-            id: parsed.id,
+            uid: parsed.uid,
             category: source === 'score_low' ? (result.category || '') : '',
             source: source,
             confidence: confidence,
@@ -579,7 +579,7 @@ router.post('/product/:id/recommend-category', (req, res) => {
   });
   aiReq.on('error', function (e) {
     console.error('[AI分类推荐] 产品#' + parsed.id + ' 请求失败:', e.message);
-    sseBroadcast('product-category-updated', { id: parsed.id, category: '', source: 'error' });
+    sseBroadcast('product-category-updated', { uid: parsed.uid, category: '', source: 'error' });
   });
   aiReq.write(postData);
   aiReq.end();
