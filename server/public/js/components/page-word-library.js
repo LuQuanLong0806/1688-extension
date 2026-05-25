@@ -23,12 +23,11 @@ Vue.component('page-word-library', {
   },
   computed: {
     columns: function () {
-      var vm = this;
       var cols = [
         { type: 'selection', width: 40, align: 'center' },
         { title: '词语', key: 'value', minWidth: 140 }
       ];
-      if (vm.activeTab === 'mutex') {
+      if (this.activeTab === 'mutex') {
         cols.push({ title: '互斥组', key: 'group_name', width: 140 });
       }
       cols.push({ title: '说明', key: 'description', minWidth: 120 });
@@ -39,6 +38,10 @@ Vue.component('page-word-library', {
         slot: 'actions'
       });
       return cols;
+    },
+    pagedList: function () {
+      var start = (this.page - 1) * this.pageSize;
+      return this.list.slice(start, start + this.pageSize);
     }
   },
   mounted: function () {
@@ -56,6 +59,7 @@ Vue.component('page-word-library', {
       var vm = this;
       if (pg !== undefined) vm.page = pg;
       vm.loading = true;
+      vm.selectedIds = [];
       var params = '?type=' + vm.activeTab;
       if (vm.keyword) params += '&keyword=' + encodeURIComponent(vm.keyword);
       fetch('/api/category-config' + params)
@@ -65,7 +69,6 @@ Vue.component('page-word-library', {
           if (res.ok) {
             vm.list = res.list || [];
             vm.total = vm.list.length;
-            // 提取互斥组列表（去重）
             if (vm.activeTab === 'mutex') {
               var gs = {};
               vm.list.forEach(function (r) { if (r.group_name) gs[r.group_name] = true; });
@@ -138,19 +141,20 @@ Vue.component('page-word-library', {
     batchDelete: function () {
       var vm = this;
       if (!vm.selectedIds.length) { vm.$Message.warning('请先选择'); return; }
+      var count = vm.selectedIds.length;
       vm.$Modal.confirm({
         title: '批量删除',
-        content: '确定要删除选中的 ' + vm.selectedIds.length + ' 条记录吗？',
+        content: '确定要删除选中的 ' + count + ' 条记录吗？',
         onOk: function () {
           fetch('/api/category-config/batch-delete', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ids: vm.selectedIds })
+            body: JSON.stringify({ ids: vm.selectedIds.slice() })
           })
           .then(function (r) { return r.json(); })
           .then(function (res) {
             if (res.ok) {
-              vm.$Message.success('已删除 ' + vm.selectedIds.length + ' 条');
+              vm.$Message.success('已删除 ' + count + ' 条');
               vm.selectedIds = [];
               vm.loadList();
             } else {
@@ -164,13 +168,8 @@ Vue.component('page-word-library', {
     onSelectionChange: function (sel) {
       this.selectedIds = sel.map(function (r) { return r.id; });
     },
-    onPageChange: function (p) { this.page = p; },
-    onPageSizeChange: function (s) { this.pageSize = s; this.page = 1; },
-    filteredList: function () {
-      var vm = this;
-      var start = (vm.page - 1) * vm.pageSize;
-      return vm.list.slice(start, start + vm.pageSize);
-    }
+    onPageChange: function (p) { this.page = p; this.selectedIds = []; },
+    onPageSizeChange: function (s) { this.pageSize = s; this.page = 1; this.selectedIds = []; }
   },
   template: `
     <div class="list-card">
@@ -195,7 +194,8 @@ Vue.component('page-word-library', {
         </div>
       </div>
       <div class="table-wrap">
-        <i-table :columns="columns" :data="filteredList()" :loading="loading" stripe
+        <i-table :columns="columns" :data="pagedList" :loading="loading" stripe
+          row-key="id"
           @on-selection-change="onSelectionChange" style="margin-bottom:0;">
           <template slot="actions" slot-scope="{ row }">
             <div class="action-btns">
