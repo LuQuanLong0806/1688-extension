@@ -286,7 +286,7 @@ Vue.component('page-api-keys', {
             var data = JSON.parse(ev.target.result);
             fetch('/api/settings-import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
               .then(function (r) { return r.json(); }).then(function (res) {
-                if (res.ok) vm.$Message.success('导入成功，共 ' + res.imported + ' 项');
+                if (res.ok) { vm.$Message.success('导入成功，共 ' + res.imported + ' 项'); vm.loadConfigs(); }
                 else vm.$Message.error(res.error || '导入失败');
               }).catch(function () { vm.$Message.error('导入失败'); });
           } catch (err) { vm.$Message.error('文件格式错误'); }
