@@ -112,11 +112,15 @@ async function migrateCloudSchema() {
       actual = (info.rows || []).map(function (r) { return r.name; });
     } catch (e) { continue; }
     for (var c = 0; c < expected.length; c++) {
+      // products.uid 由 migrateProductsUid 单独处理（旧表不能 ADD PRIMARY KEY 列）
+      if (def.name === 'products' && expected[c].name === 'uid') continue;
       if (actual.indexOf(expected[c].name) < 0) {
         try {
           await cloud.client.execute('ALTER TABLE ' + def.name + ' ADD COLUMN ' + expected[c].full);
           console.log('[云同步] 补列: ' + def.name + '.' + expected[c].name);
-        } catch (e) {}
+        } catch (e) {
+          console.error('[云同步] 补列失败: ' + def.name + '.' + expected[c].name + ':', e.message);
+        }
       }
     }
   }
@@ -125,31 +129,42 @@ async function migrateCloudSchema() {
 // 在云端建表
 async function createTables() {
   if (!cloud.client) return false;
-  try {
-    for (var i = 0; i < CLOUD_TABLE_DEFS.length; i++) {
+  for (var i = 0; i < CLOUD_TABLE_DEFS.length; i++) {
+    try {
       await cloud.client.execute(CLOUD_TABLE_DEFS[i].ddl);
+    } catch (e) {
+      console.error('[云同步] 建表 ' + CLOUD_TABLE_DEFS[i].name + ' 失败:', e.message);
     }
-    console.log('[云同步] 建表完成');
-    await migrateCloudSchema();
-    // 旧云端表迁移：检查 products 是否缺少 uid 列
-    await migrateProductsUid();
-    return true;
-  } catch (e) {
-    console.error('[云同步] 建表失败:', e.message);
-    return false;
   }
+  console.log('[云同步] 建表完成');
+  await migrateCloudSchema();
+  await migrateProductsUid();
+  return true;
 }
 
 // 旧云端 products 表 uid 迁移
 async function migrateProductsUid() {
   if (!cloud.client) return;
   try {
-    // 确保 uid 列存在（migrateCloudSchema 可能已补上，也可能没有）
+    // 确保 uid 列存在
     var info = await cloud.client.execute('PRAGMA table_info(products)');
     var cols = (info.rows || []).map(function (r) { return r.name; });
     if (cols.indexOf('uid') < 0) {
-      await cloud.client.execute("ALTER TABLE products ADD COLUMN uid TEXT DEFAULT ''");
-      console.log('[云同步] 补列: products.uid');
+      try {
+        // 旧表已有 PK，不能 ADD PRIMARY KEY，只加普通列 + 唯一索引
+        await cloud.client.execute("ALTER TABLE products ADD COLUMN uid TEXT DEFAULT ''");
+        console.log('[云同步] 补列: products.uid');
+      } catch (alterErr) {
+        console.error('[云同步] ALTER TABLE products ADD uid 失败:', alterErr.message);
+        return;
+      }
+    }
+    // 重新检查 uid 列是否真的存在
+    var info2 = await cloud.client.execute('PRAGMA table_info(products)');
+    var cols2 = (info2.rows || []).map(function (r) { return r.name; });
+    if (cols2.indexOf('uid') < 0) {
+      console.error('[云同步] uid 列仍不存在，跳过回填');
+      return;
     }
     // 为空 uid 的行回填
     var emptyRows = await cloud.client.execute("SELECT rowid FROM products WHERE uid IS NULL OR uid = ''");
@@ -162,7 +177,11 @@ async function migrateProductsUid() {
       console.log('[云同步] products uid 回填完成');
     }
     // 确保唯一索引存在（幂等）
-    await cloud.client.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_products_uid ON products(uid)');
+    try {
+      await cloud.client.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_products_uid ON products(uid)');
+    } catch (idxErr) {
+      console.error('[云同步] uid 唯一索引创建失败（可能有重复空值）:', idxErr.message);
+    }
   } catch (e) {
     console.error('[云同步] products uid 迁移失败:', e.message);
   }
@@ -182,7 +201,7 @@ async function connect() {
     if (result.rows && result.rows.length > 0) {
       cloud.connected = true;
       console.log('[云同步] Turso 连接成功');
-      migrateCloudSchema().catch(function () {});
+      createTables().catch(function () {});
       return true;
     }
   } catch (e) {

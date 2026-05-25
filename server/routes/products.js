@@ -327,7 +327,7 @@ router.get('/product/check', (req, res) => {
   if (!offerId) return res.json({ exists: false });
   // 转义 LIKE 通配符，防止 offerId 中的 %/_ 被误解析
   const escaped = offerId.replace(/[%_]/g, '\\$&');
-  const row = getOne('SELECT id, title, status FROM products WHERE deleted = 0 AND source_url LIKE ? ESCAPE "\\\\" LIMIT 1', ['%' + escaped + '%']);
+  const row = getOne('SELECT id, uid, title, status FROM products WHERE deleted = 0 AND source_url LIKE ? LIMIT 1', ['%' + offerId + '%']);
   if (row) {
     res.json({ exists: true, id: row.id, title: row.title, status: row.status });
   } else {

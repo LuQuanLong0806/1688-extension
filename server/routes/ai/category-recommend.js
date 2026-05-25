@@ -365,10 +365,9 @@ router.post('/suggest-category', async function (req, res) {
     var seenPaths = {};
     var MAX_CANDIDATES = 50;
 
-    // 数据库搜索候选
-    var searchKeywords = keywords.slice(0, Math.max(2, Math.min(6, keywords.length)));
-    // 把 1688 类目词也加入搜索
-    aliCategoryWords.forEach(function (w) {
+    // 数据库搜索候选：1688 类目词优先，LLM 关键词补充
+    var searchKeywords = aliCategoryWords.slice();
+    keywords.forEach(function (w) {
       if (searchKeywords.indexOf(w) < 0) searchKeywords.push(w);
     });
     searchKeywords = searchKeywords.slice(0, 8);
@@ -417,13 +416,19 @@ router.post('/suggest-category', async function (req, res) {
 
     // 互斥过滤
     var beforeFilter = candidates.length;
-    candidates = candidates.filter(function (c) {
+    var filteredCandidates = candidates.filter(function (c) {
       if (isMutexConflict(titleKws, mutexAliWords, c.path)) {
         console.log('[分类推荐] 互斥过滤:', c.name, c.path);
         return false;
       }
       return true;
     });
+    // 保底：互斥过滤后为空则保留原始候选（LLM品类提示可能不准）
+    if (filteredCandidates.length > 0) {
+      candidates = filteredCandidates;
+    } else {
+      console.log('[分类推荐] 互斥过滤清空全部候选，保留原始候选');
+    }
     console.log('[分类推荐] 互斥过滤:', beforeFilter, '→', candidates.length);
 
     // 计分
@@ -449,7 +454,7 @@ router.post('/suggest-category', async function (req, res) {
     // Step 7: 判定输出
     var best = candidates[0];
 
-    if (best.score >= 0.6) {
+    if (best.score >= 0.4) {
       console.log('[分类推荐] 计分命中:', best.name, '分数:', best.score.toFixed(3));
       return res.json({
         ok: true, source: 'score', category: best.name,
