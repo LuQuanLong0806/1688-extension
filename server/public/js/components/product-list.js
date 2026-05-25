@@ -9,6 +9,7 @@ Vue.component('page-products', {
       pageSize: 20,
       keyword: '',
       statusFilter: 'all',
+      deletedFilter: '0',
       categoryFilter: '',
       categoryList: [],
       dxmCategoryFilter: '',
@@ -88,6 +89,7 @@ Vue.component('page-products', {
         if (!s) return;
         if (s.keyword !== undefined) this.keyword = s.keyword;
         if (s.statusFilter !== undefined) this.statusFilter = s.statusFilter;
+        if (s.deletedFilter !== undefined) this.deletedFilter = s.deletedFilter;
         if (s.categoryFilter !== undefined)
           this.categoryFilter = s.categoryFilter;
         if (s.dxmCategoryFilter !== undefined)
@@ -103,6 +105,7 @@ Vue.component('page-products', {
           JSON.stringify({
             keyword: this.keyword,
             statusFilter: this.statusFilter,
+            deletedFilter: this.deletedFilter,
             categoryFilter: this.categoryFilter,
             dxmCategoryFilter: this.dxmCategoryFilter,
             page: this.page,
@@ -267,6 +270,7 @@ Vue.component('page-products', {
       if (vm.keyword.trim()) params.set('keyword', vm.keyword.trim());
       if (vm.statusFilter && vm.statusFilter !== 'all')
         params.set('status', vm.statusFilter);
+      if (vm.deletedFilter) params.set('deleted', vm.deletedFilter);
       if (vm.categoryFilter) params.set('category', vm.categoryFilter);
       if (vm.dxmCategoryFilter) params.set('dxmCategory', vm.dxmCategoryFilter);
       fetch('/api/product?' + params.toString())
@@ -429,6 +433,12 @@ Vue.component('page-products', {
           <i-option value="all">全部状态</i-option>
           <i-option value="0">未发布</i-option>
           <i-option value="1">已发布</i-option>
+        </i-select>
+        <span style="font-size:13px;color:var(--text-secondary);white-space:nowrap">删除</span>
+        <i-select v-model="deletedFilter" style="width:110px" @on-change="loadList(1)">
+          <i-option value="0">正常</i-option>
+          <i-option value="1">已删除</i-option>
+          <i-option value="all">全部</i-option>
         </i-select>
         <span style="font-size:13px;color:var(--text-secondary);white-space:nowrap">类目</span>
         <i-select v-model="categoryFilter" clearable filterable placeholder="全部类目" style="width:150px" @on-change="loadList(1)">

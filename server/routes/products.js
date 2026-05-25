@@ -343,9 +343,18 @@ router.get('/product', (req, res) => {
   const status = req.query.status;
   const category = (req.query.category || '').trim();
   const dxmCategory = (req.query.dxmCategory || '').trim();
+  const deleted = req.query.deleted;
 
-  let where = ['deleted = 0'];
+  let where = [];
   let params = [];
+
+  if (deleted === '1') {
+    where.push('deleted = 1');
+  } else if (deleted === 'all') {
+    // 不加 deleted 条件
+  } else {
+    where.push('deleted = 0');
+  }
 
   if (keyword) {
     where.push('title LIKE ?');

@@ -339,7 +339,11 @@ Vue.component('detail-modal', {
       }
     },
     // 拖拽替换SKU图
-    onDragStart: function (url, field, idx) {
+    onDragStart: function (url, field, idx, e) {
+      if (e) {
+        e.dataTransfer.setData('text/plain', url);
+        e.dataTransfer.effectAllowed = 'move';
+      }
       this.$root.$refs.thumbPreview.close();
       this.dragImageUrl = url;
       this.dragSourceField = field;
@@ -548,7 +552,7 @@ Vue.component('detail-modal', {
             <div class="img-item sku-img-checkable" v-for="(url, i) in editable.main_images" :key="'m'+i"
               :class="{ 'sku-img-unchecked': !isMainImageChecked(i), 'img-drag-source': isDragSource('main', i) }"
               draggable="true"
-              @dragstart="onDragStart(url, 'main', i)"
+              @dragstart="onDragStart(url, 'main', i, $event)"
               @dragend="onDragEnd"
               @click="toggleMainImage(i)">
               <img :src="url" loading="lazy"
@@ -575,7 +579,7 @@ Vue.component('detail-modal', {
             <div class="img-item sku-img-checkable" v-for="(url, i) in editable.detail_images" :key="'di'+i"
               :class="{ 'sku-img-unchecked': !isDetailImageChecked(i), 'img-drag-source': isDragSource('detail', i) }"
               draggable="true"
-              @dragstart="onDragStart(url, 'detail', i)"
+              @dragstart="onDragStart(url, 'detail', i, $event)"
               @dragend="onDragEnd"
               @click="toggleDetailImage(i)">
               <img :src="url" loading="lazy"
