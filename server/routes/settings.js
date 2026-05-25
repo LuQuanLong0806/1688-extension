@@ -90,9 +90,17 @@ router.post('/settings-import', (req, res) => {
     if (data['zhipu_api_key'] && !data['zhipu_api_keys']) {
       var oldKey = String(data['zhipu_api_key']).trim();
       if (oldKey) {
-        run("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('zhipu_api_keys', ?, CURRENT_TIMESTAMP)", [sec.encrypt(JSON.stringify([oldKey]))]);
+        run("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('zhipu_api_keys', ?, CURRENT_TIMESTAMP)", [sec.encrypt(JSON.stringify([{key: oldKey, label: ''}]))]);
       }
       run("DELETE FROM settings WHERE key = 'zhipu_api_key'");
+    }
+    // 智谱：旧格式纯字符串数组 → {key, label} 对象数组
+    if (data['zhipu_api_keys']) {
+      var arr;
+      try { arr = JSON.parse(data['zhipu_api_keys']); } catch (e) { arr = null; }
+      if (Array.isArray(arr) && arr.length && typeof arr[0] === 'string') {
+        run("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('zhipu_api_keys', ?, CURRENT_TIMESTAMP)", [sec.encrypt(JSON.stringify(arr.map(function (k) { return {key: k, label: ''}; })))]);
+      }
     }
     // ai_configs 内 provider 旧格式迁移
     if (data['ai_configs']) {
@@ -102,13 +110,22 @@ router.post('/settings-import', (req, res) => {
         var changed = false;
         // 通义千问：apiKey 字符串 → apiKeys 数组
         if (cfg.providers.qwen && cfg.providers.qwen.apiKey && !cfg.providers.qwen.apiKeys) {
-          cfg.providers.qwen.apiKeys = [cfg.providers.qwen.apiKey];
+          cfg.providers.qwen.apiKeys = [{key: cfg.providers.qwen.apiKey, label: ''}];
           delete cfg.providers.qwen.apiKey;
           changed = true;
         }
+        // 通义千问：旧格式纯字符串数组 → {key, label} 对象数组
+        if (cfg.providers.qwen && cfg.providers.qwen.apiKeys && Array.isArray(cfg.providers.qwen.apiKeys)) {
+          var qwenMigrated = false;
+          cfg.providers.qwen.apiKeys = cfg.providers.qwen.apiKeys.map(function (e) {
+            if (typeof e === 'string') { qwenMigrated = true; return {key: e, label: ''}; }
+            return e;
+          });
+          if (qwenMigrated) changed = true;
+        }
         // 混元：secretId/secretKey → accounts 数组
         if (cfg.providers.hunyuan && cfg.providers.hunyuan.secretId && !cfg.providers.hunyuan.accounts) {
-          cfg.providers.hunyuan.accounts = [{ secretId: cfg.providers.hunyuan.secretId, secretKey: cfg.providers.hunyuan.secretKey }];
+          cfg.providers.hunyuan.accounts = [{ secretId: cfg.providers.hunyuan.secretId, secretKey: cfg.providers.hunyuan.secretKey, label: '' }];
           delete cfg.providers.hunyuan.secretId;
           delete cfg.providers.hunyuan.secretKey;
           changed = true;

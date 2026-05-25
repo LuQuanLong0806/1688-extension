@@ -945,6 +945,30 @@ body {
 .ai-key-tag:hover { border-color: var(--accent); color: var(--accent); }
 .ai-key-tag .ivu-icon { cursor: pointer; font-size: 14px; color: var(--text-muted); transition: color var(--transition); margin-left: 2px; }
 .ai-key-tag .ivu-icon:hover { color: var(--danger); }
+.ai-key-label-text {
+  font-size: 11px; color: var(--accent); font-weight: 500;
+  padding: 0 2px; font-family: inherit; margin-left: 2px;
+}
+.ai-key-edit-icon:hover { color: var(--accent) !important; }
+.ai-key-del-icon:hover { color: var(--danger) !important; }
+.ai-modal-mask {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,.4); z-index: 2000;
+  display: flex; align-items: center; justify-content: center;
+}
+.ai-modal {
+  background: var(--bg-surface); border-radius: var(--radius);
+  width: 420px; max-width: 90vw; box-shadow: 0 4px 24px rgba(0,0,0,.15);
+}
+.ai-modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 20px; border-bottom: 1px solid var(--border-subtle);
+}
+.ai-modal-body { padding: 20px; }
+.ai-modal-footer {
+  display: flex; justify-content: flex-end; gap: 8px;
+  padding: 12px 20px; border-top: 1px solid var(--border-subtle);
+}
 .ai-key-count {
   font-size: 11px; padding: 2px 8px; border-radius: 10px;
   background: var(--accent-subtle); color: var(--accent);

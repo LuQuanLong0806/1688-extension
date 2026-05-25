@@ -73,7 +73,7 @@ router.get('/configs', function (req, res) {
   result._global = {
     apiKey: providers.maskApiKey(providers.getApiKey()),
     configured: !!providers.getApiKey(),
-    keys: zhipuKeys.map(providers.maskApiKey)
+    keys: zhipuKeys.map(function (e) { return { key: providers.maskApiKey(e.key), label: e.label || '' }; })
   };
   // 供应商多 key
   var qwenKeys = providers.getQwenKeys();
@@ -82,13 +82,13 @@ router.get('/configs', function (req, res) {
   result.providers = {
     qwen: {
       label: '通义千问（阿里云）',
-      keys: qwenKeys.map(providers.maskApiKey),
+      keys: qwenKeys.map(function (e) { return { key: providers.maskApiKey(e.key), label: e.label || '' }; }),
       configured: qwenKeys.length > 0
     },
     hunyuan: {
       label: '腾讯混元（腾讯云）',
       accounts: hunyuanAccounts.map(function (a) {
-        return { secretId: providers.maskApiKey(a.secretId), secretKey: providers.maskApiKey(a.secretKey) };
+        return { secretId: providers.maskApiKey(a.secretId), secretKey: providers.maskApiKey(a.secretKey), label: a.label || '' };
       }),
       configured: hunyuanAccounts.length > 0
     },
@@ -137,7 +137,8 @@ router.post('/global-key', function (req, res) {
   if (key.indexOf('****') !== -1) return res.status(400).json({ error: '请输入完整API Key' });
   try {
     var keys = providers.getZhipuKeys();
-    if (keys.indexOf(key) === -1) keys.push(key);
+    if (keys.some(function (e) { return (e.key || e) === key; })) return res.status(400).json({ error: 'Key已存在' });
+    keys.push({ key: key, label: '' });
     providers.saveZhipuKeys(keys);
     console.log('[AI配置] 智谱API Key已添加，共', keys.length, '个');
     res.json({ ok: true });
@@ -155,8 +156,8 @@ router.post('/zhipu-keys', function (req, res) {
   if (action === 'add') {
     var key = (req.body.key || '').trim();
     if (!key) return res.status(400).json({ error: 'Key不能为空' });
-    if (keys.indexOf(key) !== -1) return res.status(400).json({ error: 'Key已存在' });
-    keys.push(key);
+    if (keys.some(function (e) { return (e.key || e) === key; })) return res.status(400).json({ error: 'Key已存在' });
+    keys.push({ key: key, label: (req.body.label || '').trim() });
     providers.saveZhipuKeys(keys);
     console.log('[AI配置] 智谱Key已添加，共', keys.length, '个');
     res.json({ ok: true, count: keys.length });
@@ -167,6 +168,12 @@ router.post('/zhipu-keys', function (req, res) {
     providers.saveZhipuKeys(keys);
     console.log('[AI配置] 智谱Key已删除，剩余', keys.length, '个');
     res.json({ ok: true, count: keys.length });
+  } else if (action === 'update-label') {
+    var idx = parseInt(req.body.index);
+    if (isNaN(idx) || idx < 0 || idx >= keys.length) return res.status(400).json({ error: '无效索引' });
+    keys[idx].label = (req.body.label || '').trim();
+    providers.saveZhipuKeys(keys);
+    res.json({ ok: true });
   } else {
     res.status(400).json({ error: '未知操作' });
   }
@@ -182,10 +189,10 @@ router.post('/qwen-keys', function (req, res) {
   if (action === 'add') {
     var key = (req.body.key || '').trim();
     if (!key) return res.status(400).json({ error: 'Key不能为空' });
-    if (keys.indexOf(key) !== -1) return res.status(400).json({ error: 'Key已存在' });
-    keys.push(key);
+    if (keys.some(function (e) { return (e.key || e) === key; })) return res.status(400).json({ error: 'Key已存在' });
+    keys.push({ key: key, label: (req.body.label || '').trim() });
     configs.providers.qwen.apiKeys = keys;
-    delete configs.providers.qwen.apiKey; // 清理旧格式
+    delete configs.providers.qwen.apiKey;
     providers.saveAIConfigs(configs);
     console.log('[AI配置] 通义千问Key已添加，共', keys.length, '个');
     res.json({ ok: true, count: keys.length });
@@ -197,6 +204,13 @@ router.post('/qwen-keys', function (req, res) {
     providers.saveAIConfigs(configs);
     console.log('[AI配置] 通义千问Key已删除，剩余', keys.length, '个');
     res.json({ ok: true, count: keys.length });
+  } else if (action === 'update-label') {
+    var idx = parseInt(req.body.index);
+    if (isNaN(idx) || idx < 0 || idx >= keys.length) return res.status(400).json({ error: '无效索引' });
+    keys[idx].label = (req.body.label || '').trim();
+    configs.providers.qwen.apiKeys = keys;
+    providers.saveAIConfigs(configs);
+    res.json({ ok: true });
   } else {
     res.status(400).json({ error: '未知操作' });
   }
@@ -213,9 +227,9 @@ router.post('/hunyuan-keys', function (req, res) {
     var sid = (req.body.secretId || '').trim();
     var skey = (req.body.secretKey || '').trim();
     if (!sid || !skey) return res.status(400).json({ error: '请填写 SecretId 和 SecretKey' });
-    accounts.push({ secretId: sid, secretKey: skey });
+    accounts.push({ secretId: sid, secretKey: skey, label: (req.body.label || '').trim() });
     configs.providers.hunyuan.accounts = accounts;
-    delete configs.providers.hunyuan.secretId; // 清理旧格式
+    delete configs.providers.hunyuan.secretId;
     delete configs.providers.hunyuan.secretKey;
     providers.saveAIConfigs(configs);
     console.log('[AI配置] 混元账号已添加，共', accounts.length, '个');
@@ -228,6 +242,13 @@ router.post('/hunyuan-keys', function (req, res) {
     providers.saveAIConfigs(configs);
     console.log('[AI配置] 混元账号已删除，剩余', accounts.length, '个');
     res.json({ ok: true, count: accounts.length });
+  } else if (action === 'update-label') {
+    var idx = parseInt(req.body.index);
+    if (isNaN(idx) || idx < 0 || idx >= accounts.length) return res.status(400).json({ error: '无效索引' });
+    accounts[idx].label = (req.body.label || '').trim();
+    configs.providers.hunyuan.accounts = accounts;
+    providers.saveAIConfigs(configs);
+    res.json({ ok: true });
   } else {
     res.status(400).json({ error: '未知操作' });
   }

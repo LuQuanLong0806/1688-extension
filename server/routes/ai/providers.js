@@ -8,9 +8,15 @@ var API_BASE = 'https://open.bigmodel.cn/api/paas/v4';
 
 // ===== 多 Key 存储 =====
 
+// 统一归一化：旧格式纯字符串 → {key, label}
+function normalizeKeyEntry(entry) {
+  if (typeof entry === 'string') return { key: entry, label: '' };
+  return entry;
+}
+
 function getApiKey() {
   var keys = getZhipuKeys();
-  return keys.length ? keys[0] : '';
+  return keys.length ? keys[0].key : '';
 }
 
 function getZhipuKeys() {
@@ -18,13 +24,13 @@ function getZhipuKeys() {
     var row = require('../../db').getOne("SELECT value FROM settings WHERE key = 'zhipu_api_keys'");
     if (row && row.value) {
       var arr = JSON.parse(sec.decrypt(row.value));
-      if (Array.isArray(arr) && arr.length) return arr.filter(function (k) { return k && k.trim(); });
+      if (Array.isArray(arr) && arr.length) return arr.filter(function (e) { var k = typeof e === 'string' ? e : (e && e.key); return k && k.trim(); }).map(normalizeKeyEntry);
     }
   } catch (e) {}
   // 兼容旧格式：单个 key
   try {
     var row = require('../../db').getOne("SELECT value FROM settings WHERE key = 'zhipu_api_key'");
-    if (row && row.value) { var v = sec.decrypt(row.value).trim(); if (v) return [v]; }
+    if (row && row.value) { var v = sec.decrypt(row.value).trim(); if (v) return [{ key: v, label: '' }]; }
   } catch (e) {}
   return [];
 }
@@ -36,15 +42,15 @@ function saveZhipuKeys(keys) {
 
 function getQwenKeys() {
   var cfg = getProviderConfig('qwen');
-  if (cfg.apiKeys && Array.isArray(cfg.apiKeys) && cfg.apiKeys.length) return cfg.apiKeys.filter(function (k) { return k && k.trim(); });
-  if (cfg.apiKey && cfg.apiKey.trim()) return [cfg.apiKey.trim()]; // 兼容旧格式
+  if (cfg.apiKeys && Array.isArray(cfg.apiKeys) && cfg.apiKeys.length) return cfg.apiKeys.filter(function (e) { var k = typeof e === 'string' ? e : (e && e.key); return k && k.trim(); }).map(normalizeKeyEntry);
+  if (cfg.apiKey && cfg.apiKey.trim()) return [{ key: cfg.apiKey.trim(), label: '' }];
   return [];
 }
 
 function getHunyuanAccounts() {
   var cfg = getProviderConfig('hunyuan');
   if (cfg.accounts && Array.isArray(cfg.accounts) && cfg.accounts.length) return cfg.accounts.filter(function (a) { return a.secretId && a.secretKey; });
-  if (cfg.secretId && cfg.secretKey) return [{ secretId: cfg.secretId, secretKey: cfg.secretKey }]; // 兼容旧格式
+  if (cfg.secretId && cfg.secretKey) return [{ secretId: cfg.secretId, secretKey: cfg.secretKey, label: '' }];
   return [];
 }
 
@@ -239,8 +245,8 @@ function runLLMChain(chain, apiPath, body) {
       var keys = getZhipuKeys();
       if (!keys.length) return tryModel(i + 1);
       body.model = step.model; body.enable_thinking = false;
-      return tryKeys('zhipu', keys, 0, function (key) {
-        return zhipuRequest(apiPath, body, { apiKey: key });
+      return tryKeys('zhipu', keys, 0, function (entry) {
+        return zhipuRequest(apiPath, body, { apiKey: entry.key || entry });
       }).then(function (r) { markModelSuccess(step.name); return r; })
         .catch(function (err) {
           if (err && err.message === '__ALL_KEYS_EXHAUSTED__') {
@@ -254,8 +260,8 @@ function runLLMChain(chain, apiPath, body) {
     if (step.provider === 'qwen') {
       var keys = getQwenKeys();
       if (!keys.length) return tryModel(i + 1);
-      return tryKeys('qwen', keys, 0, function (key) {
-        return qwenChatRequest(body.messages, body.temperature, body.max_tokens, key);
+      return tryKeys('qwen', keys, 0, function (entry) {
+        return qwenChatRequest(body.messages, body.temperature, body.max_tokens, entry.key || entry);
       }).then(function (r) { markModelSuccess(step.name); return r; })
         .catch(function (err) {
           if (err && err.message === '__ALL_KEYS_EXHAUSTED__') {
@@ -357,7 +363,7 @@ function zhipuRequest(apiPath, body, options) {
 }
 
 module.exports = {
-  API_BASE, AI_USE_CASES,
+  API_BASE, AI_USE_CASES, normalizeKeyEntry,
   getApiKey, getZhipuKeys, saveZhipuKeys, getQwenKeys, getHunyuanAccounts,
   getAIConfigs, saveAIConfigs, getAIConfig, getProviderConfig, maskApiKey,
   zhipuRequest,
