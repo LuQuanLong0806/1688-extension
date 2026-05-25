@@ -27,15 +27,19 @@ router.post('/config', async (req, res) => {
     token = oldConfig.token;
   }
   cloudDb.saveConfig({ url: url, token: token });
-  // 尝试连接
-  var ok = await cloudDb.connect();
-  res.json({ ok: ok, message: ok ? '连接成功' : '连接失败，请检查配置' });
+  res.json({ ok: true, message: '配置已保存' });
 });
 
 // 测试连接
 router.post('/test', async (req, res) => {
   var ok = await cloudDb.connect();
   res.json({ ok: ok, message: ok ? '连接成功' : '连接失败' });
+});
+
+// 断开连接
+router.post('/disconnect', (req, res) => {
+  cloudDb.disconnect();
+  res.json({ ok: true, message: '已断开连接' });
 });
 
 // 初始化云端（建表 + 上传本地数据）

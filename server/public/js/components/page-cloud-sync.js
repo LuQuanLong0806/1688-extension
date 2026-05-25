@@ -77,6 +77,41 @@ Vue.component('page-cloud-sync', {
         })
         .catch(function () { vm.loading = false; });
     },
+    connectCloud: function () {
+      var vm = this;
+      vm.syncing = true;
+      vm.syncingType = 'connect';
+      fetch('/api/sync/test', { method: 'POST' })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (data.ok) vm.$Message.success('连接成功');
+          else vm.$Message.error(data.message || '连接失败');
+          vm.syncing = false;
+          vm.syncingType = '';
+          vm.loadConfig();
+        })
+        .catch(function () { vm.$Message.error('连接失败'); vm.syncing = false; vm.syncingType = ''; });
+    },
+    disconnectCloud: function () {
+      var vm = this;
+      vm.$Modal.confirm({
+        title: '断开连接',
+        content: '确定要断开 Turso 云端连接吗？断开后云同步功能将不可用。',
+        onOk: function () {
+          vm.syncing = true;
+          vm.syncingType = 'disconnect';
+          fetch('/api/sync/disconnect', { method: 'POST' })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+              vm.$Message.success('已断开连接');
+              vm.syncing = false;
+              vm.syncingType = '';
+              vm.loadConfig();
+            })
+            .catch(function () { vm.$Message.error('操作失败'); vm.syncing = false; vm.syncingType = ''; });
+        }
+      });
+    },
     initCloud: function () {
       var vm = this;
       vm.$Modal.confirm({
@@ -151,10 +186,20 @@ Vue.component('page-cloud-sync', {
           </div>\
         </div>\
         <div class="sync-banner-actions">\
-          <Button type="warning" :loading="isBusy(\'init\')" @click="initCloud">\
+          <template v-if="status.connected">\
+            <Button type="error" :loading="isBusy(\'disconnect\')" @click="disconnectCloud">\
+              <icon type="md-close-circle" style="margin-right:4px"></icon>断开连接\
+            </Button>\
+          </template>\
+          <template v-else-if="status.config">\
+            <Button type="success" :loading="isBusy(\'connect\')" @click="connectCloud">\
+              <icon type="md-cloud-done" style="margin-right:4px"></icon>连接\
+            </Button>\
+          </template>\
+          <Button v-if="status.connected" type="warning" :loading="isBusy(\'init\')" @click="initCloud">\
             <icon type="md-cloud-upload" style="margin-right:4px"></icon>初始化云端\
           </Button>\
-          <Button type="primary" :loading="isBusy(\'sync\')" @click="fullSync">\
+          <Button v-if="status.connected" type="primary" :loading="isBusy(\'sync\')" @click="fullSync">\
             <icon type="md-sync" style="margin-right:4px"></icon>双向同步（知识库）\
           </Button>\
         </div>\

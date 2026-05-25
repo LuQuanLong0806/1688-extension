@@ -168,6 +168,14 @@ async function cloudRun(sql, params) { return cloud.run(sql, params); }
 async function cloudGetOne(sql, params) { return cloud.getOne(sql, params); }
 async function cloudGetAll(sql, params) { return cloud.getAll(sql, params); }
 
+function disconnect() {
+  cloud.client = null;
+  cloud.connected = false;
+  cloud.lastSyncTime = null;
+  console.log('[云同步] 已主动断开 Turso 连接');
+  return true;
+}
+
 function getStatus() {
   return {
     connected: cloud.connected,
@@ -182,6 +190,7 @@ var sync = require('./sync')(cloud, dbModule);
 
 module.exports = {
   connect: connect,
+  disconnect: disconnect,
   createTables: createTables,
   cloudRun: cloudRun,
   cloudGetOne: cloudGetOne,

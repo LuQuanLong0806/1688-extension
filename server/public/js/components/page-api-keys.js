@@ -21,7 +21,8 @@ Vue.component('page-api-keys', {
       tursoUrl: '',
       tursoToken: '',
       tursoStatus: { connected: false, config: false },
-      tursoSaving: false
+      tursoSaving: false,
+      tursoEditing: false
     };
   },
   mounted: function () {
@@ -275,6 +276,7 @@ Vue.component('page-api-keys', {
         vm.tursoUrl = data.url || '';
         vm.tursoToken = data.token || '';
         vm.tursoStatus = { connected: data.status ? data.status.connected : false, config: data.configured };
+        vm.tursoEditing = false;
       }).catch(function () {});
     },
     saveTurso: function () {
@@ -288,21 +290,10 @@ Vue.component('page-api-keys', {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: url, token: token })
       }).then(function (r) { return r.json(); }).then(function (data) {
-        if (data.ok) { vm.$Message.success(data.message); vm.loadTurso(); }
-        else vm.$Message.error(data.message || '连接失败');
+        if (data.ok) { vm.$Message.success('配置已保存'); vm.loadTurso(); }
+        else vm.$Message.error(data.message || '保存失败');
         vm.tursoSaving = false;
       }).catch(function () { vm.$Message.error('保存失败'); vm.tursoSaving = false; });
-    },
-    testTurso: function () {
-      var vm = this;
-      vm.tursoSaving = true;
-      fetch('/api/sync/test', { method: 'POST' })
-        .then(function (r) { return r.json(); }).then(function (data) {
-          if (data.ok) vm.$Message.success('连接成功');
-          else vm.$Message.error(data.message || '连接失败');
-          vm.loadTurso();
-          vm.tursoSaving = false;
-        }).catch(function () { vm.$Message.error('测试失败'); vm.tursoSaving = false; });
     },
     exportSettings: function () { window.open('/api/settings-export', '_blank'); },
     importSettings: function () {
@@ -515,22 +506,24 @@ Vue.component('page-api-keys', {
           <div class="ai-module-header">
             <span class="ai-module-title">Turso 连接配置</span>
             <span style="font-size:12px;color:var(--text-muted);margin-left:8px">云端数据库，多设备同步知识库和商品数据</span>
-            <span v-if="tursoStatus.connected" style="font-size:12px;color:var(--success);margin-left:8px">已连接</span>
-            <span v-else-if="tursoStatus.config" style="font-size:12px;color:var(--accent);margin-left:8px">已配置（未连接）</span>
-            <span v-else style="font-size:12px;color:var(--text-muted);margin-left:8px">未配置</span>
           </div>
           <div class="ai-provider-row" style="flex-wrap:wrap;gap:10px">
             <div style="display:flex;gap:10px;align-items:center;width:100%">
               <span style="width:100px;flex-shrink:0;color:var(--text-secondary);font-size:13px">Database URL</span>
-              <i-input v-model="tursoUrl" size="small" placeholder="libsql://your-db-name.turso.io" style="flex:1"></i-input>
+              <i-input v-model="tursoUrl" size="small" :disabled="tursoStatus.config && !tursoEditing" placeholder="libsql://your-db-name.turso.io" style="flex:1"></i-input>
             </div>
             <div style="display:flex;gap:10px;align-items:center;width:100%">
               <span style="width:100px;flex-shrink:0;color:var(--text-secondary);font-size:13px">Auth Token</span>
-              <i-input v-model="tursoToken" type="password" password size="small" placeholder="eyJ..." style="flex:1"></i-input>
+              <i-input v-model="tursoToken" type="password" password size="small" :disabled="tursoStatus.config && !tursoEditing" placeholder="eyJ..." style="flex:1"></i-input>
             </div>
             <div style="display:flex;gap:8px;margin-left:110px">
-              <i-button type="primary" size="small" :loading="tursoSaving" @click="saveTurso()">保存并连接</i-button>
-              <i-button size="small" :loading="tursoSaving" @click="testTurso()">测试连接</i-button>
+              <template v-if="tursoStatus.config && !tursoEditing">
+                <i-button size="small" @click="tursoEditing = true">修改</i-button>
+              </template>
+              <template v-else>
+                <i-button type="primary" size="small" :loading="tursoSaving" @click="saveTurso()">保存</i-button>
+                <i-button v-if="tursoStatus.config" size="small" @click="loadTurso()">取消</i-button>
+              </template>
             </div>
           </div>
         </div>
