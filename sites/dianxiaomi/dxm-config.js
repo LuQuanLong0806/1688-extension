@@ -20,12 +20,21 @@
 
   var SERVER_URL_KEY = '1688_server_url';
 
-  // ========== 服务端同步 ==========
-  var pendingSyncs = {};
-  var syncTimer = null;
+  // ========== 跨域共享服务器地址（chrome.storage.local）==========
+  // 启动时从 chrome.storage.local 读取到 localStorage，其他脚本直接读 localStorage 即可
+  try {
+    chrome.storage.local.get(SERVER_URL_KEY, function (r) {
+      if (r[SERVER_URL_KEY]) localStorage.setItem(SERVER_URL_KEY, r[SERVER_URL_KEY]);
+    });
+  } catch (e) {}
 
   function getServerUrl() {
     return localStorage.getItem(SERVER_URL_KEY) || 'http://localhost:3000';
+  }
+
+  function setServerUrl(url) {
+    localStorage.setItem(SERVER_URL_KEY, url);
+    try { var _o = {}; _o[SERVER_URL_KEY] = url; chrome.storage.local.set(_o); } catch (e) {}
   }
 
   var SYNC_TS_KEY = '__dxm_bee_sync_ts';

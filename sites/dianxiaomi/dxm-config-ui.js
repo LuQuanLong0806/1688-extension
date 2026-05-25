@@ -274,12 +274,20 @@
     clearTimeout(serverTimer);
     serverTimer = setTimeout(function () {
       var url = self.value.trim().replace(/\/+$/, '');
-      localStorage.setItem('1688_server_url', url);
+      if (Config.setServerUrl) {
+        Config.setServerUrl(url);
+      } else {
+        localStorage.setItem('1688_server_url', url);
+      }
     }, 500);
   });
   serverInput.addEventListener('blur', function () {
     var url = this.value.trim().replace(/\/+$/, '');
-    localStorage.setItem('1688_server_url', url);
+    if (Config.setServerUrl) {
+      Config.setServerUrl(url);
+    } else {
+      localStorage.setItem('1688_server_url', url);
+    }
     console.log('%c[小蜜蜂] 服务器地址已保存: ' + url, 'color:#FFA000;font-weight:bold');
   });
   serverInput.addEventListener('click', function (e) {

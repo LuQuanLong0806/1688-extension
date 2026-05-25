@@ -297,11 +297,15 @@
   // ========== Settings button ==========
   var settingsBtn = document.getElementById('__1688_grab_settings');
   settingsBtn.addEventListener('click', function () {
-    var current = localStorage.getItem('1688_server_url') || 'http://localhost:3000';
+    var current = CollectData.getServerUrl();
     var url = prompt('设置服务器地址：', current);
     if (url !== null) {
       url = url.trim().replace(/\/+$/, '');
-      localStorage.setItem('1688_server_url', url);
+      if (CollectData.setServerUrl) {
+        CollectData.setServerUrl(url);
+      } else {
+        localStorage.setItem('1688_server_url', url);
+      }
       _log('服务器地址已保存: ' + url);
     }
   });

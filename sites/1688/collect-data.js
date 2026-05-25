@@ -4,8 +4,20 @@
 
   var STORAGE_KEY = '1688_server_url';
 
+  // 启动时从 chrome.storage.local 同步到 localStorage
+  try {
+    chrome.storage.local.get(STORAGE_KEY, function (r) {
+      if (r[STORAGE_KEY]) localStorage.setItem(STORAGE_KEY, r[STORAGE_KEY]);
+    });
+  } catch (e) {}
+
   function getServerUrl() {
     return localStorage.getItem(STORAGE_KEY) || 'http://localhost:3000';
+  }
+
+  function setServerUrl(url) {
+    localStorage.setItem(STORAGE_KEY, url);
+    try { var _o = {}; _o[STORAGE_KEY] = url; chrome.storage.local.set(_o); } catch (e) {}
   }
 
   function getOfferId() {
@@ -465,6 +477,7 @@
     checkExists: checkExists,
     getOfferId: getOfferId,
     getServerUrl: getServerUrl,
+    setServerUrl: setServerUrl,
     collectAttrs: collectAttrs
   };
   // 暴露给小鹦鹉抓图使用
