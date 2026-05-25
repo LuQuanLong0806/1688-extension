@@ -241,7 +241,7 @@ async function connect() {
     if (result.rows && result.rows.length > 0) {
       cloud.connected = true;
       console.log('[云同步] Turso 连接成功');
-      createTables().catch(function () {});
+      await createTables();
       return true;
     }
   } catch (e) {
