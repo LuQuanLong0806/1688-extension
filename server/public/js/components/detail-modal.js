@@ -152,7 +152,7 @@ Vue.component('detail-modal', {
     },
     openAdd: function () {
       if (!this.editable) return;
-      window.open('https://www.dianxiaomi.com/web/temu/add?collectId=' + this.editable.id, '_blank');
+      window.open('https://www.dianxiaomi.com/web/temu/add?collectId=' + this.editable.uid, '_blank');
     },
     close: function () { this.$emit('update:visible', false); },
     goToMeitu: function () {
@@ -171,7 +171,7 @@ Vue.component('detail-modal', {
       // 存入 sessionStorage 供 meitu 页面读取
       try { sessionStorage.setItem('__meitu_pending_import', JSON.stringify(urls)); } catch (e) {}
       // 存储商品ID以便后续回写
-      try { sessionStorage.setItem('__meitu_source_product', vm.editable.id); } catch (e) {}
+      try { sessionStorage.setItem('__meitu_source_product', vm.editable.uid); } catch (e) {}
       vm.$root.showCollageModal = true;
     },
     toggleSkuAll: function (checked) {
@@ -228,7 +228,7 @@ Vue.component('detail-modal', {
       var vm = this;
       if (!vm.editable) return;
       var ns = vm.editable.status === 0 ? 1 : 0;
-      fetch('/api/product/' + vm.editable.id, {
+      fetch('/api/product/' + vm.editable.uid, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: ns })
@@ -254,7 +254,7 @@ Vue.component('detail-modal', {
     copyUrl: function () {
       var vm = this;
       if (!vm.editable) return;
-      var url = location.origin + '/api/product/' + vm.editable.id;
+      var url = location.origin + '/api/product/' + vm.editable.uid;
       navigator.clipboard.writeText(url).then(function () {
         vm.$Message.success('已复制');
       }).catch(function () { vm.$Message.error('复制失败'); });
@@ -284,7 +284,7 @@ Vue.component('detail-modal', {
         skus: skus,
         status: vm.editable.status
       };
-      return fetch('/api/product/' + vm.editable.id, {
+      return fetch('/api/product/' + vm.editable.uid, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -320,12 +320,12 @@ Vue.component('detail-modal', {
       try {
         sessionStorage.setItem('__meitu_edit_image', JSON.stringify({
           url: url,
-          productId: this.editable ? this.editable.id : '',
+          productId: this.editable ? this.editable.uid : '',
           field: field,
           index: index
         }));
       } catch (e) {}
-      try { sessionStorage.setItem('__meitu_source_product', this.editable ? this.editable.id : ''); } catch (e) {}
+      try { sessionStorage.setItem('__meitu_source_product', this.editable ? this.editable.uid : ''); } catch (e) {}
       this.$root.showCollageModal = true;
     },
     updateImageUrl: function (field, index, newUrl) {
@@ -504,11 +504,11 @@ Vue.component('detail-modal', {
           style="font-size:16px;font-weight:600;color:var(--text-primary);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;transition:color .15s;display:flex;align-items:center;gap:6px"
           @mouseenter="$event.target.closest('a').style.color='var(--accent)'"
           @mouseleave="$event.target.closest('a').style.color='var(--text-primary)'">
-          {{ editable ? (editable.title || ('商品 #' + editable.id)) : '商品详情' }}
+          {{ editable ? (editable.title || ('商品 #' + editable.uid)) : '商品详情' }}
           <i class="ivu-icon ivu-icon-md-open" style="font-size:14px;opacity:.5"></i>
         </a>
         <span v-else style="font-size:16px;font-weight:600;color:var(--text-primary)">
-          {{ editable ? (editable.title || ('商品 #' + editable.id)) : '商品详情' }}
+          {{ editable ? (editable.title || ('商品 #' + editable.uid)) : '商品详情' }}
         </span>
       </template>
       <template v-if="editable">

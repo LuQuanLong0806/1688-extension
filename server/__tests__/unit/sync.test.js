@@ -8,7 +8,7 @@ let cloudDb; // 云端数据库（模拟 Turso）
 
 // 表结构 DDL
 const TABLE_DDLS = [
-  `CREATE TABLE IF NOT EXISTS products (id INTEGER PRIMARY KEY AUTOINCREMENT, source_url TEXT NOT NULL UNIQUE, title TEXT, main_images TEXT DEFAULT '', desc_images TEXT DEFAULT '', detail_images TEXT DEFAULT '', attrs TEXT DEFAULT '', skus TEXT DEFAULT '', status INTEGER DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, category TEXT DEFAULT '', custom_category TEXT DEFAULT '', dxm_category TEXT DEFAULT '', manual_category TEXT DEFAULT '', deleted INTEGER DEFAULT 0)`,
+  `CREATE TABLE IF NOT EXISTS products (id INTEGER PRIMARY KEY AUTOINCREMENT, uid TEXT DEFAULT '', source_url TEXT NOT NULL, title TEXT, main_images TEXT DEFAULT '', desc_images TEXT DEFAULT '', detail_images TEXT DEFAULT '', attrs TEXT DEFAULT '', skus TEXT DEFAULT '', status INTEGER DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, category TEXT DEFAULT '', custom_category TEXT DEFAULT '', dxm_category TEXT DEFAULT '', manual_category TEXT DEFAULT '', deleted INTEGER DEFAULT 0)`,
   `CREATE TABLE IF NOT EXISTS category_mappings (id INTEGER PRIMARY KEY AUTOINCREMENT, category_name TEXT NOT NULL, custom_category TEXT NOT NULL, count INTEGER DEFAULT 1, source TEXT DEFAULT 'auto', UNIQUE(category_name, custom_category))`,
   `CREATE TABLE IF NOT EXISTS keyword_category_rel (id INTEGER PRIMARY KEY AUTOINCREMENT, keyword TEXT NOT NULL, category_name TEXT NOT NULL, weight REAL DEFAULT 1.0, match_count INTEGER DEFAULT 1, valid INTEGER DEFAULT 1, source TEXT DEFAULT 'auto', created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, UNIQUE(keyword, category_name))`,
   `CREATE TABLE IF NOT EXISTS keyword_synonyms (id INTEGER PRIMARY KEY AUTOINCREMENT, word_a TEXT NOT NULL, word_b TEXT NOT NULL, UNIQUE(word_a, word_b))`,
@@ -39,6 +39,12 @@ function dbGetOne(database, sql, params) {
 }
 function dbRun(database, sql, params) {
   database.run(sql, params);
+}
+
+// 测试用 uid 生成
+var uidCounter = 1;
+function generateTestUid() {
+  return 'uid_' + (uidCounter++) + '_' + Date.now().toString(36);
 }
 
 // 创建模拟的 cloud 对象（使用内存 SQLite 模拟云端数据库）
@@ -103,12 +109,15 @@ beforeAll(async () => {
 });
 
 beforeEach(() => {
+  uidCounter = 1;
   localDb = new SQL.Database();
   cloudDb = new SQL.Database();
   for (const ddl of TABLE_DDLS) {
     localDb.run(ddl);
     cloudDb.run(ddl);
   }
+  localDb.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_products_uid ON products(uid)');
+  cloudDb.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_products_uid ON products(uid)');
   // 每次重新创建 sync 模块以使用新数据库
   const cloud = createMockCloud();
   const db = createMockDb();
@@ -338,7 +347,7 @@ describe('category_config 同步', () => {
 // ============================================================
 describe('商品同步', () => {
   test('本地新商品上传到云端', async () => {
-    dbRun(localDb, "INSERT INTO products (source_url, title, category, custom_category) VALUES ('https://detail.1688.com/offer1.html', '纯棉毛巾', '{\"leafCategoryName\":\"毛巾\"}', '家居/毛巾')");
+    dbRun(localDb, "INSERT INTO products (uid, source_url, title, category, custom_category) VALUES ('u1', 'https://detail.1688.com/offer1.html', '纯棉毛巾', '{\"leafCategoryName\":\"毛巾\"}', '家居/毛巾')");
     const result = await syncModule.uploadProducts();
     expect(result.ok).toBe(true);
     expect(result.uploaded).toBe(1);
@@ -346,7 +355,7 @@ describe('商品同步', () => {
   });
 
   test('云端新商品下载到本地', async () => {
-    dbRun(cloudDb, "INSERT INTO products (source_url, title, category, custom_category) VALUES ('https://detail.1688.com/offer1.html', '纯棉毛巾', '', '')");
+    dbRun(cloudDb, "INSERT INTO products (uid, source_url, title, category, custom_category) VALUES ('u1', 'https://detail.1688.com/offer1.html', '纯棉毛巾', '', '')");
     const result = await syncModule.downloadProducts();
     expect(result.ok).toBe(true);
     expect(result.added).toBe(1);
@@ -354,8 +363,8 @@ describe('商品同步', () => {
   });
 
   test('双方各有不同商品 → 双向同步后完整', async () => {
-    dbRun(localDb, "INSERT INTO products (source_url, title) VALUES ('https://detail.1688.com/offer1.html', '毛巾')");
-    dbRun(cloudDb, "INSERT INTO products (source_url, title) VALUES ('https://detail.1688.com/offer2.html', '牙刷')");
+    dbRun(localDb, "INSERT INTO products (uid, source_url, title) VALUES ('u1', 'https://detail.1688.com/offer1.html', '毛巾')");
+    dbRun(cloudDb, "INSERT INTO products (uid, source_url, title) VALUES ('u2', 'https://detail.1688.com/offer2.html', '牙刷')");
     await syncModule.uploadProducts();
     await syncModule.downloadProducts();
     expect(localCount('products')).toBe(2);
@@ -363,46 +372,89 @@ describe('商品同步', () => {
   });
 
   test('云端已删除商品 → 下载时同步删除状态', async () => {
-    dbRun(localDb, "INSERT INTO products (source_url, title, deleted) VALUES ('https://detail.1688.com/offer1.html', '毛巾', 0)");
-    dbRun(cloudDb, "INSERT INTO products (source_url, title, deleted) VALUES ('https://detail.1688.com/offer1.html', '毛巾', 1)");
+    dbRun(localDb, "INSERT INTO products (uid, source_url, title, deleted) VALUES ('u1', 'https://detail.1688.com/offer1.html', '毛巾', 0)");
+    dbRun(cloudDb, "INSERT INTO products (uid, source_url, title, deleted) VALUES ('u1', 'https://detail.1688.com/offer1.html', '毛巾', 1)");
     const result = await syncModule.downloadProducts();
     expect(result.deletedSynced).toBe(1);
-    const localRow = dbGetOne(localDb, "SELECT deleted FROM products WHERE source_url = 'https://detail.1688.com/offer1.html'");
+    const localRow = dbGetOne(localDb, "SELECT deleted FROM products WHERE uid = 'u1'");
     expect(localRow.deleted).toBe(1);
   });
 
   test('云端已删除商品不在本地时 → 跳过不插入', async () => {
-    dbRun(cloudDb, "INSERT INTO products (source_url, title, deleted) VALUES ('https://detail.1688.com/offer1.html', '毛巾', 1)");
+    dbRun(cloudDb, "INSERT INTO products (uid, source_url, title, deleted) VALUES ('u1', 'https://detail.1688.com/offer1.html', '毛巾', 1)");
     const result = await syncModule.downloadProducts();
     expect(result.skipped).toBe(1);
     expect(result.added).toBe(0);
     expect(localCount('products')).toBe(0);
   });
 
-  test('INSERT OR IGNORE 导致商品更新丢失 — 数据丢失风险场景', async () => {
-    // 电脑A采集商品时 custom_category 为空
-    dbRun(localDb, "INSERT INTO products (source_url, title, custom_category) VALUES ('https://detail.1688.com/offer1.html', '毛巾', '')");
-    // 先上传到云端
+  test('uploadProducts 本地更新后再次上传 → 云端字段同步更新', async () => {
+    dbRun(localDb, "INSERT INTO products (uid, source_url, title, custom_category, updated_at) VALUES ('u1', 'https://detail.1688.com/offer1.html', '毛巾', '', '2025-05-25 10:00:00')");
     await syncModule.uploadProducts();
-    // 电脑A后来修改了 custom_category
-    dbRun(localDb, "UPDATE products SET custom_category = '家居/毛巾' WHERE source_url = 'https://detail.1688.com/offer1.html'");
-    // 再次上传
+    dbRun(localDb, "UPDATE products SET custom_category = '家居/毛巾', updated_at = '2025-05-25 12:00:00' WHERE uid = 'u1'");
     await syncModule.uploadProducts();
-    // ISSUE: uploadProducts 使用 INSERT OR IGNORE，云端已有该商品所以不会更新
-    const cloudRow = dbGetOne(cloudDb, "SELECT custom_category FROM products WHERE source_url = 'https://detail.1688.com/offer1.html'");
-    expect(cloudRow.custom_category).toBe(''); // custom_category 更新丢失
+    const cloudRow = dbGetOne(cloudDb, "SELECT custom_category, updated_at FROM products WHERE uid = 'u1'");
+    expect(cloudRow.custom_category).toBe('家居/毛巾');
+    expect(cloudRow.updated_at).toBe('2025-05-25 12:00:00');
   });
 
-  test('downloadProducts 不同步商品字段更新 — 数据丢失风险场景', async () => {
-    // 本地有商品
-    dbRun(localDb, "INSERT INTO products (source_url, title, custom_category) VALUES ('https://detail.1688.com/offer1.html', '毛巾', '旧分类')");
-    // 云端（电脑B）更新了该商品的分类
-    dbRun(cloudDb, "INSERT INTO products (source_url, title, custom_category) VALUES ('https://detail.1688.com/offer1.html', '毛巾（修改）', '新分类')");
+  test('uploadProducts 云端更新时 → 本地旧数据不覆盖云端', async () => {
+    dbRun(cloudDb, "INSERT INTO products (uid, source_url, title, custom_category, updated_at) VALUES ('u1', 'https://detail.1688.com/offer1.html', '毛巾（修改）', '新分类', '2025-05-25 14:00:00')");
+    dbRun(localDb, "INSERT INTO products (uid, source_url, title, custom_category, updated_at) VALUES ('u1', 'https://detail.1688.com/offer1.html', '毛巾', '旧分类', '2025-05-25 10:00:00')");
+    await syncModule.uploadProducts();
+    const cloudRow = dbGetOne(cloudDb, "SELECT title, custom_category FROM products WHERE uid = 'u1'");
+    expect(cloudRow.title).toBe('毛巾（修改）');
+    expect(cloudRow.custom_category).toBe('新分类');
+  });
+
+  test('downloadProducts 云端更新时 → 同步字段到本地', async () => {
+    dbRun(localDb, "INSERT INTO products (uid, source_url, title, custom_category, updated_at) VALUES ('u1', 'https://detail.1688.com/offer1.html', '毛巾', '旧分类', '2025-05-25 10:00:00')");
+    dbRun(cloudDb, "INSERT INTO products (uid, source_url, title, custom_category, updated_at) VALUES ('u1', 'https://detail.1688.com/offer1.html', '毛巾（修改）', '新分类', '2025-05-25 14:00:00')");
     await syncModule.downloadProducts();
-    // ISSUE: downloadProducts 跳过已存在的商品，不同步 title/custom_category 等字段
-    const localRow = dbGetOne(localDb, "SELECT title, custom_category FROM products WHERE source_url = 'https://detail.1688.com/offer1.html'");
-    expect(localRow.title).toBe('毛巾');       // 未更新
-    expect(localRow.custom_category).toBe('旧分类'); // 未更新
+    const localRow = dbGetOne(localDb, "SELECT title, custom_category, updated_at FROM products WHERE uid = 'u1'");
+    expect(localRow.title).toBe('毛巾（修改）');
+    expect(localRow.custom_category).toBe('新分类');
+    expect(localRow.updated_at).toBe('2025-05-25 14:00:00');
+  });
+
+  test('downloadProducts 本地更新时 → 云端旧数据不覆盖本地', async () => {
+    dbRun(localDb, "INSERT INTO products (uid, source_url, title, custom_category, updated_at) VALUES ('u1', 'https://detail.1688.com/offer1.html', '毛巾（最新）', '最新分类', '2025-05-25 14:00:00')");
+    dbRun(cloudDb, "INSERT INTO products (uid, source_url, title, custom_category, updated_at) VALUES ('u1', 'https://detail.1688.com/offer1.html', '毛巾（旧）', '旧分类', '2025-05-25 10:00:00')");
+    await syncModule.downloadProducts();
+    const localRow = dbGetOne(localDb, "SELECT title, custom_category FROM products WHERE uid = 'u1'");
+    expect(localRow.title).toBe('毛巾（最新）');
+    expect(localRow.custom_category).toBe('最新分类');
+  });
+
+  test('同一 source_url 不同 uid → 两台电脑各采一次，互不覆盖', async () => {
+    // 电脑A采集了 offer1
+    dbRun(localDb, "INSERT INTO products (uid, source_url, title, custom_category, updated_at) VALUES ('uA', 'https://detail.1688.com/offer1.html', '毛巾A', '分类A', '2025-05-25 10:00:00')");
+    await syncModule.uploadProducts();
+    // 电脑B也采集了 offer1（不同 uid）
+    dbRun(cloudDb, "INSERT INTO products (uid, source_url, title, custom_category, updated_at) VALUES ('uB', 'https://detail.1688.com/offer1.html', '毛巾B', '分类B', '2025-05-25 11:00:00')");
+    // 电脑A下载 → 应该两条都在
+    await syncModule.downloadProducts();
+    expect(localCount('products')).toBe(2);
+    expect(cloudCount('products')).toBe(2);
+    var localA = dbGetOne(localDb, "SELECT title FROM products WHERE uid = 'uA'");
+    var localB = dbGetOne(localDb, "SELECT title FROM products WHERE uid = 'uB'");
+    expect(localA.title).toBe('毛巾A');
+    expect(localB.title).toBe('毛巾B');
+  });
+
+  test('无 uid 的旧记录 → uploadProducts 跳过', async () => {
+    dbRun(localDb, "INSERT INTO products (source_url, title) VALUES ('https://detail.1688.com/offer1.html', '旧记录')");
+    const result = await syncModule.uploadProducts();
+    expect(result.ok).toBe(true);
+    // 旧记录 uid 为空，被跳过，uploaded 应为 1 但实际被 filter 掉
+    expect(cloudCount('products')).toBe(0);
+  });
+
+  test('无 uid 的旧记录 → downloadProducts 跳过', async () => {
+    dbRun(cloudDb, "INSERT INTO products (source_url, title) VALUES ('https://detail.1688.com/offer1.html', '旧记录')");
+    const result = await syncModule.downloadProducts();
+    expect(result.skipped).toBe(1);
+    expect(result.added).toBe(0);
   });
 });
 
@@ -508,26 +560,41 @@ describe('saveProductToLocalAndCloud', () => {
     const cloud = createMockCloud();
     const db = createMockDb();
     const sync = require('../../cloud/sync')(cloud, db);
-    // 需要先在本地插入
-    dbRun(localDb, "INSERT INTO products (source_url, title) VALUES ('https://detail.1688.com/offer1.html', '毛巾')");
+    dbRun(localDb, "INSERT INTO products (uid, source_url, title) VALUES ('u1', 'https://detail.1688.com/offer1.html', '毛巾')");
     sync.saveProductToLocalAndCloud(
-      'https://detail.1688.com/offer1.html',
+      'u1', 'https://detail.1688.com/offer1.html',
       '毛巾', '{}', '', '', '', '2025-05-25 03:00:00', '[]', '[]', '[]', '[]', '[]'
     );
-    // 等待异步云端写入
     await new Promise(r => setTimeout(r, 50));
     expect(cloudCount('products')).toBe(1);
   });
 
-  test('云端已存在时 ON CONFLICT 不覆盖已有字段', async () => {
-    dbRun(cloudDb, "INSERT INTO products (source_url, title) VALUES ('https://detail.1688.com/offer1.html', '旧标题')");
+  test('云端已存在时 saveProductToLocalAndCloud 全字段更新', async () => {
+    dbRun(cloudDb, "INSERT INTO products (uid, source_url, title, custom_category, updated_at) VALUES ('u1', 'https://detail.1688.com/offer1.html', '旧标题', '旧分类', '2025-05-25 10:00:00')");
     syncModule.saveProductToLocalAndCloud(
-      'https://detail.1688.com/offer1.html',
-      '新标题', '{}', '', '', '', '2025-05-25 03:00:00', '[]', '[]', '[]', '[]', '[]'
+      'u1', 'https://detail.1688.com/offer1.html',
+      '新标题', '{}', '新自定义分类', '', '手动分类', '2025-05-25 03:00:00',
+      '["img1"]', '["desc1"]', '["detail1"]', '["attr1"]', '["sku1"]'
     );
     await new Promise(r => setTimeout(r, 50));
-    const cloudRow = dbGetOne(cloudDb, "SELECT title FROM products WHERE source_url = 'https://detail.1688.com/offer1.html'");
-    expect(cloudRow.title).toBe('旧标题'); // ON CONFLICT 只补全 updated_at，不覆盖 title
+    const cloudRow = dbGetOne(cloudDb, "SELECT title, custom_category, manual_category, main_images, attrs, skus FROM products WHERE uid = 'u1'");
+    expect(cloudRow.title).toBe('新标题');
+    expect(cloudRow.custom_category).toBe('新自定义分类');
+    expect(cloudRow.manual_category).toBe('手动分类');
+    expect(cloudRow.main_images).toBe('["img1"]');
+    expect(cloudRow.attrs).toBe('["attr1"]');
+    expect(cloudRow.skus).toBe('["sku1"]');
+  });
+
+  test('云端更新时 saveProductToLocalAndCloud 不覆盖云端较新数据', async () => {
+    dbRun(cloudDb, "INSERT INTO products (uid, source_url, title, updated_at) VALUES ('u1', 'https://detail.1688.com/offer1.html', '云端新标题', '2099-12-31 23:59:59')");
+    syncModule.saveProductToLocalAndCloud(
+      'u1', 'https://detail.1688.com/offer1.html',
+      '本地旧标题', '{}', '', '', '', '2025-05-25 03:00:00', '[]', '[]', '[]', '[]', '[]'
+    );
+    await new Promise(r => setTimeout(r, 50));
+    const cloudRow = dbGetOne(cloudDb, "SELECT title FROM products WHERE uid = 'u1'");
+    expect(cloudRow.title).toBe('云端新标题');
   });
 
   test('saveProductToLocalAndCloud 包含 created_at 和 manual_category', async () => {
@@ -535,34 +602,43 @@ describe('saveProductToLocalAndCloud', () => {
     const db = createMockDb();
     const sync = require('../../cloud/sync')(cloud, db);
     sync.saveProductToLocalAndCloud(
-      'https://detail.1688.com/offer-new.html',
+      'uNew', 'https://detail.1688.com/offer-new.html',
       '新产品', '{}', '', '', '家居/毛巾', '2025-05-25 03:00:00',
       '[]', '[]', '[]', '[]', '[]'
     );
     await new Promise(r => setTimeout(r, 50));
-    const cloudRow = dbGetOne(cloudDb, "SELECT created_at, manual_category FROM products WHERE source_url = 'https://detail.1688.com/offer-new.html'");
+    const cloudRow = dbGetOne(cloudDb, "SELECT created_at, manual_category, source_url FROM products WHERE uid = 'uNew'");
     expect(cloudRow.created_at).toBe('2025-05-25 03:00:00');
     expect(cloudRow.manual_category).toBe('家居/毛巾');
+    expect(cloudRow.source_url).toBe('https://detail.1688.com/offer-new.html');
   });
 
   test('uploadProducts 补全云端 NULL created_at', async () => {
-    // 云端已有产品但 created_at 为空（模拟旧版本 bug）
-    dbRun(cloudDb, "INSERT INTO products (source_url, title, created_at) VALUES ('https://detail.1688.com/offer1.html', '毛巾', NULL)");
-    // 本地有正确 created_at
-    dbRun(localDb, "INSERT INTO products (source_url, title, created_at) VALUES ('https://detail.1688.com/offer1.html', '毛巾', '2025-01-15 10:30:00')");
+    dbRun(cloudDb, "INSERT INTO products (uid, source_url, title, created_at) VALUES ('u1', 'https://detail.1688.com/offer1.html', '毛巾', NULL)");
+    dbRun(localDb, "INSERT INTO products (uid, source_url, title, created_at) VALUES ('u1', 'https://detail.1688.com/offer1.html', '毛巾', '2025-01-15 10:30:00')");
     await syncModule.uploadProducts();
-    const cloudRow = dbGetOne(cloudDb, "SELECT created_at FROM products WHERE source_url = 'https://detail.1688.com/offer1.html'");
+    const cloudRow = dbGetOne(cloudDb, "SELECT created_at FROM products WHERE uid = 'u1'");
     expect(cloudRow.created_at).toBe('2025-01-15 10:30:00');
   });
 
   test('downloadProducts 补全本地空 created_at', async () => {
-    // 本地有产品但 created_at 为空
-    dbRun(localDb, "INSERT INTO products (source_url, title, created_at) VALUES ('https://detail.1688.com/offer1.html', '毛巾', NULL)");
-    // 云端有正确 created_at
-    dbRun(cloudDb, "INSERT INTO products (source_url, title, created_at) VALUES ('https://detail.1688.com/offer1.html', '毛巾', '2025-03-20 14:00:00')");
+    dbRun(localDb, "INSERT INTO products (uid, source_url, title, created_at) VALUES ('u1', 'https://detail.1688.com/offer1.html', '毛巾', NULL)");
+    dbRun(cloudDb, "INSERT INTO products (uid, source_url, title, created_at) VALUES ('u1', 'https://detail.1688.com/offer1.html', '毛巾', '2025-03-20 14:00:00')");
     await syncModule.downloadProducts();
-    const localRow = dbGetOne(localDb, "SELECT created_at FROM products WHERE source_url = 'https://detail.1688.com/offer1.html'");
+    const localRow = dbGetOne(localDb, "SELECT created_at FROM products WHERE uid = 'u1'");
     expect(localRow.created_at).toBe('2025-03-20 14:00:00');
+  });
+
+  test('uid 为空时不保存到云端', async () => {
+    const cloud = createMockCloud();
+    const db = createMockDb();
+    const sync = require('../../cloud/sync')(cloud, db);
+    sync.saveProductToLocalAndCloud(
+      '', 'https://detail.1688.com/offer1.html',
+      '毛巾', '{}', '', '', '', '2025-05-25 03:00:00', '[]', '[]', '[]', '[]', '[]'
+    );
+    await new Promise(r => setTimeout(r, 50));
+    expect(cloudCount('products')).toBe(0);
   });
 });
 
@@ -642,7 +718,7 @@ describe('pushTable / pullTable 通用', () => {
 describe('完整多电脑场景', () => {
   test('电脑A采集+分类 → 同步到云端 → 电脑B拉取 → 数据完整', async () => {
     // 电脑A操作：采集商品并分类
-    dbRun(localDb, "INSERT INTO products (source_url, title, category, custom_category) VALUES ('https://detail.1688.com/offer1.html', '纯棉毛巾', '{\"leafCategoryName\":\"毛巾\"}', '家居/毛巾')");
+    dbRun(localDb, "INSERT INTO products (uid, source_url, title, category, custom_category) VALUES ('uA1', 'https://detail.1688.com/offer1.html', '纯棉毛巾', '{\"leafCategoryName\":\"毛巾\"}', '家居/毛巾')");
     dbRun(localDb, "INSERT INTO category_mappings (category_name, custom_category, count, source) VALUES ('毛巾', '家居/毛巾', 5, 'auto')");
     dbRun(localDb, "INSERT INTO keyword_category_rel (keyword, category_name, weight, match_count, valid, source) VALUES ('纯棉', '毛巾', 2.0, 8, 1, 'auto')");
 
@@ -658,6 +734,7 @@ describe('完整多电脑场景', () => {
     // 电脑B使用新的本地数据库
     const localDb2 = new SQL.Database();
     for (const ddl of TABLE_DDLS) localDb2.run(ddl);
+    localDb2.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_products_uid ON products(uid)');
     const db2 = {
       getAll: (sql, params) => dbGetAll(localDb2, sql, params),
       getOne: (sql, params) => dbGetOne(localDb2, sql, params),

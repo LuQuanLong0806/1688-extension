@@ -306,10 +306,10 @@ Vue.component('page-categories', {
         },
         {
           title: '操作',
-          width: 280,
+          width: 320,
           align: 'center',
           render: function (h, params) {
-            return h('div', { style: { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px', flexWrap: 'wrap' } }, [
+            return h('div', { style: { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' } }, [
               h('Button', {
                 props: { type: 'primary', size: 'small', icon: 'md-settings' },
                 on: { click: function () { vm.openModal(params.row); } }

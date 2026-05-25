@@ -226,7 +226,7 @@ module.exports = function (cloud, db) {
   // ===== 商品同步 =====
   async function uploadProducts() {
     if (!cloud.connected) return { ok: false, error: '未连接' };
-    var products = db.getAll("SELECT source_url, title, main_images, desc_images, detail_images, attrs, skus, category, custom_category, dxm_category, manual_category, status, deleted, created_at, updated_at FROM products");
+    var products = db.getAll("SELECT uid, source_url, title, main_images, desc_images, detail_images, attrs, skus, category, custom_category, dxm_category, manual_category, status, deleted, created_at, updated_at FROM products");
     var total = products.length;
     var uploaded = 0;
     var skipped = 0;
@@ -235,13 +235,20 @@ module.exports = function (cloud, db) {
     for (var batch = 0; batch < products.length; batch += batchSize) {
       var chunk = products.slice(batch, batch + batchSize);
       var stmts = chunk.map(function (p) {
+        if (!p.uid) return null; // 跳过无 uid 的旧记录
         return {
-          sql: 'INSERT INTO products (source_url, title, main_images, desc_images, detail_images, attrs, skus, category, custom_category, dxm_category, manual_category, status, deleted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(source_url) DO UPDATE SET created_at = COALESCE(products.created_at, excluded.created_at), updated_at = COALESCE(products.updated_at, excluded.updated_at), manual_category = CASE WHEN products.manual_category IS NULL OR products.manual_category = \'\' THEN excluded.manual_category ELSE products.manual_category END',
-          args: [p.source_url, p.title, p.main_images || '', p.desc_images || '', p.detail_images || '', p.attrs || '', p.skus || '', p.category || '', p.custom_category || '', p.dxm_category || '', p.manual_category || '', p.status || 0, p.deleted || 0, p.created_at || '', p.updated_at || '']
+          sql: (function () {
+            var cols = ['source_url', 'title', 'main_images', 'desc_images', 'detail_images', 'attrs', 'skus', 'category', 'custom_category', 'dxm_category', 'manual_category', 'status', 'deleted'];
+            var sets = cols.map(function (c) { return c + ' = CASE WHEN excluded.updated_at >= products.updated_at THEN excluded.' + c + ' ELSE products.' + c + ' END'; });
+            sets.push('created_at = COALESCE(products.created_at, excluded.created_at)');
+            sets.push('updated_at = CASE WHEN excluded.updated_at >= products.updated_at THEN excluded.updated_at ELSE products.updated_at END');
+            return 'INSERT INTO products (uid, source_url, title, main_images, desc_images, detail_images, attrs, skus, category, custom_category, dxm_category, manual_category, status, deleted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(uid) DO UPDATE SET ' + sets.join(', ');
+          })(),
+          args: [p.uid, p.source_url, p.title, p.main_images || '', p.desc_images || '', p.detail_images || '', p.attrs || '', p.skus || '', p.category || '', p.custom_category || '', p.dxm_category || '', p.manual_category || '', p.status || 0, p.deleted || 0, p.created_at || '', p.updated_at || '']
         };
-      });
+      }).filter(Boolean);
       try {
-        if (cloud.client.batch) {
+        if (stmts.length && cloud.client.batch) {
           await cloud.client.batch(stmts);
         } else {
           for (var j = 0; j < stmts.length; j++) {
@@ -261,23 +268,29 @@ module.exports = function (cloud, db) {
 
   async function downloadProducts() {
     if (!cloud.connected) return { ok: false, error: '未连接' };
-    var cloudProducts = await cloud.getAll('SELECT source_url, title, main_images, desc_images, detail_images, attrs, skus, category, custom_category, dxm_category, manual_category, status, deleted, created_at, updated_at FROM products');
+    var cloudProducts = await cloud.getAll('SELECT uid, source_url, title, main_images, desc_images, detail_images, attrs, skus, category, custom_category, dxm_category, manual_category, status, deleted, created_at, updated_at FROM products');
     var added = 0;
+    var updated = 0;
     var skipped = 0;
     var deletedSynced = 0;
 
     for (var i = 0; i < cloudProducts.length; i++) {
       var p = cloudProducts[i];
+      if (!p.uid) { skipped++; continue; } // 跳过无 uid 的旧记录
       var isDeleted = p.deleted && Number(p.deleted) === 1;
-      var local = db.getOne('SELECT id, deleted as local_deleted, created_at as local_created_at FROM products WHERE source_url = ?', [p.source_url]);
+      var local = db.getOne('SELECT id, deleted as local_deleted, created_at as local_created_at, updated_at as local_updated_at FROM products WHERE uid = ?', [p.uid]);
       if (!local) {
         if (isDeleted) { skipped++; continue; }
-        db.run('INSERT INTO products (source_url, title, main_images, desc_images, detail_images, attrs, skus, category, custom_category, dxm_category, manual_category, status, deleted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          [p.source_url, p.title, p.main_images, p.desc_images, p.detail_images, p.attrs, p.skus, p.category, p.custom_category, p.dxm_category, p.manual_category, p.status, 0, p.created_at, p.updated_at]);
+        db.run('INSERT INTO products (uid, source_url, title, main_images, desc_images, detail_images, attrs, skus, category, custom_category, dxm_category, manual_category, status, deleted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          [p.uid, p.source_url || '', p.title, p.main_images, p.desc_images, p.detail_images, p.attrs, p.skus, p.category, p.custom_category, p.dxm_category, p.manual_category, p.status, 0, p.created_at, p.updated_at]);
         added++;
       } else {
-        // 补全 created_at：如果本地为空则用云端的，如果云端为空则更新云端
-        if (!local.local_created_at && p.created_at) {
+        var cloudNewer = p.updated_at && (!local.local_updated_at || p.updated_at >= local.local_updated_at);
+        if (cloudNewer) {
+          db.run('UPDATE products SET source_url = ?, title = ?, main_images = ?, desc_images = ?, detail_images = ?, attrs = ?, skus = ?, category = ?, custom_category = ?, dxm_category = ?, manual_category = ?, status = ?, deleted = ?, created_at = COALESCE(created_at, ?), updated_at = ? WHERE id = ?',
+            [p.source_url || '', p.title, p.main_images, p.desc_images, p.detail_images, p.attrs, p.skus, p.category, p.custom_category, p.dxm_category, p.manual_category, p.status, p.deleted || 0, p.created_at, p.updated_at, local.id]);
+          updated++;
+        } else if (!local.local_created_at && p.created_at) {
           db.run('UPDATE products SET created_at = ? WHERE id = ?', [p.created_at, local.id]);
         }
         if (isDeleted && !local.local_deleted) {
@@ -288,15 +301,20 @@ module.exports = function (cloud, db) {
       }
     }
     db.scheduleSave();
-    console.log('[云同步] 商品下载完成, 云端:', cloudProducts.length, '新增:', added, '跳过:', skipped, '删除同步:', deletedSynced);
-    return { ok: true, cloudTotal: cloudProducts.length, added: added, skipped: skipped, deletedSynced: deletedSynced };
+    console.log('[云同步] 商品下载完成, 云端:', cloudProducts.length, '新增:', added, '更新:', updated, '跳过:', skipped, '删除同步:', deletedSynced);
+    return { ok: true, cloudTotal: cloudProducts.length, added: added, updated: updated, skipped: skipped, deletedSynced: deletedSynced };
   }
 
-  function saveProductToLocalAndCloud(sourceUrl, title, category, customCategory, dxmCategory, manualCategory, createdAt, mainImages, descImages, detailImages, attrs, skus) {
-    if (!cloud.connected) return;
-    cloud.run(
-      'INSERT INTO products (source_url, title, main_images, desc_images, detail_images, attrs, skus, category, custom_category, dxm_category, manual_category, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?) ON CONFLICT(source_url) DO UPDATE SET updated_at = COALESCE(products.updated_at, excluded.updated_at)',
-      [sourceUrl || '', title || '', mainImages || '', descImages || '', detailImages || '', attrs || '', skus || '', category || '', customCategory || '', dxmCategory || '', manualCategory || '', createdAt || '', createdAt || '']
+  function saveProductToLocalAndCloud(uid, sourceUrl, title, category, customCategory, dxmCategory, manualCategory, createdAt, mainImages, descImages, detailImages, attrs, skus) {
+    if (!cloud.connected || !uid) return;
+    var updatedAt = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    var cols = ['source_url', 'title', 'main_images', 'desc_images', 'detail_images', 'attrs', 'skus', 'category', 'custom_category', 'dxm_category', 'manual_category', 'status', 'deleted'];
+    var sets = cols.map(function (c) { return c + ' = CASE WHEN excluded.updated_at >= products.updated_at THEN excluded.' + c + ' ELSE products.' + c + ' END'; });
+    sets.push('created_at = COALESCE(products.created_at, excluded.created_at)');
+    sets.push('updated_at = CASE WHEN excluded.updated_at >= products.updated_at THEN excluded.updated_at ELSE products.updated_at END');
+    var sql = 'INSERT INTO products (uid, source_url, title, main_images, desc_images, detail_images, attrs, skus, category, custom_category, dxm_category, manual_category, status, deleted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?) ON CONFLICT(uid) DO UPDATE SET ' + sets.join(', ');
+    cloud.run(sql,
+      [uid, sourceUrl || '', title || '', mainImages || '', descImages || '', detailImages || '', attrs || '', skus || '', category || '', customCategory || '', dxmCategory || '', manualCategory || '', 0, createdAt || '', updatedAt]
     ).catch(function () {});
   }
 

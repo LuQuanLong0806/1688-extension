@@ -193,11 +193,11 @@ Vue.component('page-dashboard', {
           </div>
           <div class="chart-card-body" style="height:auto;padding:0 20px;">
             <ul class="recent-list">
-              <li v-for="item in recentList" :key="item.id">
+              <li v-for="item in recentList" :key="item.uid">
                 <img v-if="item._thumb" class="recent-thumb" :src="item._thumb" />
                 <div v-else class="recent-thumb-ph"></div>
                 <div class="recent-info">
-                  <div class="recent-title">{{ item.title || ('商品 #' + item.id) }}</div>
+                  <div class="recent-title">{{ item.title || ('商品 #' + item.uid) }}</div>
                   <div class="recent-time">{{ item.created_at }}</div>
                 </div>
                 <span :class="'recent-badge ' + (item.status === 0 ? 'unused' : 'used')">

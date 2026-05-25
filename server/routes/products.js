@@ -14,11 +14,12 @@ const router = Router();
 // 公共：插入商品到数据库
 function insertProduct(sourceUrl, title, category, customCategory, dxmCategory, manualCategory, mainImages, descImages, detailImages, attrs, skus) {
   var now = localNow();
+  var uid = dbModule.generateUid();
   dbModule.db.run(
-    `INSERT INTO products (source_url, title, category, custom_category, dxm_category, manual_category, main_images, desc_images, detail_images, attrs, skus, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO products (uid, source_url, title, category, custom_category, dxm_category, manual_category, main_images, desc_images, detail_images, attrs, skus, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      sourceUrl || '', title || '', JSON.stringify(category || {}),
+      uid, sourceUrl || '', title || '', JSON.stringify(category || {}),
       customCategory || '', dxmCategory || '', manualCategory || '',
       JSON.stringify(mainImages || []), JSON.stringify(descImages || []),
       JSON.stringify(detailImages || []), JSON.stringify(attrs || []), JSON.stringify(skus || []),
@@ -27,7 +28,7 @@ function insertProduct(sourceUrl, title, category, customCategory, dxmCategory, 
   );
   // 异步同步到云端
   cloudDb.saveProductToLocalAndCloud(
-    sourceUrl, title, JSON.stringify(category || {}), customCategory || '', dxmCategory || '',
+    uid, sourceUrl, title, JSON.stringify(category || {}), customCategory || '', dxmCategory || '',
     manualCategory || '', now,
     JSON.stringify(mainImages || []), JSON.stringify(descImages || []),
     JSON.stringify(detailImages || []), JSON.stringify(attrs || []), JSON.stringify(skus || [])
@@ -370,7 +371,7 @@ router.get('/product', (req, res) => {
   const total = countRow ? countRow.count : 0;
   const offset = (page - 1) * pageSize;
   const list = getAll(
-    `SELECT id, source_url, title, category, custom_category, manual_category, dxm_category, attrs, skus, main_images, status, created_at, updated_at
+    `SELECT id, uid, source_url, title, category, custom_category, manual_category, dxm_category, attrs, skus, main_images, status, created_at, updated_at
      FROM products ${whereClause}
      ORDER BY created_at DESC, id DESC
      LIMIT ? OFFSET ?`,
@@ -390,15 +391,24 @@ router.get('/product', (req, res) => {
   res.json({ total, page, pageSize, list: parsedList });
 });
 
-// 单条商品
+// 单条商品（支持 id 和 uid 两种查找方式）
 router.get('/product/:id', (req, res) => {
-  const row = getOne('SELECT * FROM products WHERE id = ?', [parseInt(req.params.id)]);
+  var param = req.params.id || '';
+  var row;
+  if (param && !/^\d+$/.test(param)) {
+    // 非纯数字 → 按 uid 查找
+    row = getOne('SELECT * FROM products WHERE uid = ?', [param]);
+  } else {
+    // 纯数字 → 按 id 查找
+    row = getOne('SELECT * FROM products WHERE id = ?', [parseInt(param)]);
+  }
   if (!row) return res.status(404).json({ error: 'Not found' });
   res.json(parseRow(row));
 });
 
 // 更新商品
 router.put('/product/:id', (req, res) => {
+  var uid = req.params.id || '';
   const fields = [];
   const params = [];
 
@@ -432,11 +442,11 @@ router.put('/product/:id', (req, res) => {
   if (fields.length === 0) return res.json({ ok: true });
 
   fields.push('updated_at = CURRENT_TIMESTAMP');
-  params.push(parseInt(req.params.id));
-  run(`UPDATE products SET ${fields.join(', ')} WHERE id = ?`, params);
+  params.push(uid);
+  run(`UPDATE products SET ${fields.join(', ')} WHERE uid = ?`, params);
 
   // 保存映射关系（手动设置 → source='manual'，已存在则递增count）
-  const product = getOne('SELECT category, title FROM products WHERE id = ?', [parseInt(req.params.id)]);
+  const product = getOne('SELECT category, title FROM products WHERE uid = ?', [uid]);
   if (req.body.customCategory && product && product.category) {
     try {
       const cat = JSON.parse(product.category);
@@ -448,8 +458,7 @@ router.put('/product/:id', (req, res) => {
   }
   // 更新云端商品分类
   if (cloudDb.connected && (req.body.customCategory || req.body.dxmCategory || req.body.status !== undefined)) {
-    var srcRow = getOne('SELECT source_url FROM products WHERE id = ?', [parseInt(req.params.id)]);
-    if (srcRow && srcRow.source_url) {
+    if (uid) {
       var cloudUpdates = [];
       var cloudParams = [];
       if (req.body.customCategory !== undefined) { cloudUpdates.push('custom_category = ?'); cloudParams.push(req.body.customCategory || ''); }
@@ -457,8 +466,8 @@ router.put('/product/:id', (req, res) => {
       if (req.body.status !== undefined) { cloudUpdates.push('status = ?'); cloudParams.push(req.body.status); }
       if (cloudUpdates.length) {
         cloudUpdates.push('updated_at = CURRENT_TIMESTAMP');
-        cloudParams.push(srcRow.source_url);
-        cloudDb.cloudRun('UPDATE products SET ' + cloudUpdates.join(', ') + ' WHERE source_url = ?', cloudParams).catch(function () {});
+        cloudParams.push(srcRow.uid);
+        cloudDb.cloudRun('UPDATE products SET ' + cloudUpdates.join(', ') + ' WHERE uid = ?', cloudParams).catch(function () {});
       }
     }
   }
@@ -468,19 +477,18 @@ router.put('/product/:id', (req, res) => {
 
 // 删除商品
 router.delete('/product/:id', (req, res) => {
-  run('UPDATE products SET deleted = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [parseInt(req.params.id)]);
-  if (cloudDb.connected) {
-    var srcRow = getOne('SELECT source_url FROM products WHERE id = ?', [parseInt(req.params.id)]);
-    if (srcRow && srcRow.source_url) {
-      cloudDb.cloudRun('UPDATE products SET deleted = 1 WHERE source_url = ?', [srcRow.source_url]).catch(function () {});
-    }
+  var uid = req.params.id || '';
+  run('UPDATE products SET deleted = 1, updated_at = CURRENT_TIMESTAMP WHERE uid = ?', [uid]);
+  if (cloudDb.connected && uid) {
+    cloudDb.cloudRun('UPDATE products SET deleted = 1 WHERE uid = ?', [uid]).catch(function () {});
   }
   res.json({ ok: true });
 });
 
 // 手动触发分类推荐
 router.post('/product/:id/recommend-category', (req, res) => {
-  var product = getOne('SELECT * FROM products WHERE id = ?', [parseInt(req.params.id)]);
+  var uid = req.params.id || '';
+  var product = getOne('SELECT * FROM products WHERE uid = ?', [uid]);
   if (!product) return res.status(404).json({ error: '产品不存在' });
 
   var parsed = parseRow(product);
@@ -528,11 +536,11 @@ router.post('/product/:id/recommend-category', (req, res) => {
             params.push(result.path);
           }
           if (updates.length) {
-            params.push(parsed.id);
-            dbModule.db.run('UPDATE products SET ' + updates.join(', ') + ' WHERE id = ?', params);
+            params.push(parsed.uid);
+            dbModule.db.run('UPDATE products SET ' + updates.join(', ') + ' WHERE uid = ?', params);
             scheduleSave();
-            console.log('[AI分类推荐] 产品#' + parsed.id + ' 手动推荐: ' + result.category + ' (置信度:' + result.confidence.toFixed(2) + ', 来源:' + result.source + ')');
-            sseBroadcast('product-category-updated', { id: parsed.id, category: result.category, path: result.path, source: result.source, confidence: result.confidence });
+            console.log('[AI分类推荐] 产品#' + parsed.uid + ' 手动推荐: ' + result.category + ' (置信度:' + result.confidence.toFixed(2) + ', 来源:' + result.source + ')');
+            sseBroadcast('product-category-updated', { uid: parsed.uid, category: result.category, path: result.path, source: result.source, confidence: result.confidence });
 
             // 自动保存映射
             if (aliCat && result.category) {
@@ -573,17 +581,15 @@ router.post('/product/batch-delete', (req, res) => {
   const { ids } = req.body;
   if (!Array.isArray(ids) || !ids.length) return res.json({ ok: true, deleted: 0 });
   if (ids.length > 500) return res.status(400).json({ error: '单次最多操作 500 条' });
-  // 校验并转为有效整数
-  const validIds = ids.map(id => parseInt(id)).filter(id => !isNaN(id) && id > 0);
-  if (!validIds.length) return res.json({ ok: true, deleted: 0 });
-  const placeholders = validIds.map(() => '?').join(',');
-  const before = getOne(`SELECT COUNT(*) as count FROM products WHERE id IN (${placeholders})`, validIds);
-  run(`UPDATE products SET deleted = 1, updated_at = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`, validIds);
+  const validUids = ids.filter(function (id) { return id && typeof id === 'string' && id.trim(); });
+  if (!validUids.length) return res.json({ ok: true, deleted: 0 });
+  const placeholders = validUids.map(() => '?').join(',');
+  const before = getOne(`SELECT COUNT(*) as count FROM products WHERE uid IN (${placeholders})`, validUids);
+  run(`UPDATE products SET deleted = 1, updated_at = CURRENT_TIMESTAMP WHERE uid IN (${placeholders})`, validUids);
   saveNow();
   if (cloudDb.connected) {
-    var srcRows = getAll(`SELECT source_url FROM products WHERE id IN (${placeholders}) AND source_url != ''`, validIds);
-    srcRows.forEach(function (r) {
-      cloudDb.cloudRun('UPDATE products SET deleted = 1 WHERE source_url = ?', [r.source_url]).catch(function () {});
+    validUids.forEach(function (uid) {
+      cloudDb.cloudRun('UPDATE products SET deleted = 1 WHERE uid = ?', [uid]).catch(function () {});
     });
   }
   res.json({ ok: true, deleted: before ? before.count : 0 });
@@ -593,15 +599,14 @@ router.post('/product/batch-status', (req, res) => {
   const { ids, status } = req.body;
   if (!Array.isArray(ids) || !ids.length) return res.json({ ok: true, updated: 0 });
   if (ids.length > 500) return res.status(400).json({ error: '单次最多操作 500 条' });
-  // 校验并转为有效整数
-  const validIds = ids.map(id => parseInt(id)).filter(id => !isNaN(id) && id > 0);
-  if (!validIds.length) return res.json({ ok: true, updated: 0 });
+  const validUids = ids.filter(function (id) { return id && typeof id === 'string' && id.trim(); });
+  if (!validUids.length) return res.json({ ok: true, updated: 0 });
   if (status === -1) {
-    const placeholders = validIds.map(() => '?').join(',');
-    run(`UPDATE products SET status = CASE WHEN status = 1 THEN 0 ELSE 1 END, updated_at = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`, validIds);
+    const placeholders = validUids.map(() => '?').join(',');
+    run(`UPDATE products SET status = CASE WHEN status = 1 THEN 0 ELSE 1 END, updated_at = CURRENT_TIMESTAMP WHERE uid IN (${placeholders})`, validUids);
   } else {
-    const placeholders = validIds.map(() => '?').join(',');
-    run(`UPDATE products SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`, [status, ...validIds]);
+    const placeholders = validUids.map(() => '?').join(',');
+    run(`UPDATE products SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE uid IN (${placeholders})`, [status, ...validUids]);
   }
   res.json({ ok: true, updated: ids.length });
 });
@@ -613,7 +618,7 @@ router.patch('/products/backfill-path', (req, res) => {
 
   // 1. 先补全已有 dxm_category 但缺 manual_category 的商品
   const products = getAll(
-    `SELECT id, dxm_category FROM products WHERE custom_category = ? AND (manual_category IS NULL OR manual_category = '') AND dxm_category IS NOT NULL AND dxm_category != '' AND deleted = 0`,
+    `SELECT uid, dxm_category FROM products WHERE custom_category = ? AND (manual_category IS NULL OR manual_category = '') AND dxm_category IS NOT NULL AND dxm_category != '' AND deleted = 0`,
     [customCategory]
   );
   let updated = 0;
@@ -621,7 +626,7 @@ router.patch('/products/backfill-path', (req, res) => {
     try {
       var dxm = JSON.parse(p.dxm_category);
       if (dxm && dxm.path) {
-        run('UPDATE products SET manual_category = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [dxm.path, p.id]);
+        run('UPDATE products SET manual_category = ?, updated_at = CURRENT_TIMESTAMP WHERE uid = ?', [dxm.path, p.uid]);
         updated++;
       }
     } catch (e) {}

@@ -50,7 +50,7 @@ var CLOUD_TABLE_DEFS = [
   { name: 'keyword_blacklist', ddl: 'CREATE TABLE IF NOT EXISTS keyword_blacklist (id INTEGER PRIMARY KEY AUTOINCREMENT, keyword TEXT NOT NULL, category_name TEXT NOT NULL, reason TEXT DEFAULT \'\', UNIQUE(keyword, category_name))' },
   { name: 'category_config', ddl: 'CREATE TABLE IF NOT EXISTS category_config (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, value TEXT NOT NULL, group_name TEXT DEFAULT \'\', description TEXT DEFAULT \'\', sort_order INTEGER DEFAULT 0, UNIQUE(type, value, group_name))' },
   { name: 'dxm_category_tree', ddl: 'CREATE TABLE IF NOT EXISTS dxm_category_tree (cat_id INTEGER PRIMARY KEY, cat_name TEXT NOT NULL, parent_cat_id INTEGER DEFAULT 0, cat_level INTEGER DEFAULT 1, is_leaf INTEGER DEFAULT 0, path TEXT DEFAULT \'\', sync_at TEXT DEFAULT CURRENT_TIMESTAMP)' },
-  { name: 'products', ddl: 'CREATE TABLE IF NOT EXISTS products (source_url TEXT PRIMARY KEY, title TEXT, main_images TEXT, desc_images TEXT, detail_images TEXT, attrs TEXT, skus TEXT, category TEXT, custom_category TEXT, dxm_category TEXT, manual_category TEXT, status INTEGER DEFAULT 0, deleted INTEGER DEFAULT 0, from_machine TEXT DEFAULT \'\', created_at TEXT, updated_at TEXT)' }
+  { name: 'products', ddl: 'CREATE TABLE IF NOT EXISTS products (uid TEXT PRIMARY KEY, source_url TEXT DEFAULT \'\', title TEXT, main_images TEXT, desc_images TEXT, detail_images TEXT, attrs TEXT, skus TEXT, category TEXT, custom_category TEXT, dxm_category TEXT, manual_category TEXT, status INTEGER DEFAULT 0, deleted INTEGER DEFAULT 0, from_machine TEXT DEFAULT \'\', created_at TEXT, updated_at TEXT)' }
 ];
 
 // 从 settings 读取 Turso 配置
@@ -131,10 +131,40 @@ async function createTables() {
     }
     console.log('[云同步] 建表完成');
     await migrateCloudSchema();
+    // 旧云端表迁移：检查 products 是否缺少 uid 列
+    await migrateProductsUid();
     return true;
   } catch (e) {
     console.error('[云同步] 建表失败:', e.message);
     return false;
+  }
+}
+
+// 旧云端 products 表 uid 迁移
+async function migrateProductsUid() {
+  if (!cloud.client) return;
+  try {
+    // 确保 uid 列存在（migrateCloudSchema 可能已补上，也可能没有）
+    var info = await cloud.client.execute('PRAGMA table_info(products)');
+    var cols = (info.rows || []).map(function (r) { return r.name; });
+    if (cols.indexOf('uid') < 0) {
+      await cloud.client.execute("ALTER TABLE products ADD COLUMN uid TEXT DEFAULT ''");
+      console.log('[云同步] 补列: products.uid');
+    }
+    // 为空 uid 的行回填
+    var emptyRows = await cloud.client.execute("SELECT rowid FROM products WHERE uid IS NULL OR uid = ''");
+    if (emptyRows.rows && emptyRows.rows.length > 0) {
+      console.log('[云同步] 回填 products uid: ' + emptyRows.rows.length + ' 条...');
+      for (var i = 0; i < emptyRows.rows.length; i++) {
+        var uid = dbModule.generateUid();
+        await cloud.client.execute('UPDATE products SET uid = ? WHERE rowid = ?', [uid, emptyRows.rows[i].rowid]);
+      }
+      console.log('[云同步] products uid 回填完成');
+    }
+    // 确保唯一索引存在（幂等）
+    await cloud.client.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_products_uid ON products(uid)');
+  } catch (e) {
+    console.error('[云同步] products uid 迁移失败:', e.message);
   }
 }
 

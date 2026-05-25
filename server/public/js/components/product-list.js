@@ -148,7 +148,7 @@ Vue.component('page-products', {
       row.customCategory = val;
       if (!val) row.manualCategory = '';
       var vm = this;
-      fetch('/api/product/' + row.id, {
+      fetch('/api/product/' + row.uid, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -166,7 +166,7 @@ Vue.component('page-products', {
     },
     saveCategoryPath: function (row, path) {
       row.manualCategory = path || '';
-      fetch('/api/product/' + row.id, {
+      fetch('/api/product/' + row.uid, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -177,20 +177,20 @@ Vue.component('page-products', {
     },
     recommendCategory: function (row) {
       var vm = this;
-      vm.$set(vm.recommending, row.id, true);
-      fetch('/api/product/' + row.id + '/recommend-category', { method: 'POST' })
+      vm.$set(vm.recommending, row.uid, true);
+      fetch('/api/product/' + row.uid + '/recommend-category', { method: 'POST' })
         .then(function (r) { return r.json(); })
         .then(function (data) {
           if (data.ok) {
             vm.$Message.info('AI推荐已触发，请稍候...');
           } else {
             vm.$Message.error(data.error || '推荐失败');
-            vm.$set(vm.recommending, row.id, false);
+            vm.$set(vm.recommending, row.uid, false);
           }
         })
         .catch(function () {
           vm.$Message.error('请求失败');
-          vm.$set(vm.recommending, row.id, false);
+          vm.$set(vm.recommending, row.uid, false);
         });
     },
     // -- 数据加载 --
@@ -205,7 +205,7 @@ Vue.component('page-products', {
       es.addEventListener('product-category-updated', function (e) {
         try {
           var data = JSON.parse(e.data);
-          vm.$set(vm.recommending, data.id, false);
+          vm.$set(vm.recommending, data.uid, false);
           if (data.skipped) {
             vm.$Message.info('已有手动分类，跳过AI推荐');
           } else if (data.source === 'manual_review') {
@@ -292,7 +292,7 @@ Vue.component('page-products', {
     },
     onSelectionChange: function (sel) {
       this.selectedIds = sel.map(function (i) {
-        return i.id;
+        return i.uid;
       });
     },
     openAdd: function (id) {
@@ -483,11 +483,11 @@ Vue.component('page-products', {
                 @input="saveCategory(row, $event)"
                 @path="saveCategoryPath(row, $event)" />
               <button v-if="!row.customCategory" class="btn-recommend"
-                :class="{ loading: recommending[row.id] }"
-                :disabled="recommending[row.id]"
+                :class="{ loading: recommending[row.uid] }"
+                :disabled="recommending[row.uid]"
                 @click="recommendCategory(row)"
-                :title="recommending[row.id] ? '推荐中...' : 'AI推荐分类'">
-                <span v-if="recommending[row.id]">⏳</span>
+                :title="recommending[row.uid] ? '推荐中...' : 'AI推荐分类'">
+                <span v-if="recommending[row.uid]">⏳</span>
                 <span v-else>🤖</span>
               </button>
             </div>
@@ -500,9 +500,9 @@ Vue.component('page-products', {
           </template>
           <template slot="actions" slot-scope="{ row }">
             <div class="action-btns">
-              <Button type="primary" size="small" icon="ios-eye" @click="$root.openDetail(row.id)">详情</Button>
-              <Button type="success" size="small" icon="md-paper-plane" @click="openAdd(row.id)">发布</Button>
-              <Button type="error" size="small" icon="ios-trash" @click="deleteProduct(row.id)">删除</Button>
+              <Button type="primary" size="small" icon="ios-eye" @click="$root.openDetail(row.uid)">详情</Button>
+              <Button type="success" size="small" icon="md-paper-plane" @click="openAdd(row.uid)">发布</Button>
+              <Button type="error" size="small" icon="ios-trash" @click="deleteProduct(row.uid)">删除</Button>
             </div>
           </template>
         </i-table>

@@ -1,6 +1,7 @@
 const initSqlJs = require('sql.js');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 
 const DB_FILE = path.join(__dirname, 'data.db');
 const TREE_DB_FILE = path.join(__dirname, 'dxm_tree.db');
@@ -155,6 +156,7 @@ var LOCAL_TABLE_DEFS = [
     name: 'products',
     ddl: `CREATE TABLE IF NOT EXISTS products (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      uid TEXT DEFAULT '',
       source_url TEXT NOT NULL,
       title TEXT,
       main_images TEXT,
@@ -320,6 +322,10 @@ function migrateLocalSchema() {
 
 // ========== 初始化 ==========
 
+function generateUid() {
+  return Date.now().toString(36) + crypto.randomBytes(8).toString('hex');
+}
+
 async function initDb() {
   const SQL = await initSqlJs();
 
@@ -355,6 +361,18 @@ async function initDb() {
   }
   // 自动补列（只增不删）
   migrateLocalSchema();
+
+  // 为已有商品补齐 uid（必须在 UNIQUE INDEX 创建前）
+  try {
+    var noUid = getAll('SELECT id FROM products WHERE uid IS NULL OR uid = \'\'');
+    for (var ni = 0; ni < noUid.length; ni++) {
+      run('UPDATE products SET uid = ? WHERE id = ?', [generateUid(), noUid[ni].id]);
+    }
+    if (noUid.length) console.log('[DB] 已为 ' + noUid.length + ' 条商品补齐 uid');
+  } catch (e) {}
+
+  // uid 回填完成后再创建唯一索引
+  try { db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_products_uid ON products(uid)'); } catch (e) {}
 
   // 迁移：将已有商品的类目数据补录到 categories 表
   try {
@@ -462,6 +480,7 @@ module.exports = {
   scheduleSave, saveNow, scheduleTreeSave,
   parseRow,
   sseClients, sseBroadcast,
+  generateUid,
   // 暴露 db 用于直接操作（如 db.run 不触发自动保存的场景）
   get db() { return db; }
 };
