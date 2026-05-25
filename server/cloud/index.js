@@ -146,12 +146,59 @@ async function createTables() {
 async function migrateProductsUid() {
   if (!cloud.client) return;
   try {
-    // 确保 uid 列存在
+    // 检查是否需要重建表（source_url 是旧 PK）
+    var needRebuild = false;
+    try {
+      var pkInfo = await cloud.client.execute('PRAGMA table_info(products)');
+      var pkCols = (pkInfo.rows || []).filter(function (r) { return r.pk > 0; });
+      if (pkCols.length === 1 && pkCols[0].name === 'source_url') {
+        needRebuild = true;
+        console.log('[云同步] 检测到旧 products 表 PK=source_url，需要重建');
+      }
+    } catch (e) {}
+
+    if (needRebuild) {
+      // 重建表：uid 做 PK，source_url 变普通列
+      await cloud.client.execute('CREATE TABLE IF NOT EXISTS products_new (uid TEXT PRIMARY KEY, source_url TEXT DEFAULT \'\', title TEXT, main_images TEXT, desc_images TEXT, detail_images TEXT, attrs TEXT, skus TEXT, category TEXT, custom_category TEXT, dxm_category TEXT, manual_category TEXT, status INTEGER DEFAULT 0, deleted INTEGER DEFAULT 0, from_machine TEXT DEFAULT \'\', created_at TEXT, updated_at TEXT)');
+      // 复制数据（uid 为空的先生成）
+      var rows = await cloud.client.execute("SELECT rowid, uid, source_url, title, main_images, desc_images, detail_images, attrs, skus, category, custom_category, dxm_category, manual_category, status, deleted, from_machine, created_at, updated_at FROM products");
+      var count = 0;
+      for (var i = 0; i < rows.rows.length; i++) {
+        var r = rows.rows[i];
+        var uid = r.uid;
+        if (!uid) { uid = dbModule.generateUid(); }
+        try {
+          await cloud.client.execute(
+            'INSERT OR IGNORE INTO products_new (uid, source_url, title, main_images, desc_images, detail_images, attrs, skus, category, custom_category, dxm_category, manual_category, status, deleted, from_machine, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [uid, r.source_url || '', r.title, r.main_images, r.desc_images, r.detail_images, r.attrs, r.skus, r.category, r.custom_category, r.dxm_category, r.manual_category, r.status, r.deleted, r.from_machine, r.created_at, r.updated_at]
+          );
+          count++;
+        } catch (rowErr) {
+          console.error('[云同步] 迁移行失败:', rowErr.message);
+        }
+      }
+      // 验证新表行数 >= 旧表
+      var oldCount = rows.rows.length;
+      var newCount = (await cloud.client.execute('SELECT COUNT(*) as cnt FROM products_new')).rows[0].cnt;
+      if (newCount < oldCount) {
+        console.error('[云同步] 迁移数据丢失: 旧 ' + oldCount + ' 条, 新 ' + newCount + ' 条, 中止重建');
+        await cloud.client.execute('DROP TABLE products_new');
+        return;
+      }
+      console.log('[云同步] 重建 products 表: 迁移 ' + count + '/' + oldCount + ' 条, 验证通过');
+      // 安全切换：先保留旧表做备份，确认新表OK后再删
+      await cloud.client.execute('ALTER TABLE products RENAME TO products_old');
+      await cloud.client.execute('ALTER TABLE products_new RENAME TO products');
+      // 保留旧表作为备份，不删除
+      console.log('[云同步] products 表重建完成');
+      return;
+    }
+
+    // 非重建场景：确保 uid 列存在 + 回填
     var info = await cloud.client.execute('PRAGMA table_info(products)');
     var cols = (info.rows || []).map(function (r) { return r.name; });
     if (cols.indexOf('uid') < 0) {
       try {
-        // 旧表已有 PK，不能 ADD PRIMARY KEY，只加普通列 + 唯一索引
         await cloud.client.execute("ALTER TABLE products ADD COLUMN uid TEXT DEFAULT ''");
         console.log('[云同步] 补列: products.uid');
       } catch (alterErr) {
@@ -159,7 +206,6 @@ async function migrateProductsUid() {
         return;
       }
     }
-    // 重新检查 uid 列是否真的存在
     var info2 = await cloud.client.execute('PRAGMA table_info(products)');
     var cols2 = (info2.rows || []).map(function (r) { return r.name; });
     if (cols2.indexOf('uid') < 0) {
@@ -175,12 +221,6 @@ async function migrateProductsUid() {
         await cloud.client.execute('UPDATE products SET uid = ? WHERE rowid = ?', [uid, emptyRows.rows[i].rowid]);
       }
       console.log('[云同步] products uid 回填完成');
-    }
-    // 确保唯一索引存在（幂等）
-    try {
-      await cloud.client.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_products_uid ON products(uid)');
-    } catch (idxErr) {
-      console.error('[云同步] uid 唯一索引创建失败（可能有重复空值）:', idxErr.message);
     }
   } catch (e) {
     console.error('[云同步] products uid 迁移失败:', e.message);

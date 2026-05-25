@@ -250,15 +250,33 @@ module.exports = function (cloud, db) {
       try {
         if (stmts.length && cloud.client.batch) {
           await cloud.client.batch(stmts);
+          uploaded += stmts.length;
         } else {
           for (var j = 0; j < stmts.length; j++) {
             await cloud.client.execute({ sql: stmts[j].sql, args: stmts[j].args });
+            uploaded++;
           }
         }
-        uploaded += chunk.length;
         console.log('[云同步] 商品上传进度:', uploaded + '/' + total);
       } catch (e) {
-        console.error('[云同步] 商品批次上传失败:', e.message);
+        // 批量失败时逐条重试
+        console.error('[云同步] 批量上传失败，逐条重试:', e.message);
+        for (var j = 0; j < stmts.length; j++) {
+          try {
+            await cloud.client.execute({ sql: stmts[j].sql, args: stmts[j].args });
+            uploaded++;
+          } catch (e2) {
+            // source_url 冲突：更新 uid 让后续重试成功
+            if (e2.message && e2.message.indexOf('source_url') >= 0 && chunk[j] && chunk[j].uid && chunk[j].source_url) {
+              try {
+                await cloud.run('UPDATE products SET uid = ? WHERE source_url = ?', [chunk[j].uid, chunk[j].source_url]);
+                await cloud.client.execute({ sql: stmts[j].sql, args: stmts[j].args });
+                uploaded++;
+              } catch (e3) {}
+            }
+          }
+        }
+        console.log('[云同步] 商品上传进度:', uploaded + '/' + total);
       }
     }
 
