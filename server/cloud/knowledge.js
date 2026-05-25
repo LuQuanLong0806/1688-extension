@@ -110,40 +110,55 @@ module.exports = function (cloud, db) {
 
   async function getCategoryConfig(type) {
     // 本地优先
-    var rows = db.getAll('SELECT type, value, group_name, description, sort_order FROM category_config WHERE type = ? ORDER BY sort_order, id', [type]);
+    var rows = db.getAll('SELECT id, type, value, group_name, description, sort_order FROM category_config WHERE type = ? AND deleted = 0 ORDER BY sort_order, id', [type]);
     if (rows && rows.length > 0) return rows;
     if (cloud.connected) {
-      return await cloud.getAll('SELECT type, value, group_name, description, sort_order FROM category_config WHERE type = ? ORDER BY sort_order, id', [type]);
+      return await cloud.getAll('SELECT id, type, value, group_name, description, sort_order FROM category_config WHERE type = ? AND deleted = 0 ORDER BY sort_order, id', [type]);
     }
     return [];
   }
 
   async function getAllCategoryConfig() {
     // 本地优先
-    var rows = db.getAll('SELECT type, value, group_name, description, sort_order FROM category_config ORDER BY type, sort_order, id');
+    var rows = db.getAll('SELECT id, type, value, group_name, description, sort_order FROM category_config WHERE deleted = 0 ORDER BY type, sort_order, id');
     if (rows && rows.length > 0) return rows;
     if (cloud.connected) {
-      return await cloud.getAll('SELECT type, value, group_name, description, sort_order FROM category_config ORDER BY type, sort_order, id');
+      return await cloud.getAll('SELECT id, type, value, group_name, description, sort_order FROM category_config WHERE deleted = 0 ORDER BY type, sort_order, id');
     }
     return [];
   }
 
   function saveCategoryConfig(type, value, groupName, description, sortOrder) {
-    db.run('INSERT OR REPLACE INTO category_config (type, value, group_name, description, sort_order) VALUES (?, ?, ?, ?, ?)',
-      [type, value, groupName || '', description || '', sortOrder || 0]);
+    // 检查是否有软删行可复活
+    var softDeleted = db.getOne('SELECT id FROM category_config WHERE type = ? AND value = ? AND group_name = ? AND deleted = 1', [type, value, groupName || '']);
+    if (softDeleted) {
+      db.run('UPDATE category_config SET description = ?, sort_order = ?, deleted = 0 WHERE id = ?',
+        [description || '', sortOrder || 0, softDeleted.id]);
+    } else {
+      db.run('INSERT OR REPLACE INTO category_config (type, value, group_name, description, sort_order, deleted) VALUES (?, ?, ?, ?, ?, 0)',
+        [type, value, groupName || '', description || '', sortOrder || 0]);
+    }
     db.scheduleSave();
     if (cloud.connected) {
-      cloud.run('INSERT OR REPLACE INTO category_config (type, value, group_name, description, sort_order) VALUES (?, ?, ?, ?, ?)',
-        [type, value, groupName || '', description || '', sortOrder || 0]).catch(function () {});
+      // 云端同样先尝试复活
+      cloud.getOne('SELECT id FROM category_config WHERE type = ? AND value = ? AND group_name = ? AND deleted = 1', [type, value, groupName || '']).then(function (cloudSoft) {
+        if (cloudSoft) {
+          cloud.run('UPDATE category_config SET description = ?, sort_order = ?, deleted = 0 WHERE id = ?',
+            [description || '', sortOrder || 0, cloudSoft.id]).catch(function () {});
+        } else {
+          cloud.run('INSERT OR REPLACE INTO category_config (type, value, group_name, description, sort_order, deleted) VALUES (?, ?, ?, ?, ?, 0)',
+            [type, value, groupName || '', description || '', sortOrder || 0]).catch(function () {});
+        }
+      }).catch(function () {});
     }
   }
 
   function deleteCategoryConfig(id) {
     var row = db.getOne('SELECT type, value, group_name FROM category_config WHERE id = ?', [id]);
-    db.run('DELETE FROM category_config WHERE id = ?', [id]);
+    db.run('UPDATE category_config SET deleted = 1 WHERE id = ?', [id]);
     db.scheduleSave();
     if (cloud.connected && row) {
-      cloud.run('DELETE FROM category_config WHERE type = ? AND value = ? AND group_name = ?', [row.type, row.value, row.group_name]).catch(function () {});
+      cloud.run('UPDATE category_config SET deleted = 1 WHERE type = ? AND value = ? AND group_name = ?', [row.type, row.value, row.group_name]).catch(function () {});
     }
   }
 

@@ -265,10 +265,42 @@ describe('Categories 路由', () => {
       expect(res.status).toBe(400);
     });
 
-    test('DELETE /api/category-config/:id 删除', async () => {
+    test('DELETE /api/category-config/:id 软删', async () => {
       const row = setup.getOne("SELECT id FROM category_config WHERE type = 'mutex'");
       const res = await request(app).delete('/api/category-config/' + row.id);
       expect(res.status).toBe(200);
+      expect(cloudDb.deleteCategoryConfig).toHaveBeenCalledWith(row.id);
+    });
+
+    test('POST /api/category-config/batch-delete 批量软删', async () => {
+      setup.run("INSERT INTO category_config (type, value, group_name) VALUES ('noise', '批量A', '')");
+      setup.run("INSERT INTO category_config (type, value, group_name) VALUES ('noise', '批量B', '')");
+      const rows = setup.getAll("SELECT id FROM category_config WHERE value IN ('批量A', '批量B')");
+      const ids = rows.map(r => r.id);
+
+      cloudDb.deleteCategoryConfig.mockClear();
+      const res = await request(app).post('/api/category-config/batch-delete').send({ ids });
+      expect(res.status).toBe(200);
+      expect(res.body.ok).toBe(true);
+      expect(cloudDb.deleteCategoryConfig).toHaveBeenCalledTimes(ids.length);
+    });
+
+    test('POST /api/category-config/batch-delete 缺少 ids 返回400', async () => {
+      const res = await request(app).post('/api/category-config/batch-delete').send({});
+      expect(res.status).toBe(400);
+    });
+
+    test('DELETE /api/category-config/:id 无效ID返回400', async () => {
+      const res = await request(app).delete('/api/category-config/abc');
+      expect(res.status).toBe(400);
+    });
+
+    test('GET /api/category-config?type=noise 按类型查询', async () => {
+      setup.run("INSERT INTO category_config (type, value) VALUES ('noise', '查询词')");
+      const res = await request(app).get('/api/category-config?type=noise');
+      expect(res.status).toBe(200);
+      expect(res.body.ok).toBe(true);
+      expect(cloudDb.getCategoryConfig).toHaveBeenCalledWith('noise');
     });
   });
 });

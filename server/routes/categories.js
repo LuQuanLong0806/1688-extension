@@ -372,7 +372,7 @@ router.post('/category-config', function (req, res) {
   res.json({ ok: true, type: type, value: value });
 });
 
-// 删除分类配置项
+// 删除分类配置项（软删）
 router.delete('/category-config/:id', function (req, res) {
   var id = parseInt(req.params.id);
   if (!id) return res.status(400).json({ error: '无效 ID' });
@@ -382,6 +382,19 @@ router.delete('/category-config/:id', function (req, res) {
   });
   categoryRecommend.clearConfigCache();
 
+  res.json({ ok: true });
+});
+
+// 批量删除分类配置项（软删）
+router.post('/category-config/batch-delete', function (req, res) {
+  var ids = req.body.ids;
+  if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ error: '请提供ids数组' });
+  ids.forEach(function (id) {
+    cloudDb.deleteCategoryConfig(parseInt(id)).catch(function (e) {
+      console.log('[分类配置] 批量删除失败:', e.message);
+    });
+  });
+  categoryRecommend.clearConfigCache();
   res.json({ ok: true });
 });
 

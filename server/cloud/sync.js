@@ -395,17 +395,17 @@ module.exports = function (cloud, db) {
       label: '黑名单'
     },
     'category-config': {
-      localGet: function () { return db.getAll('SELECT type, value, group_name, description, sort_order FROM category_config'); },
-      cloudCols: 'type, value, group_name, description, sort_order',
+      localGet: function () { return db.getAll('SELECT type, value, group_name, description, sort_order, deleted FROM category_config'); },
+      cloudCols: 'type, value, group_name, description, sort_order, deleted',
       cloudKey: ['type', 'value', 'group_name'],
       localKeyMatch: function (r) { return 'SELECT id FROM category_config WHERE type = ? AND value = ? AND group_name = ?'; },
       localKeyParams: function (r) { return [r.type, r.value, r.group_name]; },
-      localInsert: 'INSERT OR REPLACE INTO category_config (type, value, group_name, description, sort_order) VALUES (?, ?, ?, ?, ?)',
-      localInsertParams: function (r) { return [r.type, r.value, r.group_name, r.description, r.sort_order]; },
+      localInsert: 'INSERT OR REPLACE INTO category_config (type, value, group_name, description, sort_order, deleted) VALUES (?, ?, ?, ?, ?, ?)',
+      localInsertParams: function (r) { return [r.type, r.value, r.group_name, r.description, r.sort_order, r.deleted || 0]; },
       localUpdate: null,
       cloudTable: 'category_config',
-      cloudInsert: 'INSERT OR REPLACE INTO category_config (type, value, group_name, description, sort_order) VALUES (?, ?, ?, ?, ?)',
-      cloudInsertParams: function (r) { return [r.type, r.value, r.group_name, r.description, r.sort_order]; },
+      cloudInsert: 'INSERT OR REPLACE INTO category_config (type, value, group_name, description, sort_order, deleted) VALUES (?, ?, ?, ?, ?, ?)',
+      cloudInsertParams: function (r) { return [r.type, r.value, r.group_name, r.description, r.sort_order, r.deleted || 0]; },
       cloudUpdate: null,
       label: '分类配置'
     }

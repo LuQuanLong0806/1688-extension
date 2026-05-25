@@ -17,7 +17,7 @@ function loadMutexGroups() {
   var now = Date.now();
   if (MUTEX_CACHE && (now - MUTEX_CACHE_TIME) < CONFIG_CACHE_TTL) return MUTEX_CACHE;
   try {
-    var rows = dbModule.getAll('SELECT value, group_name FROM category_config WHERE type = \'mutex\' ORDER BY sort_order, id');
+    var rows = dbModule.getAll('SELECT value, group_name FROM category_config WHERE type = \'mutex\' AND deleted = 0 ORDER BY sort_order, id');
     if (rows && rows.length) {
       var groupMap = {};
       rows.forEach(function (r) {
@@ -63,8 +63,8 @@ function loadFilterWords() {
   var now = Date.now();
   if (NOISE_CACHE && (now - FILTER_CACHE_TIME) < CONFIG_CACHE_TTL) return;
   try {
-    var noiseRows = dbModule.getAll('SELECT value FROM category_config WHERE type = \'noise\' ORDER BY id');
-    var genericRows = dbModule.getAll('SELECT value FROM category_config WHERE type = \'generic\' ORDER BY id');
+    var noiseRows = dbModule.getAll('SELECT value FROM category_config WHERE type = \'noise\' AND deleted = 0 ORDER BY id');
+    var genericRows = dbModule.getAll('SELECT value FROM category_config WHERE type = \'generic\' AND deleted = 0 ORDER BY id');
     if (noiseRows && noiseRows.length) {
       NOISE_CACHE = noiseRows.map(function (r) { return r.value; });
     }

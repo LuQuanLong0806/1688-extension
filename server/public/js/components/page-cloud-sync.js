@@ -22,7 +22,8 @@ Vue.component('page-cloud-sync', {
             { key: 'mappings', label: '类目映射', icon: '🏷️', desc: '1688类目 ↔ DXM类目对应关系', confirm: false },
             { key: 'keyword-rels', label: '关键词关联', icon: '🔗', desc: '关键词与DXM类目的权重关联', confirm: false },
             { key: 'synonyms', label: '同义词', icon: '📝', desc: '关键词同义词扩展', confirm: false },
-            { key: 'blacklist', label: '黑名单', icon: '🚫', desc: '关键词-类目禁止关联', confirm: false }
+            { key: 'blacklist', label: '黑名单', icon: '🚫', desc: '关键词-类目禁止关联', confirm: false },
+            { key: 'category-config', label: '词库配置', icon: '📖', desc: '过滤词/泛词/互斥组', confirm: false }
           ]
         }
       ]

@@ -260,6 +260,7 @@ var LOCAL_TABLE_DEFS = [
       group_name TEXT DEFAULT '',
       description TEXT DEFAULT '',
       sort_order INTEGER DEFAULT 0,
+      deleted INTEGER DEFAULT 0,
       UNIQUE(type, value, group_name)
     )`
   }
