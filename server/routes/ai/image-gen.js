@@ -223,12 +223,17 @@ router.get('/smms-token', function (req, res) {
 
 router.post('/smms-token', function (req, res) {
   var key = (req.body.token || '').trim();
-  if (!key) return res.status(400).json({ error: 'API Key 不能为空' });
+  var label = (req.body.label || '').trim();
+  var labelOnly = key === '__label_only__';
+  if (!key && req.body.label === undefined) return res.status(400).json({ error: 'API Key 不能为空' });
   try {
     var db = require('../../db');
-    db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('imgbb_api_key', ?)", [sec.encrypt(key)]);
-    var label = (req.body.label || '').trim();
-    db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('imgbb_api_key_label', ?)", [label]);
+    if (key && !labelOnly) {
+      db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('imgbb_api_key', ?)", [sec.encrypt(key)]);
+    }
+    if (req.body.label !== undefined) {
+      db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('imgbb_api_key_label', ?)", [label]);
+    }
     db.scheduleSave();
     res.json({ ok: true });
   } catch (e) {

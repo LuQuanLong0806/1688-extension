@@ -235,5 +235,41 @@ describe('AI Config 路由', () => {
       const cfg = await request(app).get('/api/ai/smms-token');
       expect(cfg.body.label).toBe('');
     });
+
+    test('POST /smms-token 仅更新 label（__label_only__）不修改 key', async () => {
+      await request(app).post('/api/ai/smms-token').send({ token: 'imgbb-test-key-12345' });
+      const before = await request(app).get('/api/ai/smms-token');
+      expect(before.body.configured).toBe(true);
+
+      await request(app).post('/api/ai/smms-token').send({ token: '__label_only__', label: '新备注' });
+      const after = await request(app).get('/api/ai/smms-token');
+      expect(after.body.configured).toBe(true);
+      expect(after.body.label).toBe('新备注');
+    });
+  });
+
+  describe('仅更新备注不修改 Key', () => {
+    test('vision 只提交 label 不影响 apiKey', async () => {
+      await request(app).post('/api/ai/configs').send({
+        vision: { model: 'glm-4v-flash', apiKey: 'test-key-abc1234567890', label: '初始' }
+      });
+      // 只更新 label
+      await request(app).post('/api/ai/configs').send({
+        vision: { label: '仅改备注' }
+      });
+      const cfg = await request(app).get('/api/ai/configs');
+      expect(cfg.body.vision.customLabel).toBe('仅改备注');
+    });
+
+    test('image 只提交 label 不影响 apiKey', async () => {
+      await request(app).post('/api/ai/configs').send({
+        image: { model: 'cogview-3-flash', apiKey: 'test-key-abc1234567890', label: '初始' }
+      });
+      await request(app).post('/api/ai/configs').send({
+        image: { label: '新图片备注' }
+      });
+      const cfg = await request(app).get('/api/ai/configs');
+      expect(cfg.body.image.customLabel).toBe('新图片备注');
+    });
   });
 });

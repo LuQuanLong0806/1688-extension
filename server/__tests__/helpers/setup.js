@@ -722,10 +722,14 @@ function createAiRouter(cloudDb) {
   });
   router.post('/smms-token', function (req, res) {
     var key = (req.body.token || '').trim();
-    if (!key) return res.status(400).json({ error: 'API Key 不能为空' });
-    run("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('imgbb_api_key', ?, CURRENT_TIMESTAMP)", [key]);
-    if (req.body.label !== undefined) {
-      run("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('imgbb_api_key_label', ?, CURRENT_TIMESTAMP)", [req.body.label]);
+    var label = req.body.label;
+    var labelOnly = key === '__label_only__';
+    if (!key && label === undefined) return res.status(400).json({ error: 'API Key 不能为空' });
+    if (key && !labelOnly) {
+      run("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('imgbb_api_key', ?, CURRENT_TIMESTAMP)", [key]);
+    }
+    if (label !== undefined) {
+      run("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('imgbb_api_key_label', ?, CURRENT_TIMESTAMP)", [label]);
     }
     res.json({ ok: true });
   });
