@@ -371,8 +371,8 @@ router.get('/product', (req, res) => {
   if (dxmCategory === '_none') {
     where.push("(custom_category IS NULL OR custom_category = '')");
   } else if (dxmCategory) {
-    where.push('custom_category = ?');
-    params.push(dxmCategory);
+    where.push('custom_category LIKE ?');
+    params.push('%' + dxmCategory + '%');
   }
 
   const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
@@ -468,15 +468,15 @@ router.put('/product/:id', (req, res) => {
       }
       // 关联库纠错：用户手动改分类 → 作废错误关联 + 积累正确关联
       var oldCategory = previousCategory ? previousCategory.custom_category : null;
+      var titleText = product.title || '';
+      var aliCatText = catName || '';
+      var kws = (titleText + ' ' + aliCatText).split(/[\s\/>,，、：:·\-—\(\)（）\[\]【】]+/).filter(function (w) {
+        var cn = w.replace(/[a-zA-Z0-9]/g, '');
+        return cn.length >= 2 && cn.length <= 6;
+      });
+      kws = kws.filter(function (w, i, arr) { return arr.indexOf(w) === i; }).slice(0, 8);
+
       if (oldCategory && oldCategory !== req.body.customCategory) {
-        // 从标题和1688类目提取关键词
-        var titleText = product.title || '';
-        var aliCatText = catName || '';
-        var kws = (titleText + ' ' + aliCatText).split(/[\s\/>,，、：:·\-—\(\)（）\[\]【】]+/).filter(function (w) {
-          var cn = w.replace(/[a-zA-Z0-9]/g, '');
-          return cn.length >= 2 && cn.length <= 6;
-        });
-        kws = kws.filter(function (w, i, arr) { return arr.indexOf(w) === i; }).slice(0, 8);
         if (kws.length > 0) {
           // 作废关键词→旧类目的自动关联
           cloudDb.invalidateAutoRels(kws, oldCategory);
@@ -484,7 +484,7 @@ router.put('/product/:id', (req, res) => {
           kws.forEach(function (kw) {
             cloudDb.saveKeywordRel(kw, req.body.customCategory, 0.8, 'manual');
           });
-          console.log('[关联纠错]', uid, ':', oldCategory, '→', req.body.customCategory, '关键词:', kws.join(','));
+          console.log('[关联纠错]', uid, ':', oldCategory, '->', req.body.customCategory, '关键词:', kws.join(','));
 	          // 黑名单：旧类目被否定，关键词→旧类目进黑名单
 	          kws.forEach(function (kw) {
 	            cloudDb.upsertBlacklist(kw, oldCategory);
@@ -494,6 +494,12 @@ router.put('/product/:id', (req, res) => {
 	            cloudDb.reduceBlacklist(kw, req.body.customCategory);
 	          });
         }
+      } else if (!oldCategory && req.body.customCategory && kws.length > 0) {
+        // 场景A补充：从空分类→新分类（清空后重选），只积累关联不做黑名单
+        kws.forEach(function (kw) {
+          cloudDb.saveKeywordRel(kw, req.body.customCategory, 0.8, 'manual');
+        });
+        console.log('[关联积累]', uid, ':', '->', req.body.customCategory, '关键词:', kws.join(','));
       }
     } catch (e) {
       console.error('[关联纠错] 失败:', e.message);
@@ -558,7 +564,7 @@ router.post('/product/:id/recommend-category', (req, res) => {
     aiRes.on('end', function () {
       try {
         var result = JSON.parse(body);
-        if (result.ok && result.category && result.confidence >= 0.6) {
+        if (result.ok && result.category && result.confidence >= 0.25) {
           // 如果已有手动分类，不覆盖
           if (parsed.manualCategory) {
             console.log('[AI分类推荐] 产品#' + parsed.id + ' 已有手动分类，跳过覆盖');

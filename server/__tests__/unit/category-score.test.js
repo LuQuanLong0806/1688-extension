@@ -159,4 +159,103 @@ describe('splitAliCategoryWords', () => {
     const result = splitAliCategoryWords('家居>厨房>餐具');
     expect(result).toEqual(['家居', '厨房', '餐具']);
   });
+
+  test('4字以上复合词子串拆分', () => {
+    const result = splitAliCategoryWords('连体雨衣、雨披');
+    expect(result).toContain('连体雨衣');
+    expect(result).toContain('雨披');
+    expect(result).toContain('雨衣');
+    expect(result).toContain('体雨');
+    expect(result).toContain('连体');
+  });
+
+  test('4字词拆出所有2~3字子串', () => {
+    const result = splitAliCategoryWords('电动车雨衣');
+    expect(result).toContain('电动车雨衣');
+    expect(result).toContain('电动');
+    expect(result).toContain('动车');
+    expect(result).toContain('车雨');
+    expect(result).toContain('雨衣');
+    expect(result).toContain('电动车');
+    expect(result).toContain('动车雨');
+    expect(result).toContain('车雨衣');
+  });
+
+  test('3字词不拆子串', () => {
+    const result = splitAliCategoryWords('搓澡刷');
+    expect(result).toEqual(['搓澡刷']);
+  });
+
+  test('子串不重复已有词', () => {
+    const result = splitAliCategoryWords('雨衣/连体雨衣');
+    expect(result).toContain('雨衣');
+    expect(result).toContain('连体雨衣');
+    expect(result.filter(function(w) { return w === '雨衣'; }).length).toBe(1);
+  });
+});
+
+describe('逐字匹配加分', () => {
+  test('ali词与标题词完全重合时逐字加分', () => {
+    const titleKws = ['雨衣'];
+    const aliKws = ['雨衣'];
+    const withMatch = scoreCategory(titleKws, aliKws, { name: '男士雨衣', path: '服装/男士/男士雨衣' });
+    const noMatch = scoreCategory(titleKws, aliKws, { name: '完全无关', path: '其他/无关' });
+    expect(withMatch).toBeGreaterThan(noMatch);
+    expect(withMatch - noMatch).toBeGreaterThanOrEqual(0.1);
+  });
+
+  test('ali词包含标题词时也能逐字加分', () => {
+    const titleKws = ['雨衣'];
+    const aliKws = ['连体雨衣'];
+    const rainCoat = scoreCategory(titleKws, aliKws, { name: '男士雨衣', path: '服装/男士/男士雨衣' });
+    const unrelated = scoreCategory(titleKws, aliKws, { name: '无关类目', path: '其他/无关' });
+    expect(rainCoat).toBeGreaterThan(unrelated);
+  });
+
+  test('候选名含所有重合字得分最高', () => {
+    const titleKws = ['雨衣'];
+    const aliKws = ['雨衣'];
+    const fullHit = scoreCategory(titleKws, aliKws, { name: '雨衣', path: '户外/雨衣' });
+    const partialHit = scoreCategory(titleKws, aliKws, { name: '雨披', path: '户外/雨披' });
+    expect(fullHit).toBeGreaterThan(partialHit);
+  });
+
+  test('无重合词时不加逐字分', () => {
+    const titleKws = ['工具'];
+    const aliKws = ['清洁'];
+    const noOverlap = scoreCategory(titleKws, aliKws, { name: '测试', path: '分类/测试' });
+    const sameNoOverlap = scoreCategory(titleKws, aliKws, { name: '测试', path: '分类/测试' });
+    expect(noOverlap).toBe(sameNoOverlap);
+  });
+
+  test('逐字加分不超0.15', () => {
+    const titleKws = ['雨衣', '雨披'];
+    const aliKws = ['雨衣', '雨披'];
+    const score = scoreCategory(titleKws, aliKws, { name: '雨衣雨披', path: '户外/雨衣雨披' });
+    expect(score).toBeLessThanOrEqual(1.0);
+    expect(score).toBeGreaterThanOrEqual(0);
+  });
+
+  test('空ali词不触发逐字匹配', () => {
+    const titleKws = ['雨衣'];
+    const aliKws = [];
+    const score1 = scoreCategory(titleKws, aliKws, { name: '雨衣', path: '户外/雨衣' });
+    expect(score1).toBeGreaterThanOrEqual(0);
+  });
+
+  test('无重合词时用1688类目词逐字加分', () => {
+    const titleKws = ['工具'];
+    const aliKws = ['搓澡'];
+    const hit = scoreCategory(titleKws, aliKws, { name: '搓澡刷', path: '家居/浴室/搓澡刷' });
+    const miss = scoreCategory(titleKws, aliKws, { name: '清洁剂', path: '家居/清洁/清洁剂' });
+    expect(hit).toBeGreaterThan(miss);
+  });
+
+  test('无重合词1688逐字加分候选名含全部字符得分最高', () => {
+    const titleKws = ['工具'];
+    const aliKws = ['搓澡刷'];
+    const full = scoreCategory(titleKws, aliKws, { name: '搓澡刷', path: '家居/搓澡刷' });
+    const partial = scoreCategory(titleKws, aliKws, { name: '搓澡巾', path: '家居/搓澡巾' });
+    expect(full).toBeGreaterThan(partial);
+  });
 });

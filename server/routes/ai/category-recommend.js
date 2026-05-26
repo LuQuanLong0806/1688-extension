@@ -236,8 +236,8 @@ function scoreCategory(titleKeywords, aliCategoryWords, candidate, blacklistEntr
   var aliOnlyRatio = Math.max(0, aliDetail.ratio - overlapRatio);
   var titleOnlyRatio = Math.max(0, titleDetail.ratio - overlapRatio);
 
-  // 三级加权：重合 0.5，仅1688 0.3，仅标题 0.2
-  score += (overlapRatio * 0.5 + aliOnlyRatio * 0.3 + titleOnlyRatio * 0.2) * 0.5;
+  // 三级加权：重合 0.5，仅1688 0.35，仅标题 0.15
+  score += (overlapRatio * 0.5 + aliOnlyRatio * 0.35 + titleOnlyRatio * 0.15) * 0.5;
 
   // 2. 精确匹配加分（权重 0.3）
   var exactBonus = 0;
@@ -281,6 +281,48 @@ function scoreCategory(titleKeywords, aliCategoryWords, candidate, blacklistEntr
     score *= 0.5;
   }
 
+  // 5.5 逐字匹配加分：1688类目词始终参与，重合词的字权重加倍
+  if (aliCategoryWords.length > 0) {
+    // 收集重合词
+    var overlapWords = [];
+    var _seen = {};
+    if (titleKeywords.length > 0) {
+      for (var ai = 0; ai < aliCategoryWords.length; ai++) {
+        for (var ti = 0; ti < titleKeywords.length; ti++) {
+          var aw = aliCategoryWords[ai]; var tw = titleKeywords[ti];
+          if (aw.length < 2 || tw.length < 2) continue;
+          var matchWord = null;
+          if (aw === tw) matchWord = aw;
+          else if (aw.indexOf(tw) >= 0 && tw.length >= 2) matchWord = tw;
+          else if (tw.indexOf(aw) >= 0 && aw.length >= 2) matchWord = aw;
+          if (matchWord && !_seen[matchWord]) { _seen[matchWord] = true; overlapWords.push(matchWord); }
+        }
+      }
+    }
+    // 构建 char → weight 映射：重合词拆出的字权重=1.5，仅1688词拆出的字权重=1
+    var charWeight = {};
+    aliCategoryWords.forEach(function (w) {
+      for (var ci = 0; ci < w.length; ci++) {
+        var ch = w[ci];
+        if (!charWeight[ch]) charWeight[ch] = 1;
+      }
+    });
+    overlapWords.forEach(function (w) {
+      for (var ci = 0; ci < w.length; ci++) { charWeight[w[ci]] = 1.5; }
+    });
+    var charArr = Object.keys(charWeight);
+    if (charArr.length > 0) {
+      var totalWeight = 0;
+      var hitWeight = 0;
+      for (var chi = 0; chi < charArr.length; chi++) {
+        var w = charWeight[charArr[chi]];
+        totalWeight += w;
+        if (candFull.indexOf(charArr[chi]) >= 0) hitWeight += w;
+      }
+      score += (totalWeight > 0 ? hitWeight / totalWeight : 0) * 0.15;
+    }
+  }
+
   // 6. 黑名单惩罚（极小幅度，避免误杀）
   if (blacklistEntries && blacklistEntries.length > 0) {
     var blCount = 0;
@@ -300,9 +342,27 @@ function scoreCategory(titleKeywords, aliCategoryWords, candidate, blacklistEntr
 // 基于 1688 类目名拆分出关键词
 function splitAliCategoryWords(aliCategory) {
   if (!aliCategory) return [];
-  return aliCategory.split(/[\/>\/\s,，、：:]+/).filter(function (w) {
+  var base = aliCategory.split(/[\/>\/\s,，、：:]+/).filter(function (w) {
     return w.length >= 2;
   });
+  // 对>=4字的复合词做子串拆分，如"连体雨衣"→"雨衣"
+  var result = base.slice();
+  var seen = {};
+  base.forEach(function (w) { seen[w] = true; });
+  base.forEach(function (w) {
+    if (w.length >= 4) {
+      for (var sl = 2; sl <= Math.min(w.length - 1, 3); sl++) {
+        for (var si = 0; si <= w.length - sl; si++) {
+          var sub = w.substring(si, si + sl);
+          if (!seen[sub]) {
+            seen[sub] = true;
+            result.push(sub);
+          }
+        }
+      }
+    }
+  });
+  return result;
 }
 
 // 互斥拦截验证（替代旧的硬编码规则）
@@ -400,8 +460,12 @@ router.post('/suggest-category', async function (req, res) {
       if (keywords.indexOf(kw) < 0 && getGenericWords().indexOf(kw) < 0) keywords.push(kw);
     });
 
-    // Step 3: 1688 类目拆词
-    var aliCategoryWords = splitAliCategoryWords(aliCategory);
+    // Step 3: 1688 类目拆词（含子串拆分，用于搜索候选）
+    var aliCategoryWordsAll = splitAliCategoryWords(aliCategory);
+    // 计分只用原始拆词（不含子串噪声），子串仅用于搜索候选
+    var aliCategoryWords = aliCategory.split(/[\/>\/\s,，、：:]+/).filter(function (w) {
+      return w.length >= 2;
+    });
 
     // Step 4: 构建候选池
     var candidates = [];
@@ -428,12 +492,12 @@ router.post('/suggest-category', async function (req, res) {
       });
     }
 
-    // 数据库搜索候选：1688 类目词优先，LLM 关键词补充
-    var searchKeywords = aliCategoryWords.slice();
+    // 数据库搜索候选：1688 类目词（含子串）优先，LLM 关键词补充
+    var searchKeywords = aliCategoryWordsAll.slice();
     keywords.forEach(function (w) {
       if (searchKeywords.indexOf(w) < 0) searchKeywords.push(w);
     });
-    searchKeywords = searchKeywords.slice(0, 8);
+    searchKeywords = searchKeywords.slice(0, 12);
 
     console.log('[分类推荐] 搜索关键词:', searchKeywords.join(', '));
 
@@ -447,6 +511,38 @@ router.post('/suggest-category', async function (req, res) {
         if (!seenPaths[exactRows[r].path]) {
           seenPaths[exactRows[r].path] = true;
           candidates.push({ name: exactRows[r].cat_name, path: exactRows[r].path, exactMatch: true });
+        }
+      }
+    }
+
+    // 子串拆分匹配：把复合关键词拆成 2~3 字的子词再搜一轮
+    // 如"连体雨衣" → 拆出"雨衣"；"电动车雨衣" → 拆出"雨衣"、"电动"
+    var subKeywords = [];
+    for (var k = 0; k < searchKeywords.length; k++) {
+      var kw = searchKeywords[k];
+      if (kw.length >= 4) {
+        for (var sl = 2; sl <= Math.min(kw.length - 1, 4); sl++) {
+          for (var si = 0; si <= kw.length - sl; si++) {
+            var sub = kw.substring(si, si + sl);
+            if (searchKeywords.indexOf(sub) < 0 && subKeywords.indexOf(sub) < 0) {
+              subKeywords.push(sub);
+            }
+          }
+        }
+      }
+    }
+    if (subKeywords.length > 0) {
+      console.log('[分类推荐] 子串拆分词:', subKeywords.join(', '));
+      for (var sk = 0; sk < subKeywords.length && candidates.length < MAX_CANDIDATES; sk++) {
+        var subRows = dbModule.treeGetAll(
+          'SELECT cat_name, path FROM dxm_category_tree WHERE is_leaf = 1 AND (cat_name LIKE ? OR path LIKE ?) LIMIT 10',
+          ['%' + subKeywords[sk] + '%', '%' + subKeywords[sk] + '%']
+        );
+        for (var sr = 0; sr < subRows.length && candidates.length < MAX_CANDIDATES; sr++) {
+          if (!seenPaths[subRows[sr].path]) {
+            seenPaths[subRows[sr].path] = true;
+            candidates.push({ name: subRows[sr].cat_name, path: subRows[sr].path });
+          }
         }
       }
     }

@@ -82,20 +82,20 @@ module.exports = function (cloud, db) {
     }
     counts.keyword_blacklist = bl.length;
 
-    var configs = db.getAll('SELECT type, value, group_name, description, sort_order FROM category_config');
+    var configs = db.getAll('SELECT type, value, group_name, description, sort_order, deleted FROM category_config');
     if (configs.length > 0 && cloud.client.batch) {
       var batchSize = 200;
       for (var ci = 0; ci < configs.length; ci += batchSize) {
         var chunk = configs.slice(ci, ci + batchSize);
         var stmts = chunk.map(function (c) {
-          return { sql: 'INSERT OR REPLACE INTO category_config (type, value, group_name, description, sort_order) VALUES (?, ?, ?, ?, ?)', args: [c.type, c.value, c.group_name, c.description, c.sort_order] };
+          return { sql: 'INSERT OR REPLACE INTO category_config (type, value, group_name, description, sort_order, deleted) VALUES (?, ?, ?, ?, ?, ?)', args: [c.type, c.value, c.group_name, c.description, c.sort_order, c.deleted || 0] };
         });
         try { await cloud.client.batch(stmts); } catch (e) { console.error('[云同步] category_config batch fail:', e.message); }
       }
     } else {
       for (var i = 0; i < configs.length; i++) {
-        await cloud.run('INSERT OR REPLACE INTO category_config (type, value, group_name, description, sort_order) VALUES (?, ?, ?, ?, ?)',
-          [configs[i].type, configs[i].value, configs[i].group_name, configs[i].description, configs[i].sort_order]);
+        await cloud.run('INSERT OR REPLACE INTO category_config (type, value, group_name, description, sort_order, deleted) VALUES (?, ?, ?, ?, ?, ?)',
+          [configs[i].type, configs[i].value, configs[i].group_name, configs[i].description, configs[i].sort_order, configs[i].deleted || 0]);
       }
     }
     counts.category_config = configs.length;
@@ -164,10 +164,10 @@ module.exports = function (cloud, db) {
     }
     counts.keyword_blacklist = cloudBl.length;
 
-    var cloudConfigs = await cloud.getAll('SELECT type, value, group_name, description, sort_order FROM category_config');
+    var cloudConfigs = await cloud.getAll('SELECT type, value, group_name, description, sort_order, deleted FROM category_config');
     for (var i = 0; i < cloudConfigs.length; i++) {
-      db.run('INSERT OR REPLACE INTO category_config (type, value, group_name, description, sort_order) VALUES (?, ?, ?, ?, ?)',
-        [cloudConfigs[i].type, cloudConfigs[i].value, cloudConfigs[i].group_name, cloudConfigs[i].description, cloudConfigs[i].sort_order]);
+      db.run('INSERT OR REPLACE INTO category_config (type, value, group_name, description, sort_order, deleted) VALUES (?, ?, ?, ?, ?, ?)',
+        [cloudConfigs[i].type, cloudConfigs[i].value, cloudConfigs[i].group_name, cloudConfigs[i].description, cloudConfigs[i].sort_order, cloudConfigs[i].deleted || 0]);
     }
     counts.category_config = cloudConfigs.length;
 

@@ -1087,3 +1087,18 @@ body {
   color: var(--text-primary); vertical-align: middle;
 }
 .kb-table tbody tr:hover { background: var(--accent-subtle); }
+
+/* 词库内联添加 */
+.inline-add-bar {
+  display: flex;
+  align-items: center;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-elevated);
+}
+.inline-add-fields {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}

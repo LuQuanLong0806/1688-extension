@@ -17,9 +17,11 @@ Vue.component('page-word-library', {
       pageSize: 20,
       keyword: '',
       selectedIds: [],
-      modalVisible: false,
-      modalEditId: null,
-      modalForm: { value: '', group_name: '', description: '' },
+      addForm: { value: '', group_name: '', description: '' },
+      addSaving: false,
+      editId: null,
+      editForm: { value: '', group_name: '', description: '' },
+      editSaving: false,
       mutexGroups: []
     };
   },
@@ -50,12 +52,25 @@ Vue.component('page-word-library', {
       }
       var cols = [
         { type: 'selection', width: 40, align: 'center' },
-        { title: '词语', key: 'value', minWidth: 140 }
+        { title: '词语', key: 'value', minWidth: 140, render: function (h, p) {
+          if (vm.editId === p.row.id) return h('Input', { props: { value: vm.editForm.value, size: 'small' }, on: { input: function (v) { vm.editForm.value = v; }, 'on-enter': function () { vm.saveEdit(); } } });
+          return h('span', p.row.value);
+        } }
       ];
       if (this.activeTab === 'mutex') {
-        cols.push({ title: '互斥组', key: 'group_name', width: 140 });
+        cols.push({ title: '互斥组', key: 'group_name', width: 140, render: function (h, p) {
+          if (vm.editId === p.row.id) {
+            return h('Select', { props: { value: vm.editForm.group_name, size: 'small', filterable: true, 'allow-create': true, placeholder: '选择或输入' }, on: { input: function (v) { vm.editForm.group_name = v; } } },
+              vm.mutexGroups.map(function (g) { return h('Option', { props: { value: g } }, g); })
+            );
+          }
+          return h('span', p.row.group_name);
+        } });
       }
-      cols.push({ title: '说明', key: 'description', minWidth: 120 });
+      cols.push({ title: '说明', key: 'description', minWidth: 120, render: function (h, p) {
+        if (vm.editId === p.row.id) return h('Input', { props: { value: vm.editForm.description, size: 'small', placeholder: '说明' }, on: { input: function (v) { vm.editForm.description = v; }, 'on-enter': function () { vm.saveEdit(); } } });
+        return h('span', p.row.description || '');
+      } });
       cols.push({ title: '操作', width: 150, align: 'center', slot: 'actions' });
       return cols;
     },
@@ -125,45 +140,84 @@ Vue.component('page-word-library', {
         vm.loading = false;
       }).catch(function () { vm.loading = false; });
     },
-    openAdd: function () {
-      this.modalEditId = null;
-      this.modalForm = { value: '', group_name: '', description: '' };
-      this.modalVisible = true;
-    },
-    openEdit: function (row) {
-      this.modalEditId = row.id;
-      this.modalForm = { value: row.value, group_name: row.group_name || '', description: row.description || '' };
-      this.modalVisible = true;
-    },
-    saveItem: function () {
+    addItem: function () {
       var vm = this;
-      var value = (vm.modalForm.value || '').trim();
+      var value = (vm.addForm.value || '').trim();
       if (!value) { vm.$Message.warning('词语不能为空'); return; }
-      if (vm.activeTab === 'mutex' && !(vm.modalForm.group_name || '').trim()) {
+      if (vm.activeTab === 'mutex' && !(vm.addForm.group_name || '').trim()) {
         vm.$Message.warning('互斥组名称不能为空');
         return;
       }
+      vm.addSaving = true;
       fetch('/api/category-config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: vm.activeTab,
           value: value,
-          group_name: (vm.modalForm.group_name || '').trim(),
-          description: (vm.modalForm.description || '').trim()
+          group_name: (vm.addForm.group_name || '').trim(),
+          description: (vm.addForm.description || '').trim()
         })
       })
       .then(function (r) { return r.json(); })
       .then(function (res) {
+        vm.addSaving = false;
+        if (res.ok) {
+          vm.$Message.success('添加成功');
+          vm.addForm = { value: '', group_name: '', description: '' };
+          vm.loadList();
+        } else {
+          vm.$Message.error(res.error || '添加失败');
+        }
+      })
+      .catch(function () { vm.addSaving = false; vm.$Message.error('添加失败'); });
+    },
+    onAddEnter: function (e) {
+      if (e.key === 'Enter' || e.type === 'keydown') {
+        e.preventDefault();
+        this.addItem();
+      }
+    },
+    openEdit: function (row) {
+      this.editId = row.id;
+      this.editForm = { value: row.value, group_name: row.group_name || '', description: row.description || '' };
+    },
+    cancelEdit: function () {
+      this.editId = null;
+      this.editForm = { value: '', group_name: '', description: '' };
+    },
+    saveEdit: function () {
+      var vm = this;
+      var value = (vm.editForm.value || '').trim();
+      if (!value) { vm.$Message.warning('词语不能为空'); return; }
+      if (vm.activeTab === 'mutex' && !(vm.editForm.group_name || '').trim()) {
+        vm.$Message.warning('互斥组名称不能为空');
+        return;
+      }
+      vm.editSaving = true;
+      fetch('/api/category-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: vm.activeTab,
+          id: vm.editId,
+          value: value,
+          group_name: (vm.editForm.group_name || '').trim(),
+          description: (vm.editForm.description || '').trim()
+        })
+      })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        vm.editSaving = false;
         if (res.ok) {
           vm.$Message.success('保存成功');
-          vm.modalVisible = false;
+          vm.editId = null;
           vm.loadList();
         } else {
           vm.$Message.error(res.error || '保存失败');
         }
       })
-      .catch(function () { vm.$Message.error('保存失败'); });
+      .catch(function () { vm.editSaving = false; vm.$Message.error('保存失败'); });
     },
     deleteItem: function (row) {
       var vm = this;
@@ -268,11 +322,20 @@ Vue.component('page-word-library', {
       <div class="action-bar">
         <div class="action-bar-left">共 <strong>{{ total }}</strong> 条</div>
         <div class="action-bar-right">
-          <i-button v-if="!isKbTab" type="primary" icon="md-add" @click="openAdd">新增</i-button>
           <i-button v-if="!isKbTab" type="error" icon="ios-trash" :disabled="selectedIds.length === 0" @click="batchDelete">
             批量删除{{ selectedIds.length ? ' (' + selectedIds.length + ')' : '' }}
           </i-button>
           <tooltip content="刷新" placement="top"><i-button icon="md-refresh" shape="circle" @click="loadList()"></i-button></tooltip>
+        </div>
+      </div>
+      <div v-if="!isKbTab" class="inline-add-bar">
+        <div class="inline-add-fields">
+          <i-input v-model="addForm.value" placeholder="输入词语" style="width:180px" @on-enter="addItem" />
+          <i-select v-if="activeTab === 'mutex'" v-model="addForm.group_name" filterable allow-create placeholder="互斥组" style="width:140px">
+            <i-option v-for="g in mutexGroups" :key="g" :value="g">{{ g }}</i-option>
+          </i-select>
+          <i-input v-model="addForm.description" placeholder="说明(可选)" style="width:160px" @on-enter="addItem" />
+          <i-button type="primary" icon="md-add" :loading="addSaving" @click="addItem">添加</i-button>
         </div>
       </div>
       <div class="table-wrap">
@@ -281,10 +344,16 @@ Vue.component('page-word-library', {
           @on-selection-change="onSelectionChange" style="margin-bottom:0;">
           <template slot="actions" slot-scope="{ row }">
             <div class="action-btns">
-              <Button v-if="!isKbTab" type="primary" size="small" icon="md-create" @click="openEdit(row)">编辑</Button>
-              <Button :type="activeTab === 'rels' ? 'warning' : 'error'" size="small"
-                :icon="activeTab === 'rels' ? 'md-close' : 'ios-trash'"
-                @click="deleteItem(row)">{{ activeTab === 'rels' ? '作废' : '删除' }}</Button>
+              <template v-if="!isKbTab && editId === row.id">
+                <i-button type="success" size="small" icon="md-checkmark" :loading="editSaving" @click="saveEdit">保存</i-button>
+                <i-button size="small" @click="cancelEdit">取消</i-button>
+              </template>
+              <template v-else>
+                <Button v-if="!isKbTab" type="primary" size="small" icon="md-create" @click="openEdit(row)">编辑</Button>
+                <Button :type="activeTab === 'rels' ? 'warning' : 'error'" size="small"
+                  :icon="activeTab === 'rels' ? 'md-close' : 'ios-trash'"
+                  @click="deleteItem(row)">{{ activeTab === 'rels' ? '作废' : '删除' }}</Button>
+              </template>
             </div>
           </template>
         </i-table>
@@ -294,24 +363,5 @@ Vue.component('page-word-library', {
           :page-size-opts="[20,50,100]" show-total show-elevator show-sizer
           @on-change="onPageChange" @on-page-size-change="onPageSizeChange" />
       </div>
-      <modal v-model="modalVisible" :title="modalEditId ? '编辑' : '新增'" :mask-closable="false" width="460">
-        <i-form :label-width="80" style="margin-top:12px">
-          <form-item label="词语" required>
-            <i-input v-model="modalForm.value" placeholder="输入词语" />
-          </form-item>
-          <form-item v-if="activeTab === 'mutex'" label="互斥组" required>
-            <i-select v-model="modalForm.group_name" filterable allow-create placeholder="选择或输入组名">
-              <i-option v-for="g in mutexGroups" :key="g" :value="g">{{ g }}</i-option>
-            </i-select>
-          </form-item>
-          <form-item label="说明">
-            <i-input v-model="modalForm.description" type="textarea" :rows="2" placeholder="可选" />
-          </form-item>
-        </i-form>
-        <div slot="footer">
-          <i-button @click="modalVisible = false">取消</i-button>
-          <i-button type="primary" @click="saveItem">保存</i-button>
-        </div>
-      </modal>
     </div>`
 });
