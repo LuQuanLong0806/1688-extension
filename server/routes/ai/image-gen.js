@@ -213,9 +213,12 @@ router.post('/smms-upload', function (req, res) {
 
 router.get('/smms-token', function (req, res) {
   var key = getImgbbKey();
-  if (!key) return res.json({ configured: false, masked: '' });
+  if (!key) return res.json({ configured: false, masked: '', label: '' });
   var masked = key.length > 8 ? key.substring(0, 4) + '****' + key.substring(key.length - 4) : '****';
-  res.json({ configured: true, masked: masked });
+  var db = require('../../db');
+  var row = db.getOne('SELECT value FROM settings WHERE key = ?', ['imgbb_api_key_label']);
+  var label = (row && row.value) || '';
+  res.json({ configured: true, masked: masked, label: label });
 });
 
 router.post('/smms-token', function (req, res) {
@@ -224,6 +227,8 @@ router.post('/smms-token', function (req, res) {
   try {
     var db = require('../../db');
     db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('imgbb_api_key', ?)", [sec.encrypt(key)]);
+    var label = (req.body.label || '').trim();
+    db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('imgbb_api_key_label', ?)", [label]);
     db.scheduleSave();
     res.json({ ok: true });
   } catch (e) {
@@ -235,6 +240,8 @@ router.post('/smms-token-delete', function (req, res) {
   try {
     var db = require('../../db');
     db.run("DELETE FROM settings WHERE key = 'imgbb_api_key'");
+    db.run("DELETE FROM settings WHERE key = 'imgbb_api_key_label'");
+    db.scheduleSave();
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: '删除失败' });

@@ -686,9 +686,25 @@ function createAiRouter(cloudDb) {
     res.json({ ok: true });
   });
   router.get('/configs', function (req, res) {
-    res.json({ category: { configured: false }, vision: { configured: false }, image: { configured: false }, _global: { configured: false }, providers: { qwen: { configured: false }, hunyuan: { configured: false }, ollama: {} } });
+    var result = {};
+    ['category', 'vision', 'image'].forEach(function (uc) {
+      var labelRow = getOne('SELECT value FROM settings WHERE key = ?', ['ai_label_' + uc]);
+      result[uc] = { configured: false, customLabel: labelRow ? labelRow.value : '' };
+    });
+    result._global = { configured: false };
+    result.providers = { qwen: { configured: false }, hunyuan: { configured: false }, ollama: {} };
+    res.json(result);
   });
-  router.post('/configs', function (req, res) { res.json({ ok: true }); });
+  router.post('/configs', function (req, res) {
+    var updates = req.body;
+    Object.keys(updates).forEach(function (uc) {
+      if (uc === 'providers') return;
+      if (updates[uc].label !== undefined) {
+        run("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)", ['ai_label_' + uc, updates[uc].label]);
+      }
+    });
+    res.json({ ok: true });
+  });
   router.post('/global-key', function (req, res) {
     var key = (req.body.apiKey || '').trim();
     if (!key) return res.status(400).json({ error: 'API Key 不能为空' });
@@ -698,13 +714,26 @@ function createAiRouter(cloudDb) {
   router.post('/zhipu-keys', function (req, res) { res.json({ ok: true }); });
   router.post('/qwen-keys', function (req, res) { res.json({ ok: true }); });
   router.post('/hunyuan-keys', function (req, res) { res.json({ ok: true }); });
-  router.get('/smms-token', function (req, res) { res.json({ configured: false }); });
+  router.get('/smms-token', function (req, res) {
+    var row = getOne('SELECT value FROM settings WHERE key = ?', ['imgbb_api_key']);
+    var labelRow = getOne('SELECT value FROM settings WHERE key = ?', ['imgbb_api_key_label']);
+    if (!row) return res.json({ configured: false, masked: '', label: '' });
+    res.json({ configured: true, masked: '****', label: labelRow ? labelRow.value : '' });
+  });
   router.post('/smms-token', function (req, res) {
     var key = (req.body.token || '').trim();
     if (!key) return res.status(400).json({ error: 'API Key 不能为空' });
+    run("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('imgbb_api_key', ?, CURRENT_TIMESTAMP)", [key]);
+    if (req.body.label !== undefined) {
+      run("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('imgbb_api_key_label', ?, CURRENT_TIMESTAMP)", [req.body.label]);
+    }
     res.json({ ok: true });
   });
-  router.post('/smms-token-delete', function (req, res) { res.json({ ok: true }); });
+  router.post('/smms-token-delete', function (req, res) {
+    run("DELETE FROM settings WHERE key = 'imgbb_api_key'");
+    run("DELETE FROM settings WHERE key = 'imgbb_api_key_label'");
+    res.json({ ok: true });
+  });
   router.post('/text-to-image', function (req, res) {
     var prompt = req.body.prompt;
     if (!prompt || !prompt.trim()) return res.status(400).json({ error: '请输入图片描述' });

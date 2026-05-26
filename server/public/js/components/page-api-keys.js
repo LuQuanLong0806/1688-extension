@@ -60,7 +60,11 @@ Vue.component('page-api-keys', {
       this.keyModal = { show: true, mode: 'edit', provider: provider, index: index, key: '', label: label || '', sid: '', skey: '' };
     },
     openSingleKeyModal: function (provider) {
-      this.keyModal = { show: true, mode: 'single', provider: provider, index: -1, key: '', label: '', sid: '', skey: '' };
+      var existingLabel = '';
+      if (provider === 'vision' && this.configs.vision) existingLabel = this.configs.vision.customLabel || '';
+      else if (provider === 'image' && this.configs.image) existingLabel = this.configs.image.customLabel || '';
+      else if (provider === 'imgbb') existingLabel = this.imgbbStatus.label || '';
+      this.keyModal = { show: true, mode: 'single', provider: provider, index: -1, key: '', label: existingLabel, sid: '', skey: '' };
     },
     closeModal: function () { this.keyModal.show = false; },
     saveModal: function () {
@@ -131,7 +135,7 @@ Vue.component('page-api-keys', {
         var key = (m.key || '').trim();
         if (!key) { vm.$Message.warning('请输入API Key'); return; }
         vm.saving = 'vision';
-        fetch('/api/ai/configs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vision: { model: 'glm-4v-flash', apiKey: key } }) })
+        fetch('/api/ai/configs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vision: { model: 'glm-4v-flash', apiKey: key, label: label } }) })
           .then(function (r) { return r.json(); }).then(function (d) {
             if (d.ok) { vm.$Message.success('智能检测 Key 已保存'); vm.loadConfigs(); }
             else vm.$Message.error(d.error || '保存失败');
@@ -141,7 +145,7 @@ Vue.component('page-api-keys', {
         var key = (m.key || '').trim();
         if (!key) { vm.$Message.warning('请输入API Key'); return; }
         vm.saving = 'image';
-        fetch('/api/ai/configs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image: { model: 'cogview-3-flash', apiKey: key } }) })
+        fetch('/api/ai/configs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image: { model: 'cogview-3-flash', apiKey: key, label: label } }) })
           .then(function (r) { return r.json(); }).then(function (d) {
             if (d.ok) { vm.$Message.success('图片生成 Key 已保存'); vm.loadConfigs(); }
             else vm.$Message.error(d.error || '保存失败');
@@ -151,7 +155,7 @@ Vue.component('page-api-keys', {
         var key = (m.key || '').trim();
         if (!key) { vm.$Message.warning('请输入 ImgBB API Key'); return; }
         vm.saving = 'imgbb';
-        fetch('/api/ai/smms-token', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: key }) })
+        fetch('/api/ai/smms-token', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: key, label: label }) })
           .then(function (r) { return r.json(); }).then(function (d) {
             if (d.ok) { vm.$Message.success('ImgBB Key 已保存'); vm.loadImgbb(); }
             else vm.$Message.error(d.error || '保存失败');
@@ -200,7 +204,7 @@ Vue.component('page-api-keys', {
       var vm = this;
       vm.$Modal.confirm({ title: '确认删除', content: '删除后将使用智谱通用 Key', okText: '删除', cancelText: '取消',
         onOk: function () {
-          fetch('/api/ai/configs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vision: { model: 'glm-4v-flash', apiKey: '' } }) })
+          fetch('/api/ai/configs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vision: { model: 'glm-4v-flash', apiKey: '', label: '' } }) })
             .then(function (r) { return r.json(); }).then(function (d) {
               if (d.ok) { vm.$Message.success('已删除'); vm.loadConfigs(); }
             }).catch(function () { vm.$Message.error('删除失败'); });
@@ -211,7 +215,7 @@ Vue.component('page-api-keys', {
       var vm = this;
       vm.$Modal.confirm({ title: '确认删除', content: '删除后将使用智谱通用 Key', okText: '删除', cancelText: '取消',
         onOk: function () {
-          fetch('/api/ai/configs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image: { model: 'cogview-3-flash', apiKey: '' } }) })
+          fetch('/api/ai/configs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image: { model: 'cogview-3-flash', apiKey: '', label: '' } }) })
             .then(function (r) { return r.json(); }).then(function (d) {
               if (d.ok) { vm.$Message.success('已删除'); vm.loadConfigs(); }
             }).catch(function () { vm.$Message.error('删除失败'); });
@@ -246,7 +250,7 @@ Vue.component('page-api-keys', {
     loadImgbb: function () {
       var vm = this;
       fetch('/api/ai/smms-token').then(function (r) { return r.json(); }).then(function (d) {
-        vm.imgbbStatus = { configured: !!d.configured, masked: d.masked || '' };
+        vm.imgbbStatus = { configured: !!d.configured, masked: d.masked || '', label: d.label || '' };
       }).catch(function () {});
     },
     // ===== Turso =====
@@ -412,11 +416,10 @@ Vue.component('page-api-keys', {
             <div style="flex:1;min-width:0">
               <div class="ai-key-list">
                 <span v-if="configs.vision && configs.vision.apiKey" class="ai-key-tag">
-                  {{ configs.vision.apiKey }}
+                  {{ configs.vision.apiKey }}<span v-if="configs.vision.customLabel" class="ai-key-label-text">[{{ configs.vision.customLabel }}]</span>
                   <i class="ivu-icon ivu-icon-ios-create ai-key-edit-icon" @click="openSingleKeyModal('vision')"></i>
                   <i class="ivu-icon ivu-icon-ios-close ai-key-del-icon" @click="deleteVisionKey()"></i>
                 </span>
-                <i-button v-if="configs.vision && configs.vision.apiKey" size="small" @click="deleteVisionKey()" style="margin-left:4px">删除</i-button>
                 <i-button type="primary" size="small" @click="openSingleKeyModal('vision')"><icon type="md-add" style="margin-right:2px"></icon>{{ (configs.vision && configs.vision.apiKey) ? '替换' : '设置' }} Key</i-button>
               </div>
               <div v-if="!configs.vision || !configs.vision.apiKey" class="ai-key-empty">未设置专用 Key，将使用智谱通用 Key</div>
@@ -439,11 +442,10 @@ Vue.component('page-api-keys', {
             <div style="flex:1;min-width:0">
               <div class="ai-key-list">
                 <span v-if="configs.image && configs.image.apiKey" class="ai-key-tag">
-                  {{ configs.image.apiKey }}
+                  {{ configs.image.apiKey }}<span v-if="configs.image.customLabel" class="ai-key-label-text">[{{ configs.image.customLabel }}]</span>
                   <i class="ivu-icon ivu-icon-ios-create ai-key-edit-icon" @click="openSingleKeyModal('image')"></i>
                   <i class="ivu-icon ivu-icon-ios-close ai-key-del-icon" @click="deleteImageKey()"></i>
                 </span>
-                <i-button v-if="configs.image && configs.image.apiKey" size="small" @click="deleteImageKey()" style="margin-left:4px">删除</i-button>
                 <i-button type="primary" size="small" @click="openSingleKeyModal('image')"><icon type="md-add" style="margin-right:2px"></icon>{{ (configs.image && configs.image.apiKey) ? '替换' : '设置' }} Key</i-button>
               </div>
               <div v-if="!configs.image || !configs.image.apiKey" class="ai-key-empty">未设置专用 Key，将使用智谱通用 Key</div>
@@ -466,11 +468,10 @@ Vue.component('page-api-keys', {
             <div style="flex:1;min-width:0">
               <div class="ai-key-list">
                 <span v-if="imgbbStatus.configured" class="ai-key-tag">
-                  {{ imgbbStatus.masked }}
+                  {{ imgbbStatus.masked }}<span v-if="imgbbStatus.label" class="ai-key-label-text">[{{ imgbbStatus.label }}]</span>
                   <i class="ivu-icon ivu-icon-ios-create ai-key-edit-icon" @click="openSingleKeyModal('imgbb')"></i>
                   <i class="ivu-icon ivu-icon-ios-close ai-key-del-icon" @click="deleteImgbb()"></i>
                 </span>
-                <i-button v-if="imgbbStatus.configured" size="small" @click="deleteImgbb()" style="margin-left:4px">删除</i-button>
                 <i-button type="primary" size="small" @click="openSingleKeyModal('imgbb')"><icon type="md-add" style="margin-right:2px"></icon>{{ imgbbStatus.configured ? '替换' : '设置' }} Key</i-button>
               </div>
               <div v-if="!imgbbStatus.configured" class="ai-key-empty">未设置</div>
@@ -564,9 +565,13 @@ Vue.component('page-api-keys', {
             </template>
             <!-- 单 Key（vision/image/imgbb）-->
             <template v-if="keyModal.mode === 'single'">
-              <div>
+              <div style="margin-bottom:12px">
                 <span style="display:block;font-size:13px;color:var(--text-secondary);margin-bottom:6px">{{ keyModal.provider === 'imgbb' ? 'ImgBB API Key' : 'API Key' }}</span>
                 <i-input v-model="keyModal.key" type="password" password size="small" placeholder="请输入 API Key" style="width:100%" @on-enter="saveModal"></i-input>
+              </div>
+              <div>
+                <span style="display:block;font-size:13px;color:var(--text-secondary);margin-bottom:6px">备注</span>
+                <i-input v-model="keyModal.label" size="small" placeholder="给 Key 加个备注方便区分" style="width:100%" @on-enter="saveModal"></i-input>
               </div>
             </template>
           </div>

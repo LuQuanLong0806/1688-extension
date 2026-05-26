@@ -65,6 +65,7 @@ router.get('/configs', function (req, res) {
       apiKey: providers.maskApiKey(c.apiKey),
       configured: !!(c.apiKey || providers.getApiKey()),
       label: providers.AI_USE_CASES[uc].label,
+      customLabel: c.label || '',
       models: providers.AI_USE_CASES[uc].models
     };
   });
@@ -112,6 +113,7 @@ router.post('/configs', function (req, res) {
     if (!providers.AI_USE_CASES[uc]) return;
     if (!configs[uc]) configs[uc] = {};
     if (updates[uc].model) configs[uc].model = updates[uc].model;
+    if (updates[uc].label !== undefined) configs[uc].label = updates[uc].label;
     // 兼容：如果传来单个 apiKey，追加到对应数组
     if (updates[uc].apiKey && updates[uc].apiKey.indexOf('****') === -1) {
       configs[uc].apiKey = updates[uc].apiKey;

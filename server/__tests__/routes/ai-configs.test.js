@@ -12,7 +12,7 @@ beforeAll(async () => {
 });
 
 afterEach(() => {
-  setup.run("DELETE FROM settings WHERE key LIKE 'zhipu%' OR key LIKE 'ai_%' OR key = 'imgbb_api_key'");
+  setup.run("DELETE FROM settings WHERE key LIKE 'zhipu%' OR key LIKE 'ai_%' OR key = 'imgbb_api_key' OR key = 'imgbb_api_key_label'");
 });
 
 describe('AI Config 路由', () => {
@@ -142,6 +142,98 @@ describe('AI Config 路由', () => {
       const res = await request(app).post('/api/ai/smms-token-delete').send({});
       expect(res.status).toBe(200);
       expect(res.body.ok).toBe(true);
+    });
+  });
+
+  // ===== 备注标签（customLabel）功能 =====
+  describe('单Key备注 — vision/image customLabel', () => {
+    test('GET /configs 返回 customLabel 字段', async () => {
+      const res = await request(app).get('/api/ai/configs');
+      expect(res.status).toBe(200);
+      expect(res.body.vision.customLabel).toBeDefined();
+      expect(res.body.image.customLabel).toBeDefined();
+    });
+
+    test('POST /configs 保存 vision label', async () => {
+      const res = await request(app).post('/api/ai/configs').send({
+        vision: { model: 'glm-4v-flash', apiKey: 'test-vision-key-abc123456', label: '测试备注' }
+      });
+      expect(res.status).toBe(200);
+      expect(res.body.ok).toBe(true);
+
+      const cfg = await request(app).get('/api/ai/configs');
+      expect(cfg.body.vision.customLabel).toBe('测试备注');
+    });
+
+    test('POST /configs 保存 image label', async () => {
+      const res = await request(app).post('/api/ai/configs').send({
+        image: { model: 'cogview-3-flash', apiKey: 'test-image-key-abc123456', label: '图片备注' }
+      });
+      expect(res.status).toBe(200);
+      expect(res.body.ok).toBe(true);
+
+      const cfg = await request(app).get('/api/ai/configs');
+      expect(cfg.body.image.customLabel).toBe('图片备注');
+    });
+
+    test('POST /configs 清空 label（删除key时）', async () => {
+      await request(app).post('/api/ai/configs').send({
+        vision: { model: 'glm-4v-flash', apiKey: 'test-key-abc1234567890', label: '备注' }
+      });
+      await request(app).post('/api/ai/configs').send({
+        vision: { model: 'glm-4v-flash', apiKey: '', label: '' }
+      });
+      const cfg = await request(app).get('/api/ai/configs');
+      expect(cfg.body.vision.customLabel).toBe('');
+    });
+
+    test('未设置 label 时 customLabel 为空字符串', async () => {
+      await request(app).post('/api/ai/configs').send({
+        vision: { model: 'glm-4v-flash', apiKey: 'test-key-abc1234567890' }
+      });
+      const cfg = await request(app).get('/api/ai/configs');
+      expect(cfg.body.vision.customLabel).toBe('');
+    });
+  });
+
+  describe('ImgBB 备注标签', () => {
+    test('GET /smms-token 未配置时返回空 label', async () => {
+      const res = await request(app).get('/api/ai/smms-token');
+      expect(res.status).toBe(200);
+      expect(res.body.label).toBeDefined();
+      expect(res.body.label).toBe('');
+    });
+
+    test('POST /smms-token 保存带 label', async () => {
+      const res = await request(app).post('/api/ai/smms-token').send({
+        token: 'imgbb-test-key-12345',
+        label: '我的图床'
+      });
+      expect(res.status).toBe(200);
+      expect(res.body.ok).toBe(true);
+
+      const cfg = await request(app).get('/api/ai/smms-token');
+      expect(cfg.body.configured).toBe(true);
+      expect(cfg.body.label).toBe('我的图床');
+    });
+
+    test('POST /smms-token-delete 同时清除 label', async () => {
+      await request(app).post('/api/ai/smms-token').send({
+        token: 'imgbb-test-key-12345',
+        label: '备注'
+      });
+      await request(app).post('/api/ai/smms-token-delete').send({});
+      const cfg = await request(app).get('/api/ai/smms-token');
+      expect(cfg.body.configured).toBe(false);
+      expect(cfg.body.label).toBe('');
+    });
+
+    test('POST /smms-token 无 label 时为空', async () => {
+      await request(app).post('/api/ai/smms-token').send({
+        token: 'imgbb-test-key-12345'
+      });
+      const cfg = await request(app).get('/api/ai/smms-token');
+      expect(cfg.body.label).toBe('');
     });
   });
 });
