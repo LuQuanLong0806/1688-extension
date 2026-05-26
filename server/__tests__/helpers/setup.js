@@ -15,7 +15,7 @@ const LOCAL_TABLE_DEFS = [
   { name: 'category_mappings', ddl: `CREATE TABLE IF NOT EXISTS category_mappings (id INTEGER PRIMARY KEY AUTOINCREMENT, category_name TEXT NOT NULL, custom_category TEXT NOT NULL, count INTEGER DEFAULT 1, source TEXT DEFAULT 'auto', UNIQUE(category_name, custom_category))` },
   { name: 'keyword_category_rel', ddl: `CREATE TABLE IF NOT EXISTS keyword_category_rel (id INTEGER PRIMARY KEY AUTOINCREMENT, keyword TEXT NOT NULL, category_name TEXT NOT NULL, weight REAL DEFAULT 1.0, match_count INTEGER DEFAULT 1, valid INTEGER DEFAULT 1, source TEXT DEFAULT 'auto', created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, UNIQUE(keyword, category_name))` },
   { name: 'keyword_synonyms', ddl: `CREATE TABLE IF NOT EXISTS keyword_synonyms (id INTEGER PRIMARY KEY AUTOINCREMENT, word_a TEXT NOT NULL, word_b TEXT NOT NULL, UNIQUE(word_a, word_b))` },
-  { name: 'keyword_blacklist', ddl: `CREATE TABLE IF NOT EXISTS keyword_blacklist (id INTEGER PRIMARY KEY AUTOINCREMENT, keyword TEXT NOT NULL, category_name TEXT NOT NULL, reason TEXT DEFAULT '', UNIQUE(keyword, category_name))` },
+  { name: 'keyword_blacklist', ddl: `CREATE TABLE IF NOT EXISTS keyword_blacklist (id INTEGER PRIMARY KEY AUTOINCREMENT, keyword TEXT NOT NULL, category_name TEXT NOT NULL, reason TEXT DEFAULT '', count INTEGER DEFAULT 1, updated_at TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE(keyword, category_name))` },
   { name: 'category_config', ddl: `CREATE TABLE IF NOT EXISTS category_config (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, value TEXT NOT NULL, group_name TEXT DEFAULT '', description TEXT DEFAULT '', sort_order INTEGER DEFAULT 0, deleted INTEGER DEFAULT 0, UNIQUE(type, value, group_name))` }
 ];
 
@@ -32,8 +32,12 @@ function createMockCloudDb() {
     saveMapping: jest.fn().mockResolvedValue(null),
     getKeywordRels: jest.fn().mockResolvedValue([]),
     saveKeywordRel: jest.fn().mockResolvedValue(null),
+    invalidateAutoRels: jest.fn().mockResolvedValue(null),
     getSynonyms: jest.fn().mockResolvedValue([]),
     getBlacklisted: jest.fn().mockResolvedValue([]),
+    getBlacklistCounts: jest.fn().mockReturnValue([]),
+    upsertBlacklist: jest.fn(),
+    reduceBlacklist: jest.fn(),
     getTreePath: jest.fn().mockResolvedValue(null),
     getCategoryConfig: jest.fn().mockResolvedValue([]),
     getAllCategoryConfig: jest.fn().mockResolvedValue([]),

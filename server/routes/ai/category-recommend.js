@@ -11,6 +11,8 @@ var providers = require('./providers');
 // 从 DB 加载互斥组配置（带缓存）
 var MUTEX_CACHE = null;
 var MUTEX_CACHE_TIME = 0;
+var BLACKLIST_CACHE = null;
+var BLACKLIST_CACHE_TIME = 0;
 var CONFIG_CACHE_TTL = 300000; // 5分钟缓存
 
 function loadMutexGroups() {
@@ -52,6 +54,22 @@ function loadMutexGroups() {
   ];
   MUTEX_CACHE_TIME = now;
   return MUTEX_CACHE;
+}
+
+function loadBlacklistCounts(keywords) {
+  var now = Date.now();
+  var allRows;
+  if (BLACKLIST_CACHE && (now - BLACKLIST_CACHE_TIME) < CONFIG_CACHE_TTL) {
+    allRows = BLACKLIST_CACHE;
+  } else {
+    allRows = dbModule.getAll('SELECT keyword, category_name, count FROM keyword_blacklist');
+    BLACKLIST_CACHE = allRows;
+    BLACKLIST_CACHE_TIME = now;
+  }
+  if (!allRows || !keywords || !keywords.length) return [];
+  return allRows.filter(function (row) {
+    return keywords.indexOf(row.keyword) >= 0 || keywords.indexOf(row.keyword.toLowerCase()) >= 0;
+  });
 }
 
 // 从 DB 加载过滤词配置（带缓存）
@@ -199,7 +217,7 @@ function calcHitDetail(words, candFull, candName, candPath) {
 
 // 对单个候选类目计算匹配分数
 // 三级优先：双方重合 > 仅1688类目词 > 仅标题关键词
-function scoreCategory(titleKeywords, aliCategoryWords, candidate) {
+function scoreCategory(titleKeywords, aliCategoryWords, candidate, blacklistEntries) {
   var candPath = (candidate.path || '').toLowerCase();
   var candName = (candidate.name || candidate.cat_name || '').toLowerCase();
   var candFull = candPath + candName;
@@ -252,12 +270,31 @@ function scoreCategory(titleKeywords, aliCategoryWords, candidate) {
     score += relWeight * 0.1;
   }
 
+  // 4.5 映射表候选加权（权重 0.15，高于关联库）
+  if (candidate.fromMapping) {
+    var mapWeight = Math.min(1.0, (candidate.mappingCount || 1) / 3.0);
+    score += mapWeight * 0.15;
+  }
+
   // 5. 惩罚"其他/杂项"类目
   if (/^其他|杂项|其他（/.test(candidate.name || candidate.cat_name || '')) {
     score *= 0.5;
   }
 
-  return Math.min(1.0, score);
+  // 6. 黑名单惩罚（极小幅度，避免误杀）
+  if (blacklistEntries && blacklistEntries.length > 0) {
+    var blCount = 0;
+    for (var bi = 0; bi < blacklistEntries.length; bi++) {
+      if (blacklistEntries[bi].category_name === candName) {
+        blCount += (blacklistEntries[bi].count || 1);
+      }
+    }
+    if (blCount > 0) {
+      score -= Math.min(0.15, blCount * 0.03);
+    }
+  }
+
+  return Math.max(0, Math.min(1.0, score));
 }
 
 // 基于 1688 类目名拆分出关键词
@@ -301,8 +338,9 @@ router.post('/suggest-category', async function (req, res) {
   console.log('[分类推荐] 标题:', title, '1688类目:', aliCategory, attrs ? '含规格参数' : '');
 
   try {
-    // Step 1: 查映射表 — 云端优先（保持不变）
+    // Step 1: 查映射表
     var mappings = aliCategory ? await cloudDb.getMappings(aliCategory) : [];
+    var mappingCandidates = []; // 多条映射候选，后续注入候选池
 
     if (mappings.length === 1) {
       var mappedCategory = mappings[0].custom_category;
@@ -310,41 +348,46 @@ router.post('/suggest-category', async function (req, res) {
       console.log('[分类推荐] 映射表唯一命中:', mappedCategory);
       return res.json({
         ok: true, source: 'mapping', category: mappedCategory,
-        path: pathRow ? pathRow.path : '', confidence: 1.0
+        path: pathRow ? pathRow.path : '', confidence: 1.0,
+        keywords: aliCategory ? [aliCategory] : []
       });
     }
 
     if (mappings.length > 1) {
-      console.log('[分类推荐] 映射表命中', mappings.length, '个候选，交给LLM择优');
-      try {
-        var choice = await selectFromMappingCandidates(title, aliCategory, attrSummary, mappings);
-        if (choice) {
-          return res.json({
-            ok: true, source: 'mapping_llm', category: choice.category,
-            path: choice.path || '', confidence: choice.confidence
-          });
-        }
-      } catch (e) { /* fallthrough */ }
-      var topCat = mappings[0].custom_category;
-      var topPath = await cloudDb.getTreePath(topCat);
-      return res.json({
-        ok: true, source: 'mapping_top', category: topCat,
-        path: topPath ? topPath.path : '', confidence: 0.7
+      console.log('[分类推荐] 映射表命中', mappings.length, '个候选，转入候选池');
+      mappings.forEach(function (m) {
+        if (m.source === 'error' || m.count <= 0) return;
+        var pathRow = dbModule.treeGetOne(
+          'SELECT path FROM dxm_category_tree WHERE cat_name = ? AND is_leaf = 1 LIMIT 1',
+          [m.custom_category]
+        );
+        mappingCandidates.push({
+          name: m.custom_category,
+          path: pathRow ? pathRow.path : m.custom_category,
+          fromMapping: true,
+          mappingCount: m.count || 1
+        });
       });
     }
 
     // Step 1.5: 1688类目与店小秘叶子节点完全一致则直接命中
+    var exactLeafCandidates = [];
     if (aliCategory) {
-      var exactLeaf = dbModule.treeGetOne(
-        'SELECT cat_name, path FROM dxm_category_tree WHERE is_leaf = 1 AND cat_name = ? LIMIT 1',
+      exactLeafCandidates = dbModule.treeGetAll(
+        'SELECT cat_name, path FROM dxm_category_tree WHERE is_leaf = 1 AND cat_name = ?',
         [aliCategory]
       );
-      if (exactLeaf) {
-        console.log('[分类推荐] 1688类目与叶子节点完全一致:', exactLeaf.cat_name);
+      if (exactLeafCandidates.length === 1) {
+        var exactLeaf = exactLeafCandidates[0];
+        console.log('[分类推荐] 1688类目与叶子节点唯一命中:', exactLeaf.cat_name, exactLeaf.path);
         return res.json({
           ok: true, source: 'exact_match', category: exactLeaf.cat_name,
-          path: exactLeaf.path, confidence: 0.95
+          path: exactLeaf.path, confidence: 0.95,
+          keywords: aliCategory ? [aliCategory] : []
         });
+      }
+      if (exactLeafCandidates.length > 1) {
+        console.log('[分类推荐] 1688类目命中', exactLeafCandidates.length, '个叶子节点，转入候选池');
       }
     }
 
@@ -364,6 +407,26 @@ router.post('/suggest-category', async function (req, res) {
     var candidates = [];
     var seenPaths = {};
     var MAX_CANDIDATES = 50;
+
+    // 优先注入 Step 1 多条映射候选
+    if (mappingCandidates.length > 0) {
+      mappingCandidates.forEach(function (mc) {
+        if (!seenPaths[mc.path]) {
+          seenPaths[mc.path] = true;
+          candidates.push(mc);
+        }
+      });
+    }
+
+    // 其次注入 Step 1.5 多条叶子候选
+    if (exactLeafCandidates.length > 1) {
+      exactLeafCandidates.forEach(function (lc) {
+        if (!seenPaths[lc.path]) {
+          seenPaths[lc.path] = true;
+          candidates.push({ name: lc.cat_name, path: lc.path, exactMatch: true });
+        }
+      });
+    }
 
     // 数据库搜索候选：1688 类目词优先，LLM 关键词补充
     var searchKeywords = aliCategoryWords.slice();
@@ -402,6 +465,58 @@ router.post('/suggest-category', async function (req, res) {
       }
     }
 
+    // Step 4.5: 关联库候选注入
+    var relRows = await cloudDb.getKeywordRels(searchKeywords);
+    if (relRows && relRows.length > 0) {
+      var relCategoryNames = [];
+      relRows.forEach(function (rr) {
+        if (relCategoryNames.indexOf(rr.category_name) < 0) relCategoryNames.push(rr.category_name);
+      });
+      var relNamePlaceholders = relCategoryNames.map(function () { return '?' }).join(',');
+      var relTreeRows = dbModule.treeGetAll(
+        'SELECT cat_name, path FROM dxm_category_tree WHERE is_leaf = 1 AND cat_name IN (' + relNamePlaceholders + ')',
+        relCategoryNames
+      );
+      // 构建 category_name → [{cat_name, path}] 映射
+      var relTreeMap = {};
+      relTreeRows.forEach(function (tr) {
+        if (!relTreeMap[tr.cat_name]) relTreeMap[tr.cat_name] = [];
+        relTreeMap[tr.cat_name].push(tr);
+      });
+      // 取每个关联词的最大 weight
+      var relBestWeight = {};
+      relRows.forEach(function (rr) {
+        if (!relBestWeight[rr.category_name] || rr.weight > relBestWeight[rr.category_name]) {
+          relBestWeight[rr.category_name] = rr.weight;
+        }
+      });
+      // 注入候选：已存在的候选打上 fromRel 标记，新候选直接加入
+      relCategoryNames.forEach(function (catName) {
+        var trees = relTreeMap[catName];
+        if (!trees) return;
+        trees.forEach(function (tr) {
+          if (seenPaths[tr.path]) {
+            // 已存在：给已有候选补上 fromRel 标记和权重
+            for (var ci = 0; ci < candidates.length; ci++) {
+              if (candidates[ci].path === tr.path) {
+                candidates[ci].fromRel = true;
+                candidates[ci].weight = relBestWeight[catName] || 1.0;
+                break;
+              }
+            }
+          } else if (candidates.length < MAX_CANDIDATES) {
+            seenPaths[tr.path] = true;
+            candidates.push({
+              name: tr.cat_name,
+              path: tr.path,
+              fromRel: true,
+              weight: relBestWeight[catName] || 1.0
+            });
+          }
+        });
+      });
+    }
+
     console.log('[分类推荐] 候选:', candidates.length, '(关联库:', candidates.filter(function(c) { return c.fromRel; }).length, ')');
 
     // Step 6: 互斥拦截 + 计分排序
@@ -432,8 +547,9 @@ router.post('/suggest-category', async function (req, res) {
     console.log('[分类推荐] 互斥过滤:', beforeFilter, '→', candidates.length);
 
     // 计分
+    var blEntries = loadBlacklistCounts(searchKeywords.map(function (w) { return w.toLowerCase(); }));
     candidates.forEach(function (c) {
-      c.score = scoreCategory(titleKws, aliWords, c);
+      c.score = scoreCategory(titleKws, aliWords, c, blEntries);
     });
 
     // 按分数降序排列
@@ -459,16 +575,18 @@ router.post('/suggest-category', async function (req, res) {
       return res.json({
         ok: true, source: 'score', category: best.name,
         path: best.path, confidence: Math.min(0.95, best.score),
-        alternatives: candidates.slice(1, 6)
+        alternatives: candidates.slice(1, 6),
+        keywords: searchKeywords
       });
     }
 
-    if (best.score >= 0.4) {
+    if (best.score >= 0.25) {
       console.log('[分类推荐] 低置信度命中:', best.name, '分数:', best.score.toFixed(3));
       return res.json({
         ok: true, source: 'score_low', category: best.name,
         path: best.path, confidence: best.score,
-        alternatives: candidates.slice(1, 6)
+        alternatives: candidates.slice(1, 6),
+        keywords: searchKeywords
       });
     }
 
@@ -580,7 +698,7 @@ function fallbackLocalSearch(title, aliCategory, res) {
     return !isMutexConflict(titleKws, aliWords, c.path);
   });
   candidates.forEach(function (c) {
-    c.score = scoreCategory(titleKws, aliWords, c);
+    c.score = scoreCategory(titleKws, aliWords, c, loadBlacklistCounts(aliWords.concat(titleKws)));
   });
   candidates.sort(function (a, b) { return (b.score || 0) - (a.score || 0); });
   if (candidates.length === 0) {

@@ -295,27 +295,33 @@ router.delete('/keyword-synonyms/:id', (req, res) => {
 
 // ===== 关键词违禁关联黑名单 =====
 
-// 查看黑名单
+// 查看黑名单（带分页）
 router.get('/keyword-blacklist', (req, res) => {
   const keyword = (req.query.keyword || '').trim();
-  let rows;
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize) || 20));
+  let where = '';
+  let params = [];
   if (keyword) {
-    rows = getAll('SELECT id, keyword, category_name, reason FROM keyword_blacklist WHERE keyword LIKE ? ORDER BY id', ['%' + keyword + '%']);
-  } else {
-    rows = getAll('SELECT id, keyword, category_name, reason FROM keyword_blacklist ORDER BY id');
+    where = 'WHERE keyword LIKE ? OR category_name LIKE ?';
+    params.push('%' + keyword + '%', '%' + keyword + '%');
   }
-  res.json(rows);
+  const countRow = getOne('SELECT COUNT(*) as cnt FROM keyword_blacklist ' + where, params);
+  const total = countRow ? countRow.cnt : 0;
+  const offset = (page - 1) * pageSize;
+  const rows = getAll(
+    'SELECT id, keyword, category_name, reason, count, updated_at FROM keyword_blacklist ' + where + ' ORDER BY count DESC, id DESC LIMIT ? OFFSET ?',
+    [...params, pageSize, offset]
+  );
+  res.json({ list: rows, total: total, page: page, pageSize: pageSize });
 });
 
-// 新增黑名单
+// 新增黑名单（count-aware upsert）
 router.post('/keyword-blacklist', (req, res) => {
   const { keyword, categoryName, reason } = req.body;
   if (!keyword || !categoryName) return res.status(400).json({ error: '请提供keyword和categoryName' });
   try {
-    run('INSERT OR IGNORE INTO keyword_blacklist (keyword, category_name, reason) VALUES (?, ?, ?)', [keyword, categoryName, reason || '']);
-    if (cloudDb.connected) {
-      cloudDb.cloudRun('INSERT OR IGNORE INTO keyword_blacklist (keyword, category_name, reason) VALUES (?, ?, ?)', [keyword, categoryName, reason || '']).catch(function () {});
-    }
+    cloudDb.upsertBlacklist(keyword, categoryName);
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });

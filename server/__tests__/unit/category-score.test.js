@@ -63,6 +63,31 @@ describe('scoreCategory 计分算法', () => {
     expect(score).toBeGreaterThanOrEqual(0);
     expect(score).toBeLessThanOrEqual(1);
   });
+
+  test('黑名单惩罚降低分数', () => {
+    const titleKws = ['工具'];
+    const aliKws = [];
+    const blEntries = [{ keyword: '工具', category_name: '工具', count: 1 }];
+    const normal = scoreCategory(titleKws, aliKws, { name: '工具', path: '五金/工具' });
+    const penalized = scoreCategory(titleKws, aliKws, { name: '工具', path: '五金/工具' }, blEntries);
+    expect(penalized).toBeLessThan(normal);
+    expect(normal - penalized).toBeCloseTo(0.03);
+  });
+
+  test('黑名单惩罚不使分数低于 0', () => {
+    const score = scoreCategory([], [], { name: '测试', path: '' }, [
+      { keyword: 'x', category_name: '测试', count: 100 }
+    ]);
+    expect(score).toBeGreaterThanOrEqual(0);
+  });
+
+  test('空黑名单不影响分数', () => {
+    const titleKws = ['工具'];
+    const aliKws = [];
+    const noBl = scoreCategory(titleKws, aliKws, { name: '工具', path: '五金/工具' });
+    const withBl = scoreCategory(titleKws, aliKws, { name: '工具', path: '五金/工具' }, []);
+    expect(noBl).toBe(withBl);
+  });
 });
 
 describe('calcHitDetail 命中详情', () => {

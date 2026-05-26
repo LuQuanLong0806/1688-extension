@@ -57,19 +57,27 @@ module.exports = function (cloud, db) {
     }
     counts.keyword_synonyms = syns.length;
 
-    var bl = db.getAll('SELECT keyword, category_name, reason FROM keyword_blacklist');
+    var bl = db.getAll('SELECT keyword, category_name, reason, count FROM keyword_blacklist');
     if (bl.length > 0 && cloud.client.batch) {
       var batchSize = 200;
       for (var bi = 0; bi < bl.length; bi += batchSize) {
         var chunk = bl.slice(bi, bi + batchSize);
         var stmts = chunk.map(function (b) {
-          return { sql: 'INSERT OR IGNORE INTO keyword_blacklist (keyword, category_name, reason) VALUES (?, ?, ?)', args: [b.keyword, b.category_name, b.reason] };
+          return { sql: 'INSERT OR IGNORE INTO keyword_blacklist (keyword, category_name, reason, count) VALUES (?, ?, ?, ?)', args: [b.keyword, b.category_name, b.reason, b.count || 1] };
         });
         try { await cloud.client.batch(stmts); } catch (e) { console.error('[云同步] blacklist batch fail:', e.message); }
       }
     } else {
       for (var i = 0; i < bl.length; i++) {
-        await cloud.run('INSERT OR IGNORE INTO keyword_blacklist (keyword, category_name, reason) VALUES (?, ?, ?)', [bl[i].keyword, bl[i].category_name, bl[i].reason]);
+        var blExisting = await cloud.getOne('SELECT id, count FROM keyword_blacklist WHERE keyword = ? AND category_name = ?', [bl[i].keyword, bl[i].category_name]);
+        if (blExisting) {
+          var blMaxCount = Math.max(blExisting.count || 1, bl[i].count || 1);
+          if (blMaxCount > blExisting.count) {
+            await cloud.run('UPDATE keyword_blacklist SET count = ? WHERE id = ?', [blMaxCount, blExisting.id]);
+          }
+        } else {
+          await cloud.run('INSERT INTO keyword_blacklist (keyword, category_name, reason, count) VALUES (?, ?, ?, ?)', [bl[i].keyword, bl[i].category_name, bl[i].reason, bl[i].count || 1]);
+        }
       }
     }
     counts.keyword_blacklist = bl.length;
@@ -141,10 +149,18 @@ module.exports = function (cloud, db) {
     }
     counts.keyword_synonyms = cloudSyns.length;
 
-    var cloudBl = await cloud.getAll('SELECT keyword, category_name, reason FROM keyword_blacklist');
+    var cloudBl = await cloud.getAll('SELECT keyword, category_name, reason, count FROM keyword_blacklist');
     for (var i = 0; i < cloudBl.length; i++) {
-      db.run('INSERT OR IGNORE INTO keyword_blacklist (keyword, category_name, reason) VALUES (?, ?, ?)',
-        [cloudBl[i].keyword, cloudBl[i].category_name, cloudBl[i].reason]);
+      var localBl = db.getOne('SELECT id, count FROM keyword_blacklist WHERE keyword = ? AND category_name = ?', [cloudBl[i].keyword, cloudBl[i].category_name]);
+      if (localBl) {
+        var dlMaxCount = Math.max(localBl.count || 1, cloudBl[i].count || 1);
+        if (dlMaxCount > localBl.count) {
+          db.run('UPDATE keyword_blacklist SET count = ? WHERE id = ?', [dlMaxCount, localBl.id]);
+        }
+      } else {
+        db.run('INSERT OR IGNORE INTO keyword_blacklist (keyword, category_name, reason, count) VALUES (?, ?, ?, ?)',
+          [cloudBl[i].keyword, cloudBl[i].category_name, cloudBl[i].reason, cloudBl[i].count || 1]);
+      }
     }
     counts.keyword_blacklist = cloudBl.length;
 
@@ -398,18 +414,20 @@ module.exports = function (cloud, db) {
       label: '同义词'
     },
     blacklist: {
-      localGet: function () { return db.getAll('SELECT keyword, category_name, reason FROM keyword_blacklist'); },
-      cloudCols: 'keyword, category_name, reason',
+      localGet: function () { return db.getAll('SELECT keyword, category_name, reason, count FROM keyword_blacklist'); },
+      cloudCols: 'keyword, category_name, reason, count',
       cloudKey: ['keyword', 'category_name'],
-      localKeyMatch: function (r) { return 'SELECT id FROM keyword_blacklist WHERE keyword = ? AND category_name = ?'; },
+      localKeyMatch: function (r) { return 'SELECT id, count FROM keyword_blacklist WHERE keyword = ? AND category_name = ?'; },
       localKeyParams: function (r) { return [r.keyword, r.category_name]; },
-      localInsert: 'INSERT OR IGNORE INTO keyword_blacklist (keyword, category_name, reason) VALUES (?, ?, ?)',
-      localInsertParams: function (r) { return [r.keyword, r.category_name, r.reason]; },
-      localUpdate: null,
+      localInsert: 'INSERT OR IGNORE INTO keyword_blacklist (keyword, category_name, reason, count) VALUES (?, ?, ?, ?)',
+      localInsertParams: function (r) { return [r.keyword, r.category_name, r.reason, r.count || 1]; },
+      localUpdate: 'UPDATE keyword_blacklist SET count = MAX(count, ?) WHERE id = ?',
+      localUpdateParams: function (r, localRow) { return [r.count || 1, localRow.id]; },
       cloudTable: 'keyword_blacklist',
-      cloudInsert: 'INSERT OR IGNORE INTO keyword_blacklist (keyword, category_name, reason) VALUES (?, ?, ?)',
-      cloudInsertParams: function (r) { return [r.keyword, r.category_name, r.reason]; },
-      cloudUpdate: null,
+      cloudInsert: 'INSERT OR IGNORE INTO keyword_blacklist (keyword, category_name, reason, count) VALUES (?, ?, ?, ?)',
+      cloudInsertParams: function (r) { return [r.keyword, r.category_name, r.reason, r.count || 1]; },
+      cloudUpdate: 'UPDATE keyword_blacklist SET count = ? WHERE id = ?',
+      cloudUpdateParams: function (r, cloudRow) { return [r.count || 1, cloudRow.id]; },
       label: '黑名单'
     },
     'category-config': {

@@ -6,7 +6,9 @@ Vue.component('page-word-library', {
       tabs: [
         { key: 'noise', label: '过滤词库' },
         { key: 'generic', label: '泛义词库' },
-        { key: 'mutex', label: '互斥组' }
+        { key: 'mutex', label: '互斥组' },
+        { key: 'blacklist', label: '黑名单' },
+        { key: 'rels', label: '关联库' }
       ],
       loading: false,
       list: [],
@@ -22,7 +24,30 @@ Vue.component('page-word-library', {
     };
   },
   computed: {
+    isKbTab: function () { return this.activeTab === 'blacklist' || this.activeTab === 'rels'; },
     columns: function () {
+      var vm = this;
+      if (vm.activeTab === 'blacklist') {
+        return [
+          { title: '关键词', key: 'keyword', minWidth: 120, render: function (h, p) { return h('span', { style: { fontWeight: '500' } }, p.row.keyword); } },
+          { title: '类目名', key: 'category_name', minWidth: 140, render: function (h, p) { return h('span', { style: { color: 'var(--accent)' } }, p.row.category_name); } },
+          { title: '次数', key: 'count', width: 70, align: 'center', render: function (h, p) { var c = p.row.count || 1; return h('span', { style: { color: c > 3 ? 'var(--danger)' : '', fontWeight: c > 3 ? '600' : '' } }, c); } },
+          { title: '原因', key: 'reason', width: 80, align: 'center', render: function (h, p) { return h('span', { style: { color: 'var(--text-muted)', fontSize: '12px' } }, p.row.reason || '-'); } },
+          { title: '更新时间', key: 'updated_at', width: 160, render: function (h, p) { return h('span', { style: { color: 'var(--text-muted)', fontSize: '12px' } }, p.row.updated_at || '-'); } },
+          { title: '操作', width: 80, align: 'center', slot: 'actions' }
+        ];
+      }
+      if (vm.activeTab === 'rels') {
+        return [
+          { title: '关键词', key: 'keyword', minWidth: 120, render: function (h, p) { return h('span', { style: { fontWeight: '500' } }, p.row.keyword); } },
+          { title: '类目名', key: 'category_name', minWidth: 140, render: function (h, p) { return h('span', { style: { color: 'var(--accent)' } }, p.row.category_name); } },
+          { title: '权重', key: 'weight', width: 70, align: 'center', render: function (h, p) { var w = (p.row.weight || 0).toFixed(2); return h('span', { style: { color: p.row.weight >= 2 ? 'var(--danger)' : '', fontWeight: p.row.weight >= 2 ? '600' : '' } }, w); } },
+          { title: '匹配数', key: 'match_count', width: 70, align: 'center' },
+          { title: '来源', key: 'source', width: 70, align: 'center', render: function (h, p) { var s = p.row.source; var color = s === 'auto' ? 'var(--accent)' : s === 'manual' ? 'var(--success)' : 'var(--text-muted)'; var text = s === 'auto' ? '自动' : s === 'manual' ? '手动' : (s || '-'); return h('span', { style: { color: color, fontSize: '12px' } }, text); } },
+          { title: '更新时间', key: 'updated_at', width: 160, render: function (h, p) { return h('span', { style: { color: 'var(--text-muted)', fontSize: '12px' } }, p.row.updated_at || '-'); } },
+          { title: '操作', width: 80, align: 'center', slot: 'actions' }
+        ];
+      }
       var cols = [
         { type: 'selection', width: 40, align: 'center' },
         { title: '词语', key: 'value', minWidth: 140 }
@@ -31,15 +56,11 @@ Vue.component('page-word-library', {
         cols.push({ title: '互斥组', key: 'group_name', width: 140 });
       }
       cols.push({ title: '说明', key: 'description', minWidth: 120 });
-      cols.push({
-        title: '操作',
-        width: 150,
-        align: 'center',
-        slot: 'actions'
-      });
+      cols.push({ title: '操作', width: 150, align: 'center', slot: 'actions' });
       return cols;
     },
     pagedList: function () {
+      if (this.isKbTab) return this.list;
       var start = (this.page - 1) * this.pageSize;
       return this.list.slice(start, start + this.pageSize);
     }
@@ -60,6 +81,11 @@ Vue.component('page-word-library', {
       if (pg !== undefined) vm.page = pg;
       vm.loading = true;
       vm.selectedIds = [];
+      // 黑名单/关联库走服务端分页
+      if (vm.activeTab === 'blacklist' || vm.activeTab === 'rels') {
+        vm.loadKb();
+        return;
+      }
       var params = '?type=' + vm.activeTab;
       if (vm.keyword) params += '&keyword=' + encodeURIComponent(vm.keyword);
       fetch('/api/category-config' + params)
@@ -77,6 +103,27 @@ Vue.component('page-word-library', {
           }
         })
         .catch(function () { vm.loading = false; });
+    },
+    loadKb: function () {
+      var vm = this;
+      vm.loading = true;
+      var params = new URLSearchParams();
+      if (vm.keyword.trim()) params.set('keyword', vm.keyword.trim());
+      params.set('page', vm.page);
+      params.set('pageSize', vm.pageSize);
+      var url = vm.activeTab === 'blacklist'
+        ? '/api/keyword-blacklist?' + params.toString()
+        : '/api/keyword-rels?' + params.toString();
+      fetch(url).then(function (r) { return r.json(); }).then(function (data) {
+        if (data.list) {
+          vm.list = data.list;
+          vm.total = data.total || 0;
+        } else if (Array.isArray(data)) {
+          vm.list = data;
+          vm.total = data.length;
+        }
+        vm.loading = false;
+      }).catch(function () { vm.loading = false; });
     },
     openAdd: function () {
       this.modalEditId = null;
@@ -120,6 +167,32 @@ Vue.component('page-word-library', {
     },
     deleteItem: function (row) {
       var vm = this;
+      if (vm.activeTab === 'blacklist') {
+        vm.$Modal.confirm({
+          title: '删除黑名单',
+          content: '确认删除「' + row.keyword + ' → ' + row.category_name + '」？',
+          onOk: function () {
+            fetch('/api/keyword-blacklist/' + row.id, { method: 'DELETE' })
+              .then(function (r) { return r.json(); })
+              .then(function () { vm.$Message.success('已删除'); vm.loadList(); })
+              .catch(function () { vm.$Message.error('删除失败'); });
+          }
+        });
+        return;
+      }
+      if (vm.activeTab === 'rels') {
+        vm.$Modal.confirm({
+          title: '作废关联',
+          content: '确认作废「' + row.keyword + ' → ' + row.category_name + '」？作废后不再参与推荐。',
+          onOk: function () {
+            fetch('/api/keyword-rels/' + row.id, { method: 'DELETE' })
+              .then(function (r) { return r.json(); })
+              .then(function () { vm.$Message.success('已作废'); vm.loadList(); })
+              .catch(function () { vm.$Message.error('操作失败'); });
+          }
+        });
+        return;
+      }
       vm.$Modal.confirm({
         title: '确认删除',
         content: '确定要删除「' + row.value + '」吗？',
@@ -168,8 +241,17 @@ Vue.component('page-word-library', {
     onSelectionChange: function (sel) {
       this.selectedIds = sel.map(function (r) { return r.id; });
     },
-    onPageChange: function (p) { this.page = p; this.selectedIds = []; },
-    onPageSizeChange: function (s) { this.pageSize = s; this.page = 1; this.selectedIds = []; }
+    onPageChange: function (p) {
+      this.page = p;
+      this.selectedIds = [];
+      if (this.isKbTab) this.loadKb();
+    },
+    onPageSizeChange: function (s) {
+      this.pageSize = s;
+      this.page = 1;
+      this.selectedIds = [];
+      if (this.isKbTab) this.loadKb();
+    }
   },
   template: `
     <div class="list-card">
@@ -177,7 +259,7 @@ Vue.component('page-word-library', {
         <tabs :value="activeTab" @on-click="switchTab" style="margin-right:8px">
           <tab-pane v-for="t in tabs" :key="t.key" :name="t.key" :label="t.label" />
         </tabs>
-        <i-input v-model="keyword" placeholder="搜索词语..." clearable style="width:200px"
+        <i-input v-model="keyword" :placeholder="isKbTab ? '搜索关键词或类目...' : '搜索词语...'" clearable style="width:200px"
           @on-enter="loadList(1)" @on-clear="loadList(1)">
           <icon type="ios-search" slot="prefix"></icon>
         </i-input>
@@ -186,8 +268,8 @@ Vue.component('page-word-library', {
       <div class="action-bar">
         <div class="action-bar-left">共 <strong>{{ total }}</strong> 条</div>
         <div class="action-bar-right">
-          <i-button type="primary" icon="md-add" @click="openAdd">新增</i-button>
-          <i-button type="error" icon="ios-trash" :disabled="selectedIds.length === 0" @click="batchDelete">
+          <i-button v-if="!isKbTab" type="primary" icon="md-add" @click="openAdd">新增</i-button>
+          <i-button v-if="!isKbTab" type="error" icon="ios-trash" :disabled="selectedIds.length === 0" @click="batchDelete">
             批量删除{{ selectedIds.length ? ' (' + selectedIds.length + ')' : '' }}
           </i-button>
           <tooltip content="刷新" placement="top"><i-button icon="md-refresh" shape="circle" @click="loadList()"></i-button></tooltip>
@@ -199,8 +281,10 @@ Vue.component('page-word-library', {
           @on-selection-change="onSelectionChange" style="margin-bottom:0;">
           <template slot="actions" slot-scope="{ row }">
             <div class="action-btns">
-              <Button type="primary" size="small" icon="md-create" @click="openEdit(row)">编辑</Button>
-              <Button type="error" size="small" icon="ios-trash" @click="deleteItem(row)">删除</Button>
+              <Button v-if="!isKbTab" type="primary" size="small" icon="md-create" @click="openEdit(row)">编辑</Button>
+              <Button :type="activeTab === 'rels' ? 'warning' : 'error'" size="small"
+                :icon="activeTab === 'rels' ? 'md-close' : 'ios-trash'"
+                @click="deleteItem(row)">{{ activeTab === 'rels' ? '作废' : '删除' }}</Button>
             </div>
           </template>
         </i-table>

@@ -76,6 +76,24 @@ module.exports = function (cloud, db) {
     }
   }
 
+  async function invalidateAutoRels(keywords, categoryName) {
+    if (!keywords || !keywords.length || !categoryName) return;
+    var placeholders = keywords.map(function () { return '?' }).join(',');
+    // 本地：将自动积累的 keyword→错误类目 关联标记为无效
+    db.run(
+      'UPDATE keyword_category_rel SET valid = 0 WHERE category_name = ? AND source = \'auto\' AND keyword IN (' + placeholders + ')',
+      [categoryName].concat(keywords)
+    );
+    db.scheduleSave();
+    // 云端同步
+    if (cloud.connected) {
+      cloud.run(
+        'UPDATE keyword_category_rel SET valid = 0 WHERE category_name = ? AND source = \'auto\' AND keyword IN (' + placeholders + ')',
+        [categoryName].concat(keywords)
+      ).catch(function () {});
+    }
+  }
+
   async function getSynonyms(keyword) {
     // 本地优先
     var rows = db.getAll('SELECT word_a, word_b FROM keyword_synonyms WHERE word_a = ? OR word_b = ?', [keyword, keyword]);
@@ -94,6 +112,58 @@ module.exports = function (cloud, db) {
       return await cloud.getAll('SELECT category_name FROM keyword_blacklist WHERE keyword = ?', [keyword]);
     }
     return [];
+  }
+
+  function getBlacklistCounts(keywords) {
+    if (!keywords || !keywords.length) return [];
+    var placeholders = keywords.map(function () { return '?' }).join(',');
+    var rows = db.getAll(
+      'SELECT keyword, category_name, count FROM keyword_blacklist WHERE keyword IN (' + placeholders + ')',
+      keywords
+    );
+    return rows || [];
+  }
+
+  function upsertBlacklist(keyword, categoryName) {
+    if (!keyword || !categoryName) return;
+    var existing = db.getOne('SELECT id, count FROM keyword_blacklist WHERE keyword = ? AND category_name = ?', [keyword, categoryName]);
+    if (existing) {
+      db.run('UPDATE keyword_blacklist SET count = count + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [existing.id]);
+    } else {
+      db.run("INSERT INTO keyword_blacklist (keyword, category_name, reason, count) VALUES (?, ?, 'auto', 1)", [keyword, categoryName]);
+    }
+    db.scheduleSave();
+    if (cloud.connected) {
+      cloud.getOne('SELECT id, count FROM keyword_blacklist WHERE keyword = ? AND category_name = ?', [keyword, categoryName]).then(function (cloudRow) {
+        if (cloudRow && cloudRow.id) {
+          cloud.run('UPDATE keyword_blacklist SET count = count + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [cloudRow.id]).catch(function () {});
+        } else {
+          cloud.run("INSERT OR IGNORE INTO keyword_blacklist (keyword, category_name, reason, count) VALUES (?, ?, 'auto', 1)", [keyword, categoryName]).catch(function () {});
+        }
+      }).catch(function () {});
+    }
+  }
+
+  function reduceBlacklist(keyword, categoryName) {
+    if (!keyword || !categoryName) return;
+    var existing = db.getOne('SELECT id, count FROM keyword_blacklist WHERE keyword = ? AND category_name = ?', [keyword, categoryName]);
+    if (!existing) return;
+    if (existing.count <= 1) {
+      db.run('DELETE FROM keyword_blacklist WHERE id = ?', [existing.id]);
+    } else {
+      db.run('UPDATE keyword_blacklist SET count = count - 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [existing.id]);
+    }
+    db.scheduleSave();
+    if (cloud.connected) {
+      cloud.getOne('SELECT id, count FROM keyword_blacklist WHERE keyword = ? AND category_name = ?', [keyword, categoryName]).then(function (cloudRow) {
+        if (!cloudRow || !cloudRow.id) return;
+        if (cloudRow.count <= 1) {
+          cloud.run('DELETE FROM keyword_blacklist WHERE id = ?', [cloudRow.id]).catch(function () {});
+        } else {
+          cloud.run('UPDATE keyword_blacklist SET count = count - 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [cloudRow.id]).catch(function () {});
+        }
+      }).catch(function () {});
+    }
   }
 
   async function getTreePath(catName) {
@@ -223,8 +293,12 @@ module.exports = function (cloud, db) {
     saveMapping: saveMapping,
     getKeywordRels: getKeywordRels,
     saveKeywordRel: saveKeywordRel,
+    invalidateAutoRels: invalidateAutoRels,
     getSynonyms: getSynonyms,
     getBlacklisted: getBlacklisted,
+    getBlacklistCounts: getBlacklistCounts,
+    upsertBlacklist: upsertBlacklist,
+    reduceBlacklist: reduceBlacklist,
     getTreePath: getTreePath,
     getCategoryConfig: getCategoryConfig,
     getAllCategoryConfig: getAllCategoryConfig,

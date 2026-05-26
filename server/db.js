@@ -248,6 +248,8 @@ var LOCAL_TABLE_DEFS = [
       keyword TEXT NOT NULL,
       category_name TEXT NOT NULL,
       reason TEXT DEFAULT '',
+      count INTEGER DEFAULT 1,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(keyword, category_name)
     )`
   },

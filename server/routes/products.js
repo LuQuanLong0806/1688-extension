@@ -450,12 +450,15 @@ router.put('/product/:id', (req, res) => {
 
   if (fields.length === 0) return res.json({ ok: true });
 
+  // 在更新前记录旧分类，用于关联纠错和黑名单
+  var previousCategory = getOne('SELECT custom_category FROM products WHERE uid = ?', [uid]);
+
   fields.push('updated_at = CURRENT_TIMESTAMP');
   params.push(uid);
   run(`UPDATE products SET ${fields.join(', ')} WHERE uid = ?`, params);
 
   // 保存映射关系（手动设置 → source='manual'，已存在则递增count）
-  const product = getOne('SELECT category, title FROM products WHERE uid = ?', [uid]);
+  const product = getOne('SELECT category, title, custom_category FROM products WHERE uid = ?', [uid]);
   if (req.body.customCategory && product && product.category) {
     try {
       const cat = JSON.parse(product.category);
@@ -463,7 +466,38 @@ router.put('/product/:id', (req, res) => {
       if (catName) {
         cloudDb.saveMapping(catName, req.body.customCategory, 'manual');
       }
-    } catch (e) {}
+      // 关联库纠错：用户手动改分类 → 作废错误关联 + 积累正确关联
+      var oldCategory = previousCategory ? previousCategory.custom_category : null;
+      if (oldCategory && oldCategory !== req.body.customCategory) {
+        // 从标题和1688类目提取关键词
+        var titleText = product.title || '';
+        var aliCatText = catName || '';
+        var kws = (titleText + ' ' + aliCatText).split(/[\s\/>,，、：:·\-—\(\)（）\[\]【】]+/).filter(function (w) {
+          var cn = w.replace(/[a-zA-Z0-9]/g, '');
+          return cn.length >= 2 && cn.length <= 6;
+        });
+        kws = kws.filter(function (w, i, arr) { return arr.indexOf(w) === i; }).slice(0, 8);
+        if (kws.length > 0) {
+          // 作废关键词→旧类目的自动关联
+          cloudDb.invalidateAutoRels(kws, oldCategory);
+          // 积累关键词→新类目的关联（手动来源，权重更高）
+          kws.forEach(function (kw) {
+            cloudDb.saveKeywordRel(kw, req.body.customCategory, 0.8, 'manual');
+          });
+          console.log('[关联纠错]', uid, ':', oldCategory, '→', req.body.customCategory, '关键词:', kws.join(','));
+	          // 黑名单：旧类目被否定，关键词→旧类目进黑名单
+	          kws.forEach(function (kw) {
+	            cloudDb.upsertBlacklist(kw, oldCategory);
+	          });
+	          // 黑名单减权：新类目如果之前被黑过，给一次"平反"
+	          kws.forEach(function (kw) {
+	            cloudDb.reduceBlacklist(kw, req.body.customCategory);
+	          });
+        }
+      }
+    } catch (e) {
+      console.error('[关联纠错] 失败:', e.message);
+    }
   }
   // 更新云端商品分类
   if (cloudDb.connected && (req.body.customCategory || req.body.dxmCategory || req.body.status !== undefined)) {
@@ -555,6 +589,23 @@ router.post('/product/:id/recommend-category', (req, res) => {
             if (aliCat && result.category) {
               cloudDb.saveMapping(aliCat, result.category, 'auto');
               console.log('[AI分类推荐] 自动保存映射:', aliCat, '→', result.category);
+            }
+
+            // 关联库纠错：AI推荐覆盖旧分类 → 作废旧关联
+            if (parsed.customCategory && parsed.customCategory !== result.category && result.keywords && result.keywords.length > 0) {
+              cloudDb.invalidateAutoRels(result.keywords.slice(0, 5), parsed.customCategory);
+              console.log('[AI分类推荐] 关联纠错:', parsed.customCategory, '→', result.category);
+            }
+
+            // 自动积累关联库
+            if (result.category && result.keywords && result.keywords.length > 0) {
+              var relCategory = result.category;
+              result.keywords.slice(0, 5).forEach(function (kw) {
+                if (kw.length >= 2) {
+                  cloudDb.saveKeywordRel(kw, relCategory, 0.5, 'auto');
+                }
+              });
+              console.log('[AI分类推荐] 自动积累关联:', result.keywords.slice(0, 5).join(','), '→', relCategory);
             }
           }
         } else {
