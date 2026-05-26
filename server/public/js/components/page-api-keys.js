@@ -139,7 +139,7 @@ Vue.component('page-api-keys', {
           // 仅更新备注，不修改 Key
           vm.saving = m.provider;
           if (m.provider === 'imgbb') {
-            fetch('/api/ai/smms-token', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: '__label_only__', label: label }) })
+            fetch('/api/ai/smms-token', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ labelOnly: true, label: label }) })
               .then(function (r) { return r.json(); }).then(function (d) {
                 if (d.ok) { vm.$Message.success('备注已更新'); vm.loadImgbb(); }
                 else vm.$Message.error(d.error || '更新失败');

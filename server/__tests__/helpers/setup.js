@@ -723,8 +723,8 @@ function createAiRouter(cloudDb) {
   router.post('/smms-token', function (req, res) {
     var key = (req.body.token || '').trim();
     var label = req.body.label;
-    var labelOnly = key === '__label_only__';
-    if (!key && label === undefined) return res.status(400).json({ error: 'API Key 不能为空' });
+    var labelOnly = req.body.labelOnly === true;
+    if (!key && !labelOnly) return res.status(400).json({ error: 'API Key 不能为空' });
     if (key && !labelOnly) {
       run("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('imgbb_api_key', ?, CURRENT_TIMESTAMP)", [key]);
     }

@@ -236,12 +236,12 @@ describe('AI Config 路由', () => {
       expect(cfg.body.label).toBe('');
     });
 
-    test('POST /smms-token 仅更新 label（__label_only__）不修改 key', async () => {
+    test('POST /smms-token 仅更新 label（labelOnly）不修改 key', async () => {
       await request(app).post('/api/ai/smms-token').send({ token: 'imgbb-test-key-12345' });
       const before = await request(app).get('/api/ai/smms-token');
       expect(before.body.configured).toBe(true);
 
-      await request(app).post('/api/ai/smms-token').send({ token: '__label_only__', label: '新备注' });
+      await request(app).post('/api/ai/smms-token').send({ labelOnly: true, label: '新备注' });
       const after = await request(app).get('/api/ai/smms-token');
       expect(after.body.configured).toBe(true);
       expect(after.body.label).toBe('新备注');

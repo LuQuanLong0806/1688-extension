@@ -224,8 +224,8 @@ router.get('/smms-token', function (req, res) {
 router.post('/smms-token', function (req, res) {
   var key = (req.body.token || '').trim();
   var label = (req.body.label || '').trim();
-  var labelOnly = key === '__label_only__';
-  if (!key && req.body.label === undefined) return res.status(400).json({ error: 'API Key 不能为空' });
+  var labelOnly = req.body.labelOnly === true;
+  if (!key && !labelOnly) return res.status(400).json({ error: 'API Key 不能为空' });
   try {
     var db = require('../../db');
     if (key && !labelOnly) {
