@@ -1,58 +1,58 @@
 @echo off
-chcp 65001 >nul 2>nul
 cd /d %~dp0
 
-title 商品采集管理
+title Product Collector
 
-:: 检查 Node.js
+:: Check Node.js
 where node >nul 2>nul
 if %errorlevel% neq 0 (
-    echo [错误] 未检测到 Node.js，请先安装: https://nodejs.org
+    echo [ERROR] Node.js not found. Install: https://nodejs.org
     pause
     exit /b 1
 )
 
-:: 单实例检测：如果端口已被占用，直接打开浏览器
+:: Single instance: if port 3000 is in use, open browser
 netstat -ano 2>nul | findstr ":3000.*LISTENING" >nul 2>nul
 if %errorlevel% equ 0 (
-    echo [提示] 服务已在运行，打开管理页面...
+    echo [INFO] Server already running, opening browser...
     call :openChrome http://localhost:3000
     exit /b 0
 )
 
-:: 检查依赖
+:: Install deps
 if not exist "node_modules" (
-    echo [安装] 首次运行，正在安装依赖...
+    echo [INSTALL] First run, installing dependencies...
     call npm install --production
     if %errorlevel% neq 0 (
-        echo [错误] 依赖安装失败
+        echo [ERROR] npm install failed
         pause
         exit /b 1
     )
     echo.
 )
 
-:: 创建桌面快捷方式（如不存在）
-if not exist "%USERPROFILE%\Desktop\商品采集管理.lnk" (
+:: Create desktop shortcut
+set "SHORTCUT_NAME=Product Collector"
+if not exist "%USERPROFILE%\Desktop\%SHORTCUT_NAME%.lnk" (
     if exist "%~dp0create-shortcut.ps1" (
         powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0create-shortcut.ps1"
     )
 )
 
-echo [启动] 商品采集服务...
+echo [START] Starting server...
 node server.js
 pause
 
 goto :eof
 
-:: ========== 子程序 ==========
+:: ========== Subroutines ==========
 
 :openChrome
 set "URL=%~1"
 set "CHROME="
 for %%p in (
     "%ProgramFiles%\Google\Chrome\Application\chrome.exe"
-    "%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"
+    "%ProgramFiles(x86)%Google\Chrome\Application\chrome.exe"
     "%LocalAppData%\Google\Chrome\Application\chrome.exe"
 ) do (
     if exist %%p set "CHROME=%%~p"

@@ -38,6 +38,8 @@
   }
 
   var SYNC_TS_KEY = '__dxm_bee_sync_ts';
+  var pendingSyncs = {};
+  var syncTimer = null;
 
   function syncToServer(key, value) {
     pendingSyncs[key] = String(value);
