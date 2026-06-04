@@ -6,7 +6,6 @@ Vue.component('page-meitu', {
   watch: {
     activeTab: function (tab) {
       var vm = this;
-      // v-if 销毁重建 DOM，必须重置 _init 让 init 函数重新绑定事件
       if (tab === 'collage') {
         if (typeof initMeituCollage === 'function') initMeituCollage._init = false;
       } else {
@@ -18,6 +17,8 @@ Vue.component('page-meitu', {
           vm.checkPendingImport();
         } else {
           if (typeof initMeituTextCleaner === 'function') initMeituTextCleaner();
+          // 去中文 tab：如果有待导入图片，导入到 cleaner 队列
+          vm.checkPendingImportForCleaner();
         }
       });
     }
@@ -28,14 +29,22 @@ Vue.component('page-meitu', {
       var pid = sessionStorage.getItem('__meitu_source_product');
       if (pid) vm.sourceProduct = pid;
     } catch (e) {}
-    this.$nextTick(function () {
-      if (typeof initMeituCollage === 'function') {
-        initMeituCollage._init = false;
-        initMeituCollage();
-      }
-      vm.checkPendingImport();
-      vm.checkPendingEditImage();
-    });
+    // 检测是否需要直接打开去中文 tab
+    var openTab = '';
+    try { openTab = sessionStorage.getItem('__meitu_open_tab') || ''; } catch (e) {}
+    if (openTab === 'cleaner') {
+      try { sessionStorage.removeItem('__meitu_open_tab'); } catch (e) {}
+      vm.activeTab = 'cleaner';
+    } else {
+      this.$nextTick(function () {
+        if (typeof initMeituCollage === 'function') {
+          initMeituCollage._init = false;
+          initMeituCollage();
+        }
+        vm.checkPendingImport();
+        vm.checkPendingEditImage();
+      });
+    }
   },
   beforeDestroy: function () {
     if (typeof initMeituCollage === 'function') initMeituCollage._init = false;
@@ -50,6 +59,17 @@ Vue.component('page-meitu', {
         var urls = JSON.parse(raw);
         if (urls && urls.length && typeof window._meituImportImages === 'function') {
           window._meituImportImages(urls);
+        }
+      } catch (e) {}
+    },
+    checkPendingImportForCleaner: function () {
+      try {
+        var raw = sessionStorage.getItem('__meitu_pending_import');
+        if (!raw) return;
+        sessionStorage.removeItem('__meitu_pending_import');
+        var urls = JSON.parse(raw);
+        if (urls && urls.length && typeof window._meituImportToCleaner === 'function') {
+          window._meituImportToCleaner(urls);
         }
       } catch (e) {}
     },
@@ -161,10 +181,91 @@ Vue.component('page-meitu', {
       });
     },
     replaceFromCleaner: function () {
-      if (typeof window._meituGetCleanedImages !== 'function') { this.$Message.warning('请先执行去中文操作'); return; }
+      var vm = this;
+      if (typeof window._meituGetCleanedImages !== 'function') { vm.$Message.warning('请先执行去中文操作'); return; }
       var cleaned = window._meituGetCleanedImages();
-      if (!cleaned || !cleaned.length) { this.$Message.warning('没有已清理的图片'); return; }
-      this.replaceToProduct(cleaned.map(function (c) { return c.src; }));
+      if (!cleaned || !cleaned.length) { vm.$Message.warning('没有已清理的图片'); return; }
+
+      vm.$Message.loading({ content: '正在上传图片到图床...', duration: 0 });
+
+      var uploaded = 0;
+      var results = []; // { original, newUrl }
+
+      cleaned.forEach(function (item) {
+        var cached = typeof window._meituGetUploadedUrl === 'function' ? window._meituGetUploadedUrl(item.src) : null;
+        if (cached) {
+          results.push({ original: item.original, newUrl: cached });
+          uploaded++;
+          if (uploaded >= cleaned.length) finishReplace();
+          return;
+        }
+        fetch('/api/ai/smms-upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image_base64: item.src })
+        }).then(function (r) { return r.json(); }).then(function (d) {
+          if (d.url) {
+            results.push({ original: item.original, newUrl: d.url });
+            if (typeof window._meituCacheUploadedUrl === 'function') window._meituCacheUploadedUrl(item.src, d.url);
+          }
+          uploaded++;
+          if (uploaded >= cleaned.length) finishReplace();
+        }).catch(function () {
+          uploaded++;
+          if (uploaded >= cleaned.length) finishReplace();
+        });
+      });
+
+      function finishReplace() {
+        vm.$Message.destroy();
+        if (!results.length) { vm.$Message.error('上传失败'); return; }
+
+        var detailModal = vm.$root.$refs.detailModal;
+        if (!detailModal || !detailModal.editable) { vm.$Message.warning('请先打开商品详情'); return; }
+
+        var mainImgs = detailModal.editable.main_images || [];
+        var detailImgs = detailModal.editable.detail_images || [];
+        var replaced = 0;
+        var appended = 0;
+
+        results.forEach(function (r) {
+          if (!r.newUrl) return;
+          // 在主图中查找原图并替换
+          var found = false;
+          for (var i = 0; i < mainImgs.length; i++) {
+            if (mainImgs[i] === r.original) {
+              vm.$set(mainImgs, i, r.newUrl);
+              replaced++;
+              found = true;
+              break;
+            }
+          }
+          if (!found) {
+            // 在详情图中查找
+            for (var j = 0; j < detailImgs.length; j++) {
+              if (detailImgs[j] === r.original) {
+                vm.$set(detailImgs, j, r.newUrl);
+                replaced++;
+                found = true;
+                break;
+              }
+            }
+          }
+          // 都没匹配到，追加到主图
+          if (!found) {
+            mainImgs.push(r.newUrl);
+            var idx = mainImgs.length - 1;
+            if (detailModal.selectedMainIndexes.indexOf(idx) < 0) {
+              detailModal.selectedMainIndexes.push(idx);
+            }
+            appended++;
+          }
+        });
+
+        var msg = '替换 ' + replaced + ' 张';
+        if (appended > 0) msg += '，追加 ' + appended + ' 张';
+        vm.$Message.success(msg + '，请保存商品以生效');
+      }
     }
   },
   template: `

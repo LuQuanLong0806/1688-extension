@@ -195,25 +195,6 @@ initDb().then(() => initTreeDb()).then(() => {
     var cleanup = require('./services/cleanup');
     cleanup.startCleanupScheduler(24 * 60 * 60 * 1000, 30);
     setTimeout(function () { cleanup.runCleanup(30); }, 10000);
-    // 自动打开管理页面
-    var openUrl = 'http://localhost:' + PORT;
-    var chromeExe = '';
-    if (process.platform === 'win32') {
-      var candidates = [
-        (process.env.ProgramFiles || '') + '\\Google\\Chrome\\Application\\chrome.exe',
-        (process.env['ProgramFiles(x86)'] || '') + '\\Google\\Chrome\\Application\\chrome.exe',
-        (process.env.LOCALAPPDATA || '') + '\\Google\\Chrome\\Application\\chrome.exe'
-      ];
-      for (var ci = 0; ci < candidates.length; ci++) {
-        if (candidates[ci] && fs.existsSync(candidates[ci])) { chromeExe = candidates[ci]; break; }
-      }
-    }
-    if (chromeExe) {
-      require('child_process').exec('"' + chromeExe + '" ' + openUrl);
-    } else {
-      var cmd = process.platform === 'win32' ? 'start' : process.platform === 'darwin' ? 'open' : 'xdg-open';
-      require('child_process').exec(cmd + ' ' + openUrl);
-    }
 
     // 自动启动 PaddleOCR 微服务
     startOcrService();
@@ -224,6 +205,39 @@ initDb().then(() => initTreeDb()).then(() => {
 var ocrProcess = null;
 var ocrRestartCount = 0;
 var OCR_MAX_RESTARTS = 5;
+
+// 检测端口是否已被占用
+function isPortInUse(port) {
+  var net = require('net');
+  return new Promise(function (resolve) {
+    var tester = net.createServer()
+      .once('error', function () { resolve(true); })
+      .once('listening', function () { tester.once('close', function () { resolve(false); }).close(); })
+      .listen(port);
+  });
+}
+
+// 杀掉占用端口的进程（Windows）
+function killPortProcess(port) {
+  try {
+    var result = require('child_process').execSync(
+      'netstat -ano | findstr ":' + port + '.*LISTENING"',
+      { encoding: 'utf8', timeout: 5000 }
+    );
+    var match = result.match(/(\d+)\s*$/m);
+    if (match && match[1]) {
+      var pid = match[1].trim();
+      console.log('[OCR] Killing old process on port ' + port + ' (PID: ' + pid + ')');
+      try {
+        process.kill(pid);
+      } catch (e) {
+        require('child_process').execSync('taskkill /F /PID ' + pid, { stdio: 'ignore' });
+      }
+      return true;
+    }
+  } catch (e) {}
+  return false;
+}
 
 function startOcrService() {
   var ocrScript = path.join(__dirname, 'services', 'ocr_service.py');
@@ -255,6 +269,23 @@ function startOcrService() {
     return;
   }
 
+  // 启动前检查端口
+  isPortInUse(3001).then(function (inUse) {
+    if (inUse) {
+      console.log('[OCR] Port 3001 already in use, attempting to kill old process...');
+      if (killPortProcess(3001)) {
+        // 等端口释放
+        setTimeout(function () { doStartOcr(pythonCmd, ocrScript); }, 2000);
+      } else {
+        console.log('[OCR] Could not free port 3001, skipping OCR service');
+      }
+    } else {
+      doStartOcr(pythonCmd, ocrScript);
+    }
+  });
+}
+
+function doStartOcr(pythonCmd, ocrScript) {
   console.log('[OCR] Starting PaddleOCR service on port 3001...');
   var spawn = require('child_process').spawn;
   ocrProcess = spawn(pythonCmd, [ocrScript, '--port', '3001'], {
@@ -267,7 +298,6 @@ function startOcrService() {
     var msg = data.toString().trim();
     if (msg) {
       console.log('[OCR]', msg);
-      // 检测到服务真正启动成功时重置重启计数
       if (msg.indexOf('Uvicorn running') >= 0 || msg.indexOf('Application startup complete') >= 0) {
         ocrRestartCount = 0;
       }
@@ -282,7 +312,6 @@ function startOcrService() {
   ocrProcess.on('exit', function (code) {
     console.log('[OCR] Service exited with code:', code);
     ocrProcess = null;
-    // 自动重启（5秒后，最多5次）
     if (code !== 0) {
       ocrRestartCount++;
       if (ocrRestartCount <= OCR_MAX_RESTARTS) {
@@ -293,13 +322,17 @@ function startOcrService() {
       }
     }
   });
-
-  // 优雅退出
-  process.on('SIGINT', function () {
-    if (ocrProcess) {
-      console.log('[OCR] Stopping OCR service...');
-      ocrProcess.kill();
-    }
-    process.exit(0);
-  });
 }
+
+// 退出时清理 OCR 进程（SIGINT + SIGTERM）
+function cleanupOcr() {
+  if (ocrProcess) {
+    console.log('[OCR] Stopping OCR service...');
+    ocrProcess.kill();
+    ocrProcess = null;
+  }
+}
+process.on('SIGINT', function () { cleanupOcr(); process.exit(0); });
+process.on('SIGTERM', function () { cleanupOcr(); process.exit(0); });
+// nodemon 用 SIGTERM 有时不够，也监听 exit
+process.on('exit', function () { cleanupOcr(); });

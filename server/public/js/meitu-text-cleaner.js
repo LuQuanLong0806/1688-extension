@@ -1010,6 +1010,26 @@ function initMeituTextCleaner() {
     return results;
   };
 
+  // 暴露批量导入接口（供"一键去中文"使用）
+  window._meituImportToCleaner = function (urls) {
+    if (!urls || !urls.length) return;
+    urls.forEach(function (url) {
+      imageQueue.push({
+        id: nextQueueId++,
+        src: url,
+        base64: null,
+        status: 'pending',
+        result: null
+      });
+    });
+    updateImageQueue();
+    showToast('已导入 ' + urls.length + ' 张图片到批量队列', 'ok');
+    // 显示第一张图片
+    if (imageQueue.length > 0 && !currentImageSrc) {
+      loadImageSrc(imageQueue[0].src);
+    }
+  };
+
   // ========== 初始化 ==========
   checkServices();
 }

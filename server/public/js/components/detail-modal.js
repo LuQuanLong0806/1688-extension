@@ -37,7 +37,12 @@ Vue.component('detail-modal', {
       storeOptions: ['Frotel', 'Tralli', 'Koetun', 'Xpoine', 'Zondon', 'Prozzen', 'yandonghuoduoduo', 'Smiertl', 'APrioX'],
       // 图片尺寸缓存
       imageSizeCache: {},
-      _imgSizeTimer: null
+      _imgSizeTimer: null,
+      // 添加图片粘贴模式
+      addingImage: false,
+      _addImgPasteHandler: null,
+      _addImgEscHandler: null,
+      _addImgTimer: null
     };
   },
   mounted: function () {
@@ -88,7 +93,7 @@ Vue.component('detail-modal', {
         });
         this.variantAttrs = [
           { name: val.variantAttrName || val.variant_attr_name || '颜色', values: Object.keys(part1) },
-          { name: '', values: Object.keys(part2) }
+          { name: val.variantAttrName2 || '', values: Object.keys(part2) }
         ];
         // 自动计算售价（仅对尚未设置售价的 SKU）
         var vm = this;
@@ -225,6 +230,24 @@ Vue.component('detail-modal', {
       try { sessionStorage.setItem('__meitu_pending_import', JSON.stringify(urls)); } catch (e) {}
       // 存储商品ID以便后续回写
       try { sessionStorage.setItem('__meitu_source_product', vm.editable.uid); } catch (e) {}
+      vm.$root.showCollageModal = true;
+    },
+    goToMeituCleaner: function () {
+      var vm = this;
+      if (!vm.editable) return;
+      var urls = [];
+      var mainImgs = vm.editable.main_images || [];
+      vm.selectedMainIndexes.forEach(function (i) { if (mainImgs[i]) urls.push(mainImgs[i]); });
+      var detailImgs = vm.editable.detail_images || [];
+      vm.selectedDetailIndexes.forEach(function (i) { if (detailImgs[i]) urls.push(detailImgs[i]); });
+      var skuImgs = vm.skuImages || [];
+      skuImgs.forEach(function (item) {
+        if (vm.isSkuImageChecked(item) && item.url) urls.push(item.url);
+      });
+      if (!urls.length) { vm.$Message.warning('请先选中要处理的图片'); return; }
+      try { sessionStorage.setItem('__meitu_pending_import', JSON.stringify(urls)); } catch (e) {}
+      try { sessionStorage.setItem('__meitu_source_product', vm.editable.uid); } catch (e) {}
+      try { sessionStorage.setItem('__meitu_open_tab', 'cleaner'); } catch (e) {}
       vm.$root.showCollageModal = true;
     },
     toggleSkuAll: function (checked) {
@@ -389,6 +412,99 @@ Vue.component('detail-modal', {
         this.$set(this.editable.detail_images, index, newUrl);
       } else if (field === 'sku_image' && this.editable.skus && this.editable.skus[index]) {
         this.$set(this.editable.skus[index], 'image', newUrl);
+      }
+    },
+    // ===== 添加图片（粘贴模式）=====
+    addMainImage: function (url) {
+      if (!this.editable || !url) return;
+      if (!this.editable.main_images) this.$set(this.editable, 'main_images', []);
+      var imgs = this.editable.main_images;
+      // 去重
+      for (var i = 0; i < imgs.length; i++) {
+        if (imgs[i] === url) { this.$Message.info('图片已存在'); return; }
+      }
+      imgs.push(url);
+      var idx = imgs.length - 1;
+      if (this.selectedMainIndexes.indexOf(idx) < 0) this.selectedMainIndexes.push(idx);
+    },
+    startAddImagePaste: function () {
+      var vm = this;
+      if (vm.addingImage) return;
+      vm.addingImage = true;
+
+      vm._addImgPasteHandler = function (e) {
+        var cd = e.clipboardData;
+        if (!cd) return;
+        // 检测图片
+        for (var i = 0; i < cd.items.length; i++) {
+          if (cd.items[i].type.indexOf('image/') === 0) {
+            e.preventDefault();
+            var file = cd.items[i].getAsFile();
+            var reader = new FileReader();
+            reader.onload = function () {
+              var base64 = reader.result;
+              vm.$Message.loading({ content: '正在上传图片...', duration: 0 });
+              fetch('/api/ai/smms-upload', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image_base64: base64 })
+              }).then(function (r) { return r.json(); }).then(function (d) {
+                vm.$Message.destroy();
+                if (d.url) {
+                  vm.addMainImage(d.url);
+                  vm.$Message.success('图片已添加');
+                } else {
+                  vm.$Message.error('上传失败');
+                }
+              }).catch(function () {
+                vm.$Message.destroy();
+                vm.$Message.error('上传失败');
+              });
+            };
+            reader.readAsDataURL(file);
+            return;
+          }
+        }
+        // 检测文本 URL
+        var text = cd.getData('text/plain') || '';
+        if (text.trim()) {
+          var lines = text.trim().split(/[\n\r]+/).filter(function (l) { return l.trim(); });
+          var urlLines = lines.filter(function (l) { return /^https?:\/\/.+/i.test(l.trim()); });
+          if (urlLines.length) {
+            e.preventDefault();
+            var count = 0;
+            urlLines.forEach(function (line) {
+              var url = line.trim();
+              vm.addMainImage(url);
+              count++;
+            });
+            vm.$Message.success('已添加 ' + count + ' 张图片');
+          }
+        }
+      };
+
+      vm._addImgEscHandler = function (e) {
+        if (e.key === 'Escape') vm.stopAddImagePaste();
+      };
+
+      document.addEventListener('paste', vm._addImgPasteHandler, true);
+      document.addEventListener('keydown', vm._addImgEscHandler, true);
+      // 60s 超时自动退出
+      vm._addImgTimer = setTimeout(function () { vm.stopAddImagePaste(); }, 60000);
+    },
+    stopAddImagePaste: function () {
+      this.addingImage = false;
+      if (this._addImgPasteHandler) {
+        document.removeEventListener('paste', this._addImgPasteHandler, true);
+        this._addImgPasteHandler = null;
+      }
+      if (this._addImgEscHandler) {
+        document.removeEventListener('keydown', this._addImgEscHandler, true);
+        this._addImgEscHandler = null;
+      }
+      if (this._addImgTimer) {
+        clearTimeout(this._addImgTimer);
+        this._addImgTimer = null;
       }
     },
     // 拖拽替换SKU图
@@ -602,7 +718,8 @@ Vue.component('detail-modal', {
         skus: skus,
         status: vm.editable.status,
         storeName: vm.storeName,
-        variantAttrName: vm.variantAttrName,
+        variantAttrName: (vm.variantAttrs[0] || {}).name || '',
+        variantAttrName2: (vm.variantAttrs[1] || {}).name || '',
         productNo: vm.productNo
       };
       return fetch('/api/product/' + vm.editable.uid, {
@@ -696,6 +813,14 @@ Vue.component('detail-modal', {
               <div class="img-action img-edit" @click.stop="editImageWithMeitu(url, 'main_images', i)" title="编辑图片">✎</div>
               <div class="img-del" @click.stop="removeMainImage(i)">&times;</div>
             </div>
+            <div class="img-add-btn" @click="startAddImagePaste" :class="{ active: addingImage }">
+              <span class="img-add-icon">+</span>
+              <span class="img-add-text">添加图片</span>
+            </div>
+          </div>
+          <div class="add-image-hint" v-if="addingImage">
+            请粘贴图片URL或截图 (Ctrl+V)，按 ESC 取消
+            <span class="add-image-hint-close" @click="stopAddImagePaste">&times;</span>
           </div>
         </div>
 
@@ -764,11 +889,18 @@ Vue.component('detail-modal', {
         <div class="detail-section">
           <div class="detail-section-title">变种属性</div>
           <div class="variant-attr-row" v-for="(va, vi) in variantAttrs" :key="vi">
-            <i-select v-model="va.name" style="width:120px" size="small" placeholder="属性名" clearable>
-              <i-option v-for="n in getFilteredOptions(vi)" :key="n" :value="n">{{ n }}</i-option>
-            </i-select>
-            <div class="variant-attr-values">
-              <span class="attr-tag" v-for="(v, vj) in va.values" :key="vi+'-'+vj">{{ v }}</span>
+            <div class="variant-attr-label">
+              <span class="variant-attr-index">{{ vi + 1 }}</span>
+              <i-select v-model="va.name" style="width:130px" size="small" placeholder="选择属性名" clearable transfer>
+                <i-option v-for="n in getFilteredOptions(vi)" :key="n" :value="n">{{ n }}</i-option>
+              </i-select>
+            </div>
+            <div class="variant-attr-values" v-if="va.values.length">
+              <span class="attr-tag attr-tag-variant" v-for="(v, vj) in va.values" :key="vi+'-'+vj">{{ v }}</span>
+              <span class="variant-attr-count">{{ va.values.length }}个</span>
+            </div>
+            <div class="variant-attr-values variant-attr-empty" v-else>
+              <span style="color:var(--text-muted);font-size:12px">暂无属性值（从SKU自动提取）</span>
             </div>
           </div>
           <!-- 原始属性标签 -->
@@ -842,6 +974,7 @@ Vue.component('detail-modal', {
           <i-button type="primary" icon="md-checkmark" :loading="saving" @click="saveProductDxm()">保存</i-button>
           <i-button type="success" icon="md-paper-plane" @click="saveAndPublish">保存并发布</i-button>
           <i-button type="warning" icon="md-images" @click="goToMeitu">小秘美图</i-button>
+          <i-button type="error" icon="md-brush" @click="goToMeituCleaner">一键去中文</i-button>
           <i-button :type="editable.status === 0 ? 'success' : 'error'" @click="toggleStatus">
             {{ editable.status === 0 ? '标记已发布' : '标记未发布' }}
           </i-button>
