@@ -29,10 +29,10 @@ Vue.component('detail-modal', {
       productNo: '',
       variantAttrs: [
         { name: '颜色', values: [] },
-        { name: '尺码', values: [] }
+        { name: '', values: [] }
       ],
-      // 变种属性可选名称列表
-      attrNameOptions: ['颜色', '尺码', '款式', '材质', '图案', '领型', '包装', '风格', '适用季节', '厚度'],
+      // 变种属性可选名称（对标店小秘，根据分类动态变化，这里放通用集合）
+      attrNameOptions: ['颜色', '风格', '材质', '口味', '适用人群', '容量', '成分', '重量', '品类', '数量', '型号', '头发长度', '被套尺码', 'RAM+ROM', '存储容量', '厚被尺码', '手机型号'],
       // 店铺列表
       storeOptions: ['Frotel', 'Tralli', 'Koetun', 'Xpoine', 'Zondon', 'Prozzen', 'yandonghuoduoduo', 'Smiertl', 'APrioX'],
       // 图片尺寸缓存
@@ -88,7 +88,7 @@ Vue.component('detail-modal', {
         });
         this.variantAttrs = [
           { name: val.variantAttrName || val.variant_attr_name || '颜色', values: Object.keys(part1) },
-          { name: '尺码', values: Object.keys(part2) }
+          { name: '', values: Object.keys(part2) }
         ];
         // 自动计算售价（仅对尚未设置售价的 SKU）
         var vm = this;
