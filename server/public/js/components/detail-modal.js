@@ -27,6 +27,10 @@ Vue.component('detail-modal', {
       storeName: '',
       variantAttrName: '颜色',
       productNo: '',
+      variantAttrs: [
+        { name: '颜色', values: [] },
+        { name: '尺码', values: [] }
+      ],
       // 变种属性可选名称列表
       attrNameOptions: ['颜色', '尺码', '款式', '材质', '图案', '领型', '包装', '风格', '适用季节', '厚度'],
       // 店铺列表
@@ -69,6 +73,23 @@ Vue.component('detail-modal', {
         this.variantAttrName = val.variantAttrName || val.variant_attr_name || '颜色';
         this.productNo = val.productNo || val.product_no || '';
         this.imageSizeCache = {};
+        // 从 SKU name 自动拆分两个变种属性值
+        var part1 = {}, part2 = {};
+        (this.editable.skus || []).forEach(function (s) {
+          var fullName = (s.customName || s.name || '').trim();
+          // 按 / 或 空格 拆分
+          var parts = fullName.split(/\s*\/\s*|\s+/);
+          if (parts.length >= 2) {
+            if (parts[0] && !part1[parts[0]]) part1[parts[0]] = true;
+            if (parts[1] && !part2[parts[1]]) part2[parts[1]] = true;
+          } else {
+            if (fullName && !part1[fullName]) part1[fullName] = true;
+          }
+        });
+        this.variantAttrs = [
+          { name: val.variantAttrName || val.variant_attr_name || '颜色', values: Object.keys(part1) },
+          { name: '尺码', values: Object.keys(part2) }
+        ];
         // 自动计算售价（仅对尚未设置售价的 SKU）
         var vm = this;
         vm.$nextTick(function () {
@@ -144,20 +165,6 @@ Vue.component('detail-modal', {
     originCategory: function () {
       if (!this.editable || !this.editable.category) return '-';
       return this.editable.category.leafCategoryName || this.editable.category.categoryPath || '-';
-    },
-    // 从 SKU 提取变种属性值（去重），实时响应 customName 变化
-    variantAttrValues: function () {
-      if (!this.editable || !this.editable.skus) return [];
-      var seen = {};
-      var values = [];
-      (this.editable.skus || []).forEach(function (s) {
-        var name = (s.customName || '').trim();
-        if (name && !seen[name]) {
-          seen[name] = true;
-          values.push(name);
-        }
-      });
-      return values;
     }
   },
   methods: {
@@ -743,22 +750,18 @@ Vue.component('detail-modal', {
           </div>
         </div>
 
-        <!-- 变种属性（属性名下拉 + 值从SKU提取） -->
+        <!-- 变种属性（两行：属性1 + 属性2，对标店小秘） -->
         <div class="detail-section">
-          <div class="detail-section-title">
-            <span style="display:inline-flex;align-items:center;gap:8px">
-              <span>变种属性</span>
-              <i-select v-model="variantAttrName" style="width:120px" size="small">
-                <i-option v-for="n in attrNameOptions" :key="n" :value="n">{{ n }}</i-option>
-              </i-select>
-              <span style="font-size:12px;color:var(--text-muted);font-weight:400">({{ variantAttrValues.length }} 个值)</span>
-            </span>
+          <div class="detail-section-title">变种属性</div>
+          <div class="variant-attr-row" v-for="(va, vi) in variantAttrs" :key="vi">
+            <i-select v-model="va.name" style="width:120px" size="small" placeholder="属性名">
+              <i-option v-for="n in attrNameOptions" :key="n" :value="n">{{ n }}</i-option>
+            </i-select>
+            <div class="variant-attr-values">
+              <span class="attr-tag" v-for="(v, vj) in va.values" :key="vi+'-'+vj">{{ v }}</span>
+            </div>
           </div>
-          <div v-if="variantAttrValues.length" class="attr-tags">
-            <span class="attr-tag" v-for="(v, i) in variantAttrValues" :key="'av'+i">{{ v }}</span>
-          </div>
-          <div v-else style="color:var(--text-muted);font-size:13px;padding:4px 0">暂无变种属性值</div>
-          <!-- 原始属性标签（如果有） -->
+          <!-- 原始属性标签 -->
           <div v-if="editable.attrs && editable.attrs.length" style="margin-top:8px">
             <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">原始属性 ({{ editable.attrs.length }})</div>
             <div class="attr-tags">

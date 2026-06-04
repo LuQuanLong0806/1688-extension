@@ -1117,7 +1117,23 @@ body {
   z-index: 1;
 }
 
-/* ===== 对标店小秘 - 变种属性淡色标签 ===== */
+/* ===== 对标店小秘 - 变种属性行 ===== */
+.variant-attr-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.variant-attr-row:last-child {
+  border-bottom: none;
+}
+.variant-attr-values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1;
+}
 .attr-tag-muted {
   opacity: 0.65;
   background: var(--bg-elevated);
