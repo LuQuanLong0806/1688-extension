@@ -1102,3 +1102,40 @@ body {
   gap: 8px;
   flex: 1;
 }
+
+/* ===== 对标店小秘 - 图片尺寸标签 ===== */
+.img-dim-label {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+ font-size: 11px;
+  color: #fff;
+  background: rgba(0,0,0,.55);
+  padding: 1px 6px;
+  border-radius: 3px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ===== 对标店小秘 - 变种属性淡色标签 ===== */
+.attr-tag-muted {
+  opacity: 0.65;
+  background: var(--bg-elevated);
+  border-color: var(--border);
+  color: var(--text-secondary);
+}
+
+/* ===== 对标店小秘 - SKU表头 ===== */
+.sku-table th {
+  white-space: nowrap;
+}
+.sku-table .th-action {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--accent);
+  cursor: pointer;
+  margin-left: 4px;
+}
+.sku-table .th-action:hover {
+  text-decoration: underline;
+}

@@ -394,7 +394,10 @@ router.get('/product', (req, res) => {
     manualCategory: row.manual_category || '',
     dxmCategory: row.dxm_category ? JSON.parse(row.dxm_category) : null,
     attrs: JSON.parse(row.attrs || '[]'),
-    skuCount: JSON.parse(row.skus || '[]').length
+    skuCount: JSON.parse(row.skus || '[]').length,
+    storeName: row.store_name || '',
+    variantAttrName: row.variant_attr_name || '',
+    productNo: row.product_no || ''
   }));
 
   res.json({ total, page, pageSize, list: parsedList });
@@ -432,7 +435,10 @@ router.put('/product/:id', (req, res) => {
     status: 'status',
     customCategory: 'custom_category',
     manualCategory: 'manual_category',
-    dxmCategory: 'dxm_category'
+    dxmCategory: 'dxm_category',
+    storeName: 'store_name',
+    variantAttrName: 'variant_attr_name',
+    productNo: 'product_no'
   };
 
   for (const [key, col] of Object.entries(allowedFields)) {

@@ -22,7 +22,18 @@ Vue.component('detail-modal', {
       showPriceFormula: false,
       priceFormulas: [],
       saving: false,
-      _batchHideTimer: null
+      _batchHideTimer: null,
+      // 新增：对标店小秘
+      storeName: '',
+      variantAttrName: '颜色',
+      productNo: '',
+      // 变种属性可选名称列表
+      attrNameOptions: ['颜色', '尺码', '款式', '材质', '图案', '领型', '包装', '风格', '适用季节', '厚度'],
+      // 店铺列表
+      storeOptions: ['Frotel', 'Tralli', 'Koetun', 'Xpoine', 'Zondon', 'Prozzen', 'yandonghuoduoduo', 'Smiertl', 'APrioX'],
+      // 图片尺寸缓存
+      imageSizeCache: {},
+      _imgSizeTimer: null
     };
   },
   mounted: function () {
@@ -50,7 +61,14 @@ Vue.component('detail-modal', {
           if (!s.dimensions || !s.dimensions.length) s.dimensions = ['', '', ''];
           while (s.dimensions.length < 3) s.dimensions.push('');
           if (s.sellPrice === undefined) s.sellPrice = '';
+          if (s.sku === undefined) s.sku = '';
+          if (s.skuCategory === undefined) s.skuCategory = '';
         });
+        // 初始化新增字段
+        this.storeName = val.storeName || val.store_name || '';
+        this.variantAttrName = val.variantAttrName || val.variant_attr_name || '颜色';
+        this.productNo = val.productNo || val.product_no || '';
+        this.imageSizeCache = {};
         // 自动计算售价（仅对尚未设置售价的 SKU）
         var vm = this;
         vm.$nextTick(function () {
@@ -122,6 +140,20 @@ Vue.component('detail-modal', {
     originCategory: function () {
       if (!this.editable || !this.editable.category) return '-';
       return this.editable.category.leafCategoryName || this.editable.category.categoryPath || '-';
+    },
+    // 从 SKU 提取变种属性值（去重）
+    variantAttrValues: function () {
+      if (!this.editable || !this.editable.skus) return [];
+      var seen = {};
+      var values = [];
+      (this.editable.skus || []).forEach(function (s) {
+        var name = (s.customName || s.name || '').trim();
+        if (name && !seen[name]) {
+          seen[name] = true;
+          values.push(name);
+        }
+      });
+      return values;
     }
   },
   methods: {
@@ -242,7 +274,7 @@ Vue.component('detail-modal', {
       var vm = this;
       if (!vm.editable) return;
       vm.$Message.loading({ content: '正在保存...', duration: 0 });
-      vm.saveProduct(true).then(function () {
+      vm.saveProductDxm(true).then(function () {
         vm.$Message.destroy();
         vm.$Message.success('保存成功，正在跳转发布...');
         vm.openAdd();
@@ -498,6 +530,71 @@ Vue.component('detail-modal', {
         }
       }
       return false;
+    },
+    // 获取图片尺寸
+    getImageSize: function (url) {
+      var vm = this;
+      if (vm.imageSizeCache[url]) return vm.imageSizeCache[url];
+      var img = new Image();
+      img.onload = function () {
+        vm.$set(vm.imageSizeCache, url, img.width + 'x' + img.height);
+      };
+      img.src = url;
+      return '加载中';
+    },
+    // 生成 SKU 货号
+    generateSkuNo: function () {
+      if (!this.editable || !this.editable.skus) return;
+      var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      this.editable.skus.forEach(function (s, i) {
+        var code = '';
+        for (var j = 0; j < 8; j++) {
+          code += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        s.sku = code;
+      });
+      this.$Message.success('已生成 ' + this.editable.skus.length + ' 个 SKU 货号');
+    },
+    // 保存方法（扩展）
+    saveProductDxm: function (silent) {
+      var vm = this;
+      if (!vm.editable) return Promise.resolve();
+      if (!silent) vm.saving = true;
+      var skus = JSON.parse(JSON.stringify(vm.editable.skus || []));
+      skus.forEach(function (s, i) {
+        s._selected = vm.selectedSkuIndexes.indexOf(i) >= 0;
+      });
+      var detailImages = (vm.editable.detail_images || []).map(function (url, i) {
+        return { url: url, _selected: vm.selectedDetailIndexes.indexOf(i) >= 0 };
+      });
+      var mainImages = (vm.editable.main_images || []).map(function (url, i) {
+        return { url: url, _selected: vm.selectedMainIndexes.indexOf(i) >= 0 };
+      });
+      var payload = {
+        title: vm.editable.title,
+        customCategory: vm.editable.customCategory,
+        manualCategory: vm.editable.manualCategory,
+        dxmCategory: vm.editable.customCategory ? undefined : '',
+        mainImages: mainImages,
+        descImages: vm.editable.desc_images,
+        detailImages: detailImages,
+        skus: skus,
+        status: vm.editable.status,
+        storeName: vm.storeName,
+        variantAttrName: vm.variantAttrName,
+        productNo: vm.productNo
+      };
+      return fetch('/api/product/' + vm.editable.uid, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).then(function () {
+        if (!silent) { vm.saving = false; vm.$Message.success('保存成功'); }
+        vm.$emit('status-changed');
+      }).catch(function (e) {
+        if (!silent) { vm.saving = false; vm.$Message.error('保存失败'); }
+        throw e;
+      });
     }
   },
   template: `
@@ -521,11 +618,16 @@ Vue.component('detail-modal', {
         <div class="detail-section">
           <div class="detail-section-title">基本信息</div>
           <div class="info-grid">
+            <span class="label">店铺名称</span><span class="value">
+              <i-select v-model="storeName" style="width:300px" clearable placeholder="请选择店铺">
+                <i-option v-for="s in storeOptions" :key="s" :value="s">{{ s }}</i-option>
+              </i-select>
+            </span>
             <span class="label">来源</span><span class="value">
               <a v-if="editable.source_url" :href="editable.source_url" target="_blank">{{ editable.source_url }}</a>
               <span v-else>-</span>
             </span>
-            <span class="label">标题</span><span class="value">
+            <span class="label">产品标题</span><span class="value">
               <i-input v-model="editable.title" type="textarea" :rows="2" style="width:600px;font-size:14px" />
             </span>
             <span class="label">选择分类</span><span class="value">
@@ -534,6 +636,9 @@ Vue.component('detail-modal', {
             <span class="label">1688类目</span><span class="value">
               <span style="color:var(--text-secondary);font-size:14px">{{ originCategory }}</span>
             </span>
+            <span class="label">产品货号</span><span class="value">
+              <i-input v-model="productNo" style="width:300px" placeholder="可选，自定义货号" />
+            </span>
             <span class="label">状态</span><span class="value">
               <span :class="'status-tag ' + (editable.status === 0 ? 'status-unused' : 'status-used')">{{ editable.status === 0 ? '未发布' : '已发布' }}</span>
             </span>
@@ -541,12 +646,16 @@ Vue.component('detail-modal', {
           </div>
         </div>
 
-        <!-- 主图（可勾选） -->
+        <!-- 产品轮播图（可选用，显示尺寸） -->
         <div class="detail-section" v-if="editable.main_images && editable.main_images.length">
           <div class="detail-section-title">
-            主图 ({{ editable.main_images.length }})
+            产品轮播图 ({{ editable.main_images.length }})
             <checkbox :value="allMainSelected()" @on-change="toggleAllMainImages" style="margin-left:12px;vertical-align:middle"></checkbox>
             <span style="font-size:12px;color:var(--text-muted);margin-left:4px;vertical-align:middle">全选</span>
+            <span style="font-size:12px;color:var(--text-muted);margin-left:12px">选用 {{ selectedMainIndexes.length }} 张</span>
+          </div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;padding-left:2px">
+            比例1:1，不小于800×800，最多选用10张
           </div>
           <div class="img-grid">
             <div class="img-item sku-img-checkable" v-for="(url, i) in editable.main_images" :key="'m'+i"
@@ -562,6 +671,7 @@ Vue.component('detail-modal', {
               <div class="sku-img-check">
                 <checkbox :value="isMainImageChecked(i)" @click.native.stop></checkbox>
               </div>
+              <div class="img-dim-label" :title="getImageSize(url)">{{ imageSizeCache[url] || '...' }}</div>
               <div class="img-action img-edit" @click.stop="editImageWithMeitu(url, 'main_images', i)" title="编辑图片">✎</div>
               <div class="img-del" @click.stop="removeMainImage(i)">&times;</div>
             </div>
@@ -629,11 +739,27 @@ Vue.component('detail-modal', {
           </div>
         </div>
 
-        <!-- 属性 -->
-        <div class="detail-section" v-if="editable.attrs && editable.attrs.length">
-          <div class="detail-section-title">属性 ({{ editable.attrs.length }})</div>
-          <div class="attr-tags">
-            <span class="attr-tag" v-for="(a, i) in editable.attrs" :key="'a'+i">{{ a }}</span>
+        <!-- 变种属性（属性名下拉 + 值从SKU提取） -->
+        <div class="detail-section">
+          <div class="detail-section-title">
+            <span style="display:inline-flex;align-items:center;gap:8px">
+              <span>变种属性</span>
+              <i-select v-model="variantAttrName" style="width:120px" size="small">
+                <i-option v-for="n in attrNameOptions" :key="n" :value="n">{{ n }}</i-option>
+              </i-select>
+              <span style="font-size:12px;color:var(--text-muted);font-weight:400">({{ variantAttrValues.length }} 个值)</span>
+            </span>
+          </div>
+          <div v-if="variantAttrValues.length" class="attr-tags">
+            <span class="attr-tag" v-for="(v, i) in variantAttrValues" :key="'av'+i">{{ v }}</span>
+          </div>
+          <div v-else style="color:var(--text-muted);font-size:13px;padding:4px 0">暂无变种属性值</div>
+          <!-- 原始属性标签（如果有） -->
+          <div v-if="editable.attrs && editable.attrs.length" style="margin-top:8px">
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">原始属性 ({{ editable.attrs.length }})</div>
+            <div class="attr-tags">
+              <span class="attr-tag attr-tag-muted" v-for="(a, i) in editable.attrs" :key="'a'+i">{{ a }}</span>
+            </div>
           </div>
         </div>
 
@@ -657,9 +783,9 @@ Vue.component('detail-modal', {
             <table class="sku-table" :class="{ 'sku-dragging': dragImageUrl }">
               <thead><tr>
                 <th class="sku-check-col"><checkbox :value="allSkuSelected" @on-change="toggleSkuAll"></checkbox></th>
-                <th>图片</th><th>SKU名称</th>
-                <th>自定义名称 <span class="th-action" @click="openBatchReplace" @mouseenter="clearBatchHide" @mouseleave="scheduleBatchHide">批量替换</span></th>
-                <th>进价</th><th>售价 <span style="margin-left:6px;font-size:11px;font-weight:400"><a style="color:var(--success);cursor:pointer" @click="applyPriceFormula">自动计算</a><span style="color:var(--border);margin:0 4px">|</span><a style="color:var(--text-muted);cursor:pointer" @click="showPriceFormula=true">公式设置</a></span></th><th>尺寸(cm)</th><th>重量</th>
+                <th>预览图</th><th>{{ variantAttrName }}</th>
+                <th>SKU货号 <span style="margin-left:6px;font-size:11px;font-weight:400"><a style="color:var(--accent);cursor:pointer" @click="generateSkuNo">一键生成</a></span></th>
+                <th>申报价格(CNY) <span class="th-action" @click="openBatchReplace" @mouseenter="clearBatchHide" @mouseleave="scheduleBatchHide">批量替换</span></th><th>尺寸(cm)</th><th>重量(g)</th><th>建议售价 <span style="margin-left:6px;font-size:11px;font-weight:400"><a style="color:var(--success);cursor:pointer" @click="applyPriceFormula">自动计算</a><span style="color:var(--border);margin:0 4px">|</span><a style="color:var(--text-muted);cursor:pointer" @click="showPriceFormula=true">公式设置</a></span></th>
               </tr></thead>
               <tbody>
                 <tr v-for="(sku, i) in editable.skus" :key="'s'+i" :class="{ 'sku-row-checked': isSkuChecked(i) }">
@@ -675,9 +801,8 @@ Vue.component('detail-modal', {
                     <span v-else class="sku-img-placeholder">拖图替换</span>
                   </td>
                   <td>{{ sku.name || '-' }}</td>
-                  <td><i-input v-model="sku.customName" :placeholder="sku.name || '-'" style="width:200px" /></td>
-                  <td><i-input v-model="sku.price" type="number" number style="width:100px" @on-change="calcSellPrice(sku)" /></td>
-                  <td><i-input v-model="sku.sellPrice" type="number" number placeholder="售价" style="width:100px" /></td>
+                  <td><i-input v-model="sku.sku" style="width:140px" placeholder="SKU货号" /></td>
+                  <td><i-input v-model="sku.customName" :placeholder="sku.name || '-'" style="width:160px" /></td>
                   <td style="min-width:340px">
                     <div style="display:flex;justify-content:space-around;align-items:center">
                       <i-input v-model="sku.dimensions[0]" type="number" number style="width:100px" />
@@ -688,6 +813,7 @@ Vue.component('detail-modal', {
                     </div>
                   </td>
                   <td><i-input v-model="sku.weight" type="number" number style="width:80px" /></td>
+                  <td><i-input v-model="sku.sellPrice" type="number" number placeholder="售价" style="width:100px" /></td>
                 </tr>
               </tbody>
             </table>
@@ -697,7 +823,7 @@ Vue.component('detail-modal', {
 
         <!-- 底部固定操作栏 -->
         <div class="detail-footer-fixed">
-          <i-button type="primary" icon="md-checkmark" :loading="saving" @click="saveProduct()">保存</i-button>
+          <i-button type="primary" icon="md-checkmark" :loading="saving" @click="saveProductDxm()">保存</i-button>
           <i-button type="success" icon="md-paper-plane" @click="saveAndPublish">保存并发布</i-button>
           <i-button type="warning" icon="md-images" @click="goToMeitu">小秘美图</i-button>
           <i-button :type="editable.status === 0 ? 'success' : 'error'" @click="toggleStatus">

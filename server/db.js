@@ -171,7 +171,10 @@ var LOCAL_TABLE_DEFS = [
       custom_category TEXT,
       dxm_category TEXT DEFAULT '',
       manual_category TEXT,
-      deleted INTEGER DEFAULT 0
+      deleted INTEGER DEFAULT 0,
+      store_name TEXT DEFAULT '',
+      variant_attr_name TEXT DEFAULT '',
+      product_no TEXT DEFAULT ''
     )`
   },
   {
