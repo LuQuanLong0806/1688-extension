@@ -16,7 +16,10 @@
       try { fetch(_serverUrl() + '/api/clear-signal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientId: _clientId() }) }).catch(function () {}); } catch (e) {}
       var mainImg = document.querySelector('#productProductInfo .mainImage');
       if (mainImg) mainImg.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      doPasteImg();
+      // 先检测剪贴板是否有图片，有则上传后写回URL，再走正常流程
+      checkClipboardImage(function () {
+        doPasteImg();
+      });
     });
   }
 
@@ -46,6 +49,158 @@
     setTimeout(C.hideBubble, 2000);
     C.finishWorkflow(type === 'ok');
   }
+
+  // ========== 前置：检测剪贴板图片，有则上传并写回URL ==========
+  function checkClipboardImage(onDone) {
+    pasteLog('读取剪贴板...');
+    readClipboardType(function (result) {
+      if (result && result.type === 'image' && result.base64) {
+        // 剪贴板是图片：上传到 ImgBB，把 URL 写回剪贴板
+        pasteLog('上传图片到图床...');
+        fetch(_serverUrl() + '/api/ai/smms-upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image_base64: result.base64 })
+        }).then(function (r) { return r.json(); }).then(function (data) {
+          if (data.ok && data.url) {
+            // 把图床 URL 写回剪贴板
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(data.url).then(function () {
+                console.log('%c[小蜜蜂-粘] 图片已上传，URL已写入剪贴板: ' + data.url, 'color:#AB47BC;font-weight:bold');
+                pasteLog('图床URL已就绪');
+                onDone();
+              }).catch(function () { onDone(); });
+            } else {
+              onDone();
+            }
+          } else {
+            console.error('[小蜜蜂-粘] ImgBB 上传失败:', data.error);
+            pasteDone('❌ 图床上传失败', 'err');
+          }
+        }).catch(function () {
+          pasteDone('❌ 图床上传失败', 'err');
+        });
+      } else {
+        // 不是图片（是文本URL或空），直接走正常流程
+        onDone();
+      }
+    });
+  }
+
+  // 判断文本是否看起来像图片URL（支持多行，每行一个URL）
+  function looksLikeUrls(text) {
+    var lines = text.split(/[\n\r]+/).filter(function (l) { return l.trim(); });
+    if (!lines.length) return false;
+    return lines.every(function (line) {
+      return /^https?:\/\/.+/i.test(line.trim());
+    });
+  }
+
+  // 检测剪贴板是否有图片：先试 readText，无文本或非URL则弹出小提示等待 Ctrl+V
+  function readClipboardType(cb) {
+    if (!navigator.clipboard || !navigator.clipboard.readText) { cb(null); return; }
+    navigator.clipboard.readText().then(function (text) {
+      if (text && text.trim() && looksLikeUrls(text.trim())) {
+        cb(null);
+        return;
+      }
+      // 文本为空，可能是图片，取消工作流后弹出非阻塞提示
+      C.finishWorkflow(false);
+      if (document.getElementById('__dxm_bee_paste_hint')) return; // 已有提示条，不重复弹
+      showPasteHint(function (result) {
+        if (result && result.type === 'image' && result.base64) {
+          // 拿到图片了，重新启动工作流上传
+          if (!C.startWorkflow('__dxm_bee_paste')) return;
+          pasteStep = 0;
+          pasteTotal = 7;
+          pasteLog('上传图片到图床...');
+          fetch(_serverUrl() + '/api/ai/smms-upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image_base64: result.base64 })
+          }).then(function (r) { return r.json(); }).then(function (data) {
+            if (data.ok && data.url) {
+              if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(data.url).then(function () {
+                  pasteLog('图床URL已就绪');
+                  doPasteImg();
+                });
+              } else {
+                doPasteImg();
+              }
+            } else {
+              pasteDone('❌ 图床上传失败', 'err');
+            }
+          }).catch(function () {
+            pasteDone('❌ 图床上传失败', 'err');
+          });
+        } else {
+          // 用户取消或超时，隐藏气泡
+          C.hideBubble();
+        }
+      });
+    }).catch(function () {
+      C.finishWorkflow(false);
+      cb(null);
+    });
+  }
+
+  // 非阻塞提示条：监听 document 级 paste，不抢焦点不锁工作流
+  function showPasteHint(cb) {
+    var hint = document.createElement('div');
+    hint.id = '__dxm_bee_paste_hint';
+    hint.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:2147483646;' +
+      'background:linear-gradient(135deg,#AB47BC,#8E24AA);color:#fff;padding:10px 24px;border-radius:24px;' +
+      'font:bold 13px/1 "Microsoft YaHei",Arial,sans-serif;box-shadow:0 4px 16px rgba(142,36,170,.4);' +
+      'display:flex;align-items:center;gap:8px;cursor:pointer';
+    hint.innerHTML = '<span>如要粘贴图片，请按 Ctrl+V</span>' +
+      '<span style="opacity:.6;font-size:11px">点击关闭</span>';
+    document.body.appendChild(hint);
+
+    var resolved = false;
+    function finish(result) {
+      if (resolved) return;
+      resolved = true;
+      hint.remove();
+      document.removeEventListener('paste', onPaste, true);
+      document.removeEventListener('keydown', onEsc, true);
+      cb(result);
+    }
+
+    function onPaste(e) {
+      var cd = e.clipboardData;
+      if (!cd) return;
+      for (var i = 0; i < cd.items.length; i++) {
+        if (cd.items[i].type.indexOf('image/') === 0) {
+          e.preventDefault();
+          e.stopPropagation();
+          var file = cd.items[i].getAsFile();
+          var reader = new FileReader();
+          reader.onload = function () {
+            console.log('[小蜜蜂-粘] 捕获到粘贴图片');
+            finish({ type: 'image', base64: reader.result.split(',')[1] });
+          };
+          reader.readAsDataURL(file);
+          return;
+        }
+      }
+      // 粘贴的是文本，不拦截，让用户正常粘贴到其他地方
+    }
+
+    function onEsc(e) {
+      if (e.key === 'Escape') finish(null);
+    }
+
+    document.addEventListener('paste', onPaste, true);
+    document.addEventListener('keydown', onEsc, true);
+
+    hint.addEventListener('click', function () { finish(null); });
+
+    // 60秒后自动消失
+    setTimeout(function () { finish(null); }, 60000);
+  }
+
+  // ========== 原有贴图流程（不改动） ==========
   function doPasteImg() {
     pasteStep = 0;
     pasteTotal = 7;
