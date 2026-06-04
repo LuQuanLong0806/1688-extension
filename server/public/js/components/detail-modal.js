@@ -165,6 +165,16 @@ Vue.component('detail-modal', {
     originCategory: function () {
       if (!this.editable || !this.editable.category) return '-';
       return this.editable.category.leafCategoryName || this.editable.category.categoryPath || '-';
+    },
+    // 下拉选项：过滤掉另一个已选的属性名（互斥）
+    getFilteredOptions: function () {
+      var vm = this;
+      var all = vm.attrNameOptions;
+      return function (index) {
+        var otherIdx = index === 0 ? 1 : 0;
+        var otherName = (vm.variantAttrs[otherIdx] || {}).name || '';
+        return all.filter(function (n) { return n !== otherName; });
+      };
     }
   },
   methods: {
@@ -754,8 +764,8 @@ Vue.component('detail-modal', {
         <div class="detail-section">
           <div class="detail-section-title">变种属性</div>
           <div class="variant-attr-row" v-for="(va, vi) in variantAttrs" :key="vi">
-            <i-select v-model="va.name" style="width:120px" size="small" placeholder="属性名">
-              <i-option v-for="n in attrNameOptions" :key="n" :value="n">{{ n }}</i-option>
+            <i-select v-model="va.name" style="width:120px" size="small" placeholder="属性名" clearable>
+              <i-option v-for="n in getFilteredOptions(vi)" :key="n" :value="n">{{ n }}</i-option>
             </i-select>
             <div class="variant-attr-values">
               <span class="attr-tag" v-for="(v, vj) in va.values" :key="vi+'-'+vj">{{ v }}</span>
