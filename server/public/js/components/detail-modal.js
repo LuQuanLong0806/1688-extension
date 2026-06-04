@@ -120,6 +120,10 @@ Vue.component('detail-modal', {
           this.selectedDetailIndexes = [];
         }
       }
+    },
+    'editable.skus': {
+      handler: function () {},
+      deep: true
     }
   },
   computed: {
@@ -141,13 +145,13 @@ Vue.component('detail-modal', {
       if (!this.editable || !this.editable.category) return '-';
       return this.editable.category.leafCategoryName || this.editable.category.categoryPath || '-';
     },
-    // 从 SKU 提取变种属性值（去重）
+    // 从 SKU 提取变种属性值（去重），实时响应 customName 变化
     variantAttrValues: function () {
       if (!this.editable || !this.editable.skus) return [];
       var seen = {};
       var values = [];
       (this.editable.skus || []).forEach(function (s) {
-        var name = (s.customName || s.name || '').trim();
+        var name = (s.customName || '').trim();
         if (name && !seen[name]) {
           seen[name] = true;
           values.push(name);
@@ -783,9 +787,8 @@ Vue.component('detail-modal', {
             <table class="sku-table" :class="{ 'sku-dragging': dragImageUrl }">
               <thead><tr>
                 <th class="sku-check-col"><checkbox :value="allSkuSelected" @on-change="toggleSkuAll"></checkbox></th>
-                <th>预览图</th><th>{{ variantAttrName }}</th>
-                <th>SKU货号 <span style="margin-left:6px;font-size:11px;font-weight:400"><a style="color:var(--accent);cursor:pointer" @click="generateSkuNo">一键生成</a></span></th>
-                <th>申报价格(CNY) <span class="th-action" @click="openBatchReplace" @mouseenter="clearBatchHide" @mouseleave="scheduleBatchHide">批量替换</span></th><th>尺寸(cm)</th><th>重量(g)</th><th>建议售价 <span style="margin-left:6px;font-size:11px;font-weight:400"><a style="color:var(--success);cursor:pointer" @click="applyPriceFormula">自动计算</a><span style="color:var(--border);margin:0 4px">|</span><a style="color:var(--text-muted);cursor:pointer" @click="showPriceFormula=true">公式设置</a></span></th>
+                <th>图片</th><th>SKU名称</th>
+                <th>自定义名称 <span class="th-action" @click="openBatchReplace" @mouseenter="clearBatchHide" @mouseleave="scheduleBatchHide">批量替换</span></th><th>进价</th><th>售价 <span style="margin-left:6px;font-size:11px;font-weight:400"><a style="color:var(--success);cursor:pointer" @click="applyPriceFormula">自动计算</a><span style="color:var(--border);margin:0 4px">|</span><a style="color:var(--text-muted);cursor:pointer" @click="showPriceFormula=true">公式设置</a></span></th><th>尺寸(cm)</th><th>重量</th>
               </tr></thead>
               <tbody>
                 <tr v-for="(sku, i) in editable.skus" :key="'s'+i" :class="{ 'sku-row-checked': isSkuChecked(i) }">
@@ -801,8 +804,9 @@ Vue.component('detail-modal', {
                     <span v-else class="sku-img-placeholder">拖图替换</span>
                   </td>
                   <td>{{ sku.name || '-' }}</td>
-                  <td><i-input v-model="sku.sku" style="width:140px" placeholder="SKU货号" /></td>
-                  <td><i-input v-model="sku.customName" :placeholder="sku.name || '-'" style="width:160px" /></td>
+                  <td><i-input v-model="sku.customName" :placeholder="sku.name || '-'" style="width:200px" /></td>
+                  <td><i-input v-model="sku.price" type="number" number style="width:100px" @on-change="calcSellPrice(sku)" /></td>
+                  <td><i-input v-model="sku.sellPrice" type="number" number placeholder="售价" style="width:100px" /></td>
                   <td style="min-width:340px">
                     <div style="display:flex;justify-content:space-around;align-items:center">
                       <i-input v-model="sku.dimensions[0]" type="number" number style="width:100px" />
@@ -813,7 +817,6 @@ Vue.component('detail-modal', {
                     </div>
                   </td>
                   <td><i-input v-model="sku.weight" type="number" number style="width:80px" /></td>
-                  <td><i-input v-model="sku.sellPrice" type="number" number placeholder="售价" style="width:100px" /></td>
                 </tr>
               </tbody>
             </table>
