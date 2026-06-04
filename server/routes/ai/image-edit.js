@@ -296,7 +296,7 @@ router.post('/batch-clean-chinese', function (req, res) {
         return { ok: true, cleaned: false, regions: result.regions || [] };
       }
       return textCleaner.saveCleanedImage(result.imageBuffer).then(function (url) {
-        return { ok: true, cleaned: true, url: url, regionCount: result.regionCount };
+        return { ok: true, cleaned: true, url: url, base64: result.imageBuffer.toString('base64'), regionCount: result.regionCount };
       });
     }).catch(function (err) {
       return { ok: false, error: err.message };

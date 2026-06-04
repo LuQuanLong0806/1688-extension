@@ -623,7 +623,7 @@ function initMeituTextCleaner() {
     showLoading();
 
     var images = imageQueue.filter(function (item) { return item.status === 'pending'; })
-      .map(function (item) { return { base64: item.base64 }; });
+      .map(function (item) { return { base64: item.base64, url: item.base64 ? null : item.src }; });
 
     if (!images.length) {
       showToast('没有待处理的图片', 'loading');
@@ -707,7 +707,7 @@ function initMeituTextCleaner() {
     var dilatePx = parseInt(document.getElementById('expandSlider').value) || 20;
 
     var images = imageQueue.filter(function (item) { return item.status === 'pending'; })
-      .map(function (item) { return { base64: item.base64 }; });
+      .map(function (item) { return { base64: item.base64, url: item.base64 ? null : item.src }; });
 
     if (!images.length) {
       showToast('没有待处理的图片', 'loading');
@@ -990,17 +990,16 @@ function initMeituTextCleaner() {
   window._meituGetCleanedImages = function () {
     var results = [];
     var base = getServerBase();
-    imageQueue.forEach(function (item) {
-      if (item.status === 'done' && item.result) {
+    imageQueue.forEach(function (item, queueIdx) {
+      if (item.status === 'done' && item.result && !item._replaced) {
         var src = null;
-        // 优先用图床URL（已是完整URL），否则拼接本地路径
         if (item.result.url && item.result.url.indexOf('http') === 0) {
           src = item.result.url;
         } else if (item.result.url) {
           src = base + item.result.url;
         }
         if (src) {
-          results.push({ src: src, original: item.src, ocrCount: item.result.ocrCount, visionCount: item.result.visionCount });
+          results.push({ src: src, original: item.src, base64: item.result.base64 || null, _slot: item._slot || null, ocrCount: item.result.ocrCount, visionCount: item.result.visionCount });
         }
       }
     });
@@ -1010,21 +1009,28 @@ function initMeituTextCleaner() {
     return results;
   };
 
+  // 标记已替换，防止重复处理
+  window._meituMarkReplaced = function () {
+    imageQueue.forEach(function (item) {
+      if (item.status === 'done' && !item._replaced) item._replaced = true;
+    });
+  };
+
   // 暴露批量导入接口（供"一键去中文"使用）
-  window._meituImportToCleaner = function (urls) {
+  window._meituImportToCleaner = function (urls, slots) {
     if (!urls || !urls.length) return;
-    urls.forEach(function (url) {
+    urls.forEach(function (url, i) {
       imageQueue.push({
         id: nextQueueId++,
         src: url,
         base64: null,
         status: 'pending',
-        result: null
+        result: null,
+        _slot: slots ? slots[i] : null
       });
     });
     updateImageQueue();
     showToast('已导入 ' + urls.length + ' 张图片到批量队列', 'ok');
-    // 显示第一张图片
     if (imageQueue.length > 0 && !currentImageSrc) {
       loadImageSrc(imageQueue[0].src);
     }

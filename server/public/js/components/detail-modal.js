@@ -236,16 +236,22 @@ Vue.component('detail-modal', {
       var vm = this;
       if (!vm.editable) return;
       var urls = [];
+      var slots = []; // 记录每张图的位置 { field, index }
       var mainImgs = vm.editable.main_images || [];
-      vm.selectedMainIndexes.forEach(function (i) { if (mainImgs[i]) urls.push(mainImgs[i]); });
+      vm.selectedMainIndexes.forEach(function (i) {
+        if (mainImgs[i]) { urls.push(mainImgs[i]); slots.push({ field: 'main_images', index: i }); }
+      });
       var detailImgs = vm.editable.detail_images || [];
-      vm.selectedDetailIndexes.forEach(function (i) { if (detailImgs[i]) urls.push(detailImgs[i]); });
+      vm.selectedDetailIndexes.forEach(function (i) {
+        if (detailImgs[i]) { urls.push(detailImgs[i]); slots.push({ field: 'detail_images', index: i }); }
+      });
       var skuImgs = vm.skuImages || [];
       skuImgs.forEach(function (item) {
-        if (vm.isSkuImageChecked(item) && item.url) urls.push(item.url);
+        if (vm.isSkuImageChecked(item) && item.url) { urls.push(item.url); slots.push({ field: 'sku', url: item.url }); }
       });
       if (!urls.length) { vm.$Message.warning('请先选中要处理的图片'); return; }
       try { sessionStorage.setItem('__meitu_pending_import', JSON.stringify(urls)); } catch (e) {}
+      try { sessionStorage.setItem('__meitu_import_slots', JSON.stringify(slots)); } catch (e) {}
       try { sessionStorage.setItem('__meitu_source_product', vm.editable.uid); } catch (e) {}
       try { sessionStorage.setItem('__meitu_open_tab', 'cleaner'); } catch (e) {}
       vm.$root.showCollageModal = true;

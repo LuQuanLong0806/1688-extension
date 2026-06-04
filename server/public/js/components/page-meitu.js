@@ -68,8 +68,11 @@ Vue.component('page-meitu', {
         if (!raw) return;
         sessionStorage.removeItem('__meitu_pending_import');
         var urls = JSON.parse(raw);
+        var slots = [];
+        try { slots = JSON.parse(sessionStorage.getItem('__meitu_import_slots') || '[]'); } catch (e) {}
+        try { sessionStorage.removeItem('__meitu_import_slots'); } catch (e) {}
         if (urls && urls.length && typeof window._meituImportToCleaner === 'function') {
-          window._meituImportToCleaner(urls);
+          window._meituImportToCleaner(urls, slots);
         }
       } catch (e) {}
     },
@@ -184,35 +187,41 @@ Vue.component('page-meitu', {
       var vm = this;
       if (typeof window._meituGetCleanedImages !== 'function') { vm.$Message.warning('请先执行去中文操作'); return; }
       var cleaned = window._meituGetCleanedImages();
-      if (!cleaned || !cleaned.length) { vm.$Message.warning('没有已清理的图片'); return; }
+      if (!cleaned || !cleaned.length) { vm.$Message.warning('没有可替换的图片'); return; }
+
+      // 只处理有位置信息的项
+      var items = cleaned.filter(function (item) { return item._slot; });
+      if (!items.length) { vm.$Message.warning('没有可替换的图片'); return; }
 
       vm.$Message.loading({ content: '正在上传图片到图床...', duration: 0 });
 
       var uploaded = 0;
-      var results = []; // { original, newUrl }
+      var total = items.length;
+      var results = []; // { slot, newUrl }
 
-      cleaned.forEach(function (item) {
+      items.forEach(function (item) {
         var cached = typeof window._meituGetUploadedUrl === 'function' ? window._meituGetUploadedUrl(item.src) : null;
         if (cached) {
-          results.push({ original: item.original, newUrl: cached });
+          results.push({ slot: item._slot, newUrl: cached });
           uploaded++;
-          if (uploaded >= cleaned.length) finishReplace();
+          if (uploaded >= total) finishReplace();
           return;
         }
+        var b64 = item.base64 ? ('data:image/png;base64,' + item.base64) : item.src;
         fetch('/api/ai/smms-upload', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image_base64: item.src })
+          body: JSON.stringify({ image_base64: b64 })
         }).then(function (r) { return r.json(); }).then(function (d) {
           if (d.url) {
-            results.push({ original: item.original, newUrl: d.url });
+            results.push({ slot: item._slot, newUrl: d.url });
             if (typeof window._meituCacheUploadedUrl === 'function') window._meituCacheUploadedUrl(item.src, d.url);
           }
           uploaded++;
-          if (uploaded >= cleaned.length) finishReplace();
+          if (uploaded >= total) finishReplace();
         }).catch(function () {
           uploaded++;
-          if (uploaded >= cleaned.length) finishReplace();
+          if (uploaded >= total) finishReplace();
         });
       });
 
@@ -223,48 +232,37 @@ Vue.component('page-meitu', {
         var detailModal = vm.$root.$refs.detailModal;
         if (!detailModal || !detailModal.editable) { vm.$Message.warning('请先打开商品详情'); return; }
 
-        var mainImgs = detailModal.editable.main_images || [];
-        var detailImgs = detailModal.editable.detail_images || [];
         var replaced = 0;
-        var appended = 0;
 
         results.forEach(function (r) {
-          if (!r.newUrl) return;
-          // 在主图中查找原图并替换
-          var found = false;
-          for (var i = 0; i < mainImgs.length; i++) {
-            if (mainImgs[i] === r.original) {
-              vm.$set(mainImgs, i, r.newUrl);
+          if (!r.newUrl || !r.slot) return;
+          var s = r.slot;
+          if (s.field === 'main_images') {
+            var imgs = detailModal.editable.main_images;
+            if (imgs && s.index < imgs.length) {
+              detailModal.$set(detailModal.editable.main_images, s.index, r.newUrl);
               replaced++;
-              found = true;
-              break;
             }
-          }
-          if (!found) {
-            // 在详情图中查找
-            for (var j = 0; j < detailImgs.length; j++) {
-              if (detailImgs[j] === r.original) {
-                vm.$set(detailImgs, j, r.newUrl);
+          } else if (s.field === 'detail_images') {
+            var imgs = detailModal.editable.detail_images;
+            if (imgs && s.index < imgs.length) {
+              detailModal.$set(detailModal.editable.detail_images, s.index, r.newUrl);
+              replaced++;
+            }
+          } else if (s.field === 'sku') {
+            var skus = detailModal.editable.skus || [];
+            for (var si = 0; si < skus.length; si++) {
+              if (skus[si].image === s.url) {
+                detailModal.$set(skus[si], 'image', r.newUrl);
                 replaced++;
-                found = true;
                 break;
               }
             }
           }
-          // 都没匹配到，追加到主图
-          if (!found) {
-            mainImgs.push(r.newUrl);
-            var idx = mainImgs.length - 1;
-            if (detailModal.selectedMainIndexes.indexOf(idx) < 0) {
-              detailModal.selectedMainIndexes.push(idx);
-            }
-            appended++;
-          }
         });
 
-        var msg = '替换 ' + replaced + ' 张';
-        if (appended > 0) msg += '，追加 ' + appended + ' 张';
-        vm.$Message.success(msg + '，请保存商品以生效');
+        if (typeof window._meituMarkReplaced === 'function') window._meituMarkReplaced();
+        vm.$Message.success('替换 ' + replaced + ' 张，请保存商品以生效');
       }
     }
   },
