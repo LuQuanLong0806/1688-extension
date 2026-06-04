@@ -256,6 +256,74 @@ router.post('/hunyuan-keys', function (req, res) {
   }
 });
 
+// ===== ComfyUI 配置 =====
+router.get('/comfyui-status', function (req, res) {
+  try {
+    var comfyuiInpaint = require('../../services/comfyui-inpaint');
+    var url = comfyuiInpaint.getComfyuiBase();
+    comfyuiInpaint.checkHealth().then(function (health) {
+      res.json({ configured: !!url, url: url, health: health });
+    }).catch(function (err) {
+      res.json({ configured: !!url, url: url, health: { available: false, error: err.message } });
+    });
+  } catch (e) {
+    res.json({ configured: false, url: '', health: { available: false } });
+  }
+});
+
+router.get('/comfyui-config', function (req, res) {
+  try {
+    var comfyuiInpaint = require('../../services/comfyui-inpaint');
+    var url = comfyuiInpaint.getComfyuiBase();
+    comfyuiInpaint.checkHealth().then(function (health) {
+      res.json({ url: url, online: !!health.available });
+    }).catch(function () {
+      res.json({ url: url, online: false });
+    });
+  } catch (e) {
+    res.json({ url: '', online: false });
+  }
+});
+
+router.post('/comfyui-config', function (req, res) {
+  try {
+    var comfyuiInpaint = require('../../services/comfyui-inpaint');
+    var url = (req.body.url || '').trim().replace(/\/+$/, '');
+    if (!url) {
+      // 清空配置，降级到LaMa
+      comfyuiInpaint.setComfyuiBase('');
+      res.json({ ok: true, url: '' });
+      return;
+    }
+    comfyuiInpaint.setComfyuiBase(url);
+    // 验证连通性
+    comfyuiInpaint.checkHealth().then(function (health) {
+      if (health.available) {
+        res.json({ ok: true, url: url, health: health });
+      } else {
+        res.json({ ok: true, url: url, warning: '配置已保存但连接检测失败', health: health });
+      }
+    }).catch(function (err) {
+      res.json({ ok: true, url: url, warning: '配置已保存但连接失败: ' + err.message });
+    });
+  } catch (e) {
+    res.status(500).json({ error: 'ComfyUI服务模块不可用: ' + e.message });
+  }
+});
+
+router.get('/comfyui-models', function (req, res) {
+  try {
+    var comfyuiInpaint = require('../../services/comfyui-inpaint');
+    comfyuiInpaint.getModelList().then(function (models) {
+      res.json({ ok: true, models: models || [] });
+    }).catch(function (err) {
+      res.json({ ok: false, error: err.message });
+    });
+  } catch (e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
 // 导出 router + category-recommend 的公共函数（兼容 products.js 调用）
 module.exports = router;
 module.exports.extractSearchKeywordsPublic = categoryRouter.extractSearchKeywordsPublic;

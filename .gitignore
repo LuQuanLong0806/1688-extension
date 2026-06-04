@@ -10,3 +10,27 @@ server/.crypto_key
 server/public/uploads/
 server/models/*.onnx
 server/.models/*.onnx
+
+# OpenClaw agent files
+AGENTS.md
+SOUL.md
+IDENTITY.md
+USER.md
+HEARTBEAT.md
+TOOLS.md
+TOOLS-browser.md
+DREAMS.md
+memory/
+
+# Task artifacts
+*_20260603.md
+
+# OpenClaw runtime
+.openclaw/
+browser-use-config.json
+
+# Temp test files
+server/_test_*
+server/_test_result*
+test_mcp*.py
+mcp-browser-use.py

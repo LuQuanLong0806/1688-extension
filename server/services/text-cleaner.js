@@ -11,6 +11,23 @@ const sharp = require('sharp');
 const path = require('path');
 const fs = require('fs');
 const lamaService = require('./inpaint');
+var comfyuiService = null;
+
+function doInpaint(imageBuffer, maskBuffer) {
+  // LaMa 优先（本地、无延迟），ComfyUI 备用
+  try {
+    if (lamaService.isModelAvailable()) return lamaService.inpaint(imageBuffer, maskBuffer);
+  } catch (e) {}
+  try {
+    if (!comfyuiService) comfyuiService = require('./comfyui-inpaint');
+    if (comfyuiService.isAvailable()) return comfyuiService.inpaint(imageBuffer, maskBuffer);
+  } catch (e) {}
+  return lamaService.inpaint(imageBuffer, maskBuffer);
+}
+
+function isInpaintAvailable() {
+  return lamaService.isModelAvailable() || (comfyuiService && comfyuiService.isAvailable());
+}
 
 const OCR_SERVICE_URL = 'http://127.0.0.1:3001';
 
@@ -117,7 +134,7 @@ function expandPolygon(polygon, dilatePx) {
 // ========== 生成 Mask（白色=需修复区域）==========
 async function generateMask(imageWidth, imageHeight, regions, options) {
   options = options || {};
-  var dilatePx = options.dilatePx || 20;
+  var dilatePx = options.dilatePx || 40;
 
   // Step 1: 绘制膨胀后的形状（直接外扩坐标）
   var shapes = '';
@@ -141,10 +158,11 @@ async function generateMask(imageWidth, imageHeight, regions, options) {
     shapes +
     '</svg>';
 
-  // Step 2: SVG → grayscale PNG（纯二值 mask，不模糊）
+  // Step 2: SVG → grayscale PNG → 边缘羽化（轻微模糊消除硬边）
   var maskPng = await sharp(Buffer.from(svg))
     .resize(imageWidth, imageHeight)
     .grayscale()
+    .blur(2)
     .png()
     .toBuffer();
 
@@ -156,7 +174,7 @@ async function cleanImage(imageBuffer, options) {
   options = options || {};
   var chineseOnly = options.chineseOnly !== false;
   var minConfidence = options.minConfidence || 0.5;
-  var dilatePx = options.dilatePx || 20;
+  var dilatePx = options.dilatePx || 40;
 
   // Step 1: 转base64
   var base64Data = imageBuffer.toString('base64');
@@ -197,7 +215,7 @@ async function cleanImage(imageBuffer, options) {
       regions: regions,
       regionCount: regions.length,
       maskBase64: maskBuf.toString('base64'),
-      message: 'LaMa model not available, detection only'
+      message: 'Inpaint model not available, detection only'
     };
   }
 
@@ -206,8 +224,8 @@ async function cleanImage(imageBuffer, options) {
     dilatePx: dilatePx
   });
 
-  // Step 5: LaMa inpaint
-  var resultBuffer = await lamaService.inpaint(imageBuffer, maskBuffer);
+  // Step 5: Inpaint（LaMa 优先，ComfyUI 备用）
+  var resultBuffer = await doInpaint(imageBuffer, maskBuffer);
 
   return {
     ok: true,

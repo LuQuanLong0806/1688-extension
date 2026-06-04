@@ -8,8 +8,16 @@ var providers = require('./providers');
 
 var UPLOADS_DIR = path.join(__dirname, '..', '..', 'public', 'uploads');
 var lamaService = require('../../services/inpaint');
+var comfyuiInpaint = null;
+try { comfyuiInpaint = require('../../services/comfyui-inpaint'); } catch (e) {}
 
-// ===== AI消除/修复（本地LaMa ONNX推理）=====
+// 自动选择修复服务：ComfyUI（GPU）优先，降级 LaMa（CPU）
+function getInpaintService() {
+  if (comfyuiInpaint && comfyuiInpaint.isAvailable()) return comfyuiInpaint;
+  return lamaService;
+}
+
+// ===== AI消除/修复 =====
 router.post('/inpaint', function (req, res) {
   var imageBase64 = req.body.image_base64;
   var maskBase64 = req.body.mask_base64;
@@ -17,8 +25,10 @@ router.post('/inpaint', function (req, res) {
   if (!imageBase64) return res.status(400).json({ error: '请先加载图片' });
   if (!maskBase64) return res.status(400).json({ error: '请先用画笔/框选标记要消除的区域' });
 
-  if (!lamaService.isModelAvailable()) {
-    return res.status(503).json({ error: '修复模型未安装' });
+  var svc = getInpaintService();
+  var modelOk = svc.isModelAvailable ? svc.isModelAvailable() : svc.isAvailable();
+  if (!modelOk) {
+    return res.status(503).json({ error: '修复模型未安装，请检查LaMa或ComfyUI配置' });
   }
 
   var imgBuf = Buffer.from(imageBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64');
@@ -27,7 +37,7 @@ router.post('/inpaint', function (req, res) {
   console.log('[AI消除] LaMa推理中...');
   var t0 = Date.now();
 
-  lamaService.inpaint(imgBuf, maskBuf).then(function (resultBuf) {
+  svc.inpaint(imgBuf, maskBuf).then(function (resultBuf) {
     console.log('[AI消除] 完成, 耗时:', Date.now() - t0, 'ms');
     var filename = 'inpaint_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8) + '.png';
     fs.writeFile(path.join(UPLOADS_DIR, filename), resultBuf, function (err) {
@@ -97,9 +107,13 @@ router.post('/smart-detect', function (req, res) {
 
 // ===== 检查LaMa模型状态 =====
 router.get('/model-status', function (req, res) {
+  var comfyAvailable = comfyuiInpaint && comfyuiInpaint.isAvailable();
+  var lamaAvailable = lamaService.isModelAvailable();
   res.json({
-    available: lamaService.isModelAvailable(),
-    model: 'LaMa (Local ONNX)'
+    available: comfyAvailable || lamaAvailable,
+    comfyui: { available: comfyAvailable, url: comfyuiInpaint ? comfyuiInpaint.getComfyuiBase() : '' },
+    lama: { available: lamaAvailable, model: 'LaMa (Local ONNX)' },
+    active: comfyAvailable ? 'comfyui' : (lamaAvailable ? 'lama' : 'none')
   });
 });
 
@@ -297,19 +311,148 @@ router.post('/batch-clean-chinese', function (req, res) {
   });
 });
 
+// ===== 批量消除水印+中文（OCR + AI视觉 + LaMa）=====
+router.post('/batch-clean', function (req, res) {
+  var images = req.body.images;
+  if (!Array.isArray(images) || !images.length) {
+    return res.status(400).json({ error: '请提供 images 数组' });
+  }
+
+  var options = {
+    enableOCR: req.body.enable_ocr !== false,          // 默认开启
+    enableVision: req.body.enable_vision === true,     // 默认关闭（需API费用）
+    visionType: req.body.vision_type || 'all',           // watermark/text/all
+    chineseOnly: req.body.chinese_only !== false,
+    minConfidence: req.body.min_confidence || 0.5,
+    dilatePx: req.body.dilate_px || 20
+  };
+
+  var uploadToSmms = req.body.upload_to_smms === true;  // 上传到图床而非保存本地
+  var concurrency = Math.min(req.body.concurrency || 2, 4); // LaMa是CPU推理，默认2并发
+
+  console.log('[批量清理] 处理 ' + images.length + ' 张图片, OCR:' + options.enableOCR + ', Vision:' + options.enableVision + ', 并发:' + concurrency);
+  var t0 = Date.now();
+
+  // 并发控制
+  var idx = 0;
+  var results = [];
+
+  function processNext() {
+    if (idx >= images.length) return Promise.resolve();
+    var i = idx++;
+    var img = images[i];
+
+    var imagePromise;
+    if (img.base64) {
+      imagePromise = Promise.resolve(Buffer.from(img.base64.replace(/^data:image\/\w+;base64,/, ''), 'base64'));
+    } else if (img.url) {
+      imagePromise = textCleaner.downloadImage(img.url);
+    } else {
+      return Promise.resolve({ index: i, ok: true, cleaned: false, message: 'No image data' });
+    }
+
+    return imagePromise.then(function (buf) {
+      return textCleaner.cleanImageAdvanced(buf, options);
+    }).then(function (result) {
+      if (!result.cleaned) {
+        results[i] = {
+          index: i, ok: true, cleaned: false,
+          ocrCount: (result.ocrRegions || []).length,
+          visionCount: (result.visionRegions || []).length,
+          regions: result.regions || [],
+          message: result.message
+        };
+        return;
+      }
+      if (uploadToSmms) {
+        return textCleaner.uploadToSmms(result.imageBuffer).then(function (smmsUrl) {
+          results[i] = {
+            index: i, ok: true, cleaned: true, url: smmsUrl,
+            ocrCount: (result.ocrRegions || []).length,
+            visionCount: (result.visionRegions || []).length,
+            regionCount: result.regionCount,
+            regions: result.regions
+          };
+        }).catch(function (err) {
+          // 图床上传失败，降级保存本地
+          console.warn('[批量清理] 图床上传失败，降级本地:', err.message);
+          return textCleaner.saveCleanedImage(result.imageBuffer).then(function (localUrl) {
+            results[i] = {
+              index: i, ok: true, cleaned: true, url: localUrl,
+              ocrCount: (result.ocrRegions || []).length,
+              visionCount: (result.visionRegions || []).length,
+              regionCount: result.regionCount,
+              regions: result.regions
+            };
+          });
+        });
+      } else {
+      return textCleaner.saveCleanedImage(result.imageBuffer).then(function (url) {
+        results[i] = {
+          index: i, ok: true, cleaned: true, url: url,
+          ocrCount: (result.ocrRegions || []).length,
+          visionCount: (result.visionRegions || []).length,
+          regionCount: result.regionCount,
+          regions: result.regions,
+          imageWidth: result.imageWidth,
+          imageHeight: result.imageHeight
+        };
+      });
+      }
+    }).catch(function (err) {
+      results[i] = { index: i, ok: false, error: err.message };
+      console.error('[批量清理] 图片#' + i + '失败:', err.message);
+    });
+  }
+
+  // 使用分批并发
+  function runBatch() {
+    var workers = [];
+    for (var w = 0; w < concurrency; w++) {
+      workers.push(
+        (function workerLoop() {
+          return processNext().then(function (r) {
+            if (idx < images.length) return workerLoop();
+            return r;
+          });
+        })()
+      );
+    }
+    return Promise.all(workers);
+  }
+
+  runBatch().then(function () {
+    var elapsed = Date.now() - t0;
+    var finalResults = results.filter(Boolean);
+    var cleaned = finalResults.filter(function (r) { return r.cleaned; }).length;
+    var failed = finalResults.filter(function (r) { return r.ok === false; }).length;
+    console.log('[批量清理] 完成, ' + cleaned + '/' + images.length + ' 张被清理, ' + failed + ' 失败, 耗时: ' + elapsed + 'ms');
+    res.json({
+      ok: true,
+      results: finalResults,
+      total: images.length,
+      cleaned: cleaned,
+      failed: failed,
+      elapsed_ms: elapsed
+    });
+  }).catch(function (err) {
+    console.error('[批量清理] 整体失败:', err.message);
+    if (!res.headersSent) res.status(500).json({ error: err.message });
+  });
+});
+
 // ===== OCR 服务状态检查 =====
 router.get('/ocr-status', function (req, res) {
   textCleaner.checkOcrHealth().then(function (status) {
-    var lamaAvailable = false;
-    try {
-      lamaAvailable = lamaService.isModelAvailable();
-    } catch (e) {
-      lamaAvailable = false;
-    }
+    var comfyAvailable = comfyuiInpaint && comfyuiInpaint.isAvailable();
+    var lamaAvailable = lamaService.isModelAvailable();
+    var inpaintReady = comfyAvailable || lamaAvailable;
     res.json({
       ocr: status,
       lama: { available: lamaAvailable, model: 'LaMa (Local ONNX)' },
-      pipeline: status.status === 'ok' && lamaAvailable ? 'ready' : 'partial'
+      comfyui: { available: comfyAvailable },
+      pipeline: status.status === 'ok' && inpaintReady ? 'ready' : 'partial',
+      inpaint: { ready: inpaintReady, backend: comfyAvailable ? 'ComfyUI' : (lamaAvailable ? 'LaMa' : 'none') }
     });
   });
 });

@@ -66,16 +66,19 @@ function initMeituTextCleaner() {
         ocrStatusEl.className = 'status err';
       }
       if (d.lama && d.lama.available) {
-        lamaStatusEl.textContent = 'LaMa ✅';
+        var inpaintInfo = d.inpaint ? ('Inpaint: ' + d.inpaint.backend) : 'LaMa';
+        lamaStatusEl.textContent = inpaintInfo + ' ✅';
         lamaStatusEl.className = 'status ok';
+        lamaStatusEl.title = inpaintInfo + ' 后端已就绪';
       } else {
-        lamaStatusEl.textContent = 'LaMa ❌';
+        lamaStatusEl.textContent = 'Inpaint ❌';
         lamaStatusEl.className = 'status err';
+        lamaStatusEl.title = '无可用修复模型';
       }
     }).catch(function () {
       ocrStatusEl.textContent = 'OCR ❌ 离线';
       ocrStatusEl.className = 'status err';
-      lamaStatusEl.textContent = 'LaMa ❌ 离线';
+      lamaStatusEl.textContent = 'Inpaint ❌ 离线';
       lamaStatusEl.className = 'status err';
     });
   }
@@ -99,6 +102,9 @@ function initMeituTextCleaner() {
       overlayCanvas.style.width = mainImage.clientWidth + 'px';
       overlayCanvas.style.height = mainImage.clientHeight + 'px';
       clearOverlay();
+      manualHasMask = false;
+      manualMode = '';
+      updateManualUI();
     };
   }
 
@@ -147,6 +153,206 @@ function initMeituTextCleaner() {
     var ctx = overlayCanvas.getContext('2d');
     ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
   }
+
+  // ========== 手动涂抹消除 ==========
+  var manualMode = '';      // '' | 'brush' | 'box'
+  var manualDrawing = false;
+  var manualBoxStart = null;
+  var manualBrushSize = 30;
+  var manualHasMask = false;
+
+  function updateManualUI() {
+    var brush = document.getElementById('edManualBrush');
+    var box = document.getElementById('edManualBox');
+    var clear = document.getElementById('edManualClear');
+    var apply = document.getElementById('edManualApply');
+    var hint = document.getElementById('manualHint');
+    var status = document.getElementById('manualStatus');
+    if (brush) brush.className = 'sb-btn' + (manualMode === 'brush' ? ' active' : '');
+    if (box) box.className = 'sb-btn' + (manualMode === 'box' ? ' active' : '');
+    if (apply) apply.disabled = !manualHasMask;
+    if (hint) hint.style.display = manualMode ? 'none' : '';
+    // 开启/关闭 overlay canvas 的鼠标事件
+    if (manualMode) {
+      overlayCanvas.classList.add('manual-active');
+    } else {
+      overlayCanvas.classList.remove('manual-active');
+    }
+    if (status && manualMode) {
+      status.textContent = manualMode === 'brush' ? '🖌️ 画笔模式 — 在图片上涂抹' : '🔲 框选模式 — 拖拽选择区域';
+    } else if (status) {
+      status.textContent = '';
+    }
+  }
+
+  function checkManualMask() {
+    var ctx = overlayCanvas.getContext('2d');
+    var md = ctx.getImageData(0, 0, overlayCanvas.width, overlayCanvas.height);
+    var count = 0;
+    for (var i = 3; i < md.data.length; i += 4) {
+      if (md.data[i] > 0) { count++; if (count >= 50) { manualHasMask = true; updateManualUI(); return; } }
+    }
+    manualHasMask = false;
+    updateManualUI();
+  }
+
+  function getCanvasCoords(e) {
+    var rect = overlayCanvas.getBoundingClientRect();
+    var scaleX = overlayCanvas.width / rect.width;
+    var scaleY = overlayCanvas.height / rect.height;
+    return {
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top) * scaleY
+    };
+  }
+
+  function onManualMouseDown(e) {
+    if (!manualMode || !currentImageSrc) return;
+    e.preventDefault();
+    manualDrawing = true;
+    var pos = getCanvasCoords(e);
+    if (manualMode === 'box') {
+      manualBoxStart = pos;
+    } else if (manualMode === 'brush') {
+      var ctx = overlayCanvas.getContext('2d');
+      ctx.fillStyle = 'rgba(255, 60, 60, 0.45)';
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, manualBrushSize, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function onManualMouseMove(e) {
+    if (!manualDrawing || !manualMode) return;
+    e.preventDefault();
+    var pos = getCanvasCoords(e);
+    var ctx = overlayCanvas.getContext('2d');
+    if (manualMode === 'brush') {
+      ctx.fillStyle = 'rgba(255, 60, 60, 0.45)';
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, manualBrushSize, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (manualMode === 'box' && manualBoxStart) {
+      // 实时预览框
+      clearOverlay();
+      ctx.fillStyle = 'rgba(255, 60, 60, 0.45)';
+      var x = Math.min(manualBoxStart.x, pos.x);
+      var y = Math.min(manualBoxStart.y, pos.y);
+      var w = Math.abs(pos.x - manualBoxStart.x);
+      var h = Math.abs(pos.y - manualBoxStart.y);
+      ctx.fillRect(x, y, w, h);
+    }
+  }
+
+  function onManualMouseUp(e) {
+    if (!manualDrawing || !manualMode) return;
+    manualDrawing = false;
+    manualBoxStart = null;
+    checkManualMask();
+  }
+
+  function applyManualInpaint() {
+    if (!manualHasMask || !currentImageBuf) {
+      showToast('请先涂抹要消除的区域', 'err');
+      return;
+    }
+    var base = getServerBase();
+    var status = document.getElementById('manualStatus');
+    if (status) status.textContent = '⏳ AI消除中...';
+
+    // 从 overlay 生成 mask：红色区域 → 白色mask
+    var maskCtx = overlayCanvas.getContext('2d');
+    var w = overlayCanvas.width, h = overlayCanvas.height;
+    var imgData = maskCtx.getImageData(0, 0, w, h);
+    var maskCanvas = document.createElement('canvas');
+    maskCanvas.width = w; maskCanvas.height = h;
+    var maskOutCtx = maskCanvas.getContext('2d');
+    var maskData = maskOutCtx.createImageData(w, h);
+    for (var i = 0; i < imgData.data.length; i += 4) {
+      var alpha = imgData.data[i + 3];
+      if (alpha > 10) {
+        maskData.data[i] = 255; maskData.data[i+1] = 255; maskData.data[i+2] = 255; maskData.data[i+3] = 255;
+      } else {
+        maskData.data[i] = 0; maskData.data[i+1] = 0; maskData.data[i+2] = 0; maskData.data[i+3] = 255;
+      }
+    }
+    maskOutCtx.putImageData(maskData, 0, 0);
+    var maskBase64 = maskCanvas.toDataURL('image/png');
+
+    // 如果有原始base64就直接用，否则用 data URL
+    var imageBase64 = 'data:image/png;base64,' + currentImageBuf;
+
+    fetch(base + '/api/ai/inpaint', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image_base64: imageBase64, mask_base64: maskBase64 })
+    }).then(function (r) { return r.json(); }).then(function (data) {
+      if (status) status.textContent = '';
+      if (data.error) { showToast('消除失败: ' + data.error, 'err'); return; }
+      var newUrl = data.url;
+      if (newUrl && !newUrl.startsWith('data:')) {
+        newUrl = base + newUrl;
+      }
+      // 更新当前图片
+      urlToBase64(newUrl).then(function (b64) {
+        currentImageBuf = b64.replace(/^data:image\/\w+;base64,/, '');
+        cleanedImageSrc = newUrl;
+        // 清除mask
+        clearOverlay();
+        manualHasMask = false;
+        manualMode = '';
+        updateManualUI();
+        showCompare(currentImageSrc, newUrl);
+        showToast('✅ 手动消除完成', 'ok');
+      });
+    }).catch(function (err) {
+      if (status) status.textContent = '';
+      showToast('消除失败: ' + err.message, 'err');
+    });
+  }
+
+  // 绑定手动涂抹事件
+  var _manualBound = false;
+  function bindManualEvents() {
+    if (_manualBound) return;
+    _manualBound = true;
+
+    overlayCanvas.addEventListener('mousedown', onManualMouseDown);
+    overlayCanvas.addEventListener('mousemove', onManualMouseMove);
+    overlayCanvas.addEventListener('mouseup', onManualMouseUp);
+    document.addEventListener('mouseup', function () {
+      if (manualDrawing) onManualMouseUp();
+    });
+
+    var brushBtn = document.getElementById('edManualBrush');
+    var boxBtn = document.getElementById('edManualBox');
+    var clearBtn = document.getElementById('edManualClear');
+    var applyBtn = document.getElementById('edManualApply');
+    var brushSlider = document.getElementById('edManualBrushSize');
+
+    if (brushBtn) brushBtn.addEventListener('click', function () {
+      if (!currentImageSrc) { showToast('请先加载图片', 'err'); return; }
+      manualMode = manualMode === 'brush' ? '' : 'brush';
+      if (!manualMode) clearOverlay();
+      updateManualUI();
+    });
+    if (boxBtn) boxBtn.addEventListener('click', function () {
+      if (!currentImageSrc) { showToast('请先加载图片', 'err'); return; }
+      manualMode = manualMode === 'box' ? '' : 'box';
+      if (!manualMode) clearOverlay();
+      updateManualUI();
+    });
+    if (clearBtn) clearBtn.addEventListener('click', function () {
+      clearOverlay(); manualHasMask = false; manualMode = ''; updateManualUI();
+    });
+    if (applyBtn) applyBtn.addEventListener('click', applyManualInpaint);
+    if (brushSlider) brushSlider.addEventListener('input', function () {
+      manualBrushSize = parseInt(this.value) || 30;
+      var valEl = document.getElementById('edManualBrushVal');
+      if (valEl) valEl.textContent = manualBrushSize;
+    });
+  }
+  bindManualEvents();
 
   function drawRegions(regions) {
     var ctx = overlayCanvas.getContext('2d');
@@ -354,29 +560,59 @@ function initMeituTextCleaner() {
   function updateImageQueue() {
     var hint = document.getElementById('batchHint');
     var btn = document.getElementById('btnBatchClean');
+    var btnFull = document.getElementById('btnBatchCleanFull');
 
     if (!imageQueue.length) {
       hint.textContent = '尚未添加图片';
-      btn.disabled = true;
+      if (btn) btn.disabled = true;
+      if (btnFull) btnFull.disabled = true;
       imageQueueEl.innerHTML = '<div class="sb-hint">暂无图片</div>';
       return;
     }
 
     hint.textContent = imageQueue.length + ' 张图片';
-    btn.disabled = false;
+    if (btn) btn.disabled = false;
+    if (btnFull) btnFull.disabled = false;
 
     var html = '';
     imageQueue.forEach(function (item, i) {
       var statusIcon = item.status === 'done' ? '✅' : item.status === 'error' ? '❌' : item.status === 'processing' ? '⏳' : '⬜';
-      html += '<div class="region-item" data-idx="' + i + '">' +
+      var urlHint = '';
+      if (item.status === 'done' && item.result && item.result.url) {
+        urlHint = ' 📎';
+      }
+      var activeClass = (currentImageSrc === item.src) ? ' queue-item-active' : '';
+      html += '<div class="region-item queue-item' + activeClass + '" data-idx="' + i + '" style="cursor:pointer">' +
         '<span class="dot ' + (item.status === 'done' ? 'cn' : 'en') + '"></span>' +
-        '<span class="text">' + statusIcon + ' 图片 ' + (i + 1) + ' (' + item.status + ')</span>' +
+        '<span class="text">' + statusIcon + ' 图片 ' + (i + 1) + urlHint + '</span>' +
         '</div>';
     });
     imageQueueEl.innerHTML = html;
+
+    // 点击切换图片
+    imageQueueEl.querySelectorAll('.queue-item').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var idx = parseInt(this.dataset.idx);
+        var item = imageQueue[idx];
+        if (!item) return;
+        // 显示清理后的图片（如果有）
+        if (item.status === 'done' && item.result && item.result.url) {
+          var base = getServerBase();
+          var cleanUrl = item.result.url;
+          if (cleanUrl.indexOf('http') !== 0) cleanUrl = base + cleanUrl;
+          cleanedImageSrc = cleanUrl;
+          showCompare(item.src, cleanUrl);
+        } else {
+          // 显示原图
+          currentImageBuf = item.base64;
+          loadImageSrc(item.src);
+        }
+        updateImageQueue();
+      });
+    });
   }
 
-  // ========== 批量处理 ==========
+  // ========== 批量处理（去中文）==========
   function batchClean() {
     if (!imageQueue.length) return;
 
@@ -384,6 +620,91 @@ function initMeituTextCleaner() {
     var progress = document.getElementById('batchProgress');
     var btn = document.getElementById('btnBatchClean');
     btn.disabled = true;
+    showLoading();
+
+    var images = imageQueue.filter(function (item) { return item.status === 'pending'; })
+      .map(function (item) { return { base64: item.base64 }; });
+
+    if (!images.length) {
+      showToast('没有待处理的图片', 'loading');
+      btn.disabled = false;
+      hideLoading();
+      return;
+    }
+
+    progress.textContent = '⏳ 0/' + images.length + ' 处理中...';
+    showToast('开始批量处理 ' + images.length + ' 张图片...', 'loading');
+
+    fetch(base + '/api/ai/batch-clean-chinese', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ images: images })
+    }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function (data) {
+      hideLoading();
+      btn.disabled = false;
+      if (!data.ok && !data.results) {
+        showToast('批量处理失败', 'err');
+        progress.textContent = '❌ 处理失败';
+        return;
+      }
+
+      var done = 0;
+      var errors = 0;
+      var results = data.results || [];
+      var pendingItems = imageQueue.filter(function (item) { return item.status === 'pending'; });
+
+      results.forEach(function (r, i) {
+        if (pendingItems[i]) {
+          pendingItems[i].status = r.ok ? 'done' : 'error';
+          pendingItems[i].result = r;
+          if (r.ok && r.cleaned) done++;
+          if (!r.ok) errors++;
+        }
+      });
+
+      var summary = '✅ ' + done + '/' + results.length + ' 已清理';
+      if (errors) summary += '，❌ ' + errors + ' 失败';
+      if (data.elapsed_ms) summary += '，耗时 ' + (data.elapsed_ms / 1000).toFixed(1) + 's';
+      progress.textContent = summary;
+      updateImageQueue();
+
+      // 如果有清理成功的，显示第一张结果
+      if (done > 0) {
+        var firstDone = imageQueue.find(function (item) { return item.status === 'done' && item.result && item.result.url; });
+        if (firstDone) {
+          var cleanUrl = firstDone.result.url;
+          if (cleanUrl.indexOf('http') !== 0) cleanUrl = base + cleanUrl;
+          cleanedImageSrc = cleanUrl;
+          showCompare(firstDone.src, cleanUrl);
+        }
+      }
+
+      showToast(summary, done > 0 ? 'ok' : 'err');
+    }).catch(function (err) {
+      hideLoading();
+      btn.disabled = false;
+      progress.textContent = '❌ ' + err.message;
+      showToast('批量处理失败: ' + err.message, 'err');
+    });
+  }
+
+  // ========== 批量清理（水印+去中文，OCR+AI视觉）==========
+  function batchCleanFull() {
+    if (!imageQueue.length) return;
+
+    var base = getServerBase();
+    var progress = document.getElementById('batchFullProgress');
+    var btn = document.getElementById('btnBatchCleanFull');
+    btn.disabled = true;
+
+    var enableVision = document.getElementById('chkVisionDetect').checked;
+    var visionType = document.getElementById('selVisionType').value;
+    var chineseOnly = document.getElementById('chkChineseOnly').checked;
+    var minConf = parseFloat(document.getElementById('confSlider').value);
+    var dilatePx = parseInt(document.getElementById('expandSlider').value) || 20;
 
     var images = imageQueue.filter(function (item) { return item.status === 'pending'; })
       .map(function (item) { return { base64: item.base64 }; });
@@ -394,24 +715,39 @@ function initMeituTextCleaner() {
       return;
     }
 
-    progress.textContent = '0/' + images.length + ' 处理中...';
-    showToast('批量处理 ' + images.length + ' 张图片...', 'loading');
+    var modeLabel = enableVision ? '水印+去中文（AI视觉+OCR）' : '去中文（OCR only）';
+    progress.textContent = '⏳ 0/' + images.length + ' ' + modeLabel + ' 处理中...';
+    showToast('开始批量处理 ' + images.length + ' 张图片 [' + modeLabel + ']', 'loading');
+    showLoading();
 
-    fetch(base + '/api/ai/batch-clean-chinese', {
+    fetch(base + '/api/ai/batch-clean', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ images: images })
+      body: JSON.stringify({
+        images: images,
+        enable_ocr: true,
+        enable_vision: enableVision,
+        vision_type: visionType,
+        chinese_only: chineseOnly,
+        min_confidence: minConf,
+        dilate_px: dilatePx,
+        concurrency: 2,
+        upload_to_smms: true
+      })
     }).then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.json();
     }).then(function (data) {
+      hideLoading();
       btn.disabled = false;
-      if (!data.ok) {
+      if (!data.ok && !data.results) {
         showToast('批量处理失败', 'err');
+        progress.textContent = '❌ 处理失败';
         return;
       }
 
       var done = 0;
+      var totalOcr = 0, totalVision = 0;
       var results = data.results || [];
       var pendingItems = imageQueue.filter(function (item) { return item.status === 'pending'; });
 
@@ -420,15 +756,21 @@ function initMeituTextCleaner() {
           pendingItems[i].status = r.ok ? 'done' : 'error';
           pendingItems[i].result = r;
           if (r.ok && r.cleaned) done++;
+          totalOcr += (r.ocrCount || 0);
+          totalVision += (r.visionCount || 0);
         }
       });
 
-      progress.textContent = done + '/' + results.length + ' 已清理';
+      var summary = '完成: ' + done + '/' + results.length + ' 已清理';
+      if (enableVision) summary += ' (OCR:' + totalOcr + '区域, 视觉:' + totalVision + '区域)';
+      summary += ', 耗时: ' + (data.elapsed_ms / 1000).toFixed(1) + 's';
+      progress.textContent = summary;
       updateImageQueue();
-      showToast('批量处理完成: ' + done + '/' + results.length + ' 张已去中文', 'ok');
+      showToast('✅ ' + summary, 'ok');
     }).catch(function (err) {
+      hideLoading();
       btn.disabled = false;
-      progress.textContent = '';
+      progress.textContent = '❌ ' + err.message;
       showToast('批量处理失败: ' + err.message, 'err');
     });
   }
@@ -569,6 +911,8 @@ function initMeituTextCleaner() {
   document.getElementById('btnDownload').addEventListener('click', downloadResult);
   document.getElementById('btnCopyUrl').addEventListener('click', copyToSmms);
   document.getElementById('btnBatchClean').addEventListener('click', batchClean);
+  var btnBatchCleanFull = document.getElementById('btnBatchCleanFull');
+  if (btnBatchCleanFull) btnBatchCleanFull.addEventListener('click', batchCleanFull);
 
   // 滑块
   document.getElementById('confSlider').addEventListener('input', function () {
@@ -645,9 +989,19 @@ function initMeituTextCleaner() {
   // 暴露获取清理后图片接口
   window._meituGetCleanedImages = function () {
     var results = [];
+    var base = getServerBase();
     imageQueue.forEach(function (item) {
-      if (item.status === 'done' && item.result && item.result.cleaned) {
-        results.push({ src: item.result.cleaned, original: item.src });
+      if (item.status === 'done' && item.result) {
+        var src = null;
+        // 优先用图床URL（已是完整URL），否则拼接本地路径
+        if (item.result.url && item.result.url.indexOf('http') === 0) {
+          src = item.result.url;
+        } else if (item.result.url) {
+          src = base + item.result.url;
+        }
+        if (src) {
+          results.push({ src: src, original: item.src, ocrCount: item.result.ocrCount, visionCount: item.result.visionCount });
+        }
       }
     });
     if (cleanedImageSrc && results.length === 0) {

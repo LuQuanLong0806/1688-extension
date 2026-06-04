@@ -369,7 +369,7 @@ Vue.component('page-meitu', {
             <div class="sb-section" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
               <span style="font-size:13px;font-weight:700">🧹 去中文工具</span>
               <span class="service-status" id="ocrStatus">OCR 检测中...</span>
-              <span class="service-status" id="lamaStatus">LaMa 检测中...</span>
+              <span class="service-status" id="lamaStatus">Inpaint 检测中...</span>
             </div>
             <div class="sb-section">
               <div class="sb-title">📥 图片输入</div>
@@ -395,6 +395,21 @@ Vue.component('page-meitu', {
               <button class="sb-btn primary" id="btnDetect">🔍 检测文字</button>
             </div>
             <div class="sb-section">
+              <div class="sb-title">🖌️ 手动涂抹消除</div>
+              <div class="sb-hint" id="manualHint">加载图片后，点击画笔或框选，涂抹要消除的区域</div>
+              <div style="display:flex;gap:4px;margin-bottom:6px">
+                <button class="sb-btn" id="edManualBrush" style="flex:1">🖌️ 画笔</button>
+                <button class="sb-btn" id="edManualBox" style="flex:1">🔲 框选</button>
+                <button class="sb-btn" id="edManualClear" style="flex:1">🗑️ 清除</button>
+              </div>
+              <div class="sb-slider">
+                <div class="slider-header"><span>画笔大小</span><span class="slider-val" id="edManualBrushVal">30</span></div>
+                <input type="range" id="edManualBrushSize" min="5" max="100" step="5" value="30">
+              </div>
+              <button class="sb-btn primary" id="edManualApply" style="background:linear-gradient(135deg,#6a1b9a,#e91e63);font-weight:bold" disabled>✨ 涂抹消除</button>
+              <div class="sb-hint" id="manualStatus"></div>
+            </div>
+            <div class="sb-section">
               <div class="sb-title">✨ 一键去中文</div>
               <button class="sb-btn primary" id="btnCleanAll" style="background:linear-gradient(135deg,#ff6b35,#e94560)">✨ 检测 + 修复</button>
               <div class="sb-hint">OCR检测 → 生成Mask → LaMa修复</div>
@@ -406,10 +421,22 @@ Vue.component('page-meitu', {
               <button class="sb-btn primary" id="btnAddToCollage">添加到拼图列表</button>
             </div>
             <div class="sb-section">
-              <div class="sb-title">🔄 批量模式</div>
+              <div class="sb-title">🔄 批量去中文</div>
               <div class="sb-hint" id="batchHint">尚未添加图片</div>
               <button class="sb-btn" id="btnBatchClean" disabled>批量去中文</button>
               <div class="sb-hint" id="batchProgress"></div>
+            </div>
+            <div class="sb-section">
+              <div class="sb-title">🚀 批量水印+去中文</div>
+              <label class="sb-check"><input type="checkbox" id="chkVisionDetect"> 启用AI视觉检测水印</label>
+              <select id="selVisionType" class="sb-select">
+                <option value="all">全部（水印+文字+LOGO）</option>
+                <option value="watermark">仅水印</option>
+                <option value="text">仅文字</option>
+              </select>
+              <div class="sb-hint">勾选后使用AI视觉检测水印/LOGO，未勾选仅OCR去中文</div>
+              <button class="sb-btn" id="btnBatchCleanFull" disabled style="background:linear-gradient(135deg,#ff6b35,#e94560);font-weight:bold">🚀 批量清理</button>
+              <div class="sb-hint" id="batchFullProgress"></div>
             </div>
             <div class="sb-section" v-if="sourceProduct">
               <button class="sb-btn primary" style="background:linear-gradient(135deg,#2e7d32,#43a047);border-color:#2e7d32;font-weight:bold" @click="replaceFromCleaner">替换回商品</button>

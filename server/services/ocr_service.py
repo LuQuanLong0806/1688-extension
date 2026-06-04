@@ -45,9 +45,9 @@ def get_ocr_engine():
             use_angle_cls=True,
             lang="ch",
             use_gpu=False,
-            det_db_thresh=0.3,
-            det_db_box_thresh=0.5,
-            det_db_unclip_ratio=1.6,
+            det_db_thresh=0.2,
+            det_db_box_thresh=0.3,
+            det_db_unclip_ratio=2.0,
         )
         logger.info("PaddleOCR model loaded")
         return _ocr_engine

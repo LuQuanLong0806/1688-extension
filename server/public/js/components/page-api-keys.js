@@ -16,6 +16,8 @@ Vue.component('page-api-keys', {
       tursoStatus: { connected: false, config: false },
       tursoSaving: false,
       tursoEditing: false,
+      comfyuiUrl: '',
+      comfyuiStatus: { online: false, loading: false },
       keyModal: {
         show: false,
         mode: 'add',
@@ -32,6 +34,7 @@ Vue.component('page-api-keys', {
     this.loadConfigs();
     this.loadImgbb();
     this.loadTurso();
+    this.loadComfyui();
   },
   methods: {
     loadConfigs: function () {
@@ -275,6 +278,27 @@ Vue.component('page-api-keys', {
         vm.imgbbStatus = { configured: !!d.configured, masked: d.masked || '', label: d.label || '' };
       }).catch(function () {});
     },
+    // ===== ComfyUI =====
+    loadComfyui: function () {
+      var vm = this;
+      fetch('/api/ai/comfyui-config').then(function (r) { return r.json(); }).then(function (d) {
+        vm.comfyuiUrl = d.url || '';
+        vm.comfyuiStatus = { online: d.online || false, loading: false };
+      }).catch(function () { vm.comfyuiStatus = { online: false, loading: false }; });
+    },
+    saveComfyui: function () {
+      var vm = this;
+      vm.comfyuiStatus.loading = true;
+      fetch('/api/ai/comfyui-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: (vm.comfyuiUrl || '').trim() })
+      }).then(function (r) { return r.json(); }).then(function (d) {
+        vm.comfyuiStatus.loading = false;
+        if (d.ok) { vm.$Message.success('ComfyUI 配置已保存'); vm.loadComfyui(); }
+        else { vm.$Message.error(d.error || '保存失败'); }
+      }).catch(function (e) { vm.comfyuiStatus.loading = false; vm.$Message.error('保存失败: ' + e.message); });
+    },
     // ===== Turso =====
     loadTurso: function () {
       var vm = this;
@@ -497,6 +521,25 @@ Vue.component('page-api-keys', {
                 <i-button type="primary" size="small" @click="openSingleKeyModal('imgbb')"><icon type="md-add" style="margin-right:2px"></icon>{{ imgbbStatus.configured ? '替换' : '设置' }} Key</i-button>
               </div>
               <div v-if="!imgbbStatus.configured" class="ai-key-empty">未设置</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ====== ComfyUI Inpaint 配置 ====== -->
+        <div class="ai-module">
+          <div class="ai-module-header">
+            <span class="ai-module-title">ComfyUI Inpaint</span>
+            <span style="font-size:12px;color:var(--text-muted);margin-left:8px">AI消除修复后端（去中文/手动涂抹消除）</span>
+            <span v-if="comfyuiStatus.online" style="margin-left:auto;font-size:12px;color:#4caf50;font-weight:600">● 在线</span>
+            <span v-else-if="comfyuiUrl" style="margin-left:auto;font-size:12px;color:#ff9800;font-weight:600">● 离线</span>
+          </div>
+          <div class="ai-provider-row" style="flex-wrap:wrap;gap:10px">
+            <div style="display:flex;gap:10px;align-items:center;width:100%">
+              <span style="width:100px;flex-shrink:0;color:var(--text-secondary);font-size:13px">服务地址</span>
+              <i-input v-model="comfyuiUrl" size="small" placeholder="https://comfyui.example.com" style="flex:1"></i-input>
+            </div>
+            <div style="margin-left:110px">
+              <i-button type="primary" size="small" :loading="comfyuiStatus.loading" @click="saveComfyui()">保存</i-button>
             </div>
           </div>
         </div>

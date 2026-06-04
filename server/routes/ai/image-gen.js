@@ -167,7 +167,19 @@ router.post('/smms-upload', function (req, res) {
   if (!apiKey) return res.status(400).json({ error: '未配置 ImgBB API Key，请在管理端设置' });
 
   var base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
-  var postData = 'key=' + encodeURIComponent(apiKey) + '&image=' + encodeURIComponent(base64Data);
+
+  // 按日期自动创建文件夹路径（如 2026/06/03/xxx.png）
+  var nameParam = req.body.name || '';
+  if (!nameParam) {
+    var now = new Date();
+    var y = now.getFullYear();
+    var m = String(now.getMonth() + 1).padStart(2, '0');
+    var d = String(now.getDate()).padStart(2, '0');
+    var rand = Math.random().toString(36).substring(2, 8);
+    nameParam = y + '/' + m + '/' + d + '/' + Date.now() + '_' + rand + '.png';
+  }
+
+  var postData = 'key=' + encodeURIComponent(apiKey) + '&image=' + encodeURIComponent(base64Data) + '&name=' + encodeURIComponent(nameParam);
 
   var options = {
     hostname: 'api.imgbb.com',
@@ -188,7 +200,7 @@ router.post('/smms-upload', function (req, res) {
       try {
         var json = JSON.parse(raw);
         if (json.success && json.data && json.data.url) {
-          console.log('[ImgBB] Upload success:', json.data.url);
+          console.log('[ImgBB] Upload success:', json.data.url, 'name:', nameParam);
           var buf = Buffer.from(base64Data, 'base64');
           var localName = 'imgbb_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8) + '.png';
           fs.writeFile(path.join(UPLOADS_DIR, localName), buf, function () {});

@@ -124,7 +124,7 @@ async function inpaint(imageBuffer, maskBuffer) {
   const softMaskBuf = await sharp(maskBuffer)
     .resize(origW, origH, { fit: 'fill' })
     .grayscale()
-    .blur(8)
+    .blur(2)
     .raw()
     .toBuffer();
 

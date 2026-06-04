@@ -65,7 +65,7 @@ app.get('/api/proxy-image', function (req, res) {
   if (!url) return res.status(400).send('Missing url');
   if (isBlockedProxyUrl(url)) return res.status(403).send('Blocked: private/internal URL');
   var http = url.startsWith('https') ? require('https') : require('http');
-  http.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, function (upstream) {
+  http.get(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', 'Referer': 'https://detail.1688.com/' } }, function (upstream) {
     if (upstream.statusCode >= 300 && upstream.statusCode < 400 && upstream.headers.location) {
       return res.redirect('/api/proxy-image?url=' + encodeURIComponent(upstream.headers.location));
     }

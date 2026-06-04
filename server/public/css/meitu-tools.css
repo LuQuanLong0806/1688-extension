@@ -18,6 +18,8 @@
 .sb-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-subtle); }
 .sb-btn.primary { background: var(--accent-gradient); color: #fff; border-color: var(--accent); font-weight: bold; box-shadow: var(--shadow-accent); }
 .sb-btn.primary:hover { opacity: .9; }
+.sb-btn.active { background: var(--accent-gradient); color: #fff; border-color: var(--accent); box-shadow: var(--shadow-accent); }
+.queue-item-active { background: var(--accent-subtle) !important; border-left: 3px solid var(--accent) !important; }
 .sb-btn.danger { color: #ff4444; border-color: #ffccc7; }
 .sb-btn.danger:hover { background: #fff1f0; border-color: #ff4444; }
 .sb-btn.big { padding: 10px; font-size: 13px; }
@@ -39,6 +41,7 @@
 .sb-spacer { flex: 1; }
 .sb-check { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #666; margin-bottom: 6px; cursor: pointer; }
 .sb-check input { accent-color: var(--accent); }
+.sb-select { width: 100%; padding: 4px 6px; font-size: 12px; background: var(--input-bg, #fff); color: var(--text, #333); border: 1px solid var(--border, #ddd); border-radius: 4px; margin-bottom: 6px; cursor: pointer; }
 
 /* 主区域 */
 .collage-main { flex: 1; display: flex; overflow: hidden; }
@@ -227,6 +230,7 @@
 .cleaner-canvas-board { position: relative; background: #fff; box-shadow: 0 4px 24px rgba(0,0,0,.15); overflow: hidden; border-radius: 4px; }
 .cleaner-canvas-board img { display: block; max-width: 100%; max-height: 70vh; }
 .cleaner-canvas-board canvas { position: absolute; top: 0; left: 0; pointer-events: none; }
+.cleaner-canvas-board canvas.manual-active { pointer-events: auto; cursor: crosshair; }
 .empty-state { display: flex; flex-direction: column; align-items: center; gap: 16px; color: #999; }
 .empty-state svg { width: 80px; height: 80px; fill: #ddd; }
 .empty-state p { font-size: 14px; }
