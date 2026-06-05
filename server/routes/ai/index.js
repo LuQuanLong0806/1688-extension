@@ -324,6 +324,28 @@ router.get('/comfyui-models', function (req, res) {
   }
 });
 
+// ===== 通义千问 VL（图片识别）配置 =====
+router.get('/qwen-vl-config', function (req, res) {
+  var key = providers.getQwenVlKey();
+  var masked = key ? providers.maskApiKey(key) : '';
+  var hasDefault = key === 'sk-ad9a93ab29e34635a92b75fd2d751f81';
+  res.json({ configured: !!key, masked: masked, isDefault: hasDefault });
+});
+
+router.post('/qwen-vl-config', function (req, res) {
+  var key = (req.body.apiKey || '').trim();
+  if (!key) return res.status(400).json({ error: 'API Key 不能为空' });
+  providers.saveQwenVlKey(key);
+  console.log('[AI配置] 通义千问VL Key已保存');
+  res.json({ ok: true });
+});
+
+router.post('/qwen-vl-config/delete', function (req, res) {
+  providers.saveQwenVlKey('');
+  console.log('[AI配置] 通义千问VL Key已清除');
+  res.json({ ok: true });
+});
+
 // 导出 router + category-recommend 的公共函数（兼容 products.js 调用）
 module.exports = router;
 module.exports.extractSearchKeywordsPublic = categoryRouter.extractSearchKeywordsPublic;

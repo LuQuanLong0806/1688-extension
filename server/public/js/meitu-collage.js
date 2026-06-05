@@ -989,6 +989,11 @@ function initMeituCollage() {
   var editorProcessText = document.getElementById('editorProcessText');
   var editorCenter = document.querySelector('.editor-center');
   var editorCanvasWrap = document.getElementById('editorCanvasWrap');
+  // Expose editor DOM refs to window
+  window.editorImgCanvas = editorImgCanvas;
+  window.editorMaskCanvas = editorMaskCanvas;
+  window.editorImgCtx = editorImgCtx;
+  window.editorMaskCtx = editorMaskCtx;
 
   // 点击画布外部区域时退出涂抹模式（排除左侧工具栏）
   document.querySelector('.editor-body').addEventListener('click', function (e) {
@@ -1012,6 +1017,16 @@ function initMeituCollage() {
   var editorSrc = null;
   var editorOriginalSrc = null;
   var editorNatW = 0, editorNatH = 0;
+  // Expose to window for cross-module access (meitu-editor-tools.js, meitu-size-annotate.js)
+  Object.defineProperty(window, 'editorImages', { get: function() { return editorImages; }, set: function(v) { editorImages = v; }, configurable: true });
+  Object.defineProperty(window, 'editorCurrentIdx', { get: function() { return editorCurrentIdx; }, set: function(v) { editorCurrentIdx = v; }, configurable: true });
+  Object.defineProperty(window, 'editorSrc', { get: function() { return editorSrc; }, set: function(v) { editorSrc = v; }, configurable: true });
+  Object.defineProperty(window, 'editorOriginalSrc', { get: function() { return editorOriginalSrc; }, set: function(v) { editorOriginalSrc = v; }, configurable: true });
+  Object.defineProperty(window, 'editorNatW', { get: function() { return editorNatW; }, set: function(v) { editorNatW = v; }, configurable: true });
+  Object.defineProperty(window, 'editorNatH', { get: function() { return editorNatH; }, set: function(v) { editorNatH = v; }, configurable: true });
+  Object.defineProperty(window, 'editorHistory', { get: function() { return editorHistory; }, set: function(v) { editorHistory = v; }, configurable: true });
+  Object.defineProperty(window, 'editorRedoStack', { get: function() { return editorRedoStack; }, set: function(v) { editorRedoStack = v; }, configurable: true });
+  Object.defineProperty(window, '_editorSlots', { get: function() { return _editorSlots; }, set: function(v) { _editorSlots = v; }, configurable: true });
   var editorScale = 1;
   var editorDrawMode = '';
   var editorTool = 'brush';
@@ -1102,13 +1117,36 @@ function initMeituCollage() {
   function openEditor(selectedSrc) {
     var images = [];
     var srcSet = {};
-    imagePool.forEach(function (p) {
-      images.push({ id: 'p-' + p.id, src: p.src, originalSrc: p.src, type: 'pool', refId: p.id, label: '图片池 #' + p.id });
+    var srcSlots = {}; // 记录每个 src 对应的 slot（商品编辑模式）
+    // 读取 pending import slots（从商品详情传过来）
+    try {
+      var pendingSlots = JSON.parse(sessionStorage.getItem('__meitu_import_slots') || '[]');
+      if (pendingSlots.length) {
+        pendingSlots.forEach(function (s) {
+          if (s.url) srcSlots[s.url] = s;
+        });
+      }
+    } catch (e) {}
+    imagePool.forEach(function (p, pi) {
+      var slotLabel = '';
+      if (srcSlots[p.src]) {
+        var s = srcSlots[p.src];
+        slotLabel = ' (' + (s.field === 'main_images' ? '主图' + (s.index + 1) : s.field === 'detail_images' ? '详情' + (s.index + 1) : 'SKU') + ')';
+      }
+      images.push({
+        id: 'p-' + p.id, src: p.src, originalSrc: p.src,
+        type: 'pool', refId: p.id, label: '图片 #' + (pi + 1) + slotLabel,
+        _slot: srcSlots[p.src] || null
+      });
       srcSet[p.src] = true;
     });
     canvasItems.forEach(function (c) {
       if (c.src && c.type !== 'text' && !srcSet[c.src]) {
-        images.push({ id: 'cv-' + c.id, src: c.src, originalSrc: c.src, type: 'canvas', refId: c.id, label: '画布 #' + c.id });
+        images.push({
+          id: 'cv-' + c.id, src: c.src, originalSrc: c.src,
+          type: 'canvas', refId: c.id, label: '画布 #' + c.id,
+          _slot: srcSlots[c.src] || null
+        });
       }
     });
     if (!images.length) { showToast('没有可编辑的图片', 'err'); return; }
@@ -1134,7 +1172,10 @@ function initMeituCollage() {
     buildEditorImageList();
     applyFloatPos();
     editorModal.classList.add('show');
+    // 确保编辑器工具事件绑定（去中文/标注按钮）
+    if (typeof window._bindEditorEvents === 'function') window._bindEditorEvents();
   }
+  window.openEditor = openEditor;
 
   function resetToolButtons() {
     var eb = document.getElementById('edEraseBrush');
@@ -1295,28 +1336,127 @@ function initMeituCollage() {
   // Cancel
   document.getElementById('editorCancel').addEventListener('click', closeEditor);
 
-  // Save and close — sync edited copies back to originals
-  document.getElementById('editorSave').addEventListener('click', function () {
+  // Save and close — sync edited copies back to originals (collage) OR upload & replace product images
+  document.getElementById('editorSave').addEventListener('click', async function () {
     editorImages[editorCurrentIdx].src = editorSrc;
 
-    editorImages.forEach(function (img) {
-      if (img.src !== img.originalSrc) {
-        if (img.type === 'pool') {
-          var p = imagePool.find(function (p) { return p.id === img.refId; });
-          if (p) {
-            p.src = img.src;
-            canvasItems.forEach(function (c) { if (c.poolId === p.id) c.src = img.src; });
+    // 检查是否有 slot 信息（从商品详情打开的场景）
+    var hasSlots = editorImages.some(function (img) { return img._slot; });
+    var hasModified = editorImages.some(function (img) { return img.src !== img.originalSrc; });
+
+    if (hasSlots && hasModified) {
+      // 商品编辑模式：只上传修改过的图片
+      showEditorLoading('上传已修改图片...');
+      var results = [];
+      for (var i = 0; i < editorImages.length; i++) {
+        var img = editorImages[i];
+        if (img.src === img.originalSrc || !img._slot) continue;
+        editorProcessText.textContent = '上传 ' + (results.length + 1) + '/' + editorImages.filter(function(m) { return m.src !== m.originalSrc && m._slot; }).length;
+        try {
+          var b64 = img.src;
+          if (b64.indexOf('http') === 0 || b64.indexOf('/') === 0) {
+            var proxyUrl = getServerBase() + '/api/proxy-image?url=' + encodeURIComponent(b64);
+            var res = await fetch(proxyUrl);
+            var blob = await res.blob();
+            var reader = new FileReader();
+            b64 = await new Promise(function (resolve) { reader.onload = function () { resolve(reader.result); }; reader.readAsDataURL(blob); });
           }
-        } else if (img.type === 'canvas') {
-          var c = canvasItems.find(function (c) { return c.id === img.refId; });
-          if (c) c.src = img.src;
+          var upRes = await fetch(getServerBase() + '/api/ai/smms-upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image_base64: b64 })
+          });
+          var upData = await upRes.json();
+          if (upData.url) {
+            results.push({ slot: img._slot, newUrl: upData.url, src: img.src });
+          }
+        } catch (e) {
+          console.error('Upload failed for image', i, e);
         }
       }
-    });
-    buildPool();
-    buildCanvasItems(); updatePropBar();
-    closeEditor();
-    showToast('所有修改已保存', 'ok');
+      hideEditorLoading();
+
+      if (!results.length) { showToast('未上传任何图片', 'err'); return; }
+
+      // 替换到 detailModal
+      var app = document.querySelector('#app');
+      if (app && app.__vue__) {
+        var detailModal = app.__vue__.$root.$refs.detailModal;
+        if (detailModal && detailModal.editable) {
+          var replaced = 0;
+          results.forEach(function (r) {
+            if (!r.newUrl || !r.slot) return;
+            var s = r.slot;
+            if (s.field === 'main_images') {
+              if (detailModal.editable.main_images && s.index < detailModal.editable.main_images.length) {
+                detailModal.$set(detailModal.editable.main_images, s.index, r.newUrl);
+                replaced++;
+              }
+            } else if (s.field === 'detail_images') {
+              if (detailModal.editable.detail_images && s.index < detailModal.editable.detail_images.length) {
+                detailModal.$set(detailModal.editable.detail_images, s.index, r.newUrl);
+                replaced++;
+              }
+            } else if (s.field === 'sku') {
+              var skus = detailModal.editable.skus || [];
+              for (var si = 0; si < skus.length; si++) {
+                if (skus[si].image === s.url) {
+                  detailModal.$set(skus[si], 'image', r.newUrl);
+                  replaced++;
+                  break;
+                }
+              }
+            }
+          });
+          if (replaced) {
+            // 处理新增图片（无 slot 但被编辑的，追加到 main_images）
+            var appended = 0;
+            editorImages.forEach(function (img) {
+              if (!img._slot && img.src !== img.originalSrc) {
+                var alreadyUploaded = results.find(function (r) { return r.src === img.src; });
+                if (alreadyUploaded) {
+                  detailModal.editable.main_images.push(alreadyUploaded.newUrl);
+                  appended++;
+                }
+              }
+            });
+            closeEditor();
+            var msg = '已替换 ' + replaced + ' 张图片';
+            if (appended) msg += '，新增 ' + appended + ' 张';
+            msg += '，请保存商品';
+            showToast(msg, 'ok');
+          } else {
+            showToast('未找到替换位置', 'err');
+          }
+        } else {
+          closeEditor();
+          showToast('已上传 ' + results.length + ' 张（请手动替换）', 'ok');
+        }
+      } else {
+        closeEditor();
+        showToast('已上传 ' + results.length + ' 张', 'ok');
+      }
+    } else {
+      // 拼图编辑模式：同步修改回 imagePool/canvasItems
+      editorImages.forEach(function (img) {
+        if (img.src !== img.originalSrc) {
+          if (img.type === 'pool') {
+            var p = imagePool.find(function (p) { return p.id === img.refId; });
+            if (p) {
+              p.src = img.src;
+              canvasItems.forEach(function (c) { if (c.poolId === p.id) c.src = img.src; });
+            }
+          } else if (img.type === 'canvas') {
+            var c = canvasItems.find(function (c) { return c.id === img.refId; });
+            if (c) c.src = img.src;
+          }
+        }
+      });
+      buildPool();
+      buildCanvasItems(); updatePropBar();
+      closeEditor();
+      showToast('所有修改已保存', 'ok');
+    }
   });
 
   // ===== 复制图片地址 =====

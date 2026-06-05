@@ -10,6 +10,7 @@ var UPLOADS_DIR = path.join(__dirname, '..', '..', 'public', 'uploads');
 var lamaService = require('../../services/inpaint');
 var comfyuiInpaint = null;
 try { comfyuiInpaint = require('../../services/comfyui-inpaint'); } catch (e) {}
+var sizeAnnotate = require('../../services/size-annotate');
 
 // 自动选择修复服务：ComfyUI（GPU）优先，降级 LaMa（CPU）
 function getInpaintService() {
@@ -114,6 +115,46 @@ router.get('/model-status', function (req, res) {
     comfyui: { available: comfyAvailable, url: comfyuiInpaint ? comfyuiInpaint.getComfyuiBase() : '' },
     lama: { available: lamaAvailable, model: 'LaMa (Local ONNX)' },
     active: comfyAvailable ? 'comfyui' : (lamaAvailable ? 'lama' : 'none')
+  });
+});
+
+// ===== AI图片识别（通义千问VL）=====
+router.post('/recognize-image', function (req, res) {
+  var imageBase64 = req.body.image_base64;
+  var imageUrl = req.body.image_url;
+  var prompt = req.body.prompt || '';
+  var model = req.body.model || 'qwen3.6-flash';
+
+  if (!imageBase64 && !imageUrl) return res.status(400).json({ error: '请提供图片' });
+
+  if (!prompt) {
+    prompt = '请识别这张图片的内容，包括：\n1. 商品类型（如服装、鞋包、数码、食品等）\n2. 主要特征（颜色、材质、款式）\n3. 风格描述（简约、复古、运动、商务等）\n4. 背景情况（纯色、场景、户外等）\n5. 图片尺寸用途建议（如适合淘宝主图、详情页、朋友圈等）\n请用简洁的中文描述，每项一行。';
+  }
+
+  var apiKey = providers.getQwenVlKey();
+  if (!apiKey) return res.status(503).json({ error: '未配置通义千问VL API Key，请在API设置中配置' });
+
+  // 构造图片内容：优先base64，其次URL
+  var imageContent;
+  if (imageBase64) {
+    var fullBase64 = imageBase64;
+    if (!fullBase64.startsWith('data:')) {
+      fullBase64 = 'data:image/png;base64,' + fullBase64;
+    }
+    imageContent = fullBase64;
+  } else {
+    imageContent = imageUrl;
+  }
+
+  console.log('[AI识别] 开始, model:', model);
+  var t0 = Date.now();
+
+  providers.qwenVlRequest(imageContent, prompt, model, apiKey).then(function (result) {
+    console.log('[AI识别] 完成, 耗时:', Date.now() - t0, 'ms, tokens:', result.totalTokens);
+    res.json({ ok: true, text: result.text, tokens: result });
+  }).catch(function (err) {
+    console.error('[AI识别失败]', err.message);
+    res.status(502).json({ error: err.message });
   });
 });
 
@@ -352,7 +393,7 @@ router.post('/batch-clean', function (req, res) {
     }
 
     return imagePromise.then(function (buf) {
-      return textCleaner.cleanImageAdvanced(buf, options);
+      return textCleaner.cleanImage(buf, options);
     }).then(function (result) {
       if (!result.cleaned) {
         results[i] = {
@@ -438,6 +479,106 @@ router.post('/batch-clean', function (req, res) {
   }).catch(function (err) {
     console.error('[批量清理] 整体失败:', err.message);
     if (!res.headersSent) res.status(500).json({ error: err.message });
+  });
+});
+
+// ===== OCR提取尺寸（标注功能）=====
+router.post('/detect-sizes', function (req, res) {
+  var imageBase64 = req.body.image_base64;
+  var imageUrl = req.body.image_url;
+
+  if (!imageBase64 && !imageUrl) return res.status(400).json({ error: '请提供图片' });
+
+  console.log('[尺寸检测] 开始...');
+  var t0 = Date.now();
+
+  var imagePromise;
+  if (imageBase64) {
+    var b64 = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+    imagePromise = Promise.resolve(Buffer.from(b64, 'base64'));
+  } else {
+    imagePromise = new Promise(function (resolve, reject) {
+      var proto = imageUrl.startsWith('https') ? require('https') : require('http');
+      proto.get(imageUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } }, function (r) {
+        if (r.statusCode >= 300 && r.statusCode < 400 && r.headers.location) {
+          proto.get(r.headers.location, function (r2) {
+            var chunks = [];
+            r2.on('data', function (c) { chunks.push(c); });
+            r2.on('end', function () { resolve(Buffer.concat(chunks)); });
+          }).on('error', reject);
+          return;
+        }
+        var chunks = [];
+        r.on('data', function (c) { chunks.push(c); });
+        r.on('end', function () { resolve(Buffer.concat(chunks)); });
+      }).on('error', reject);
+    });
+  }
+
+  imagePromise.then(function (buf) {
+    return sizeAnnotate.detectSizes(buf);
+  }).then(function (result) {
+    console.log('[尺寸检测] 完成, 耗时:', Date.now() - t0, 'ms, 检测到', result.sizeGroups.length, '组尺寸');
+    res.json(result);
+  }).catch(function (err) {
+    console.error('[尺寸检测失败]', err.message);
+    res.status(502).json({ error: '尺寸检测失败: ' + err.message });
+  });
+});
+
+// ===== 生成标注图 =====
+router.post('/annotate-image', function (req, res) {
+  var imageBase64 = req.body.image_base64;
+  var imageUrl = req.body.image_url;
+  var widthCm = parseFloat(req.body.width_cm);
+  var heightCm = parseFloat(req.body.height_cm);
+  var unit = req.body.unit || 'cm';
+
+  if (!imageBase64 && !imageUrl) return res.status(400).json({ error: '请提供图片' });
+  if (!widthCm || widthCm <= 0) return res.status(400).json({ error: '请提供宽度' });
+
+  console.log('[标注图] 生成中...', widthCm, 'x', heightCm, unit);
+  var t0 = Date.now();
+
+  var imagePromise;
+  if (imageBase64) {
+    var b64 = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+    imagePromise = Promise.resolve(Buffer.from(b64, 'base64'));
+  } else {
+    imagePromise = new Promise(function (resolve, reject) {
+      var proto = imageUrl.startsWith('https') ? require('https') : require('http');
+      proto.get(imageUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } }, function (r) {
+        if (r.statusCode >= 300 && r.statusCode < 400 && r.headers.location) {
+          proto.get(r.headers.location, function (r2) {
+            var chunks = [];
+            r2.on('data', function (c) { chunks.push(c); });
+            r2.on('end', function () { resolve(Buffer.concat(chunks)); });
+          }).on('error', reject);
+          return;
+        }
+        var chunks = [];
+        r.on('data', function (c) { chunks.push(c); });
+        r.on('end', function () { resolve(Buffer.concat(chunks)); });
+      }).on('error', reject);
+    });
+  }
+
+  imagePromise.then(function (buf) {
+    return sizeAnnotate.annotateImage(buf, widthCm, heightCm, { unit: unit });
+  }).then(function (result) {
+    return sizeAnnotate.saveAnnotatedImage(result.imageBuffer).then(function (url) {
+      console.log('[标注图] 完成, 耗时:', Date.now() - t0, 'ms');
+      res.json({
+        ok: true,
+        url: url,
+        base64: result.imageBuffer.toString('base64'),
+        width: result.imageWidth,
+        height: result.imageHeight
+      });
+    });
+  }).catch(function (err) {
+    console.error('[标注图失败]', err.message);
+    res.status(502).json({ error: '标注图生成失败: ' + err.message });
   });
 });
 

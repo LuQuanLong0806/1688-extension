@@ -54,6 +54,19 @@ function getHunyuanAccounts() {
   return [];
 }
 
+function getQwenVlKey() {
+  try {
+    var row = require('../../db').getOne("SELECT value FROM settings WHERE key = 'qwen_vl_api_key'");
+    if (row && row.value) return sec.decrypt(row.value).trim();
+  } catch (e) {}
+  return 'sk-ad9a93ab29e34635a92b75fd2d751f81'; // 默认key
+}
+
+function saveQwenVlKey(key) {
+  require('../../db').run("INSERT OR REPLACE INTO settings (key, value) VALUES ('qwen_vl_api_key', ?)", [sec.encrypt(key)]);
+  require('../../db').scheduleSave();
+}
+
 var AI_USE_CASES = {
   category: {
     label: '分类推荐', defaultModel: 'glm-4.7-flash',
@@ -66,6 +79,10 @@ var AI_USE_CASES = {
   image: {
     label: '图片生成', defaultModel: 'cogview-3-flash',
     models: [{ id: 'cogview-3-flash', name: 'CogView-3-Flash（免费）' }, { id: 'cogview-4', name: 'CogView-4' }]
+  },
+  recognize: {
+    label: '图片识别', defaultModel: 'qwen3.6-flash',
+    models: [{ id: 'qwen3.6-flash', name: 'Qwen3.6-Flash（0.5元/百万token）' }, { id: 'qwen3.7-plus', name: 'Qwen3.7-Plus（4元/百万token）' }, { id: 'qwen-vl-plus', name: 'Qwen-VL-Plus（旧版）' }]
   }
 };
 
@@ -155,6 +172,47 @@ function qwenChatRequest(messages, temperature, maxTokens, apiKey) {
       });
     });
     req.on('error', function (e) { reject(e); });
+    req.write(data);
+    req.end();
+  });
+}
+
+// 通义千问 VL（视觉理解）— 用于图片识别/商品分析
+function qwenVlRequest(imageContent, prompt, model, apiKey) {
+  return new Promise(function (resolve, reject) {
+    if (!apiKey) return reject(new Error('未配置通义千问VL API Key'));
+    var body = {
+      model: model || 'qwen3.6-flash',
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image_url', image_url: { url: imageContent } },
+          { type: 'text', text: prompt }
+        ]
+      }],
+      temperature: 0.3,
+      max_tokens: 1024
+    };
+    var data = JSON.stringify(body);
+    var req = https.request({
+      hostname: 'dashscope.aliyuncs.com', port: 443, path: '/compatible-mode/v1/chat/completions',
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey, 'Content-Length': Buffer.byteLength(data) }
+    }, function (res) {
+      var chunks = [];
+      res.on('data', function (c) { chunks.push(c); });
+      res.on('end', function () {
+        var raw = Buffer.concat(chunks).toString();
+        try {
+          var result = JSON.parse(raw);
+          if (result.error) return reject(new Error(result.error.message || JSON.stringify(result.error)));
+          if (!result.choices || !result.choices.length) return reject(new Error('Qwen VL返回空结果'));
+          var text = result.choices[0].message.content || '';
+          var usage = result.usage || {};
+          resolve({ text: text, inputTokens: usage.prompt_tokens || 0, outputTokens: usage.completion_tokens || 0, totalTokens: usage.total_tokens || 0 });
+        } catch (e) { reject(new Error('Qwen VL解析失败: ' + raw.substring(0, 200))); }
+      });
+    });
+    req.on('error', reject);
     req.write(data);
     req.end();
   });
@@ -365,8 +423,9 @@ function zhipuRequest(apiPath, body, options) {
 module.exports = {
   API_BASE, AI_USE_CASES, normalizeKeyEntry,
   getApiKey, getZhipuKeys, saveZhipuKeys, getQwenKeys, getHunyuanAccounts,
+  getQwenVlKey, saveQwenVlKey,
   getAIConfigs, saveAIConfigs, getAIConfig, getProviderConfig, maskApiKey,
-  zhipuRequest,
+  zhipuRequest, qwenVlRequest,
   categoryLLMRequest, extractionLLMRequest, runLLMChain,
   imageLLMRequest: function (apiPath, body) { var config = getAIConfig('image'); return zhipuRequest(apiPath, body, { apiKey: config.apiKey }); }
 };

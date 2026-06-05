@@ -18,6 +18,9 @@ Vue.component('page-api-keys', {
       tursoEditing: false,
       comfyuiUrl: '',
       comfyuiStatus: { online: false, loading: false },
+      qwenVlKey: '',
+      qwenVlStatus: { configured: false, masked: '', isDefault: false },
+      qwenVlSaving: false,
       keyModal: {
         show: false,
         mode: 'add',
@@ -35,6 +38,7 @@ Vue.component('page-api-keys', {
     this.loadImgbb();
     this.loadTurso();
     this.loadComfyui();
+    this.loadQwenVl();
   },
   methods: {
     loadConfigs: function () {
@@ -299,6 +303,37 @@ Vue.component('page-api-keys', {
         else { vm.$Message.error(d.error || '保存失败'); }
       }).catch(function (e) { vm.comfyuiStatus.loading = false; vm.$Message.error('保存失败: ' + e.message); });
     },
+    // ===== 通义千问 VL =====
+    loadQwenVl: function () {
+      var vm = this;
+      fetch('/api/ai/qwen-vl-config').then(function (r) { return r.json(); }).then(function (d) {
+        vm.qwenVlStatus = { configured: d.configured, masked: d.masked || '', isDefault: d.isDefault || false };
+      }).catch(function () {});
+    },
+    saveQwenVl: function () {
+      var vm = this;
+      var key = (vm.qwenVlKey || '').trim();
+      if (!key) { vm.$Message.warning('请输入API Key'); return; }
+      vm.qwenVlSaving = true;
+      fetch('/api/ai/qwen-vl-config', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: key })
+      }).then(function (r) { return r.json(); }).then(function (d) {
+        vm.qwenVlSaving = false;
+        if (d.ok) { vm.$Message.success('通义千问VL Key 已保存'); vm.qwenVlKey = ''; vm.loadQwenVl(); }
+        else vm.$Message.error(d.error || '保存失败');
+      }).catch(function (e) { vm.qwenVlSaving = false; vm.$Message.error('保存失败: ' + e.message); });
+    },
+    deleteQwenVl: function () {
+      var vm = this;
+      vm.$Modal.confirm({ title: '确认清除', content: '清除后将使用内置默认Key', okText: '清除', cancelText: '取消',
+        onOk: function () {
+          fetch('/api/ai/qwen-vl-config/delete', { method: 'POST' }).then(function (r) { return r.json(); }).then(function (d) {
+            if (d.ok) { vm.$Message.success('已清除'); vm.loadQwenVl(); }
+          });
+        }
+      });
+    },
     // ===== Turso =====
     loadTurso: function () {
       var vm = this;
@@ -541,6 +576,28 @@ Vue.component('page-api-keys', {
             <div style="margin-left:110px">
               <i-button type="primary" size="small" :loading="comfyuiStatus.loading" @click="saveComfyui()">保存</i-button>
             </div>
+          </div>
+        </div>
+
+        <!-- ====== 通义千问 VL（图片识别）====== -->
+        <div class="ai-module">
+          <div class="ai-module-header">
+            <span class="ai-module-title">通义千问 VL（图片识别）</span>
+            <span style="font-size:12px;color:var(--text-muted);margin-left:8px">商品图片AI识别分析</span>
+            <span v-if="qwenVlStatus.configured" style="margin-left:auto;font-size:12px;color:#4caf50;font-weight:600">● 已配置</span>
+            <span v-else style="margin-left:auto;font-size:12px;color:#ff9800;font-weight:600">● 未配置</span>
+          </div>
+          <div class="ai-provider-row" style="flex-wrap:wrap;gap:10px">
+            <div style="display:flex;gap:10px;align-items:center;width:100%">
+              <span style="width:100px;flex-shrink:0;color:var(--text-secondary);font-size:13px">API Key</span>
+              <i-input v-model="qwenVlKey" size="small" :placeholder="qwenVlStatus.masked || 'sk-...'" style="flex:1"></i-input>
+            </div>
+            <div style="margin-left:110px;display:flex;gap:8px">
+              <i-button type="primary" size="small" :loading="qwenVlSaving" @click="saveQwenVl()">保存</i-button>
+              <i-button v-if="qwenVlStatus.configured" size="small" @click="deleteQwenVl()">清除</i-button>
+              <a href="https://bailian.console.aliyun.com/" target="blank" style="font-size:12px;color:var(--accent);align-self:center">免费申请</a>
+            </div>
+            <div v-if="qwenVlStatus.isDefault" style="margin-left:110px;font-size:11px;color:var(--text-muted)">当前使用脚本内置默认Key</div>
           </div>
         </div>
 

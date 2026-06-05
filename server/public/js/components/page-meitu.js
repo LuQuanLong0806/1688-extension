@@ -60,6 +60,19 @@ Vue.component('page-meitu', {
         if (urls && urls.length && typeof window._meituImportImages === 'function') {
           window._meituImportImages(urls);
         }
+        // 检测是否需要自动打开编辑器
+        try {
+          var autoOpen = sessionStorage.getItem('__meitu_auto_open_editor');
+          if (autoOpen === '1') {
+            sessionStorage.removeItem('__meitu_auto_open_editor');
+            // 等 imagePool 更新完再打开编辑器
+            setTimeout(function () {
+              if (typeof window.openEditor === 'function' && urls && urls.length) {
+                window.openEditor(urls[0]);
+              }
+            }, 300);
+          }
+        } catch (e) {}
       } catch (e) {}
     },
     checkPendingImportForCleaner: function () {
@@ -432,6 +445,33 @@ Vue.component('page-meitu', {
                     <button class="acc-btn" id="edAiCutout">AI 抠图</button>
                     <button class="acc-btn" id="edAiWhiteBg">AI 白底图</button>
                     <button class="acc-btn" id="edAiEnhance">AI 画质增强</button>
+                  </div></div>
+                </div>
+                <div class="acc-section" data-mode="editor-clean">
+                  <div class="acc-header">一键去中文 <span class="acc-icon">🧹</span></div>
+                  <div class="acc-body"><div class="acc-inner">
+                    <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">自动OCR检测文字区域并AI消除</div>
+                    <button class="acc-btn primary" id="edBtnCleanOne">当前图片去中文</button>
+                    <button class="acc-btn" id="edBtnCleanAll" style="margin-top:4px">批量去中文（所有图片）</button>
+                    <button class="acc-btn" id="edBtnReplaceToProduct" style="margin-top:4px;background:#e65100;color:#fff;border-color:#e65100">替换回商品</button>
+                  </div></div>
+                </div>
+                <div class="acc-section" data-mode="editor-annotate">
+                  <div class="acc-header">尺寸标注 <span class="acc-icon">📏</span></div>
+                  <div class="acc-body"><div class="acc-inner">
+                    <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">OCR自动提取尺寸或手动输入</div>
+                    <button class="acc-btn primary" id="edBtnDetectSizes">检测所有图片尺寸</button>
+                    <div id="edAnnGroups" style="margin-top:6px;max-height:120px;overflow-y:auto">
+                      <div style="font-size:11px;color:var(--text-muted)">暂无检测结果</div>
+                    </div>
+                    <div style="margin-top:6px;display:flex;gap:6px;align-items:center">
+                      <label style="font-size:11px;white-space:nowrap">宽</label>
+                      <input id="edAnnWidth" type="number" step="0.1" placeholder="cm" style="width:70px;font-size:12px;padding:2px 4px">
+                      <label style="font-size:11px;white-space:nowrap">高</label>
+                      <input id="edAnnHeight" type="number" step="0.1" placeholder="cm" style="width:70px;font-size:12px;padding:2px 4px">
+                    </div>
+                    <button class="acc-btn" id="edBtnAnnotate" style="margin-top:4px">标注当前图片</button>
+                    <button class="acc-btn" id="edBtnBatchAnnotate" style="margin-top:4px">批量标注</button>
                   </div></div>
                 </div>
               </div>
