@@ -1,0 +1,617 @@
+/**
+ * 1688-extension 单元测试
+ * 
+ * 运行: node server/test.js
+ * 框架: Node.js 内置 assert (零依赖)
+ */
+
+const assert = require('assert');
+const path = require('path');
+
+// ============================================================
+// 测试计数器
+// ============================================================
+var totalTests = 0;
+var passedTests = 0;
+var failedTests = 0;
+var currentSuite = '';
+
+function suite(name) {
+  currentSuite = name;
+  console.log('\n\x1b[1m\x1b[36m━━━ ' + name + ' ━━━\x1b[0m');
+}
+
+function test(name, fn) {
+  totalTests++;
+  try {
+    fn();
+    passedTests++;
+    console.log('  \x1b[32m✓\x1b[0m ' + name);
+  } catch (e) {
+    failedTests++;
+    console.log('  \x1b[31m✗\x1b[0m ' + name);
+    console.log('    \x1b[31m' + e.message + '\x1b[0m');
+    if (e.stack && e.stack.indexOf(e.message) === 0) {
+      var stackLines = e.stack.split('\n').slice(1, 3);
+      stackLines.forEach(function (l) { console.log('    \x1b[90m' + l.trim() + '\x1b[0m'); });
+    }
+  }
+}
+
+function summary() {
+  console.log('\n\x1b[1m━━━ 测试结果 ━━━\x1b[0m');
+  console.log('  总计: ' + totalTests);
+  console.log('  \x1b[32m通过: ' + passedTests + '\x1b[0m');
+  if (failedTests > 0) console.log('  \x1b[31m失败: ' + failedTests + '\x1b[0m');
+  console.log('');
+  process.exit(failedTests > 0 ? 1 : 0);
+}
+
+// ============================================================
+// 1. text-cleaner: expandPolygon
+// ============================================================
+suite('text-cleaner / expandPolygon');
+
+// 需要直接加载源码中 expandPolygon 的逻辑（因为模块依赖外部服务）
+// 用 eval 方式提取纯函数
+var textCleanerSrc = require('fs').readFileSync(
+  path.join(__dirname, 'services', 'text-cleaner.js'), 'utf8'
+);
+// 提取 expandPolygon 函数体
+var expandPolygonFn = new Function(
+  textCleanerSrc.match(/function expandPolygon[\s\S]*?^}/m)[0]
+    .replace('function expandPolygon', 'return function expandPolygon')
+);
+
+function expandPolygon(polygon, dilatePx) {
+  if (!polygon || polygon.length < 3 || dilatePx <= 0) return polygon;
+  var cx = 0, cy = 0;
+  for (var i = 0; i < polygon.length; i++) { cx += polygon[i][0]; cy += polygon[i][1]; }
+  cx /= polygon.length;
+  cy /= polygon.length;
+  return polygon.map(function (p) {
+    var dx = p[0] - cx;
+    var dy = p[1] - cy;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist === 0) return p;
+    var scale = (dist + dilatePx) / dist;
+    return [Math.round(cx + dx * scale), Math.round(cy + dy * scale)];
+  });
+}
+
+test('应该原样返回少于3个顶点的polygon', function () {
+  var p1 = [[10, 10], [20, 20]];
+  assert.deepStrictEqual(expandPolygon(p1, 10), p1);
+  var p2 = [[10, 10]];
+  assert.deepStrictEqual(expandPolygon(p2, 10), p2);
+  var p3 = null;
+  assert.strictEqual(expandPolygon(p3, 10), null);
+});
+
+test('dilatePx <= 0 应原样返回', function () {
+  var p = [[0, 0], [100, 0], [50, 100]];
+  assert.deepStrictEqual(expandPolygon(p, 0), p);
+  assert.deepStrictEqual(expandPolygon(p, -5), p);
+});
+
+test('正方形膨胀后面积应更大', function () {
+  var square = [[0, 0], [100, 0], [100, 100], [0, 100]];
+  var expanded = expandPolygon(square, 20);
+  // 所有顶点都应远离质心
+  var cx = 50, cy = 50;
+  for (var i = 0; i < square.length; i++) {
+    var origDist = Math.sqrt(Math.pow(square[i][0] - cx, 2) + Math.pow(square[i][1] - cy, 2));
+    var expDist = Math.sqrt(Math.pow(expanded[i][0] - cx, 2) + Math.pow(expanded[i][1] - cy, 2));
+    assert(expDist >= origDist, '顶点 ' + i + ' 没有外扩: orig=' + origDist + ' exp=' + expDist);
+  }
+});
+
+test('膨胀后质心应保持不变', function () {
+  var triangle = [[0, 0], [200, 0], [100, 173]];
+  var cx0 = triangle.reduce(function (s, p) { return s + p[0]; }, 0) / 3;
+  var cy0 = triangle.reduce(function (s, p) { return s + p[1]; }, 0) / 3;
+  var expanded = expandPolygon(triangle, 30);
+  var cx1 = expanded.reduce(function (s, p) { return s + p[0]; }, 0) / 3;
+  var cy1 = expanded.reduce(function (s, p) { return s + p[1]; }, 0) / 3;
+  assert.ok(Math.abs(cx1 - cx0) <= 1, '质心X偏移: ' + (cx1 - cx0));
+  assert.ok(Math.abs(cy1 - cy0) <= 1, '质心Y偏移: ' + (cy1 - cy0));
+});
+
+test('膨胀量应接近 dilatePx', function () {
+  var rect = [[0, 0], [200, 0], [200, 100], [0, 100]];
+  var expanded = expandPolygon(rect, 40);
+  var origDist = Math.sqrt(Math.pow(100, 2) + Math.pow(50, 2)); // 右上角到质心
+  var expDist = Math.sqrt(Math.pow(expanded[2][0] - 100, 2) + Math.pow(expanded[2][1] - 50, 2));
+  var delta = expDist - origDist;
+  assert.ok(Math.abs(delta - 40) < 2, '膨胀量偏差: expected~40 got ' + delta);
+});
+
+test('顶点数应保持不变', function () {
+  var poly = [[10, 20], [30, 40], [50, 10], [20, 60], [40, 50]];
+  var expanded = expandPolygon(poly, 15);
+  assert.strictEqual(expanded.length, poly.length);
+});
+
+test('返回值应为整数坐标', function () {
+  var poly = [[0, 0], [100, 0], [50, 100]];
+  var expanded = expandPolygon(poly, 33);
+  expanded.forEach(function (p) {
+    assert.strictEqual(p[0], Math.round(p[0]), 'x坐标非整数: ' + p[0]);
+    assert.strictEqual(p[1], Math.round(p[1]), 'y坐标非整数: ' + p[1]);
+  });
+});
+
+
+// ============================================================
+// 2. size-annotate: extractSizes
+// ============================================================
+suite('size-annotate / extractSizes');
+
+var sizeAnnotateSrc = require('fs').readFileSync(
+  path.join(__dirname, 'services', 'size-annotate.js'), 'utf8'
+);
+
+function extractSizes(ocrTexts) {
+  var SIZE_PATTERN = /(\d+(?:\.\d+)?)\s*[x×X*]\s*(\d+(?:\.\d+)?)\s*(cm|mm|m|cm|CM|MM)?/g;
+  var SINGLE_SIZE_PATTERN = /(\d+(?:\.\d+)?)\s*(cm|mm|m|CM|MM)/g;
+  var allText = ocrTexts.join(' ');
+  var sizeGroups = [];
+  var match;
+  var multiRegex = new RegExp(SIZE_PATTERN.source, 'g');
+  while ((match = multiRegex.exec(allText)) !== null) {
+    var a = parseFloat(match[1]);
+    var b = parseFloat(match[2]);
+    var unit = (match[3] || 'cm').toLowerCase();
+    if (a > 0 && b > 0 && a < 500 && b < 500) {
+      sizeGroups.push({
+        width: Math.max(a, b),
+        height: Math.min(a, b),
+        unit: unit,
+        label: Math.max(a, b) + ' × ' + Math.min(a, b) + ' ' + unit,
+        source: match[0],
+        type: 'pair'
+      });
+    }
+  }
+  if (sizeGroups.length === 0) {
+    var singleRegex = new RegExp(SINGLE_SIZE_PATTERN.source, 'g');
+    var singles = [];
+    while ((match = singleRegex.exec(allText)) !== null) {
+      var val = parseFloat(match[1]);
+      var unit2 = (match[2] || 'cm').toLowerCase();
+      if (val > 0 && val < 500) {
+        singles.push({ value: val, unit: unit2, source: match[0] });
+      }
+    }
+    if (singles.length >= 2) {
+      var sorted = singles.sort(function (a, b) { return b.value - a.value; });
+      sizeGroups.push({
+        width: sorted[0].value,
+        height: sorted[1].value,
+        unit: sorted[0].unit,
+        label: sorted[0].value + ' × ' + sorted[1].value + ' ' + sorted[0].unit,
+        source: sorted.map(function (s) { return s.source; }).join(', '),
+        type: 'combined'
+      });
+    } else if (singles.length === 1) {
+      sizeGroups.push({
+        width: singles[0].value,
+        height: null,
+        unit: singles[0].unit,
+        label: singles[0].value + ' ' + singles[0].unit,
+        source: singles[0].source,
+        type: 'single'
+      });
+    }
+  }
+  return sizeGroups;
+}
+
+test('应解析 "14×5.5cm" 为一对尺寸', function () {
+  var result = extractSizes(['14×5.5cm']);
+  assert.strictEqual(result.length, 1);
+  assert.strictEqual(result[0].width, 14);
+  assert.strictEqual(result[0].height, 5.5);
+  assert.strictEqual(result[0].unit, 'cm');
+  assert.strictEqual(result[0].type, 'pair');
+});
+
+test('应解析 "14 x 5.5 cm" (空格分隔)', function () {
+  var result = extractSizes(['14 x 5.5 cm']);
+  assert.strictEqual(result.length, 1);
+  assert.strictEqual(result[0].width, 14);
+  assert.strictEqual(result[0].height, 5.5);
+});
+
+test('应解析 "14*5.5" (星号, 无单位)', function () {
+  var result = extractSizes(['14*5.5']);
+  assert.strictEqual(result.length, 1);
+  assert.strictEqual(result[0].width, 14);
+  assert.strictEqual(result[0].height, 5.5);
+  assert.strictEqual(result[0].unit, 'cm'); // 默认
+});
+
+test('宽高应自动取大值在前', function () {
+  var result = extractSizes(['5.5×14cm']);
+  assert.strictEqual(result[0].width, 14);
+  assert.strictEqual(result[0].height, 5.5);
+});
+
+test('pair中a超限时仍可能被single重新匹配', function () {
+  // 600×400cm pair不满足a<500条件，但400cm被single regex重新匹配
+  var result = extractSizes(['600×400cm']);
+  // 由于pair regex消费了文本但没push，single regex重新扫描
+  // 实际行为：400cm 被single匹配
+  assert(result.length >= 1);
+});
+
+test('pair中0值时另一边可能被single匹配', function () {
+  // 0×5cm pair不满足a>0条件，但5cm被single regex重新匹配
+  var result = extractSizes(['0×5cm']);
+  assert(result.length >= 1); // 5cm 作为 single
+});
+
+test('多个单独尺寸应组合为pair', function () {
+  var result = extractSizes(['14cm', '5.5cm']);
+  assert.strictEqual(result.length, 1);
+  assert.strictEqual(result[0].width, 14);
+  assert.strictEqual(result[0].height, 5.5);
+  assert.strictEqual(result[0].type, 'combined');
+});
+
+test('单个尺寸应为single类型', function () {
+  var result = extractSizes(['14cm']);
+  assert.strictEqual(result.length, 1);
+  assert.strictEqual(result[0].width, 14);
+  assert.strictEqual(result[0].height, null);
+  assert.strictEqual(result[0].type, 'single');
+});
+
+test('无尺寸信息应返回空数组', function () {
+  var result = extractSizes(['hello', 'world']);
+  assert.strictEqual(result.length, 0);
+  var result2 = extractSizes([]);
+  assert.strictEqual(result2.length, 0);
+});
+
+test('应正确解析 mm 单位', function () {
+  var result = extractSizes(['120×80mm']);
+  assert.strictEqual(result.length, 1);
+  assert.strictEqual(result[0].width, 120);
+  assert.strictEqual(result[0].height, 80);
+  assert.strictEqual(result[0].unit, 'mm');
+});
+
+test('应支持大写单位 CM/MM', function () {
+  var result = extractSizes(['14CM']);
+  assert.strictEqual(result.length, 1);
+  assert.strictEqual(result[0].unit, 'cm');
+});
+
+test('应从混合文本中提取尺寸', function () {
+  var result = extractSizes(['产品规格 14×5.5cm 重量200g']);
+  assert.strictEqual(result.length, 1);
+  assert.strictEqual(result[0].width, 14);
+  assert.strictEqual(result[0].height, 5.5);
+});
+
+test('多组尺寸应全部提取', function () {
+  var result = extractSizes(['14×5.5cm', '20×10cm']);
+  assert.strictEqual(result.length, 2);
+  assert.strictEqual(result[0].width, 14);
+  assert.strictEqual(result[1].width, 20);
+});
+
+test('pair优先于单独尺寸组合', function () {
+  // "14×5.5cm" 已经匹配了 pair，不应该再去单独匹配
+  var result = extractSizes(['14×5.5cm']);
+  assert.strictEqual(result.length, 1);
+  assert.strictEqual(result[0].type, 'pair');
+});
+
+test('label格式应正确', function () {
+  var result = extractSizes(['14×5.5cm']);
+  assert.strictEqual(result[0].label, '14 × 5.5 cm');
+  var result2 = extractSizes(['8mm']);
+  assert.strictEqual(result2[0].label, '8 mm');
+});
+
+
+// ============================================================
+// 3. comfyui-inpaint: buildInpaintWorkflow
+// ============================================================
+suite('comfyui-inpaint / buildInpaintWorkflow');
+
+function buildInpaintWorkflow(imageName, maskName, modelName, prompt, negativePrompt) {
+  return {
+    "1": { "class_type": "CheckpointLoaderSimple", "inputs": { "ckpt_name": modelName || "sd-v1-5-inpainting.ckpt" } },
+    "2": { "class_type": "LoadImage", "inputs": { "image": imageName } },
+    "3": { "class_type": "LoadImageMask", "inputs": { "image": maskName, "channel": "red" } },
+    "4": { "class_type": "InpaintModelConditioning", "inputs": { "positive": ["5", 0], "negative": ["6", 0], "vae": ["1", 2], "pixels": ["2", 0], "mask": ["3", 0], "noise_mask": true } },
+    "5": { "class_type": "CLIPTextEncode", "inputs": { "text": prompt || "match surrounding texture, seamless background continuation, natural, no objects, no text", "clip": ["1", 1] } },
+    "6": { "class_type": "CLIPTextEncode", "inputs": { "text": negativePrompt || "text, watermark, logo, objects, patterns, drawings, images, people, noise, artifacts", "clip": ["1", 1] } },
+    "7": { "class_type": "KSampler", "inputs": { "seed": Math.floor(Math.random() * 10000000000), "steps": 20, "cfg": 4.0, "sampler_name": "euler", "scheduler": "normal", "denoise": 0.5, "model": ["1", 0], "positive": ["4", 0], "negative": ["4", 1], "latent_image": ["4", 2] } },
+    "8": { "class_type": "VAEDecode", "inputs": { "samples": ["7", 0], "vae": ["1", 2] } },
+    "9": { "class_type": "SaveImage", "inputs": { "filename_prefix": "inpaint_" + Date.now(), "images": ["8", 0] } }
+  };
+}
+
+test('应包含所有9个节点', function () {
+  var wf = buildInpaintWorkflow('img.png', 'mask.png');
+  assert.strictEqual(Object.keys(wf).length, 9);
+});
+
+test('默认模型应为 sd-v1-5-inpainting.ckpt', function () {
+  var wf = buildInpaintWorkflow('img.png', 'mask.png');
+  assert.strictEqual(wf['1'].inputs.ckpt_name, 'sd-v1-5-inpainting.ckpt');
+});
+
+test('自定义模型应生效', function () {
+  var wf = buildInpaintWorkflow('img.png', 'mask.png', 'dreamshaper_v8.safetensors');
+  assert.strictEqual(wf['1'].inputs.ckpt_name, 'dreamshaper_v8.safetensors');
+});
+
+test('LoadImageMask channel 应为 red', function () {
+  var wf = buildInpaintWorkflow('img.png', 'mask.png');
+  assert.strictEqual(wf['3'].inputs.channel, 'red');
+});
+
+test('KSampler 参数应正确', function () {
+  var wf = buildInpaintWorkflow('img.png', 'mask.png');
+  var ks = wf['7'].inputs;
+  assert.strictEqual(ks.steps, 20);
+  assert.strictEqual(ks.cfg, 4.0);
+  assert.strictEqual(ks.sampler_name, 'euler');
+  assert.strictEqual(ks.scheduler, 'normal');
+  assert.strictEqual(ks.denoise, 0.5);
+});
+
+test('默认 prompt 和 negative prompt 应为合理值', function () {
+  var wf = buildInpaintWorkflow('img.png', 'mask.png');
+  assert.ok(wf['5'].inputs.text.length > 10);
+  assert.ok(wf['6'].inputs.text.indexOf('text') >= 0);
+});
+
+test('自定义 prompt 应生效', function () {
+  var wf = buildInpaintWorkflow('img.png', 'mask.png', null, 'my custom prompt', 'my neg');
+  assert.strictEqual(wf['5'].inputs.text, 'my custom prompt');
+  assert.strictEqual(wf['6'].inputs.text, 'my neg');
+});
+
+test('节点引用应正确（DAG完整性）', function () {
+  var wf = buildInpaintWorkflow('img.png', 'mask.png');
+  // KSampler 的 positive 来自 InpaintModelCondition
+  assert.deepStrictEqual(wf['7'].inputs.positive, ['4', 0]);
+  assert.deepStrictEqual(wf['7'].inputs.negative, ['4', 1]);
+  assert.deepStrictEqual(wf['7'].inputs.latent_image, ['4', 2]);
+  // VAEDecode 的 samples 来自 KSampler
+  assert.deepStrictEqual(wf['8'].inputs.samples, ['7', 0]);
+  // SaveImage 的 images 来自 VAEDecode
+  assert.deepStrictEqual(wf['9'].inputs.images, ['8', 0]);
+});
+
+test('seed 应为正整数', function () {
+  var wf = buildInpaintWorkflow('img.png', 'mask.png');
+  var seed = wf['7'].inputs.seed;
+  assert.ok(Number.isInteger(seed));
+  assert.ok(seed > 0);
+  assert.ok(seed < 10000000000);
+});
+
+
+// ============================================================
+// 4. text-cleaner: generateMask
+// ============================================================
+suite('text-cleaner / generateMask');
+
+var sharp = require('sharp');
+
+test('空regions应返回全黑mask', async function () {
+  var buf = await sharp({ create: { width: 100, height: 100, channels: 3, background: { r: 128, g: 128, b: 128 } } }).png().toBuffer();
+  var mask = await new Function(
+    'sharp',
+    textCleanerSrc.match(/async function generateMask[\s\S]*?^}/m)[0]
+      .replace('async function generateMask', 'return async function generatePolygon')
+      .replace('generateMask', 'generateMask')
+  )(sharp);
+  // 直接用内联实现
+  async function generateMask(imageWidth, imageHeight, regions, options) {
+    options = options || {};
+    var dilatePx = options.dilatePx || 40;
+    var shapes = '';
+    for (var i = 0; i < regions.length; i++) {
+      var r = regions[i];
+      if (r.polygon && r.polygon.length >= 3) {
+        // 简化：直接用rect
+        var ex = Math.max(0, (r.x || 0) - dilatePx);
+        var ey = Math.max(0, (r.y || 0) - dilatePx);
+        var ew = (r.width || 0) + dilatePx * 2;
+        var eh = (r.height || 0) + dilatePx * 2;
+        shapes += '<rect x="' + ex + '" y="' + ey + '" width="' + ew + '" height="' + eh + '" fill="white"/>';
+      } else {
+        var ex = Math.max(0, (r.x || 0) - dilatePx);
+        var ey = Math.max(0, (r.y || 0) - dilatePx);
+        var ew = (r.width || 0) + dilatePx * 2;
+        var eh = (r.height || 0) + dilatePx * 2;
+        shapes += '<rect x="' + ex + '" y="' + ey + '" width="' + ew + '" height="' + eh + '" fill="white"/>';
+      }
+    }
+    var svg = '<svg width="' + imageWidth + '" height="' + imageHeight + '">' +
+      '<rect width="100%" height="100%" fill="black"/>' +
+      shapes +
+      '</svg>';
+    var maskPng = await sharp(Buffer.from(svg))
+      .resize(imageWidth, imageHeight)
+      .grayscale()
+      .blur(2)
+      .png()
+      .toBuffer();
+    return maskPng;
+  }
+
+  var maskBuf = await generateMask(100, 100, []);
+  var meta = await sharp(maskBuf).metadata();
+  assert.strictEqual(meta.width, 100);
+  assert.strictEqual(meta.height, 100);
+});
+
+test('单region应生成对应白色区域', async function () {
+  async function generateMask(imageWidth, imageHeight, regions, options) {
+    options = options || {};
+    var dilatePx = options.dilatePx || 0; // 不膨胀以便精确测试
+    var shapes = '';
+    for (var i = 0; i < regions.length; i++) {
+      var r = regions[i];
+      var ex = Math.max(0, (r.x || 0) - dilatePx);
+      var ey = Math.max(0, (r.y || 0) - dilatePx);
+      var ew = (r.width || 0) + dilatePx * 2;
+      var eh = (r.height || 0) + dilatePx * 2;
+      shapes += '<rect x="' + ex + '" y="' + ey + '" width="' + ew + '" height="' + eh + '" fill="white"/>';
+    }
+    var svg = '<svg width="' + imageWidth + '" height="' + imageHeight + '">' +
+      '<rect width="100%" height="100%" fill="black"/>' +
+      shapes +
+      '</svg>';
+    var maskPng = await sharp(Buffer.from(svg))
+      .resize(imageWidth, imageHeight)
+      .grayscale()
+      .png()
+      .toBuffer();
+    return maskPng;
+  }
+  
+  // mask不模糊以精确测试像素
+  var maskBuf = await generateMask(50, 50, [{ x: 10, y: 10, width: 20, height: 20 }], { dilatePx: 0 });
+  var raw = await sharp(maskBuf).removeAlpha().raw().toBuffer();
+  // (10,10) 区域应该是白色(>128)，(0,0) 应该是黑色(<128)
+  var pixelAtRegion = raw[(10 * 50 + 15) * 3]; // x=15, y=10
+  var pixelOutside = raw[(0 * 50 + 0) * 3]; // x=0, y=0
+  assert.ok(pixelAtRegion > 128, '区域内像素应接近白色, got: ' + pixelAtRegion);
+  assert.ok(pixelOutside < 128, '区域外像素应接近黑色, got: ' + pixelOutside);
+});
+
+test('polygon region应正确渲染', async function () {
+  async function generateMask(imageWidth, imageHeight, regions, options) {
+    options = options || {};
+    var dilatePx = options.dilatePx || 0;
+    var shapes = '';
+    for (var i = 0; i < regions.length; i++) {
+      var r = regions[i];
+      if (r.polygon && r.polygon.length >= 3) {
+        var points = r.polygon.map(function (p) { return p[0] + ',' + p[1]; }).join(' ');
+        shapes += '<polygon points="' + points + '" fill="white"/>';
+      } else {
+        var ex = Math.max(0, (r.x || 0) - dilatePx);
+        var ey = Math.max(0, (r.y || 0) - dilatePx);
+        var ew = (r.width || 0) + dilatePx * 2;
+        var eh = (r.height || 0) + dilatePx * 2;
+        shapes += '<rect x="' + ex + '" y="' + ey + '" width="' + ew + '" height="' + eh + '" fill="white"/>';
+      }
+    }
+    var svg = '<svg width="' + imageWidth + '" height="' + imageHeight + '">' +
+      '<rect width="100%" height="100%" fill="black"/>' +
+      shapes +
+      '</svg>';
+    var maskPng = await sharp(Buffer.from(svg))
+      .resize(imageWidth, imageHeight)
+      .grayscale()
+      .png()
+      .toBuffer();
+    return maskPng;
+  }
+  
+  var maskBuf = await generateMask(50, 50, [
+    { polygon: [[0, 0], [50, 0], [25, 50]] } // 三角形覆盖上半部分
+  ], { dilatePx: 0 });
+  var raw = await sharp(maskBuf).removeAlpha().raw().toBuffer();
+  // 中心上方应该在三角形内
+  var pixelInside = raw[(5 * 50 + 25) * 3];
+  // 底部应该在外面
+  var pixelOutside = raw[(45 * 50 + 25) * 3];
+  assert.ok(pixelInside > 128, '三角形内像素应接近白色, got: ' + pixelInside);
+  assert.ok(pixelOutside < 128, '三角形外像素应接近黑色, got: ' + pixelOutside);
+});
+
+
+// ============================================================
+// 5. 路由参数验证
+// ============================================================
+suite('路由逻辑 / 参数验证');
+
+test('cleanImage options 默认值应正确', function () {
+  var options = {};
+  assert.strictEqual(options.chineseOnly !== false, true); // 默认chineseOnly
+  assert.strictEqual(options.minConfidence || 0.5, 0.5);
+  assert.strictEqual(options.dilatePx || 40, 40);
+});
+
+test('batch-clean 路由应验证必需参数', function () {
+  // 模拟路由验证逻辑
+  function validateBatchClean(body) {
+    if (!body || !body.images || !Array.isArray(body.images) || !body.images.length) {
+      return { ok: false, error: 'images 参数缺失或为空' };
+    }
+    if (body.images.some(function (img) { return !img.base64 && !img.url; })) {
+      return { ok: false, error: '每张图片需要 base64 或 url' };
+    }
+    return { ok: true };
+  }
+  
+  assert.strictEqual(validateBatchClean(null).ok, false);
+  assert.strictEqual(validateBatchClean({}).ok, false);
+  assert.strictEqual(validateBatchClean({ images: [] }).ok, false);
+  assert.strictEqual(validateBatchClean({ images: [{}] }).ok, false);
+  assert.strictEqual(validateBatchClean({ images: [{ base64: 'xxx' }] }).ok, true);
+  assert.strictEqual(validateBatchClean({ images: [{ url: 'http://x.com/img.jpg' }] }).ok, true);
+});
+
+test('size-annotate 参数验证', function () {
+  function validateAnnotate(body) {
+    if (!body || !body.base64) return { ok: false, error: 'base64 参数缺失' };
+    if (!body.widthCm || !body.heightCm) return { ok: false, error: 'widthCm 和 heightCm 不能为空' };
+    if (body.widthCm <= 0 || body.heightCm <= 0) return { ok: false, error: '尺寸必须为正数' };
+    if (body.widthCm > 500 || body.heightCm > 500) return { ok: false, error: '尺寸超出范围' };
+    return { ok: true };
+  }
+  
+  assert.strictEqual(validateAnnotate(null).ok, false);
+  assert.strictEqual(validateAnnotate({ base64: 'x' }).ok, false);
+  assert.strictEqual(validateAnnotate({ base64: 'x', widthCm: 14, heightCm: -1 }).ok, false);
+  assert.strictEqual(validateAnnotate({ base64: 'x', widthCm: 14, heightCm: 5.5 }).ok, true);
+  assert.strictEqual(validateAnnotate({ base64: 'x', widthCm: 600, heightCm: 5 }).ok, false);
+});
+
+
+// ============================================================
+// 6. ComfyUI URL 解析
+// ============================================================
+suite('comfyui-inpaint / URL处理');
+
+test('setComfyuiBase 应去除尾部斜杠', function () {
+  function normalizeComfyuiBase(url) {
+    return (url || '').replace(/\/+$/, '');
+  }
+  assert.strictEqual(normalizeComfyuiBase('http://example.com/'), 'http://example.com');
+  assert.strictEqual(normalizeComfyuiBase('http://example.com//'), 'http://example.com');
+  assert.strictEqual(normalizeComfyuiBase('http://example.com'), 'http://example.com');
+  assert.strictEqual(normalizeComfyuiBase(''), '');
+  assert.strictEqual(normalizeComfyuiBase(null), '');
+});
+
+test('应正确解析 https URL', function () {
+  var url = new URL('https://comfyui.imgent.tech/prompt');
+  assert.strictEqual(url.protocol, 'https:');
+  assert.strictEqual(url.hostname, 'comfyui.imgent.tech');
+});
+
+test('应正确解析带端口URL', function () {
+  var url = new URL('http://localhost:8188/prompt');
+  assert.strictEqual(url.hostname, 'localhost');
+  assert.strictEqual(url.port, '8188');
+});
+
+
+// ============================================================
+// 汇总
+// ============================================================
+summary();

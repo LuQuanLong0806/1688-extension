@@ -40,6 +40,8 @@ function initMeituEditorTools() {
     editorProcessing = document.getElementById('editorProcessing');
     editorProcessText = document.getElementById('editorProcessText');
   }
+  // 暴露到 window，供 MutationObserver（模块作用域）调用
+  window.ensureEditorRefs = ensureEditorRefs;
 
   // ========== 去中文功能 ==========
   async function editorCleanCurrentImage() {
@@ -574,7 +576,7 @@ var _editorObserver = new MutationObserver(function () {
   if (modal && modal.classList.contains('show')) {
     // 每次 modal 打开时重置绑定标记，允许重新绑定
     _eventsBound = false;
-    ensureEditorRefs();
+    if (typeof window.ensureEditorRefs === 'function') window.ensureEditorRefs();
     if (typeof window._bindEditorEvents === 'function') window._bindEditorEvents();
   }
 });

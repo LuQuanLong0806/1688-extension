@@ -227,12 +227,24 @@ Vue.component('detail-modal', {
         if (vm.isSkuImageChecked(item) && item.url) { urls.push(item.url); slots.push({ field: 'sku', url: item.url }); }
       });
       if (!urls.length) { vm.$Message.warning('请先选中要处理的图片'); return; }
-      try { sessionStorage.setItem('__meitu_pending_import', JSON.stringify(urls)); } catch (e) {}
-      try { sessionStorage.setItem('__meitu_import_slots', JSON.stringify(slots)); } catch (e) {}
+      // 直接构建图片列表，打开全局编辑器
+      var images = urls.map(function (url, i) {
+        var s = slots[i];
+        var slotLabel = s ? ' (' + (s.field === 'main_images' ? '主图' + (s.index + 1) : s.field === 'detail_images' ? '详情' + (s.index + 1) : 'SKU') + ')' : '';
+        return { id: 'ext-' + i, src: url, originalSrc: url, type: 'external', refId: null, label: '图片 #' + (i + 1) + slotLabel, _slot: s || null };
+      });
       try { sessionStorage.setItem('__meitu_source_product', vm.editable.uid); } catch (e) {}
-      try { sessionStorage.setItem('__editor_mode', 'edit'); } catch (e) {}
-      try { sessionStorage.setItem('__meitu_auto_open_editor', '1'); } catch (e) {}
-      vm.$root.showCollageModal = true;
+      // 确保 collage 已初始化（编辑器依赖其 JS 函数）
+      if (typeof initMeituCollage === 'function' && !initMeituCollage._init) initMeituCollage();
+      if (typeof window.openEditor === 'function') {
+        window.openEditor(images[0].src, images);
+      } else {
+        // fallback：如果 collage JS 还没加载，通过拼图页面打开
+        try { sessionStorage.setItem('__meitu_pending_import', JSON.stringify(urls)); } catch (e) {}
+        try { sessionStorage.setItem('__meitu_import_slots', JSON.stringify(slots)); } catch (e) {}
+        try { sessionStorage.setItem('__meitu_auto_open_editor', '1'); } catch (e) {}
+        vm.$root.showCollageModal = true;
+      }
     },
     goToMeituCollage: function () {
       var vm = this;
@@ -269,18 +281,27 @@ Vue.component('detail-modal', {
         if (vm.isSkuImageChecked(item) && item.url) { urls.push(item.url); slots.push({ field: 'sku', url: item.url }); }
       });
       if (!urls.length) { vm.$Message.warning('请先选中要处理的图片'); return; }
-      try { sessionStorage.setItem('__meitu_pending_import', JSON.stringify(urls)); } catch (e) {}
-      try { sessionStorage.setItem('__meitu_import_slots', JSON.stringify(slots)); } catch (e) {}
+      var images = urls.map(function (url, i) {
+        var s = slots[i];
+        var slotLabel = s ? ' (' + (s.field === 'main_images' ? '主图' + (s.index + 1) : s.field === 'detail_images' ? '详情' + (s.index + 1) : 'SKU') + ')' : '';
+        return { id: 'ext-' + i, src: url, originalSrc: url, type: 'external', refId: null, label: '图片 #' + (i + 1) + slotLabel, _slot: s || null };
+      });
       try { sessionStorage.setItem('__meitu_source_product', vm.editable.uid); } catch (e) {}
-      try { sessionStorage.setItem('__editor_mode', 'cleaner'); } catch (e) {}
-      try { sessionStorage.setItem('__meitu_auto_clean', '1'); } catch (e) {}
-      try { sessionStorage.setItem('__meitu_auto_open_editor', '1'); } catch (e) {}
-      vm.$root.showCollageModal = true;
+      if (typeof initMeituCollage === 'function' && !initMeituCollage._init) initMeituCollage();
+      if (typeof window.openEditor === 'function') {
+        window.openEditor(images[0].src, images);
+        // openEditor会清理标记，所以在它之后重新设
+        try { sessionStorage.setItem('__meitu_auto_clean', '1'); } catch (e) {}
+      } else {
+        try { sessionStorage.setItem('__meitu_pending_import', JSON.stringify(urls)); } catch (e) {}
+        try { sessionStorage.setItem('__meitu_import_slots', JSON.stringify(slots)); } catch (e) {}
+        try { sessionStorage.setItem('__meitu_auto_open_editor', '1'); } catch (e) {}
+        vm.$root.showCollageModal = true;
+      }
     },
     goToMeituAnnotate: function () {
       var vm = this;
       if (!vm.editable) return;
-      // 收集所有图片URL（不需要选中，全部拿去做OCR检测尺寸）
       var urls = [];
       var slots = [];
       var mainImgs = vm.editable.main_images || [];
@@ -292,26 +313,40 @@ Vue.component('detail-modal', {
         if (item.url) { urls.push(item.url); slots.push({ field: 'sku', url: item.url }); }
       });
       if (!urls.length) { vm.$Message.warning('该商品没有图片'); return; }
-      try { sessionStorage.setItem('__meitu_pending_import', JSON.stringify(urls)); } catch (e) {}
-      try { sessionStorage.setItem('__meitu_import_slots', JSON.stringify(slots)); } catch (e) {}
+      var images = urls.map(function (url, i) {
+        var s = slots[i];
+        var slotLabel = s ? ' (' + (s.field === 'main_images' ? '主图' + (s.index + 1) : s.field === 'detail_images' ? '详情' + (s.index + 1) : 'SKU') + ')' : '';
+        return { id: 'ext-' + i, src: url, originalSrc: url, type: 'external', refId: null, label: '图片 #' + (i + 1) + slotLabel, _slot: s || null };
+      });
       try { sessionStorage.setItem('__meitu_source_product', vm.editable.uid); } catch (e) {}
-      try { sessionStorage.setItem('__editor_mode', 'annotate'); } catch (e) {}
-      try { sessionStorage.setItem('__meitu_annotate_auto_detect', '1'); } catch (e) {}
-      try { sessionStorage.setItem('__meitu_auto_open_editor', '1'); } catch (e) {}
-      vm.$root.showCollageModal = true;
+      if (typeof initMeituCollage === 'function' && !initMeituCollage._init) initMeituCollage();
+      if (typeof window.openEditor === 'function') {
+        window.openEditor(images[0].src, images);
+        try { sessionStorage.setItem('__meitu_annotate_auto_detect', '1'); } catch (e) {}
+      } else {
+        try { sessionStorage.setItem('__meitu_pending_import', JSON.stringify(urls)); } catch (e) {}
+        try { sessionStorage.setItem('__meitu_import_slots', JSON.stringify(slots)); } catch (e) {}
+        try { sessionStorage.setItem('__meitu_auto_open_editor', '1'); } catch (e) {}
+        try { sessionStorage.setItem('__meitu_annotate_auto_detect', '1'); } catch (e) {}
+        vm.$root.showCollageModal = true;
+      }
     },
     annotateSingleImage: function (url, field, index) {
       var vm = this;
       if (!vm.editable) return;
-      var slots = [{ field: field, index: index }];
-      if (field === 'sku') { slots = [{ field: 'sku', url: url }]; }
-      try { sessionStorage.setItem('__meitu_pending_import', JSON.stringify([url])); } catch (e) {}
-      try { sessionStorage.setItem('__meitu_import_slots', JSON.stringify(slots)); } catch (e) {}
+      var slots = [{ field: field, index: index, url: url }];
+      var images = [{ id: 'ext-0', src: url, originalSrc: url, type: 'external', refId: null, label: '图片 #1', _slot: slots[0] }];
       try { sessionStorage.setItem('__meitu_source_product', vm.editable.uid); } catch (e) {}
-      try { sessionStorage.setItem('__editor_mode', 'annotate'); } catch (e) {}
       try { sessionStorage.setItem('__meitu_annotate_auto_detect', '1'); } catch (e) {}
-      try { sessionStorage.setItem('__meitu_auto_open_editor', '1'); } catch (e) {}
-      vm.$root.showCollageModal = true;
+      if (typeof initMeituCollage === 'function' && !initMeituCollage._init) initMeituCollage();
+      if (typeof window.openEditor === 'function') {
+        window.openEditor(url, images);
+      } else {
+        try { sessionStorage.setItem('__meitu_pending_import', JSON.stringify([url])); } catch (e) {}
+        try { sessionStorage.setItem('__meitu_import_slots', JSON.stringify(slots)); } catch (e) {}
+        try { sessionStorage.setItem('__meitu_auto_open_editor', '1'); } catch (e) {}
+        vm.$root.showCollageModal = true;
+      }
     },
     toggleSkuAll: function (checked) {
       var vm = this;

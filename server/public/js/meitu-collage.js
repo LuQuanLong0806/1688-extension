@@ -19,9 +19,10 @@ function initMeituCollage() {
   try { serverBase = localStorage.getItem(SERVER_KEY) || ''; } catch (e) {}
 
   // ========== Toast ==========
-  var toastEl = document.getElementById('toast');
+  var toastEl = document.getElementById('toast') || document.createElement('div');
   var toastTimer = null;
   function showToast(msg, type) {
+    if (!toastEl) return;
     clearTimeout(toastTimer);
     toastEl.textContent = msg;
     toastEl.className = 'toast ' + (type || 'ok') + ' show';
@@ -33,7 +34,7 @@ function initMeituCollage() {
     try { localStorage.setItem(BOARD_KEY, JSON.stringify({ w: boardW, h: boardH })); } catch (e) {}
   }
 
-  // ========== DOM refs ==========
+  // ========== DOM refs（可能为null，编辑器模式下拼图DOM不存在）==========
   var customArea = document.getElementById('customArea');
   var canvasBoard = document.getElementById('canvasBoard');
   var canvasWrap = document.getElementById('canvasWrap');
@@ -173,6 +174,8 @@ function initMeituCollage() {
       document.addEventListener('mouseup', onUp);
     });
   }
+  // 拼图板相关初始化：仅在拼图页面DOM存在时执行（编辑器模式下跳过）
+  if (canvasBoard) {
   setupBoardResize(document.getElementById('resizeR'), 'r');
   setupBoardResize(document.getElementById('resizeB'), 'b');
   setupBoardResize(document.getElementById('resizeRB'), 'rb');
@@ -975,6 +978,8 @@ function initMeituCollage() {
     });
   });
 
+  } // end if (canvasBoard) — 拼图板初始化结束
+
   // ============================================================
   // ========== 图片编辑弹窗 ==========
   // ============================================================
@@ -1109,46 +1114,54 @@ function initMeituCollage() {
   document.addEventListener('keydown', onEditorKeydown);
 
   // ===== Open editor — collect all images =====
-  btnEditImage.addEventListener('click', function () {
-    var src = getSelectedImageSrc();
-    openEditor(src);
-  });
+  if (btnEditImage) {
+    btnEditImage.addEventListener('click', function () {
+      var src = getSelectedImageSrc();
+      openEditor(src);
+    });
+  }
 
-  function openEditor(selectedSrc) {
+  function openEditor(selectedSrc, overrideImages) {
+    // 清理残留的自动操作标记（防止误触发）
+    try { sessionStorage.removeItem('__meitu_auto_clean'); } catch (e) {}
+    try { sessionStorage.removeItem('__meitu_annotate_auto_detect'); } catch (e) {}
     var images = [];
     var srcSet = {};
-    var srcSlots = {}; // 记录每个 src 对应的 slot（商品编辑模式）
-    // 读取 pending import slots（从商品详情传过来）
-    try {
-      var pendingSlots = JSON.parse(sessionStorage.getItem('__meitu_import_slots') || '[]');
-      if (pendingSlots.length) {
-        pendingSlots.forEach(function (s) {
-          if (s.url) srcSlots[s.url] = s;
-        });
-      }
-    } catch (e) {}
-    imagePool.forEach(function (p, pi) {
-      var slotLabel = '';
-      if (srcSlots[p.src]) {
-        var s = srcSlots[p.src];
-        slotLabel = ' (' + (s.field === 'main_images' ? '主图' + (s.index + 1) : s.field === 'detail_images' ? '详情' + (s.index + 1) : 'SKU') + ')';
-      }
-      images.push({
-        id: 'p-' + p.id, src: p.src, originalSrc: p.src,
-        type: 'pool', refId: p.id, label: '图片 #' + (pi + 1) + slotLabel,
-        _slot: srcSlots[p.src] || null
-      });
-      srcSet[p.src] = true;
-    });
-    canvasItems.forEach(function (c) {
-      if (c.src && c.type !== 'text' && !srcSet[c.src]) {
+    if (overrideImages && overrideImages.length) {
+      // 直接使用传入的图片列表（不需要 imagePool）
+      images = overrideImages;
+      images.forEach(function (img) { srcSet[img.src] = true; });
+    } else {
+      var srcSlots = {};
+      try {
+        var pendingSlots = JSON.parse(sessionStorage.getItem('__meitu_import_slots') || '[]');
+        if (pendingSlots.length) {
+          pendingSlots.forEach(function (s) { if (s.url) srcSlots[s.url] = s; });
+        }
+      } catch (e) {}
+      imagePool.forEach(function (p, pi) {
+        var slotLabel = '';
+        if (srcSlots[p.src]) {
+          var s = srcSlots[p.src];
+          slotLabel = ' (' + (s.field === 'main_images' ? '主图' + (s.index + 1) : s.field === 'detail_images' ? '详情' + (s.index + 1) : 'SKU') + ')';
+        }
         images.push({
-          id: 'cv-' + c.id, src: c.src, originalSrc: c.src,
-          type: 'canvas', refId: c.id, label: '画布 #' + c.id,
-          _slot: srcSlots[c.src] || null
+          id: 'p-' + p.id, src: p.src, originalSrc: p.src,
+          type: 'pool', refId: p.id, label: '图片 #' + (pi + 1) + slotLabel,
+          _slot: srcSlots[p.src] || null
         });
-      }
-    });
+        srcSet[p.src] = true;
+      });
+      canvasItems.forEach(function (c) {
+        if (c.src && c.type !== 'text' && !srcSet[c.src]) {
+          images.push({
+            id: 'cv-' + c.id, src: c.src, originalSrc: c.src,
+            type: 'canvas', refId: c.id, label: '画布 #' + c.id,
+            _slot: srcSlots[c.src] || null
+          });
+        }
+      });
+    }
     if (!images.length) { showToast('没有可编辑的图片', 'err'); return; }
 
     var startIdx = 0;
@@ -1438,6 +1451,7 @@ function initMeituCollage() {
       }
     } else {
       // 拼图编辑模式：同步修改回 imagePool/canvasItems
+      if (canvasBoard) {
       editorImages.forEach(function (img) {
         if (img.src !== img.originalSrc) {
           if (img.type === 'pool') {
@@ -1454,6 +1468,7 @@ function initMeituCollage() {
       });
       buildPool();
       buildCanvasItems(); updatePropBar();
+      }
       closeEditor();
       showToast('所有修改已保存', 'ok');
     }
@@ -1547,16 +1562,17 @@ function initMeituCollage() {
     // 不再自动激活涂抹模式，仅保留面板展开状态
   }
 
-  // ===== Accordion =====
-  editorModal.querySelectorAll('.acc-header').forEach(function (header) {
-    header.addEventListener('click', function () {
-      var section = this.parentElement;
-      var wasOpen = section.classList.contains('open');
-      editorModal.querySelectorAll('.acc-section').forEach(function (s) { s.classList.remove('open'); });
-      if (!wasOpen) {
-        section.classList.add('open');
-      }
-    });
+  // ===== Accordion（使用事件委托，防止绑定时机问题） =====
+  editorModal.addEventListener('click', function (e) {
+    var header = e.target.closest('.acc-header');
+    if (!header) return;
+    var section = header.parentElement;
+    if (!section || !section.classList.contains('acc-section')) return;
+    var wasOpen = section.classList.contains('open');
+    editorModal.querySelectorAll('.acc-section').forEach(function (s) { s.classList.remove('open'); });
+    if (!wasOpen) {
+      section.classList.add('open');
+    }
   });
 
   // ===== Transform helper =====
@@ -2216,8 +2232,10 @@ function initMeituCollage() {
   }
 
   // ========== Init ==========
-  applyMode();
-  updateEditBtn();
+  if (canvasBoard) {
+    applyMode();
+    updateEditBtn();
+  }
 
   // 暴露外部导入接口：接收URL数组，逐张下载并加入图片池
   window._meituImportImages = function (urls) {
