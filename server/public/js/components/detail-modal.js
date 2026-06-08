@@ -433,20 +433,29 @@ Vue.component('detail-modal', {
     // ===== 图片选择弹窗 =====
     openImagePicker: function (target) {
       this.imagePickerTarget = target;
+      this.imagePickerTempUrl = null;
       this.showImagePicker = true;
     },
     onImagePickerSelect: function (url) {
+      this.imagePickerTempUrl = url;
+    },
+    confirmImagePicker: function () {
       var t = this.imagePickerTarget;
-      if (!t) return;
+      if (!t || !this.imagePickerTempUrl) { this.showImagePicker = false; this.imagePickerTarget = null; return; }
       if (t.type === 'sku') {
-        this.$set(this.editable.skus[t.skuIndex], 'image', url);
+        this.$set(this.editable.skus[t.skuIndex], 'image', this.imagePickerTempUrl);
       } else if (t.type === 'variant') {
-        this.setVariantImage(t.attrIdx, t.valueName, url);
+        this.setVariantImage(t.attrIdx, t.valueName, this.imagePickerTempUrl);
       }
       this.showImagePicker = false;
       this.imagePickerTarget = null;
+      this.imagePickerTempUrl = null;
     },
     onImagePickerClose: function () {
+      this.showImagePicker = false;
+      this.imagePickerTarget = null;
+      this.imagePickerTempUrl = null;
+    },
       this.showImagePicker = false;
       this.imagePickerTarget = null;
     },
@@ -1607,18 +1616,22 @@ Vue.component('detail-modal', {
         </modal>
 
         <!-- 图片选择弹窗 -->
-        <modal v-model="showImagePicker" title="选择图片" width="900" footer-hide>
+        <modal v-model="showImagePicker" title="选择图片" width="900">
           <div style="margin-bottom:10px;font-size:12px;color:var(--text-muted)">点击图片选择（拖拽图片也可替换）共 {{ skuBatchAllImages.length }} 张</div>
           <div v-if="!skuBatchAllImages.length" style="padding:40px;text-align:center;color:#999">当前产品没有图片，请先添加主图或详情图</div>
           <div class="img-picker-grid" v-show="skuBatchAllImages.length">
             <div class="img-picker-item" v-for="(url, pi) in skuBatchAllImages" :key="'pi'+pi"
-              :class="{ 'img-picker-selected': (imagePickerTarget && ((imagePickerTarget.type==='sku' && editable.skus[imagePickerTarget.skuIndex] && editable.skus[imagePickerTarget.skuIndex].image===url) || (imagePickerTarget.type==='variant' && variantAttrs[imagePickerTarget.attrIdx] && variantAttrs[imagePickerTarget.attrIdx].images[imagePickerTarget.valueName]===url))) }"
+              :class="{ 'img-picker-selected': imagePickerTempUrl === url }"
               @click="onImagePickerSelect(url)">
               <img :src="url" loading="lazy" />
               <div class="img-picker-check">✓</div>
             </div>
           </div>
-                </modal>
+          <div slot="footer">
+            <i-button size="small" @click="onImagePickerClose">取消</i-button>
+            <i-button type="primary" size="small" @click="confirmImagePicker" :disabled="!imagePickerTempUrl">确认</i-button>
+          </div>
+        </modal>
 
         <!-- SKU\u56fe\u7247\u6279\u91cf\u66ff\u6362\u5f39\u7a97 -->
         <modal v-model="showSkuBatchModal" title="SKU\u56fe\u7247\u6279\u91cf\u66ff\u6362" width="1200" footer-hide>
