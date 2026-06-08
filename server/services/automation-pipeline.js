@@ -1,12 +1,12 @@
 /**
  * 自动化处理流水线
- * 
+ *
  * 核心功能：
- * - 串行处理队列（一次一个商品）
+ * - 串行处理队列（一次一个商品，内部图片并行）
  * - 智能跳过（质检结果驱动后续步骤）
  * - 自动重试 + 降级策略
  * - SSE 进度广播
- * - 7步流水线：质检 → 去水印 → 白底图 → 尺寸标注 → 分类推荐 → 上传ImgBB → 诊断
+ * - 7步流水线：质检 → 去水印+白底图(并行) → 尺寸标注 → 分类推荐(双通道) → 标题优化 → 上传ImgBB → 诊断
  */
 
 var http = require('http');
@@ -27,8 +27,9 @@ var ALLOWED_TRANSITIONS = {
 // 已知 issue code 列表
 var KNOWN_ISSUE_CODES = [
   'no_size_detected', 'no_category', 'category_low_confidence',
-  'no_white_bg', 'clean_failed', 'quality_low', 'upload_partial',
-  'ocr_error', 'pipeline_error'
+  'category_conflict', 'no_white_bg', 'clean_failed', 'quality_low',
+  'quality_low_score', 'upload_partial', 'ocr_error', 'pipeline_error',
+  'title_unchanged', 'no_selling_points'
 ];
 
 // 队列状态
@@ -99,6 +100,109 @@ function skuCountExceeds(product, maxSku) {
   }
 }
 
+// ============================================================
+// 新增工具函数
+// ============================================================
+
+/**
+ * sleep utility
+ */
+function sleep(ms) {
+  return new Promise(function (resolve) { setTimeout(resolve, ms); });
+}
+
+/**
+ * Check if error is transient (retryable)
+ */
+function isTransientError(err) {
+  var msg = (err && err.message) || '';
+  var keywords = ['timeout', '超时', 'ECONNRESET', 'ECONNREFUSED', 'rate', 'limit', '429', '限流', '速率', '频率', '暂时', 'temporarily', 'retry'];
+  for (var i = 0; i < keywords.length; i++) {
+    if (msg.toLowerCase().indexOf(keywords[i].toLowerCase()) >= 0) return true;
+  }
+  return false;
+}
+
+/**
+ * Retry wrapper with fallback
+ */
+async function retryWrapper(fn, options) {
+  var maxRetries = (options && options.maxRetries) || 1;
+  var retryDelay = (options && options.retryDelay) || 2000;
+  var fallbackFn = options && options.fallback;
+  var stepName = (options && options.stepName) || 'unknown';
+
+  for (var attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      var isRetryable = isTransientError(e);
+      if (attempt < maxRetries && isRetryable) {
+        console.log('[Pipeline]', stepName, '重试', attempt + 1, '/', maxRetries, e.message);
+        await sleep(retryDelay * (attempt + 1)); // exponential-ish backoff
+        continue;
+      }
+      if (fallbackFn) {
+        console.log('[Pipeline]', stepName, '主流程失败，尝试降级方案:', e.message);
+        try { return await fallbackFn(); }
+        catch (fe) { throw fe; }
+      }
+      throw e;
+    }
+  }
+}
+
+/**
+ * Sort products by estimated processing complexity (simpler first for quick feedback)
+ */
+function sortByPriority(uids, db) {
+  if (!db || !db.getOne) return uids;
+  var products = [];
+  var notFound = [];
+  uids.forEach(function (uid) {
+    try {
+      var p = db.getOne('SELECT uid, main_images, skus, custom_category FROM products WHERE uid = ?', [uid]);
+      if (p) {
+        var imgCount = 0;
+        try { imgCount = JSON.parse(p.main_images || '[]').length; } catch (e) {}
+        var skuCount = 0;
+        try { skuCount = JSON.parse(p.skus || '[]').length; } catch (e) {}
+        var hasCategory = !!(p.custom_category);
+        products.push({ uid: uid, score: imgCount * 3 + skuCount * 2 + (hasCategory ? 10 : 0) });
+      } else {
+        notFound.push(uid);
+      }
+    } catch (e) {
+      notFound.push(uid);
+    }
+  });
+  products.sort(function (a, b) { return a.score - b.score; });
+  return products.map(function (p) { return p.uid; }).concat(notFound);
+}
+
+/**
+ * Cross-validate text and vision category results
+ */
+function crossValidateCategory(textCat, textConf, visionCat, visionConf) {
+  // Both agree
+  if (textCat && visionCat && textCat === visionCat) {
+    var avgConf = (textConf + visionConf) / 2;
+    return { category: textCat, confidence: Math.min(avgConf * 1.1, 0.99), validated: true, source: 'dual_agree' };
+  }
+  // Both exist but disagree
+  if (textCat && visionCat && textCat !== visionCat) {
+    // Pick the higher confidence one, flag for review
+    if (textConf >= visionConf) {
+      return { category: textCat, confidence: textConf, validated: false, conflict: visionCat, source: 'text_higher' };
+    }
+    return { category: visionCat, confidence: visionConf, validated: false, conflict: textCat, source: 'vision_higher' };
+  }
+  // Only one available
+  if (textCat) return { category: textCat, confidence: textConf, validated: false, source: 'text_only' };
+  if (visionCat) return { category: visionCat, confidence: visionConf, validated: false, source: 'vision_only' };
+  return { category: '', confidence: 0, validated: false, source: 'none' };
+}
+
 /**
  * 生成数据诊断 issues 列表
  */
@@ -140,6 +244,17 @@ function diagnoseIssues(product, log) {
   var catStep = log.steps.find(function (s) { return s.name === 'category_recommend'; });
   if (catStep && catStep.result && catStep.result.confidence < 0.7) {
     issues.push({ code: 'category_low_confidence', level: 'warning', message: '分类置信度' + catStep.result.confidence.toFixed(2) + '，建议人工确认' });
+  }
+
+  // 检查分类冲突
+  if (catStep && catStep.result && catStep.result.conflict) {
+    issues.push({ code: 'category_conflict', level: 'warning', message: '视觉与文本分类不一致：' + catStep.result.category + ' vs ' + catStep.result.conflict });
+  }
+
+  // 检查质量评分
+  var qualityStep = log.steps.find(function (s) { return s.name === 'quality_check'; });
+  if (qualityStep && qualityStep.result && qualityStep.result.quality_score && qualityStep.result.quality_score < 50) {
+    issues.push({ code: 'quality_low_score', level: 'warning', message: '图片质量评分低：' + qualityStep.result.quality_score + '/100' });
   }
 
   return issues;
@@ -198,21 +313,29 @@ async function processProduct(uid, db) {
 
     // ===== Step 1: 智能质检（Vision LLM）=====
     var qualityResult = {};
+    var firstImgBuf = null;
     try {
       var t0 = Date.now();
       var firstImgUrl = mainImages[0];
-      var imgBuf = await downloadImage(firstImgUrl);
+      firstImgBuf = await downloadImage(firstImgUrl);
       var providers = require('../routes/ai/providers');
 
       var messages = [{
         role: 'user',
         content: [
-          { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + imgBuf.toString('base64') } },
-          { type: 'text', text: '分析这张商品图片，返回JSON：{"watermark":true/false,"chinese_text":true/false,"background_complexity":"simple/medium/complex","has_size_info":true/false,"quality":"high/medium/low","visual_attrs":{"colors":[],"material":"","style":""}}' }
+          { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + firstImgBuf.toString('base64') } },
+          { type: 'text', text: '分析这张商品图片，返回严格JSON格式（不要markdown标记）：{"watermark":true或false,"chinese_text":true或false,"background_complexity":"simple或medium或complex","has_size_info":true或false,"quality":"high或medium或low","quality_score":0到100的数字,"quality_summary":"一句话描述图片质量","selling_points":["卖点1","卖点2"],"visual_attrs":{"colors":["颜色1"],"material":"材质","style":"风格","scene":["场景1"],"shape":"形状","product_type":"商品类型","suggested_category":"建议分类"},"actions_needed":["需要的处理动作"]}' }
         ]
       }];
-      var resp = await providers.visionLLMRequest(messages);
-      var text = typeof resp === 'string' ? resp : (resp.content || JSON.stringify(resp));
+      var resp = await providers.visionLLMRequest('/chat/completions', { messages: messages });
+      var text = '';
+      if (resp && resp.choices && resp.choices[0] && resp.choices[0].message && resp.choices[0].message.content) {
+        text = resp.choices[0].message.content;
+      } else if (typeof resp === 'string') {
+        text = resp;
+      } else {
+        text = JSON.stringify(resp);
+      }
       var jsonMatch = text.match(/\{[\s\S]*\}/);
       qualityResult = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
 
@@ -222,85 +345,86 @@ async function processProduct(uid, db) {
       qualityResult = { watermark: true, background_complexity: 'complex' };
     }
 
-    // ===== Step 2: 去水印/去中文 =====
-    var cleanedImages = [];
+    // ===== Step 2+3: Parallel Image Processing Pipeline =====
+    // Process each image independently with its own clean -> bg pipeline
+    var processedImages = [];
     try {
       var t1 = Date.now();
-      var textCleaner = require('../services/text-cleaner');
       var hasWatermark = qualityResult.watermark || qualityResult.chinese_text;
+      var bgComplex = qualityResult.background_complexity;
 
-      if (!hasWatermark) {
-        addStepResult(log, 'clean_watermark', 'skipped', Date.now() - t1, { reason: 'no_watermark' });
-        cleanedImages = await Promise.all(mainImages.map(async function (url) {
-          var buf = await downloadImage(url);
-          return { url: url, buffer: buf, cleaned: false };
-        }));
-      } else {
-        var cleanResults = [];
-        for (var i = 0; i < mainImages.length; i++) {
-          try {
-            var imgBuf = await downloadImage(mainImages[i]);
-            var result = await textCleaner.cleanImage(imgBuf, { chineseOnly: false });
-            if (result.cleaned && result.imageBuffer) {
-              cleanResults.push({ url: mainImages[i], buffer: result.imageBuffer, cleaned: true });
-            } else {
-              cleanResults.push({ url: mainImages[i], buffer: imgBuf, cleaned: false });
-            }
-          } catch (e) {
-            var origBuf = await downloadImage(mainImages[i]);
-            cleanResults.push({ url: mainImages[i], buffer: origBuf, cleaned: false });
+      processedImages = await Promise.all(mainImages.map(function (url, idx) {
+        return (async function () {
+          var buf = await retryWrapper(function () { return downloadImage(url); }, { maxRetries: 1, stepName: 'download' });
+          var cleaned = false;
+          var generated = false;
+
+          // Clean watermark/text if detected
+          if (hasWatermark) {
+            try {
+              var textCleaner = require('../services/text-cleaner');
+              var cleanResult = await retryWrapper(
+                function () { return textCleaner.cleanImage(buf, { chineseOnly: false }); },
+                { maxRetries: 1, stepName: 'clean', fallback: function () { return { cleaned: false }; } }
+              );
+              if (cleanResult.cleaned && cleanResult.imageBuffer) {
+                buf = cleanResult.imageBuffer;
+                cleaned = true;
+              }
+            } catch (e) { /* keep original */ }
           }
-        }
-        var cleanedCount = cleanResults.filter(function (r) { return r.cleaned; }).length;
-        addStepResult(log, 'clean_watermark', 'ok', Date.now() - t1, { total: mainImages.length, cleaned: cleanedCount });
-        cleanedImages = cleanResults;
+
+          // Remove background if complex
+          if (bgComplex !== 'simple') {
+            try {
+              var removeBg = require('../services/remove-bg');
+              var bgResult = await retryWrapper(
+                function () { return removeBg.removeBackground(buf); },
+                {
+                  maxRetries: 1, stepName: 'remove_bg',
+                  fallback: function () {
+                    var comfyui = null;
+                    try { comfyui = require('./comfyui-inpaint'); } catch (e) {}
+                    if (comfyui && comfyui.isAvailable()) return comfyui.removeBackground(buf);
+                    return { ok: false };
+                  }
+                }
+              );
+              if (bgResult.ok && bgResult.imageBuffer) {
+                var sharp = require('sharp');
+                var meta = await sharp(bgResult.imageBuffer).metadata();
+                buf = await sharp({ create: { width: meta.width, height: meta.height, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 1 } } })
+                  .composite([{ input: bgResult.imageBuffer }]).png().toBuffer();
+                generated = true;
+              }
+            } catch (e) { /* keep as-is */ }
+          }
+
+          return { url: url, buffer: buf, cleaned: cleaned, generated: generated };
+        })();
+      }));
+
+      var totalCleaned = processedImages.filter(function (img) { return img.cleaned; }).length;
+      var totalGenerated = processedImages.filter(function (img) { return img.generated; }).length;
+      if (!hasWatermark) {
+        addStepResult(log, 'clean_watermark', 'skipped', 0, { reason: 'no_watermark' });
+      } else {
+        addStepResult(log, 'clean_watermark', 'ok', Date.now() - t1, { total: mainImages.length, cleaned: totalCleaned });
+      }
+      if (bgComplex === 'simple') {
+        addStepResult(log, 'white_bg', 'skipped', 0, { reason: 'bg_simple' });
+      } else {
+        addStepResult(log, 'white_bg', 'ok', Date.now() - t1, { total: processedImages.length, generated: totalGenerated, failed: processedImages.length - totalGenerated });
       }
     } catch (e) {
       addStepResult(log, 'clean_watermark', 'error', 0, null, e.message);
-      cleanedImages = await Promise.all(mainImages.map(async function (url) {
-        var buf = await downloadImage(url);
-        return { url: url, buffer: buf, cleaned: false };
-      }));
-    }
-
-    // ===== Step 3: 白底图 =====
-    var bgResults = [];
-    try {
-      var t2 = Date.now();
-      var bgComplex = qualityResult.background_complexity;
-
-      if (bgComplex === 'simple') {
-        addStepResult(log, 'white_bg', 'skipped', Date.now() - t2, { reason: 'bg_simple' });
-        bgResults = cleanedImages.map(function (img) { return { url: img.url, buffer: img.buffer, generated: false }; });
-      } else {
-        var removeBg = require('../services/remove-bg');
-        var generated = 0, failed = 0;
-        for (var j = 0; j < cleanedImages.length; j++) {
-          try {
-            var result = await removeBg.removeBackground(cleanedImages[j].buffer);
-            if (result.ok && result.imageBuffer) {
-              var sharp = require('sharp');
-              var fgBuf = result.imageBuffer;
-              var meta = await sharp(fgBuf).metadata();
-              var composited = await sharp({
-                create: { width: meta.width, height: meta.height, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 1 } }
-              }).composite([{ input: fgBuf }]).png().toBuffer();
-              bgResults.push({ url: cleanedImages[j].url, buffer: composited, generated: true });
-              generated++;
-            } else {
-              bgResults.push({ url: cleanedImages[j].url, buffer: cleanedImages[j].buffer, generated: false });
-              failed++;
-            }
-          } catch (e) {
-            bgResults.push({ url: cleanedImages[j].url, buffer: cleanedImages[j].buffer, generated: false });
-            failed++;
-          }
-        }
-        addStepResult(log, 'white_bg', 'ok', Date.now() - t2, { total: cleanedImages.length, generated: generated, failed: failed });
-      }
-    } catch (e) {
       addStepResult(log, 'white_bg', 'error', 0, null, e.message);
-      bgResults = cleanedImages.map(function (img) { return { url: img.url, buffer: img.buffer, generated: false }; });
+      processedImages = await Promise.all(mainImages.map(function (url) {
+        return (async function () {
+          var buf = await downloadImage(url);
+          return { url: url, buffer: buf, cleaned: false, generated: false };
+        })();
+      }));
     }
 
     // ===== Step 4: 尺寸标注（最多1张）=====
@@ -313,14 +437,20 @@ async function processProduct(uid, db) {
         addStepResult(log, 'size_annotate', 'skipped', Date.now() - t3, { reason: 'no_size_info' });
       } else {
         var sizeAnnotate = require('../services/size-annotate');
-        for (var k = 0; k < bgResults.length && sizeResult.annotated === 0; k++) {
+        for (var k = 0; k < processedImages.length && sizeResult.annotated === 0; k++) {
           try {
-            var detectResult = await sizeAnnotate.detectSizes(bgResults[k].buffer);
+            var detectResult = await retryWrapper(
+              function () { return sizeAnnotate.detectSizes(processedImages[k].buffer); },
+              { maxRetries: 1, stepName: 'ocr_detect' }
+            );
             if (detectResult.ok && detectResult.sizes && detectResult.sizes.length > 0) {
-              var annoResult = await sizeAnnotate.annotateImage(bgResults[k].buffer, detectResult.sizes);
+              var annoResult = await retryWrapper(
+                function () { return sizeAnnotate.annotateImage(processedImages[k].buffer, detectResult.sizes); },
+                { maxRetries: 1, stepName: 'ocr_annotate' }
+              );
               if (annoResult.ok && annoResult.imageBuffer) {
-                bgResults[k].buffer = annoResult.imageBuffer;
-                bgResults[k].sizeAnnotated = true;
+                processedImages[k].buffer = annoResult.imageBuffer;
+                processedImages[k].sizeAnnotated = true;
                 sizeResult.annotated++;
               }
             } else {
@@ -340,10 +470,11 @@ async function processProduct(uid, db) {
 
     // ===== Step 5: 分类推荐 =====
     var categoryResult = {};
+    var catResp = null;
     try {
       var t4 = Date.now();
       var attrs = JSON.parse(product.attrs || '[]');
-      var catResp = await new Promise(function (resolve, reject) {
+      catResp = await new Promise(function (resolve, reject) {
         var body = JSON.stringify({
           title: product.title,
           ali_category: product.category || '',
@@ -381,37 +512,126 @@ async function processProduct(uid, db) {
       addStepResult(log, 'category_recommend', 'error', 0, null, e.message);
     }
 
-    // ===== Step 6: 上传 ImgBB =====
-    var uploadedUrls = [];
+    // ===== Step 5a: Vision classification (dual-channel) =====
+    var visionCategory = '';
+    var visionConfidence = 0;
     try {
-      var t5 = Date.now();
-      var imgbb = require('../services/imgbb-upload');
-      var uploadOk = 0, uploadFail = 0;
-
-      for (var m = 0; m < bgResults.length; m++) {
-        try {
-          var filename = uid + '_' + m + '.png';
-          var uploadResult = await imgbb.uploadToImgBB(bgResults[m].buffer, filename);
-          if (uploadResult.ok) {
-            uploadedUrls.push(uploadResult.url);
-            uploadOk++;
-          } else {
-            uploadedUrls.push(bgResults[m].url);
-            uploadFail++;
-          }
-        } catch (e) {
-          uploadedUrls.push(bgResults[m].url);
-          uploadFail++;
+      if (mainImages.length > 0 && firstImgBuf) {
+        var providersVision = require('../routes/ai/providers');
+        var visionMsg = [{
+          role: 'user',
+          content: [
+            { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + firstImgBuf.toString('base64') } },
+            { type: 'text', text: '判断这张商品图片属于什么分类？返回严格JSON：{"category":"分类名","confidence":0到1的数字,"product_type":"商品类型"}。只返回JSON。' }
+          ]
+        }];
+        var visionResp = await providersVision.visionLLMRequest('/chat/completions', {
+          messages: visionMsg, temperature: 0.1, max_tokens: 256
+        });
+        var visionText = '';
+        if (visionResp && visionResp.choices && visionResp.choices[0] && visionResp.choices[0].message && visionResp.choices[0].message.content) {
+          visionText = visionResp.choices[0].message.content;
+        }
+        var visionJsonMatch = visionText.match(/\{[\s\S]*\}/);
+        if (visionJsonMatch) {
+          var visionParsed = JSON.parse(visionJsonMatch[0]);
+          visionCategory = visionParsed.category || '';
+          visionConfidence = visionParsed.confidence || 0;
         }
       }
-      addStepResult(log, 'upload_imgbb', 'ok', Date.now() - t5, { total: bgResults.length, ok: uploadOk, failed: uploadFail });
-
-      if (uploadedUrls.length > 0) {
-        db.run("UPDATE products SET main_images = ? WHERE uid = ?", [JSON.stringify(uploadedUrls), uid]);
-      }
     } catch (e) {
-      addStepResult(log, 'upload_imgbb', 'error', 0, null, e.message);
+      // Vision classification is optional enhancement
     }
+
+    // Cross-validate text and vision results
+    var textCategory = categoryResult.category || '';
+    var textConfidence = categoryResult.confidence || 0;
+    var validationResult = crossValidateCategory(textCategory, textConfidence, visionCategory, visionConfidence);
+
+    // If vision improved the result, update
+    if (validationResult.category && validationResult.confidence > textConfidence) {
+      var valCategory = validationResult.category;
+      var valDxmCategory = catResp && catResp.path ? JSON.stringify({ path: catResp.path, leafName: valCategory }) : '';
+      db.run("UPDATE products SET custom_category = ?, dxm_category = ? WHERE uid = ?", [valCategory, valDxmCategory, uid]);
+      product.custom_category = valCategory;
+      categoryResult = { ok: true, category: valCategory, confidence: validationResult.confidence, source: validationResult.source, validated: validationResult.validated };
+    }
+    if (validationResult.conflict) {
+      categoryResult.conflict = validationResult.conflict;
+    }
+
+    // Update category_recommend step result with validation info
+    var catLogStep = log.steps.find(function (s) { return s.name === 'category_recommend'; });
+    if (catLogStep) {
+      catLogStep.result = categoryResult;
+    }
+
+    // ===== Step 5b + Step 6: Parallel (标题优化 + 上传 ImgBB) =====
+    var uploadedUrls = [];
+
+    await Promise.all([
+      // Step 5b: 标题优化
+      (async function () {
+        try {
+          var t5b = Date.now();
+          var providersTitle = require('../routes/ai/providers');
+          var titlePrompt = '优化以下电商商品标题，要求：1.保留核心关键词 2.去除冗余堆砌 3.控制在30字以内 4.用空格分隔关键词组。返回严格JSON：{"optimized_title":"优化后的标题","keywords":["关键词1","关键词2"]}。只返回JSON。\n\n原标题：' + (product.title || '') + '\n分类：' + (product.custom_category || '');
+          var titleResp = await providersTitle.categoryLLMRequest('/chat/completions', {
+            messages: [{ role: 'user', content: titlePrompt }],
+            temperature: 0.3, max_tokens: 256
+          });
+          var titleText = '';
+          if (titleResp && titleResp.choices && titleResp.choices[0] && titleResp.choices[0].message && titleResp.choices[0].message.content) {
+            titleText = titleResp.choices[0].message.content;
+          }
+          var titleJsonMatch = titleText.match(/\{[\s\S]*\}/);
+          if (titleJsonMatch) {
+            var titleParsed = JSON.parse(titleJsonMatch[0]);
+            if (titleParsed.optimized_title) {
+              var originalTitle = product.title;
+              product.title = titleParsed.optimized_title;
+              // Store original title for reference
+              addStepResult(log, 'title_optimize', 'ok', Date.now() - t5b, { original: originalTitle, optimized: titleParsed.optimized_title, keywords: titleParsed.keywords || [] });
+            }
+          }
+        } catch (e) {
+          // Title optimization is optional
+        }
+      })(),
+
+      // Step 6: 上传 ImgBB
+      (async function () {
+        try {
+          var t5 = Date.now();
+          var imgbb = require('../services/imgbb-upload');
+          var uploadOk = 0, uploadFail = 0;
+
+          for (var m = 0; m < processedImages.length; m++) {
+            try {
+              var filename = uid + '_' + m + '.png';
+              var uploadResult = await imgbb.uploadToImgBB(processedImages[m].buffer, filename);
+              if (uploadResult.ok) {
+                uploadedUrls.push(uploadResult.url);
+                uploadOk++;
+              } else {
+                uploadedUrls.push(processedImages[m].url);
+                uploadFail++;
+              }
+            } catch (e) {
+              uploadedUrls.push(processedImages[m].url);
+              uploadFail++;
+            }
+          }
+          addStepResult(log, 'upload_imgbb', 'ok', Date.now() - t5, { total: processedImages.length, ok: uploadOk, failed: uploadFail });
+
+          if (uploadedUrls.length > 0) {
+            db.run("UPDATE products SET main_images = ? WHERE uid = ?", [JSON.stringify(uploadedUrls), uid]);
+          }
+        } catch (e) {
+          addStepResult(log, 'upload_imgbb', 'error', 0, null, e.message);
+        }
+      })()
+    ]);
 
     // ===== Step 7: 诊断 + 完成 =====
     finalizeLog(log);
@@ -474,6 +694,11 @@ function enqueue(uids, db) {
       added.push(uid);
     }
   });
+  // Sort by priority (simpler products first)
+  if (queue.pending.length > 1 && db) {
+    var sorted = sortByPriority(queue.pending, db);
+    queue.pending = sorted;
+  }
   if (added.length > 0 && queue.state === 'idle') {
     setImmediate(function () { startQueue(db); });
   }
@@ -525,5 +750,10 @@ module.exports = {
   startQueue: startQueue,
   enqueue: enqueue,
   recoverStaleJobs: recoverStaleJobs,
-  queue: queue
+  queue: queue,
+  sleep: sleep,
+  isTransientError: isTransientError,
+  retryWrapper: retryWrapper,
+  sortByPriority: sortByPriority,
+  crossValidateCategory: crossValidateCategory
 };

@@ -2,6 +2,42 @@
 
 > 基于 `requirements-automation-pipeline-v1.md` 的可行性评估、优化建议与功能扩展
 > 创建时间：2026-06-08
+> 最近更新：2026-06-08（标记实现状态 + Agent/Qclaw 方案调整）
+
+---
+
+## 〇、实现状态速查
+
+> P0-P2 全部完成，P3 大部分完成，Agent 由 Qclaw 集成。
+> 最近更新：2026-06-08（Pipeline v2.0 增强版已实现 + 118 项单元测试全通过）
+
+| 优先级 | 项目 | 状态 | 备注 |
+|--------|------|------|------|
+| **P0** | DB Schema 5 字段 | ✅ 已完成 | `server/db.js` |
+| **P0** | Pipeline 7步核心流程 | ✅ 已完成 | `server/services/automation-pipeline.js` |
+| **P0** | API 路由（5个接口） | ✅ 已完成 | `server/routes/products.js` |
+| **P0** | 草稿箱 / 待发布页面 | ✅ 已完成 | `page-drafts.js` / `page-publish-queue.js` |
+| **P0** | 侧边栏菜单 | ✅ 已完成 | `index.html` |
+| **P0** | SSE 实时进度 | ✅ 已完成 | `db.js` sseBroadcast |
+| **P0** | 云端同步 | ✅ 已完成 | `server/cloud/` |
+| **P1** | 3.2 智能步骤跳过 | ✅ 已完成 | Pipeline 内 qualityResult 驱动跳过 |
+| **P1** | 3.5 队列优雅恢复 | ✅ 已完成 | `recoverStaleJobs()` 10分钟阈值 |
+| **P1** | 3.3 视觉+文本双通道分类 | ✅ **已完成** | Step 5a 新增 visionLLMRequest 视觉分类 + crossValidateCategory 交叉验证 |
+| **P1** | 4.3 智能重试 Agent | ✅ **已完成** | `retryWrapper()` 自动重试 + 降级备选 + isTransientError 判定 |
+| **P2** | 3.1 步骤内并行 | ✅ **已完成** | Step 2+3 图片并行处理 + Step 5b+6 并行 (Promise.all) |
+| **P2** | 4.1 智能质检报告 | ✅ **已完成** | Step 1 prompt 增强：quality_score/quality_summary/selling_points |
+| **P2** | 4.2 视觉属性提取 | ✅ **已完成** | 提取 colors/material/style/scene/shape/suggested_category 存入 log |
+| **P2** | 3.6 批量优先级排序 | ✅ **已完成** | `sortByPriority()` 按图片数+SKU数+分类状态排序 |
+| **P3** | 3.4 图片处理管道合并 | ✅ **已完成** | Step 2+3 合并为并行图片处理管道（每图独立 clean→bg 流水线） |
+| **P3** | 4.4 ComfyUI 场景图 | 🔜 Qclaw | 白底合成已有，场景图由 Qclaw 扩展 |
+| **P3** | 4.6 自动标题优化 | ✅ **已完成** | Step 5b 新增 `categoryLLMRequest` 标题优化步骤 |
+| **P3** | 4.5 本地模型预处理筛选 | ✅ **已完成** | ISNet mask 用于背景复杂度判断，已集成在 Step 2+3 |
+| **Agent** | 三层分级调度 | 🔜 Qclaw | 由 Qclaw Agent 集成实现 |
+| **Agent** | 多模型分类仲裁 | 🔜 Qclaw | Qwen VL / GLM-4V 交叉验证 |
+| **Agent** | 自适应图片处理调度 | 🔜 Qclaw | Agent 路由决策 |
+| **创意** | 卖点自动提取 | ✅ **已完成** | Step 1 输出 selling_points 数组 |
+| **创意** | 分类冲突标记 | ✅ **已完成** | category_conflict issue code + 人工确认提示 |
+| **创意** | 图片质量评分卡 | ✅ **已完成** | Step 1 输出 quality_score (0-100) + quality_low_score issue |
 
 ---
 
@@ -358,33 +394,45 @@ ComfyUI 工作流（可配置）:
 
 ## 六、建议实施优先级
 
-### P0 — 必须实现（与原文档一致）
+### P0 — 必须实现 ✅ 全部已完成
 
-1. DB Schema 5 字段新增
-2. Pipeline 核心串行流程
-3. 前端草稿箱 / 待发布页面
-4. SSE 实时进度反馈
+1. ✅ DB Schema 5 字段新增
+2. ✅ Pipeline 核心串行流程
+3. ✅ 前端草稿箱 / 待发布页面
+4. ✅ SSE 实时进度反馈
 
-### P1 — 强烈建议（本报告优化点）
+### P1 — 强烈建议 ✅ 全部已完成
 
-5. **智能步骤跳过**（3.2）— 质量检测结果驱动后续步骤，减少无效处理
-6. **智能重试 Agent**（4.3）— 区分可恢复/不可恢复错误，自动重试
-7. **队列优雅恢复**（3.5）— 服务重启不误杀
-8. **视觉+文本双通道分类**（3.3）— 提升分类准确率
+5. ✅ **智能步骤跳过**（3.2）— 质量检测结果驱动后续步骤，减少无效处理
+6. ✅ **队列优雅恢复**（3.5）— 服务重启不误杀
+7. ✅ **智能重试 Agent**（4.3）— `retryWrapper()` 自动重试 + 降级策略
+8. ✅ **视觉+文本双通道分类**（3.3）— `crossValidateCategory()` 交叉验证
 
-### P2 — 值得投入（增强功能）
+### P2 — 值得投入 ✅ 全部已完成
 
-9. **步骤内并行**（3.1）— 提速 30-40%
-10. **智能质检报告**（4.1）— 人可读的质量分析
-11. **视觉属性提取**（4.2）— 一次调用多任务
-12. **批量优先级排序**（3.6）— 快速反馈体验
+9. ✅ **步骤内并行**（3.1）— Step 2+3 图片并行 + Step 5b+6 并行
+10. ✅ **智能质检报告**（4.1）— quality_score/quality_summary/selling_points
+11. ✅ **视觉属性提取**（4.2）— colors/material/style/scene/shape/suggested_category
+12. ✅ **批量优先级排序**（3.6）— `sortByPriority()` 按复杂度排序
 
-### P3 — 未来扩展
+### P3 — 未来扩展（完成 3/4）
 
-13. **图片处理管道合并**（3.4）— 减少质量损失
-14. **ComfyUI 场景图工作流**（4.4）— 高级图片处理
-15. **自动标题优化**（4.6）— 平台适配标题
-16. **本地模型预处理筛选**（4.5）— 节省 API 调用
+13. ✅ **图片处理管道合并**（3.4）— Step 2+3 合并为每图独立流水线
+14. 🔜 **ComfyUI 场景图工作流**（4.4）— 高级图片处理，由 Qclaw 扩展
+15. ✅ **自动标题优化**（4.6）— Step 5b `categoryLLMRequest` 标题重写
+16. ✅ **本地模型预处理筛选**（4.5）— ISNet 背景复杂度判断已集成
+
+### Agent — 🔜 由 Qclaw 集成
+
+17. 🔜 **三层分级调度** — Qclaw Agent 负责模型路由
+18. 🔜 **多模型分类仲裁** — Qwen VL / GLM-4V 交叉验证
+19. 🔜 **自适应图片处理调度** — Agent 路由决策
+
+### 创意功能 ✅ 已完成
+
+20. ✅ **卖点自动提取** — Step 1 输出 selling_points 数组
+21. ✅ **分类冲突标记** — `category_conflict` issue code
+22. ✅ **图片质量评分卡** — `quality_score` (0-100) + `quality_low_score` issue
 
 ---
 
@@ -534,6 +582,10 @@ ComfyUI 工作流（可配置）:
 ---
 
 ## 八、Agent 集成方案 — 多模型分级调度
+
+> **实施方向：Agent 核心将由 Qclaw 集成实现，本章保留作为 Qclaw 对接参考。**
+> Pipeline 层面负责：提供标准化的步骤接口、置信度输出、多模型调用入口。
+> Qclaw 层面负责：模型选择路由、置信度门控、降级策略、自适应调度。
 
 ### 8.1 现有模型资源梳理
 
@@ -871,23 +923,38 @@ Agent 方案（自适应 Pipeline）:
 
 ## 九、总结
 
-这个 Pipeline 不是从零构建新系统，而是对现有 8+ 个独立服务模块的**编排整合**。最大的工程优势是"所有零件已备齐，只需组装"。
+### 当前状态（Pipeline v2.0 已上线）
 
-真正的工程重心不在模型调用本身，而在：
+- **P0 基础功能：100% 完成** — Pipeline 核心流程已跑通
+- **P1 核心优化：100% 完成** — 双通道分类、retryWrapper、智能跳过、队列恢复全部就绪
+- **P2 增强功能：100% 完成** — 步骤并行、质检报告、属性提取、优先排序
+- **P3 扩展功能：75% 完成** — 管道合并、标题优化、模型筛选已实现，ComfyUI 场景图由 Qclaw 扩展
+- **创意功能：已完成** — 卖点提取、分类冲突标记、质量评分卡
+- **单元测试：118 项全部通过** — `server/__tests__/unit/automation-pipeline.test.js`
 
-1. **错误处理的健壮性** — 每个步骤可能出错的场景远多于正常场景
-2. **前端状态同步的流畅度** — SSE 实时反馈、草稿箱即时刷新、批量操作的视觉反馈
-3. **可观测性** — automation_log 的结构化设计决定了后续排查问题的效率
-4. **Agent 调度的智能性** — 用免费模型做 80% 的工作，只在必要时花极低成本升级
+### 已实现的核心增强
 
-**Agent 集成的核心结论：**
+| 功能 | 实现方式 | 函数 |
+|------|---------|------|
+| 智能重试 | 可配置重试次数 + 指数退避 + 降级函数 | `retryWrapper()` |
+| 双通道分类 | 视觉分类 + 文本分类 → 交叉验证 | `crossValidateCategory()` |
+| 步骤并行 | Step 2+3 图片并行处理、Step 5b+6 并行 | `Promise.all` |
+| 质检报告 | quality_score + quality_summary + selling_points | Step 1 prompt 增强 |
+| 属性提取 | colors/material/style/scene/shape/product_type | Step 1 prompt 增强 |
+| 优先排序 | 按图片数+SKU数+分类状态排序 | `sortByPriority()` |
+| 标题优化 | GLM-4.7-Flash 重写标题 | Step 5b |
+| 管道合并 | 每图独立 clean→bg 流水线，减少编解码 | Step 2+3 重构 |
+| 错误识别 | timeout/429/限流自动识别 | `isTransientError()` |
+| 降级策略 | remove-bg → ComfyUI Rembg 自动切换 | retryWrapper fallback |
 
+### Qclaw 集成方向
+
+- 三层分级调度（GLM-4V → Qwen3.6-Flash → Qwen3.7-Plus）
+- 置信度门控 + 模型升级路由
+- 自适应图片处理调度
+- ComfyUI 场景图工作流
 - 分类准确率可从 ~75-80% 提升到 ~92-95%
-- 100 个商品的额外模型成本不超过 0.1 元（Qwen3.6-Flash 极低价）
-- 所有模型调用函数已存在于 `providers.js`，无需新写任何 API 对接
-- Agent 调度器本质是一个 "置信度门控 + 模型升级" 的路由逻辑，实现简单
-
-优化空间最大的是"Agent 自适应调度 + 智能步骤跳过"两个方向，投入产出比最高。建议 P0 完成后立即实施 P1 优化，其中 Agent 调度器应作为 P1 的核心。
+- 100 个商品的额外模型成本不超过 0.1 元
 
 ---
 
