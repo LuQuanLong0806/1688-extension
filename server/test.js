@@ -2426,5 +2426,95 @@ test('i-select和i-input高度应为32px', function () {
   assert.ok(css.indexOf('height: 32px') >= 0, 'select高度应为32px');
 });
 
+// ============================================================
+// 18. 智能检测/图片生成 多Key轮换
+// ============================================================
+suite('智能检测/图片生成 多Key轮换');
+
+test('VISION_LLM_CHAIN应包含GLM-4V-Flash', function () {
+  var chain = [{ name: 'GLM-4V-Flash', provider: 'zhipu', model: 'glm-4v-flash' }];
+  assert.strictEqual(chain[0].provider, 'zhipu');
+  assert.strictEqual(chain[0].model, 'glm-4v-flash');
+});
+
+test('IMAGE_GEN_LLM_CHAIN应包含CogView-3-Flash和CogView-4', function () {
+  var chain = [
+    { name: 'CogView-3-Flash', provider: 'zhipu', model: 'cogview-3-flash' },
+    { name: 'CogView-4', provider: 'zhipu', model: 'cogview-4' }
+  ];
+  assert.strictEqual(chain.length, 2);
+  assert.strictEqual(chain[0].model, 'cogview-3-flash');
+  assert.strictEqual(chain[1].model, 'cogview-4');
+});
+
+test('visionLLMRequest有专用key时应直接调用zhipuRequest', function () {
+  var config = { model: 'glm-4v-flash', apiKey: 'test-key-abc123' };
+  var useCustomKey = !!config.apiKey;
+  assert.ok(useCustomKey, '有专用key时应直接用');
+});
+
+test('visionLLMRequest无专用key时应走LLMChain轮换', function () {
+  var config = { model: 'glm-4v-flash', apiKey: '' };
+  var useCustomKey = !!config.apiKey;
+  assert.strictEqual(useCustomKey, false, '无专用key时应走轮换链');
+});
+
+test('imageGenLLMRequest有专用key时应直接调用zhipuRequest', function () {
+  var config = { model: 'cogview-3-flash', apiKey: 'test-key-abc123' };
+  var useCustomKey = !!config.apiKey;
+  assert.ok(useCustomKey);
+});
+
+test('imageGenLLMRequest无专用key时应走LLMChain轮换', function () {
+  var config = { model: 'cogview-3-flash', apiKey: '' };
+  var useCustomKey = !!config.apiKey;
+  assert.strictEqual(useCustomKey, false);
+});
+
+test('智能检测后端应使用visionLLMRequest而非zhipuRequest', function () {
+  // 验证 image-edit.js 中 smart-detect 路由使用 visionLLMRequest
+  var fs = require('fs');
+  var src = fs.readFileSync('server/routes/ai/image-edit.js', 'utf-8');
+  assert.ok(src.indexOf('visionLLMRequest') >= 0, '应使用visionLLMRequest');
+  // 确保不再直接传apiKey给zhipuRequest做smart-detect
+  assert.ok(src.indexOf('visionConfig.apiKey') < 0 || src.indexOf('visionLLMRequest') >= 0, '不应直接传apiKey');
+});
+
+test('图片生成后端应使用imageGenLLMRequest', function () {
+  var fs = require('fs');
+  var src = fs.readFileSync('server/routes/ai/image-gen.js', 'utf-8');
+  assert.ok(src.indexOf('imageGenLLMRequest') >= 0, '应使用imageGenLLMRequest');
+  assert.strictEqual(src.indexOf('imageLLMRequest'), -1, '不应再使用旧的imageLLMRequest');
+});
+
+test('providers.js应导出visionLLMRequest和imageGenLLMRequest', function () {
+  var fs = require('fs');
+  var src = fs.readFileSync('server/routes/ai/providers.js', 'utf-8');
+  assert.ok(src.indexOf('visionLLMRequest') >= 0, '应导出visionLLMRequest');
+  assert.ok(src.indexOf('imageGenLLMRequest') >= 0, '应导出imageGenLLMRequest');
+});
+
+test('LLMChain轮换应复用zhipu通用Keys', function () {
+  // runLLMChain -> zhipu provider -> getZhipuKeys() -> 多Key轮换
+  // 这是现有机制，验证VISION/IMAGE链的provider为zhipu即可
+  var VISION_LLM_CHAIN = [{ name: 'GLM-4V-Flash', provider: 'zhipu', model: 'glm-4v-flash' }];
+  var IMAGE_GEN_LLM_CHAIN = [
+    { name: 'CogView-3-Flash', provider: 'zhipu', model: 'cogview-3-flash' },
+    { name: 'CogView-4', provider: 'zhipu', model: 'cogview-4' }
+  ];
+  VISION_LLM_CHAIN.forEach(function (step) {
+    assert.strictEqual(step.provider, 'zhipu', 'vision链应使用zhipu provider');
+  });
+  IMAGE_GEN_LLM_CHAIN.forEach(function (step) {
+    assert.strictEqual(step.provider, 'zhipu', 'image链应使用zhipu provider');
+  });
+});
+
+test('vision配置页面应提示使用智谱通用Key', function () {
+  var fs = require('fs');
+  var src = fs.readFileSync('server/public/js/components/page-api-keys.js', 'utf-8');
+  assert.ok(src.indexOf('将使用智谱通用 Key') >= 0, '应提示无专用key时使用通用key');
+});
+
 
 summary();

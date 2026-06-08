@@ -75,7 +75,7 @@ router.post('/smart-detect', function (req, res) {
   }
 
   var visionConfig = providers.getAIConfig('vision');
-  providers.zhipuRequest('/chat/completions', {
+  providers.visionLLMRequest('/chat/completions', {
     model: visionConfig.model,
     messages: [{
       role: 'user',
@@ -86,7 +86,7 @@ router.post('/smart-detect', function (req, res) {
     }],
     temperature: 0.1,
     max_tokens: 1024
-  }, { apiKey: visionConfig.apiKey }).then(function (result) {
+  }).then(function (result) {
     var text = result.choices && result.choices[0] && result.choices[0].message && result.choices[0].message.content;
     if (!text) return res.status(502).json({ error: 'AI未返回检测结果' });
 

@@ -53,7 +53,7 @@ router.post('/text-to-image', function (req, res) {
 
   if (!prompt || !prompt.trim()) return res.status(400).json({ error: '请输入图片描述' });
 
-  providers.imageLLMRequest('/images/generations', {
+  providers.imageGenLLMRequest('/images/generations', {
     model: model,
     prompt: prompt.trim(),
     size: size
@@ -78,7 +78,7 @@ router.post('/image-to-image', function (req, res) {
   if (!prompt || !prompt.trim()) return res.status(400).json({ error: '请输入图片描述' });
   if (!imageBase64) return res.status(400).json({ error: '请先上传参考图' });
 
-  providers.imageLLMRequest('/images/generations', {
+  providers.imageGenLLMRequest('/images/generations', {
     model: 'cogview-4',
     prompt: prompt.trim(),
     image: imageBase64,
@@ -103,7 +103,7 @@ router.post('/white-bg', function (req, res) {
   console.log('[AI白底] 开始生成...');
   var t0 = Date.now();
 
-  providers.imageLLMRequest('/images/generations', {
+  providers.imageGenLLMRequest('/images/generations', {
     model: 'cogview-4',
     prompt: 'A high quality e-commerce product photo on a pure white background. The product is exactly the same as in the reference image, centered, well-lit, professional studio photography, clean and crisp white background.',
     image: imageBase64,
@@ -129,7 +129,7 @@ router.post('/enhance', function (req, res) {
   console.log('[AI增强] 开始...');
   var t0 = Date.now();
 
-  providers.imageLLMRequest('/images/generations', {
+  providers.imageGenLLMRequest('/images/generations', {
     model: 'cogview-4',
     prompt: 'Enhance this image to higher quality: sharper details, better lighting, more vivid colors, professional photography quality. Keep all content and composition exactly the same.',
     image: imageBase64,

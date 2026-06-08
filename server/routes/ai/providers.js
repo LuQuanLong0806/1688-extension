@@ -272,9 +272,33 @@ var EXTRACTION_LLM_CHAIN = [
   { name: 'GLM-4-Flash', provider: 'zhipu', model: 'glm-4-flash' },
   { name: 'GLM-4.7-Flash', provider: 'zhipu', model: 'glm-4.7-flash' }
 ];
+var VISION_LLM_CHAIN = [
+  { name: 'GLM-4V-Flash', provider: 'zhipu', model: 'glm-4v-flash' }
+];
+var IMAGE_GEN_LLM_CHAIN = [
+  { name: 'CogView-3-Flash', provider: 'zhipu', model: 'cogview-3-flash' },
+  { name: 'CogView-4', provider: 'zhipu', model: 'cogview-4' }
+];
 
 function categoryLLMRequest(apiPath, body) { return runLLMChain(CATEGORY_LLM_CHAIN, apiPath, body); }
 function extractionLLMRequest(apiPath, body) { return runLLMChain(EXTRACTION_LLM_CHAIN, apiPath, body); }
+function visionLLMRequest(apiPath, body) {
+  var config = getAIConfig('vision');
+  if (config.apiKey) {
+    // 有专用 key 时直接用（不走轮换），因为 vision 通常是单个 key
+    body.model = config.model || 'glm-4v-flash';
+    return zhipuRequest(apiPath, body, { apiKey: config.apiKey });
+  }
+  return runLLMChain(VISION_LLM_CHAIN, apiPath, body);
+}
+function imageGenLLMRequest(apiPath, body) {
+  var config = getAIConfig('image');
+  if (config.apiKey) {
+    body.model = config.model || 'cogview-3-flash';
+    return zhipuRequest(apiPath, body, { apiKey: config.apiKey });
+  }
+  return runLLMChain(IMAGE_GEN_LLM_CHAIN, apiPath, body);
+}
 
 var modelHealthCache = {};
 function isModelBlocked(name) {
@@ -427,5 +451,8 @@ module.exports = {
   getAIConfigs, saveAIConfigs, getAIConfig, getProviderConfig, maskApiKey,
   zhipuRequest, qwenVlRequest,
   categoryLLMRequest, extractionLLMRequest, runLLMChain,
-  imageLLMRequest: function (apiPath, body) { var config = getAIConfig('image'); return zhipuRequest(apiPath, body, { apiKey: config.apiKey }); }
+  visionLLMRequest: visionLLMRequest,
+  imageGenLLMRequest: imageGenLLMRequest,
+  VISION_LLM_CHAIN: VISION_LLM_CHAIN,
+  IMAGE_GEN_LLM_CHAIN: IMAGE_GEN_LLM_CHAIN
 };

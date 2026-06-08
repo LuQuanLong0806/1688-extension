@@ -27,4 +27,19 @@
   --shadow-hover: 0 8px 24px rgba(0,0,0,.07);
   --shadow-accent: 0 4px 14px rgba(14,165,233,.25);
   --transition: .25s cubic-bezier(.4,0,.2,1);
+
+  /* 编辑器暗色变量 */
+  --editor-bg: #1a1a2e;
+  --editor-bg-panel: #16213e;
+  --editor-border: #2a2a4a;
+  --editor-border-subtle: #3a3a5a;
+  --editor-text: #e0e0e0;
+  --editor-text-muted: #888;
+  --editor-accent: #fdba3b;
+  --editor-accent-hover: #f0a800;
+  --editor-hover-bg: #2a2a4a;
+  --editor-active-bg: #3a3a6a;
+  --editor-canvas-bg: #1a1a1a;
+  --editor-canvas-checker: #222;
+  --editor-overlay: rgba(26, 26, 46, 0.85);
 }
