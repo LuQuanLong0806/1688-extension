@@ -601,14 +601,14 @@ body {
 
 .img-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: 8px;
 }
 
 .img-grid .img-item {
   position: relative;
   aspect-ratio: 1;
-  border-radius: 8px;
+  border-radius: 6px;
   overflow: hidden;
   cursor: pointer;
   border: 1px solid #f0f0f0;
@@ -644,10 +644,10 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 120px;
-  height: 120px;
+  width: 80px;
+  height: 80px;
   border: 2px dashed var(--border);
-  border-radius: 8px;
+  border-radius: 6px;
   cursor: pointer;
   transition: all .2s;
   color: var(--text-muted);
@@ -665,8 +665,8 @@ body {
   0%, 100% { border-color: var(--accent); }
   50% { border-color: rgba(var(--accent-rgb, 64,158,255), .3); }
 }
-.img-add-icon { font-size: 28px; line-height: 1; }
-.img-add-text { font-size: 12px; margin-top: 4px; }
+.img-add-icon { font-size: 20px; line-height: 1; }
+.img-add-text { font-size: 11px; margin-top: 2px; }
 .add-image-hint {
   display: flex;
   align-items: center;
@@ -1327,9 +1327,9 @@ body {
 .sku-img-wrap {
   position: relative;
   display: inline-block;
-  width: 56px;
-  height: 56px;
-  border-radius: 6px;
+  width: 44px;
+  height: 44px;
+  border-radius: 4px;
   overflow: hidden;
   border: 1px solid var(--border-subtle, #eee);
 }
@@ -1369,14 +1369,14 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 60px;
-  height: 60px;
-  border-radius: 6px;
+  width: 44px;
+  height: 44px;
+  border-radius: 4px;
   border: 1.5px dashed #d0d0d0;
   background: #fafafa;
   cursor: pointer;
   transition: all .15s;
-  font-size: 12px;
+  font-size: 11px;
   color: #bbb;
 }
 .sku-table td .sku-img-placeholder:hover {
