@@ -14,6 +14,7 @@ Vue.component('detail-modal', {
       // 图片选择弹窗
       showImagePicker: false,
       imagePickerTarget: null,  // { type:'sku'|'variant', skuIndex, attrIdx, valueIdx }
+      imagePickerTempUrl: null,
       // 变种属性编辑状态
       editingVariantValue: null,  // { attrIdx, valueIdx, tempName }
       dragImageUrl: '',
