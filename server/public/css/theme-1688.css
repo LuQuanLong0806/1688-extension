@@ -20,6 +20,8 @@
   --danger-bg: rgba(255,77,79,.06);
   --info: #3b82f6;
   --info-bg: rgba(59,130,246,.06);
+  --radius-xs: 4px;
+  --radius-sm: 6px;
   --radius: 8px;
   --radius-lg: 10px;
   --radius-xl: 12px;
