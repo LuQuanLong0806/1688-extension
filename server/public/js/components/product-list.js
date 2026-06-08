@@ -1,4 +1,4 @@
-// 商品列表页面组件
+﻿// 商品列表页面组件
 Vue.component('page-products', {
   data: function () {
     return {
@@ -335,6 +335,17 @@ Vue.component('page-products', {
         }
       });
     },
+    toggleProductStatus: function (row) {
+      var vm = this;
+      vm.$http.post('/api/product/batch-status', { ids: [row.uid], status: -1 }).then(function (res) {
+        if (res.data && res.data.ok) {
+          row.status = row.status === 1 ? 0 : 1;
+          vm.$Message.success(row.status === 1 ? '已发布' : '已取消发布');
+        }
+      }).catch(function () {
+        vm.$Message.error('切换失败');
+      });
+    },
     batchToggleStatus: function () {
       var vm = this;
       if (!vm.selectedIds.length) return;
@@ -478,13 +489,19 @@ Vue.component('page-products', {
               @mousemove="$root.$refs.thumbPreview.move($event)"
               @mouseleave="$root.$refs.thumbPreview.close()" />
           </template>
+          <template slot="statusDot" slot-scope="{ row }">
+            <div class="status-dot-wrap" @click="toggleProductStatus(row)">
+              <div class="status-dot" :class="row.status === 1 ? 'status-dot-on' : 'status-dot-off'"></div>
+              <span class="status-dot-text">{{ row.status === 1 ? '已发布' : '未发布' }}</span>
+            </div>
+          </template>
           <template slot="title" slot-scope="{ row }">
             <a v-if="row.source_url" :href="row.source_url" target="_blank"
               style="word-break:break-all;line-height:1.4;color:var(--text-primary);text-decoration:none;cursor:pointer;display:inline"
               @mouseenter="$event.target.style.color='#ff6a00';$event.target.style.textDecoration='underline'"
               @mouseleave="$event.target.style.color='var(--text-primary)';$event.target.style.textDecoration='none'">{{ row.title || '-' }}</a>
             <span v-else style="word-break:break-all;line-height:1.4;display:inline">{{ row.title || '-' }}</span>
-            <span :class="row.status === 1 ? 'status-tag status-used' : 'status-tag status-unused'" style="margin-left:6px;vertical-align:middle">{{ row.status === 1 ? '已发布' : '未发布' }}</span>
+
           </template>
           <template slot="aliCategory" slot-scope="{ row }">
             <span style="font-size:12px;color:var(--text-secondary);word-break:break-all">{{ (row.category && (row.category.leafCategoryName || row.category.categoryPath)) || '-' }}</span>
