@@ -38,6 +38,12 @@ Vue.component('page-products', {
       return [
         { type: 'selection', width: 40, align: 'center' },
         {
+          title: '状态',
+          width: 70,
+          align: 'center',
+          slot: 'status'
+        },
+        {
           title: '预览',
           width: 80,
           align: 'center',
@@ -335,17 +341,28 @@ Vue.component('page-products', {
         }
       });
     },
-    toggleProductStatus: function (row) {
-      var vm = this;
-      vm.$http.post('/api/product/batch-status', { ids: [row.uid], status: -1 }).then(function (res) {
-        if (res.data && res.data.ok) {
-          row.status = row.status === 1 ? 0 : 1;
-          vm.$Message.success(row.status === 1 ? '已发布' : '已取消发布');
-        }
-      }).catch(function () {
-        vm.$Message.error('切换失败');
-      });
-    },
+    toggleProductStatus: function (row) {
+
+      var vm = this;
+
+      vm.$http.post('/api/product/batch-status', { ids: [row.uid], status: -1 }).then(function (res) {
+
+        if (res.data && res.data.ok) {
+
+          row.status = row.status === 1 ? 0 : 1;
+
+          vm.$Message.success(row.status === 1 ? '已发布' : '已取消发布');
+
+        }
+
+      }).catch(function () {
+
+        vm.$Message.error('切换失败');
+
+      });
+
+    },
+
     batchToggleStatus: function () {
       var vm = this;
       if (!vm.selectedIds.length) return;
@@ -489,12 +506,18 @@ Vue.component('page-products', {
               @mousemove="$root.$refs.thumbPreview.move($event)"
               @mouseleave="$root.$refs.thumbPreview.close()" />
           </template>
-          <template slot="statusDot" slot-scope="{ row }">
-            <div class="status-dot-wrap" @click="toggleProductStatus(row)">
-              <div class="status-dot" :class="row.status === 1 ? 'status-dot-on' : 'status-dot-off'"></div>
-              <span class="status-dot-text">{{ row.status === 1 ? '已发布' : '未发布' }}</span>
-            </div>
-          </template>
+          <template slot="statusDot" slot-scope="{ row }">
+
+            <div class="status-dot-wrap" @click="toggleProductStatus(row)">
+
+              <div class="status-dot" :class="row.status === 1 ? 'status-dot-on' : 'status-dot-off'"></div>
+
+              <span class="status-dot-text">{{ row.status === 1 ? '已发布' : '未发布' }}</span>
+
+            </div>
+
+          </template>
+
           <template slot="title" slot-scope="{ row }">
             <a v-if="row.source_url" :href="row.source_url" target="_blank"
               style="word-break:break-all;line-height:1.4;color:var(--text-primary);text-decoration:none;cursor:pointer;display:inline"
