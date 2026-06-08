@@ -1324,21 +1324,20 @@ Vue.component('detail-modal', {
             <span class="label">来源</span><span class="value">
               <a v-if="editable.source_url" :href="editable.source_url" target="_blank">{{ editable.source_url }}</a>
               <span v-else>-</span>
+              <span class="info-inline-sep">|</span>
+              <span style="color:var(--text-secondary);font-size:13px">1688: {{ originCategory }}</span>
+              <span class="info-inline-sep">|</span>
+              <span :class="'status-tag ' + (editable.status === 0 ? 'status-unused' : 'status-used')" style="font-size:12px">{{ editable.status === 0 ? '未发布' : '已发布' }}</span>
+              <span class="info-inline-sep">|</span>
+              <span style="color:var(--text-secondary);font-size:13px">{{ editable.created_at || '-' }}</span>
             </span>
             <span class="label">产品标题</span><span class="value">
-              <i-input v-model="editable.title" type="textarea" :rows="2" style="width:600px;font-size:14px" />
+              <i-input v-model="editable.title" style="width:100%;font-size:14px" placeholder="产品标题" />
             </span>
             <span class="label">选择分类</span><span class="value">
               <category-picker :value="editable.customCategory" :path="editable.manualCategory || ''" @input="function(v) { editable.customCategory = v; if (!v) { editable.manualCategory = ''; editable.dxmCategory = ''; } }" @path="function(p) { editable.manualCategory = p }" placeholder="搜索或选择分类" style="width:600px" />
             </span>
-            <span class="label">1688类目</span><span class="value">
-              <span style="color:var(--text-secondary);font-size:14px">{{ originCategory }}</span>
-            </span>
             <!-- 产品货号已隐藏 -->
-            <span class="label">状态</span><span class="value">
-              <span :class="'status-tag ' + (editable.status === 0 ? 'status-unused' : 'status-used')">{{ editable.status === 0 ? '未发布' : '已发布' }}</span>
-            </span>
-            <span class="label">采集时间</span><span class="value">{{ editable.created_at || '-' }}</span>
           </div>
         </div>
 
