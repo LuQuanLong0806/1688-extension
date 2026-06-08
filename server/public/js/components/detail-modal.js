@@ -31,6 +31,7 @@ Vue.component('detail-modal', {
       _batchHideTimer: null,
       // 新增：对标店小秘
       storeName: 'Prozzen',
+      showMoreInfo: false,
       variantAttrName: '颜色',
       productNo: '',
       variantAttrs: [
@@ -86,7 +87,7 @@ Vue.component('detail-modal', {
           if (s.skuCategory === undefined) s.skuCategory = '';
         });
         // 初始化新增字段
-        this.storeName = val.storeName || val.store_name || '';
+        this.storeName = val.storeName || val.store_name || 'Prozzen';
         this.variantAttrName = val.variantAttrName || val.variant_attr_name || '颜色';
         this.productNo = val.productNo || val.product_no || '';
         this.imageSizeCache = {};
@@ -1317,13 +1318,24 @@ Vue.component('detail-modal', {
 
         <!-- 基本信息（置顶） -->
         <div class="detail-section">
-          <div class="detail-section-title">基本信息</div>
+          <div class="detail-section-title" style="cursor:default">基本信息</div>
           <div class="info-grid">
             <span class="label">店铺名称</span><span class="value">
               <i-select v-model="storeName" style="width:300px" clearable placeholder="请选择店铺">
                 <i-option v-for="s in storeOptions" :key="s" :value="s">{{ s }}</i-option>
               </i-select>
             </span>
+            <span class="label">产品标题</span><span class="value">
+              <i-input v-model="editable.title" style="width:100%;font-size:14px" placeholder="产品标题" />
+            </span>
+            <span class="label">选择分类</span><span class="value">
+              <category-picker :value="editable.customCategory" :path="editable.manualCategory || ''" @input="function(v) { editable.customCategory = v; if (!v) { editable.manualCategory = ''; editable.dxmCategory = ''; } }" @path="function(p) { editable.manualCategory = p }" placeholder="搜索或选择分类" style="width:600px" />
+            </span>
+            <span class="info-more-toggle" @click="showMoreInfo = !showMoreInfo">
+              {{ showMoreInfo ? '收起 ▲' : '更多 ▼' }}
+            </span>
+          </div>
+          <div class="info-grid" v-show="showMoreInfo" style="margin-top:2px">
             <span class="label">来源</span><span class="value">
               <a v-if="editable.source_url" :href="editable.source_url" target="_blank">{{ editable.source_url }}</a>
               <span v-else>-</span>
@@ -1334,13 +1346,6 @@ Vue.component('detail-modal', {
               <span class="info-inline-sep">|</span>
               <span style="color:var(--text-secondary);font-size:13px">{{ editable.created_at || '-' }}</span>
             </span>
-            <span class="label">产品标题</span><span class="value">
-              <i-input v-model="editable.title" style="width:100%;font-size:14px" placeholder="产品标题" />
-            </span>
-            <span class="label">选择分类</span><span class="value">
-              <category-picker :value="editable.customCategory" :path="editable.manualCategory || ''" @input="function(v) { editable.customCategory = v; if (!v) { editable.manualCategory = ''; editable.dxmCategory = ''; } }" @path="function(p) { editable.manualCategory = p }" placeholder="搜索或选择分类" style="width:600px" />
-            </span>
-            <!-- 产品货号已隐藏 -->
           </div>
         </div>
 
