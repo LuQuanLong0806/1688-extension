@@ -177,7 +177,12 @@ var LOCAL_TABLE_DEFS = [
       product_no TEXT DEFAULT '',
       variant_attr_name2 TEXT DEFAULT '',
       variant_attr_name3 TEXT DEFAULT '',
-      variant_attr_images TEXT DEFAULT ''
+      variant_attr_images TEXT DEFAULT '',
+      automation_stage TEXT DEFAULT 'none',
+      automation_log TEXT DEFAULT '',
+      automation_issues TEXT DEFAULT '',
+      automation_started_at DATETIME,
+      automation_finished_at DATETIME
     )`
   },
   {

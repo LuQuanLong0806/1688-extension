@@ -254,7 +254,7 @@ module.exports = function (cloud, db) {
         if (!p.uid) return null; // 跳过无 uid 的旧记录
         return {
           sql: (function () {
-            var cols = ['source_url', 'title', 'main_images', 'desc_images', 'detail_images', 'attrs', 'skus', 'category', 'custom_category', 'dxm_category', 'manual_category', 'status', 'deleted'];
+            var cols = ['source_url', 'title', 'main_images', 'desc_images', 'detail_images', 'attrs', 'skus', 'category', 'custom_category', 'dxm_category', 'manual_category', 'status', 'deleted', 'automation_stage', 'automation_log', 'automation_issues', 'automation_started_at', 'automation_finished_at'];
             var sets = cols.map(function (c) { return c + ' = CASE WHEN excluded.updated_at >= products.updated_at THEN excluded.' + c + ' ELSE products.' + c + ' END'; });
             sets.push('created_at = COALESCE(products.created_at, excluded.created_at)');
             sets.push('updated_at = CASE WHEN excluded.updated_at >= products.updated_at THEN excluded.updated_at ELSE products.updated_at END');
@@ -356,11 +356,11 @@ module.exports = function (cloud, db) {
   function saveProductToLocalAndCloud(uid, sourceUrl, title, category, customCategory, dxmCategory, manualCategory, createdAt, mainImages, descImages, detailImages, attrs, skus) {
     if (!cloud.connected || !uid) return;
     var updatedAt = new Date().toISOString().replace('T', ' ').substring(0, 19);
-    var cols = ['source_url', 'title', 'main_images', 'desc_images', 'detail_images', 'attrs', 'skus', 'category', 'custom_category', 'dxm_category', 'manual_category', 'status', 'deleted'];
+    var cols = ['source_url', 'title', 'main_images', 'desc_images', 'detail_images', 'attrs', 'skus', 'category', 'custom_category', 'dxm_category', 'manual_category', 'status', 'deleted', 'automation_stage', 'automation_log', 'automation_issues', 'automation_started_at', 'automation_finished_at'];
     var sets = cols.map(function (c) { return c + ' = CASE WHEN excluded.updated_at >= products.updated_at THEN excluded.' + c + ' ELSE products.' + c + ' END'; });
     sets.push('created_at = COALESCE(products.created_at, excluded.created_at)');
     sets.push('updated_at = CASE WHEN excluded.updated_at >= products.updated_at THEN excluded.updated_at ELSE products.updated_at END');
-    var sql = 'INSERT INTO products (uid, source_url, title, main_images, desc_images, detail_images, attrs, skus, category, custom_category, dxm_category, manual_category, status, deleted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?) ON CONFLICT(uid) DO UPDATE SET ' + sets.join(', ');
+    var sql = 'INSERT INTO products (uid, source_url, title, main_images, desc_images, detail_images, attrs, skus, category, custom_category, dxm_category, manual_category, status, deleted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, '', '', '', NULL, NULL) ON CONFLICT(uid) DO UPDATE SET ' + sets.join(', ');
     cloud.run(sql,
       [uid, sourceUrl || '', title || '', mainImages || '', descImages || '', detailImages || '', attrs || '', skus || '', category || '', customCategory || '', dxmCategory || '', manualCategory || '', 0, createdAt || '', updatedAt]
     ).catch(function () {});

@@ -13,6 +13,8 @@
   --accent-hover: #e05e00;
   --accent-subtle: rgba(255,106,0,.05);
   --accent-glow: rgba(255,106,0,.18);
+  --warning: #ff9900;
+  --warning-bg: rgba(255,153,0,.06);
   --accent-gradient: linear-gradient(135deg, #ff6a00, #ff9a44);
   --success: #36b37e;
   --success-bg: rgba(54,179,126,.06);

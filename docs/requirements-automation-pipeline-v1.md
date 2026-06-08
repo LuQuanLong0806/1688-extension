@@ -1,18 +1,26 @@
-# 需求文档：商品自动化处理流水线 v1.0
+# 需求文档：商品自动化处理流水线 v1.1
 
 > 创建时间：2026-06-08 18:00
-> 项目分支：feature/detail-page-dxm-align
+> 更新时间：2026-06-08 19:21（合并分析报告优化项）
+> 开发分支：feature/automation-pipeline
 
 ---
 
 ## 一、总体概述
 
-实现从 1688 采集商品到"上架就绪"的自动化流水线。核心流程：
+实现从 1688 采集商品到“上架就绪”的自动化流水线。核心流程：
 
 ```
-1688采集商品 → 商品管理页选中 → 点击"批量自动化" → 后台Pipeline处理
-    → 处理完成进入"草稿箱" → 人工确认/修改 → 移入"待发布" → 后续定时发布
+1688采集商品 → 商品管理页选中 → 点击“批量自动化” → 后台Pipeline处理
+    → 处理完成进入“草稿箱” → 人工确认/修改 → 移入“待发布” → 后续定时发布
 ```
+
+### 1.1 核心原则
+
+- **编排而非开发**：所有底层能力（去水印/抠图/OCR/分类/VL/上传）均已存在，Pipeline 是组装
+- **智能跳过**：质检结果驱动后续步骤，无水印不执行去水印，背景简单不执行白底图
+- **渐进增强**：v1.1 串行 + 智能跳过 + 自动重试，后续可升级 Agent 多模型调度
+- **CSS 变量优先**：所有新增样式必须使用 CSS 变量，禁止硬编码颜色值
 
 ---
 
@@ -23,7 +31,7 @@
 | 值 | 名称 | 说明 | 可见页面 |
 |----|------|------|----------|
 | `none` | 未处理 | 采集后的初始状态 | 商品管理 |
-| `processing` | 处理中 | 自动化Pipeline正在执行 | 商品管理（进度指示） |
+| `processing` | 处理中 | Pipeline正在执行 | 商品管理（进度指示） |
 | `draft` | 草稿箱 | 自动化完成，等待人工审核 | 草稿箱页 |
 | `ready` | 待发布 | 人工确认，准备发布 | 待发布页 |
 | `published` | 已发布 | 已上架 | 商品管理（status=1） |
@@ -31,11 +39,11 @@
 
 ### 2.2 阶段与现有 status 字段的关系
 
-现有 `status` 字段（0=未发布, 1=已发布）保持不变，用于最终发布状态。
+现有 `status` 字段（0=未发布, 1=已发布）保持不变。
 新增 `automation_stage` 字段独立跟踪自动化进度。
 
 关系：
-- `stage=none` → `status=0`（未发布）
+- `stage=none` → `status=0`
 - `stage=processing` → `status=0`
 - `stage=draft` → `status=0`
 - `stage=ready` → `status=0`
@@ -51,8 +59,8 @@
 ### 3.1 触发条件
 
 - 商品管理页，用户勾选多个**未处理（stage=none, status=0）**商品
-- 点击"批量自动化"按钮
-- SKU 列表超过 6 个的商品自动跳过（不处理），返回跳过原因
+- 点击“批量自动化”按钮
+- SKU 列表超过 6 个的商品自动跳过
 
 ### 3.2 图片处理规则
 
@@ -62,56 +70,57 @@
 ### 3.3 处理步骤（串行执行，每个商品独立）
 
 ```
-Step 1: 质量检测（GLM-4V-Flash）
-  → 检测模糊、水印、违规内容
-  → 记录检测结果到 automation_log
+Step 1: 智能质检（GLM-4V-Flash）— 路由决策
+  → 检测模糊、水印/水印位置、违规内容
+  → 评估背景复杂度（simple/medium/complex）
+  → 检测是否包含尺寸信息
+  → 提取视觉属性（颜色/材质/风格）— 嵌入质检prompt，不增加额外调用
+  → 输出结构化决策：哪些步骤需要执行，哪些可以跳过
 
-Step 2: 去水印/去中文（LaMa）
-  → 对检测到水印/文字的区域进行 inpaint
-  → 更新处理后的图片
+Step 2: 去水印/去中文（LaMa）— 智能跳过
+  → 仅当 Step 1 检测到水印/中文文字时执行
+  → 无水印 → 跳过，log 记录 "skipped: no_watermark"
+  → 失败 → 自动重试1次 → 降级到 ComfyUI inpaint → 跳过
 
-Step 3: 白底图生成（ISNet 抠图 + CogView-3-Flash / ComfyUI）
-  → 先用 ISNet 抠图去掉原背景
-  → 再用 CogView-3-Flash（免费）生成白底商品图
-  → 抠图失败时降级到 ComfyUI Rembg
-  → 更新处理后的图片
+Step 3: 白底图生成（ISNet 抠图）— 智能跳过
+  → 仅当 Step 1 背景复杂度 > simple 时执行
+  → 背景已简单 → 跳过，log 记录 "skipped: bg_simple"
+  → ISNet 抠图 → 合成白底
+  → 抠图失败 → 降级到 ComfyUI Rembg → 跳过
 
 Step 4: 尺寸标注（PaddleOCR + SVG）— 可选步骤
-  → OCR 提取图片中尺寸信息
   → 只标注能识别到尺寸的图片，**不知道尺寸的不标**
-  → **一个产品只要标注1张尺寸图即可**，多图时标注第一张能识别的
-  → 标注完成后生成带尺寸标注的 SVG 图
-  → 记录标注结果到 automation_log（标注了几张，跳过了几张）
-  → 如果所有图片都未识别到尺寸，记录警告但不影响 stage
+  → **一个产品只要标注1张尺寸图即可**
+  → 全部图未识别到 → 记录警告但不影响 stage
 
 Step 5: 分类推荐（GLM-4.7-Flash）
   → AI 自动推荐商品分类
   → 填充 custom_category / dxm_category
+  → 置信度 < 0.7 → 标记 category_low_confidence
 
 Step 6: 图片上传（ImgBB）
-  → 处理后的图片上传到 ImgBB
   → 按日期自动建相册
-  → 更新 main_images 为 ImgBB URL
+  → 部分失败 → 记录 upload_partial
 
 Step 7: 数据诊断 & 标记完成
   → 扫描处理结果，生成问题列表写入 automation_issues
   → stage 更新为 'draft'
-  → automation_log 记录完整处理日志
 ```
 
-### 3.4 错误处理
+### 3.4 错误处理（智能重试 + 降级）
 
-- 单个步骤失败 → 记录错误到 automation_log → 跳过该步骤 → 继续后续步骤
-- 所有步骤完成后仍有效果的 → stage 设为 `draft`（部分成功）
-- 完全失败（第一步就挂） → stage 设为 `failed`
+可恢复错误（网络超时/429限流/服务暂不可用）：
+等待 2-5s → 自动重试1次 → 重试仍失败 → 判断降级方案 → 执行或跳过
 
-### 3.5 尺寸标注规则补充
+不可恢复错误（格式错误/数据损坏）：记录错误 → 跳过该步骤
 
-- **可选步骤**：尺寸标注不是必须的，识别不到就不标
-- **只标1张**：一个产品最多标注1张尺寸图，标注第一张能识别到尺寸的
-- **识别不到 = 不标**：如果 OCR 未从任何图片中提取到尺寸信息，在 automation_issues 中记录 `"no_size_detected": true` 警告
-- **标注 = 有尺寸信息就标**：只要 OCR 能从图片中提取到尺寸字符串（如 "60×90cm"），就标注该图
-- **不影响流程**：尺寸标注失败或未识别不影响后续步骤，产品仍正常进入草稿箱
+降级策略：LaMa→ComfyUI、ISNet→Rembg
+
+### 3.5 队列恢复策略
+
+服务启动时扫描所有 `stage = 'processing'` 的商品：
+- 超过 10 分钟 → 标记 `failed`
+- 未超过 10 分钟 → 重新加入队列头部，从断点继续
 
 ---
 
@@ -129,36 +138,15 @@ ALTER TABLE products ADD COLUMN automation_finished_at DATETIME;
 
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `automation_stage` | TEXT | `'none'` | 自动化阶段：none/processing/draft/ready/published/failed |
-| `automation_log` | TEXT | `''` | JSON格式处理日志，每个步骤的结果 |
+| `automation_stage` | TEXT | `'none'` | none/processing/draft/ready/published/failed |
+| `automation_log` | TEXT | `''` | JSON格式处理日志 |
 | `automation_issues` | TEXT | `''` | JSON数组，数据诊断问题列表 |
-| `automation_started_at` | DATETIME | NULL | 自动化开始时间 |
-| `automation_finished_at` | DATETIME | NULL | 自动化完成时间 |
+| `automation_started_at` | DATETIME | NULL | 开始时间 |
+| `automation_finished_at` | DATETIME | NULL | 完成时间 |
 
-### 4.2 自动化日志格式（automation_log）
+### 4.2 云端同步
 
-```json
-{
-  "steps": [
-    { "name": "quality_check", "status": "ok", "duration": 2300, "result": { "issues": [], "quality_score": 92 } },
-    { "name": "clean_watermark", "status": "ok", "duration": 3200, "result": { "cleaned": 2, "skipped": 1 } },
-    { "name": "white_bg", "status": "ok", "duration": 5000, "result": { "generated": 3, "failed": 0 } },
-    { "name": "size_annotate", "status": "ok", "duration": 1500, "result": { "annotated": 1, "no_size": 2 }, "skippable": true },
-    { "name": "category_recommend", "status": "ok", "duration": 1800, "result": { "category": "杯子", "confidence": 0.85 } },
-    { "name": "upload_imgbb", "status": "ok", "duration": 4000, "result": { "uploaded": 3, "album": "2026-06-08" } }
-  ],
-  "totalDuration": 17800,
-  "startedAt": "2026-06-08T18:00:00",
-  "finishedAt": "2026-06-08T18:00:18"
-}
-```
-
-### 4.3 云端同步
-
-- `automation_stage`、`automation_log`、`automation_issues`、`automation_started_at`、`automation_finished_at` 五个字段需要同步到 Turso 云端
-- PUT /api/product/:id 更新时，如果这五个字段有变化，同步更新云端
-- `cloudDb.cloudRun` 更新云端 products 表（新增5列，与本地同步）
-- `saveProductToLocalAndCloud` 创建商品时，五个字段默认值同时写入云端
+5 个新字段全部同步到 Turso 云端。
 
 ---
 
@@ -166,84 +154,16 @@ ALTER TABLE products ADD COLUMN automation_finished_at DATETIME;
 
 ### 5.1 新增接口
 
-#### `POST /api/product/batch-automate`
-批量启动自动化处理
-
-请求：
-```json
-{
-  "uids": ["uid1", "uid2", "uid3"]
-}
-```
-
-响应：
-```json
-{
-  "ok": true,
-  "total": 3,
-  "started": 2,
-  "skipped": [
-    { "uid": "uid3", "reason": "SKU超过6个，跳过自动化" },
-    { "uid": "uid4", "reason": "已在处理中或已完成" }
-  ]
-}
-```
-
-#### `GET /api/product/automate-status?uid=xxx`
-查询单个商品的自动化进度（SSE 或轮询）
-
-响应：
-```json
-{
-  "stage": "processing",
-  "log": { "steps": [...], "currentStep": 3 },
-  "startedAt": "...",
-  "elapsed": 8500
-}
-```
-
-#### `POST /api/product/:uid/stage`
-手动更新自动化阶段（草稿箱→待发布 等）
-
-请求：
-```json
-{
-  "stage": "ready",
-  "reason": "人工确认通过"
-}
-```
-
-#### `GET /api/product?stage=draft`
-支持按自动化阶段筛选商品列表（现有 GET /api/product 扩展）
-
-新增查询参数：`stage`
-
-#### `POST /api/product/batch-stage`
-批量更新阶段
-
-请求：
-```json
-{
-  "uids": ["uid1", "uid2"],
-  "stage": "ready"
-}
-```
+- `POST /api/product/batch-automate` — 批量启动自动化
+- `GET /api/product/automate-status?uid=xxx` — 查询进度
+- `POST /api/product/:uid/stage` — 手动更新阶段
+- `POST /api/product/batch-stage` — 批量更新阶段
 
 ### 5.2 修改现有接口
 
-#### `GET /api/product` — 新增 stage 筛选
-- 新增 `stage` 查询参数
-- 返回字段新增 `automationStage`、`automationStartedAt`
-
-#### `PUT /api/product/:id` — 新增5个可更新字段
-- `automationStage` → `automation_stage`
-- `automationLog` → `automation_log`
-- `automationIssues` → `automation_issues`
-- `automationStartedAt` → `automation_started_at`
-- `automationFinishedAt` → `automation_finished_at`
-
-#### `POST /api/product` — 创建时写入默认值
-- `automation_stage = 'none'`
+- `GET /api/product` — 新增 stage 筛选 + 返回新字段
+- `PUT /api/product/:id` — 新增5个可更新字段
+- `POST /api/product` — 创建时写入 automation_stage='none'
 
 ---
 
@@ -251,227 +171,160 @@ ALTER TABLE products ADD COLUMN automation_finished_at DATETIME;
 
 ### 6.1 侧边栏菜单调整
 
-现有菜单：
-1. 商品管理 (`page-products`)
-2. 小秘美图 (`page-meitu`)
-3. 数据看板 (`page-dashboard`)
-4. API 设置 (`page-api-keys`)
-5. 词汇库 (`page-word-library`)
-6. 云同步 (`page-cloud-sync`)
-
-新增：
-1. 商品管理（保持）
-2. **📦 草稿箱** (`page-drafts`) ← 新增
-3. **🚀 待发布** (`page-publish-queue`) ← 新增
-4. 小秘美图（保持）
-5. 数据看板（保持）
-6. API 设置（保持）
-7. 词汇库（保持）
-8. 云同步（保持）
+新增：草稿箱 (`page-drafts`) 和 待发布 (`page-publish-queue`)
 
 ### 6.2 商品管理页改动
 
-#### 批量操作栏新增"批量自动化"按钮
-
-位置：批量删除按钮旁边
-
-```
-[ 批量删除 ] [ 🔄 批量自动化 ] [ 刷新 ]
-```
-
-- 仅当选中项中包含 stage=none 的商品时可用
-- 点击后弹出确认对话框，显示：
-  - 将处理 N 个商品
-  - 跳过 M 个（SKU超6个 / 已处理 / 已发布）
-  - 确认 / 取消
-
-#### 列表新增"自动化阶段"列
-
-位置：状态列之后、预览列之前
-
-显示：
-- `none` → 灰色文字"未处理"
-- `processing` → 蓝色动画旋转图标 + "处理中"
-- `draft` → 绿色标签"草稿箱"
-- `ready` → 橙色标签"待发布"
-- `failed` → 红色标签"失败"（hover 显示错误信息）
-- `published` → 无显示（已发布的已在 status 列标绿）
-
-#### 处理中进度指示
-
-- 商品行右上角显示小进度条或旋转图标
-- SSE 实时更新（复用现有 SSE 机制）
-- 处理完成后自动刷新该行
+- 批量操作栏新增“批量自动化”按钮
+- 列表新增“自动化阶段”列（状态列之后、预览列之前）
+- SSE 实时更新进度
 
 ### 6.3 草稿箱页面（page-drafts）
 
-```
-┌─────────────────────────────────────────────────┐
-│ 📦 草稿箱                        共 N 个商品     │
-├─────────────────────────────────────────────────┤
-│ [搜索框]  [全选]  [批量移入待发布]  [批量退回未处理] │
-├─────────────────────────────────────────────────┤
-│ ☐ [图] 商品标题          分类    SKU  处理时间  操作│
-│ ☐ [图] 商品A             杯子    3个  18:00    [详情][查看日志][退回]│
-│ ☐ [图] 商品B             餐具    2个  18:01    [详情][查看日志][退回]│
-└─────────────────────────────────────────────────┘
-```
-
 核心功能：
-- 只展示 `stage = 'draft'` 的商品
-- "批量移入待发布" → 仅无问题商品可操作（有问题的需先确认）
-- "批量退回未处理" → `stage` 更新为 `none`（重新处理）
-- 单品操作：查看详情 / 查看处理日志 / 退回 / 移入待发布
-- 详情弹窗可编辑（修改标题、分类、图片等）
+- 只展示 `stage = 'draft'`
+- 批量移入待发布 / 批量退回未处理
+- 单品操作：详情 / 日志 / 退回 / 移入
 
 #### 数据诊断列
 
-每条商品行右侧新增"问题诊断"列，实时显示当前数据缺失/异常情况：
+| 问题标识 | 级别 | CSS 变量 | 说明 |
+|----------|------|----------|------|
+| `no_size_detected` | warning | `--warning` | 未标注尺寸 |
+| `no_category` | warning | `--warning` | 未分类 |
+| `category_low_confidence` | warning | `--warning` | 分类置信度低 |
+| `no_white_bg` | warning | `--warning` | 白底图失败 |
+| `clean_failed` | warning | `--warning` | 去水印失败 |
+| `quality_low` | warning | `--warning` | 图片质量低 |
+| `upload_partial` | warning | `--warning` | 图片上传不完整 |
+| `ocr_error` | error | `--danger` | OCR服务异常 |
+| `pipeline_error` | error | `--danger` | 处理异常 |
 
-```
-├──────────────────────────────────────────────────────────────────────┤
-│ ☐ [图] 商品标题          分类   问题诊断              操作         │
-│ ☐ [图] 商品A             杯子   ⚠️ 未标注尺寸          [详情][退回]  │
-│ ☐ [图] 商品B             餐具   ✅ 无问题              [详情][移入]  │
-│ ☐ [图] 商品C             —     ⚠️ 未分类 · 未标注尺寸   [详情][退回]  │
-│ ☐ [图] 商品D             箱包   ❌ 白底图生成失败        [详情][退回]  │
-│ ☐ [图] 商品E             —     ⚠️ 去水印失败 · 未分类   [详情][退回]  │
-└──────────────────────────────────────────────────────────────────────┘
-```
-
-**诊断规则**（`automation_issues` JSON 数组，每个元素一个问题）：
-
-| 问题标识 | 严重级别 | 说明 | 显示 |
-|----------|---------|------|------|
-| `no_size_detected` | ⚠️ 警告 | 所有图片均未识别到尺寸 | "未标注尺寸" |
-| `no_category` | ⚠️ 警告 | 分类推荐未成功，custom_category 为空 | "未分类" |
-| `no_white_bg` | ⚠️ 警告 | 白底图生成全部失败 | "白底图失败" |
-| `clean_failed` | ⚠️ 警告 | 去水印失败 | "去水印失败" |
-| `quality_low` | ⚠️ 警告 | 图片质量评分低于阈值 | "图片质量低" |
-| `upload_partial` | ⚠️ 警告 | 部分图片上传 ImgBB 失败 | "图片上传不完整" |
-| `ocr_error` | ❌ 错误 | OCR 服务不可用 | "OCR服务异常" |
-| `pipeline_error` | ❌ 错误 | Pipeline 整体异常 | "处理异常" |
-
-**显示规则**：
-- 无问题 → 绿色 ✅ "无问题"
-- 仅警告（⚠️） → 橙色标签，可移入待发布（用户确认后继续）
-- 有错误（❌） → 红色标签，建议退回重新处理
-- 多个问题用 · 分隔："⚠️ 未分类 · 未标注尺寸"
-
-#### `automation_issues` 数据结构
-
-```json
-[
-  { "code": "no_size_detected", "level": "warning", "message": "所有图片均未识别到尺寸" },
-  { "code": "no_category", "level": "warning", "message": "分类推荐未成功" }
-]
-```
-
-空数组 `[]` = 无问题。
+显示规则（使用 CSS 变量）：
+- 无问题 → `var(--success)` + `var(--success-bg)` “无问题”
+- 仅警告 → `var(--warning)` + `var(--warning-bg)` 可放行
+- 有错误 → `var(--danger)` + `var(--danger-bg)` 建议退回
 
 ### 6.4 待发布页面（page-publish-queue）
 
+- 只展示 `stage = 'ready'`
+- 批量发布 / 批量退回草稿箱
+
+---
+
+## 七、CSS 样式规范（强制）
+
+### 7.1 禁止硬编码颜色
+
+所有新增样式必须使用项目 CSS 变量。
+
+### 7.2 需要新增的 CSS 变量
+
+三个主题文件均新增：
+- 1688: `--warning: #ff9900; --warning-bg: rgba(255,153,0,.06);`
+- JD: `--warning: #faad14; --warning-bg: rgba(250,173,20,.06);`
+- Fresh: `--warning: #f59e0b; --warning-bg: rgba(245,158,11,.06);`
+
+### 7.3 可用变量清单
+
 ```
-┌─────────────────────────────────────────────────┐
-│ 🚀 待发布                        共 N 个商品     │
-├─────────────────────────────────────────────────┤
-│ [搜索框]  [全选]  [批量发布]  [批量退回草稿箱]      │
-├─────────────────────────────────────────────────┤
-│ ☐ [图] 商品标题          分类    SKU  处理时间  操作│
-│ ☐ [图] 商品A             杯子    3个  18:00    [详情][退回草稿箱]│
-└─────────────────────────────────────────────────┘
+--bg-base / --bg-surface / --bg-elevated / --bg-hover
+--border / --border-subtle
+--text-primary / --text-secondary / --text-muted
+--accent / --accent-hover / --accent-subtle / --accent-glow / --accent-gradient
+--success / --success-bg
+--danger / --danger-bg
+--info / --info-bg
+--warning / --warning-bg  (新增)
+--radius-xs / --radius-sm / --radius / --radius-lg / --radius-xl
+--shadow / --shadow-hover / --shadow-accent
+--transition
 ```
 
-核心功能：
-- 只展示 `stage = 'ready'` 的商品
-- "批量发布" → `status` 更新为 `1`，`stage` 更新为 `published`（定时发布留后续）
-- "批量退回草稿箱" → `stage` 回退为 `draft`
-- 支持排序：按处理完成时间、分类等
+---
+
+## 八、自动化处理服务
+
+### 8.1 文件：`server/services/automation-pipeline.js`
+
+### 8.2 处理队列
+
+内存队列，串行处理（一次1个商品），SSE 广播进度。
+
+### 8.3 步骤复用
+
+| 步骤 | 复用模块 |
+|------|---------|
+| 智能质检 | `providers.visionLLMRequest` |
+| 去水印 | `text-cleaner.js cleanImage` |
+| 白底图 | `remove-bg.js` + ComfyUI Rembg |
+| 尺寸标注 | `ocr_service.py` + `size-annotate.js` |
+| 分类推荐 | `category-recommend.js` |
+| 图片上传 | `imgbb-upload.js` |
 
 ---
 
-## 七、自动化处理服务（后端核心）
+## 九、单元测试计划
 
-### 7.1 文件：`server/services/automation-pipeline.js`
+### 9.1 后端测试
 
-```javascript
-// 核心函数
-async function processProduct(uid) → { stage, log, images, category }
-async function runPipeline(uids) → { started, skipped, results }
-```
+1. DB Schema新增5字段自动补列
+2. stage 状态机合法/非法转换
+3. batch-automate 正常/SKU>6跳过/已处理跳过/空列表
+4. batch-stage 批量转换
+5. Pipeline 智能跳过逻辑
+6. 自动重试 + 降级
+7. automation_log 格式验证
+8. automation_issues 格式验证
+9. 数据诊断规则
+10. 尺寸标注只标1张/不可标不报错
+11. GET /api/product stage 筛选
+12. PUT /api/product 云端同歧5字段
+13. 并发控制
+14. 队列恢复超时/断点续
 
-### 7.2 处理队列设计
+### 9.2 前端测试
 
-- 使用内存队列（`automationQueue`），无需 Redis
-- 串行处理（一次只处理一个商品，避免 API 限流）
-- 队列状态：`idle | running | uid`
-- 每个商品处理完成后通过 SSE 广播进度
-
-### 7.3 并发控制
-
-- 同时只处理 1 个商品（避免 API 限流压力过大）
-- 多 Key 轮换已有机制，Pipeline 直接调用现有函数即可
-- 处理间隔：每完成一个商品后延迟 500ms，降低限流风险
-
-### 7.4 每个步骤的实现复用
-
-| 步骤 | 复用现有模块 | 调用方式 |
-|------|-------------|----------|
-| 质量检测 | `providers.visionLLMRequest` | 直接调用 |
-| 去水印 | `text-cleaner.js cleanImage` | 直接调用 |
-| 白底图 | `remove-bg.js` + ComfyUI Rembg | 直接调用 |
-| 尺寸标注 | `ocr_service.py` + `size-annotate.js` | HTTP localhost:3001 + 直接调用 |
-| 分类推荐 | `category-recommend.js` | 直接调用 |
-| 图片上传 | `imgbb-upload.js` | 直接调用 |
+15. 阶段列渲染
+16. 草稿箱数据加载
+17. 待发布数据加载
+18. 批量操作按钮状态
+19. 问题诊断标签渲染
+20. CSS 变量使用检查（无硬编码颜色）
 
 ---
 
-## 八、单元测试计划
+## 十、实施顺序
 
-### 8.1 后端测试
-
-1. **DB Schema 测试**：新增5个字段自动补列（含 automation_issues）
-2. **stage 状态机测试**：none → processing → draft → ready → published，非法转换拦截
-3. **batch-automate 路由测试**：正常启动、SKU>6跳过、已处理跳过、空列表
-4. **batch-stage 路由测试**：批量 draft→ready、ready→published、非法转换
-5. **Pipeline 步骤跳过测试**：某个步骤失败时记录错误继续后续步骤
-6. **automation_log 格式测试**：JSON 结构验证
-7. **automation_issues 格式测试**：问题诊断 JSON 数组验证
-8. **数据诊断规则测试**：无尺寸/无分类/白底失败等场景
-9. **尺寸标注"只标1张"测试**：多图时只标注第一张有尺寸的
-10. **尺寸标注"不可标"测试**：OCR无结果时不标，不报错
-11. **GET /api/product stage 筛选测试**：按 stage 查询正确
-12. **PUT /api/product 云端同步测试**：5个新字段同步到云端
-13. **并发控制测试**：同时只处理1个商品
-
-### 8.2 前端测试
-
-14. **商品列表自动化阶段列渲染测试**
-15. **草稿箱页面数据加载测试**
-16. **待发布页面数据加载测试**
-17. **批量操作按钮状态测试**（选中项包含已发布时禁用等）
-18. **stage 标签颜色测试**
+1. **CSS 变量** — 三个主题文件新增 `--warning` / `--warning-bg`
+2. **DB Schema** — products 表新增5列 + db.js 自动补列 + cloud 同步
+3. **后端路由** — batch-automate / batch-stage / stage 查询
+4. **Pipeline 服务** — automation-pipeline.js（智能跳过 + 自动重试）
+5. **前端组件** — page-drafts.js / page-publish-queue.js
+6. **商品管理页** — 阶段列 + 批量自动化按钮
+7. **侧边栏** — 新增两个菜单项
+8. **单元测试** — 每个模块完成后立即编写
+9. **集成验证**
 
 ---
 
-## 九、实施顺序
+## 十一、注意事项
 
-1. **DB Schema** — products 表新增5列 + db.js 自动补列
-2. **后端路由** — batch-automate / batch-stage / stage 查询
-3. **Pipeline 服务** — automation-pipeline.js 核心逻辑
-4. **前端组件** — page-drafts.js / page-publish-queue.js
-5. **商品管理页** — 新增阶段列 + 批量自动化按钮
-6. **侧边栏** — 新增两个菜单项
-7. **云端同步** — 新字段同步到 Turso
-8. **单元测试** — 204 → 目标 250+
-9. **集成验证** — 端到端走通完整流程
+1. SKU > 6 跳过
+2. 只处理已选中图片
+3. 幂等性：重复触发时 processing 跳过
+4. 服务重启恢复（10分钟阈值）
+5. 不破坏现有 status 语义
+6. **所有 CSS 使用变量，禁止硬编码颜色**
+7. **每个模块完成后立即单元测试 + 语法检测**
 
 ---
 
-## 十、注意事项
+## 附录：未来扩展（v2.0）
 
-1. **SKU > 6 跳过规则**：解析 `skus` JSON 数组，`length > 6` 的商品跳过
-2. **已选中图片规则**：detail-modal 中的图片选中状态保存在哪里？需确认后对接
-3. **幂等性**：同一个 uid 重复触发 batch-automate 时，已 processing 的跳过
-4. **服务重启恢复**：processing 状态的商品在服务重启时应标记为 failed（避免永久卡住）
-5. **不要破坏现有功能**：status 字段语义不变，新增 stage 是正交维度
+以下功能不在 v1.1 范围内：
+
+- P2：步骤内并行、批量优先级排序
+- P2：智能质检报告、视觉属性展示
+- P2：Agent Layer 2（Qwen3.6-Flash 升级分类）
+- P3：图片管道合并、ComfyUI场景图、自动标题优化

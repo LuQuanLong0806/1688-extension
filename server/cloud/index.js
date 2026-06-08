@@ -50,7 +50,7 @@ var CLOUD_TABLE_DEFS = [
   { name: 'keyword_blacklist', ddl: 'CREATE TABLE IF NOT EXISTS keyword_blacklist (id INTEGER PRIMARY KEY AUTOINCREMENT, keyword TEXT NOT NULL, category_name TEXT NOT NULL, reason TEXT DEFAULT \'\', count INTEGER DEFAULT 1, updated_at TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE(keyword, category_name))' },
   { name: 'category_config', ddl: 'CREATE TABLE IF NOT EXISTS category_config (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, value TEXT NOT NULL, group_name TEXT DEFAULT \'\', description TEXT DEFAULT \'\', sort_order INTEGER DEFAULT 0, deleted INTEGER DEFAULT 0, UNIQUE(type, value, group_name))' },
   { name: 'dxm_category_tree', ddl: 'CREATE TABLE IF NOT EXISTS dxm_category_tree (cat_id INTEGER PRIMARY KEY, cat_name TEXT NOT NULL, parent_cat_id INTEGER DEFAULT 0, cat_level INTEGER DEFAULT 1, is_leaf INTEGER DEFAULT 0, path TEXT DEFAULT \'\', sync_at TEXT DEFAULT CURRENT_TIMESTAMP)' },
-  { name: 'products', ddl: 'CREATE TABLE IF NOT EXISTS products (uid TEXT PRIMARY KEY, source_url TEXT DEFAULT \'\', title TEXT, main_images TEXT, desc_images TEXT, detail_images TEXT, attrs TEXT, skus TEXT, category TEXT, custom_category TEXT, dxm_category TEXT, manual_category TEXT, status INTEGER DEFAULT 0, deleted INTEGER DEFAULT 0, from_machine TEXT DEFAULT \'\', created_at TEXT, updated_at TEXT)' }
+  { name: 'products', ddl: 'CREATE TABLE IF NOT EXISTS products (uid TEXT PRIMARY KEY, source_url TEXT DEFAULT \'\', title TEXT, main_images TEXT, desc_images TEXT, detail_images TEXT, attrs TEXT, skus TEXT, category TEXT, custom_category TEXT, dxm_category TEXT, manual_category TEXT, status INTEGER DEFAULT 0, deleted INTEGER DEFAULT 0, from_machine TEXT DEFAULT \'\', created_at TEXT, updated_at TEXT, automation_stage TEXT DEFAULT \'\', automation_log TEXT DEFAULT \'\', automation_issues TEXT DEFAULT \'\', automation_started_at TEXT, automation_finished_at TEXT)' }
 ];
 
 // 从 settings 读取 Turso 配置
@@ -159,7 +159,7 @@ async function migrateProductsUid() {
 
     if (needRebuild) {
       // 重建表：uid 做 PK，source_url 变普通列
-      await cloud.client.execute('CREATE TABLE IF NOT EXISTS products_new (uid TEXT PRIMARY KEY, source_url TEXT DEFAULT \'\', title TEXT, main_images TEXT, desc_images TEXT, detail_images TEXT, attrs TEXT, skus TEXT, category TEXT, custom_category TEXT, dxm_category TEXT, manual_category TEXT, status INTEGER DEFAULT 0, deleted INTEGER DEFAULT 0, from_machine TEXT DEFAULT \'\', created_at TEXT, updated_at TEXT)');
+      await cloud.client.execute('CREATE TABLE IF NOT EXISTS products_new (uid TEXT PRIMARY KEY, source_url TEXT DEFAULT \'\', title TEXT, main_images TEXT, desc_images TEXT, detail_images TEXT, attrs TEXT, skus TEXT, category TEXT, custom_category TEXT, dxm_category TEXT, manual_category TEXT, status INTEGER DEFAULT 0, deleted INTEGER DEFAULT 0, from_machine TEXT DEFAULT \'\', created_at TEXT, updated_at TEXT, automation_stage TEXT DEFAULT \'\', automation_log TEXT DEFAULT \'\', automation_issues TEXT DEFAULT \'\', automation_started_at TEXT, automation_finished_at TEXT)');
       // 复制数据（uid 为空的先生成）
       var rows = await cloud.client.execute("SELECT rowid, uid, source_url, title, main_images, desc_images, detail_images, attrs, skus, category, custom_category, dxm_category, manual_category, status, deleted, from_machine, created_at, updated_at FROM products");
       var count = 0;

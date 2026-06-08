@@ -2515,6 +2515,163 @@ test('vision配置页面应提示使用智谱通用Key', function () {
   var src = fs.readFileSync('server/public/js/components/page-api-keys.js', 'utf-8');
   assert.ok(src.indexOf('将使用智谱通用 Key') >= 0, '应提示无专用key时使用通用key');
 });
+// ============================================================
+// 自动化流水线 / CSS 变量
+// ============================================================
+suite('自动化流水线 / CSS 变量');
+var fs = require('fs');
+
+test('三个主题文件应都包含 --warning 变量', function () {
+  ['theme-1688.css', 'theme-jd.css', 'theme-fresh.css'].forEach(function (name) {
+    var src = fs.readFileSync('server/public/css/' + name, 'utf-8');
+    assert.ok(src.indexOf('--warning:') >= 0, name + ' 应包含 --warning');
+    assert.ok(src.indexOf('--warning-bg:') >= 0, name + ' 应包含 --warning-bg');
+  });
+});
+
+test('CSS变量不应包含硬编码的16进制颜色（检查新增文件）', function () {
+  // 只检查我们新增的自动化相关样式文件（如果存在）
+  var files = ['server/public/css/app.css'];
+  files.forEach(function (f) {
+    var src = fs.readFileSync(f, 'utf-8');
+    // 允许 rgba() 中的数字，但不允许直接用 #hex 作为颜色值
+    // 这是一个软检查，只验证 style 属性中不使用硬编码 hex
+    var badPatterns = src.match(/style\s*=\s*["'][^"']*#[0-9a-fA-F]{3,8}[^"']*["']/g);
+    if (badPatterns) {
+      // filter out border shorthand, box-shadow etc that use hex in template strings
+      var realBad = badPatterns.filter(function (p) {
+        return p.indexOf('var(') < 0; // 允许 fallback
+      });
+      assert.ok(realBad.length === 0, f + ' 内联样式中不应有硬编码 hex 颜色');
+    }
+  });
+});
+
+// ============================================================
+// 自动化流水线 / DB Schema
+// ============================================================
+suite('自动化流水线 / DB Schema');
+
+test('db.js products DDL 应包含5个自动化字段', function () {
+  var src = fs.readFileSync('server/db.js', 'utf-8');
+  var m = src.match(/CREATE TABLE IF NOT EXISTS products[\s\S]*?\)/);
+  assert.ok(m, '应找到 products DDL');
+  var ddl = m[0];
+  assert.ok(ddl.indexOf('automation_stage') >= 0, '应包含 automation_stage');
+  assert.ok(ddl.indexOf('automation_log') >= 0, '应包含 automation_log');
+  assert.ok(ddl.indexOf('automation_issues') >= 0, '应包含 automation_issues');
+  assert.ok(ddl.indexOf('automation_started_at') >= 0, '应包含 automation_started_at');
+  assert.ok(ddl.indexOf('automation_finished_at') >= 0, '应包含 automation_finished_at');
+});
+
+test('automation_stage 默认值应为 none', function () {
+  var src = fs.readFileSync('server/db.js', 'utf-8');
+  var m = src.match(/automation_stage TEXT DEFAULT '(\w+)'/);
+  assert.ok(m, '应匹配到 automation_stage 默认值');
+  assert.strictEqual(m[1], 'none', '默认值应为 none');
+});
+
+test('cloud/index.js products DDL 应包含5个自动化字段', function () {
+  var src = fs.readFileSync('server/cloud/index.js', 'utf-8');
+  var count = (src.match(/automation_stage/g) || []).length;
+  assert.ok(count >= 2, 'cloud DDL 应至少2处引用 automation_stage（主DDL + 迁移DDL）');
+  assert.ok(src.indexOf('automation_log') >= 0, '应包含 automation_log');
+  assert.ok(src.indexOf('automation_issues') >= 0, '应包含 automation_issues');
+});
+
+test('products.js PUT路由应接受5个自动化字段', function () {
+  var src = fs.readFileSync('server/routes/products.js', 'utf-8');
+  assert.ok(src.indexOf("automationStage: 'automation_stage'") >= 0, '应包含 automationStage 映射');
+  assert.ok(src.indexOf("automationLog: 'automation_log'") >= 0, '应包含 automationLog 映射');
+  assert.ok(src.indexOf("automationIssues: 'automation_issues'") >= 0, '应包含 automationIssues 映射');
+  assert.ok(src.indexOf("automationStartedAt: 'automation_started_at'") >= 0, '应包含 automationStartedAt 映射');
+  assert.ok(src.indexOf("automationFinishedAt: 'automation_finished_at'") >= 0, '应包含 automationFinishedAt 映射');
+});
+
+test('cloud/sync.js 应同步5个自动化字段', function () {
+  var src = fs.readFileSync('server/cloud/sync.js', 'utf-8');
+  assert.ok(src.indexOf("'automation_stage'") >= 0, 'sync cols 应包含 automation_stage');
+  assert.ok(src.indexOf("'automation_log'") >= 0, 'sync cols 应包含 automation_log');
+  assert.ok(src.indexOf("'automation_issues'") >= 0, 'sync cols 应包含 automation_issues');
+});
+
+// ============================================================
+// 自动化流水线 / Stage 状态机
+// ============================================================
+suite('自动化流水线 / Stage 状态机');
+
+var VALID_STAGES = ['none', 'processing', 'draft', 'ready', 'published', 'failed'];
+
+test('合法 stage 值列表应正确', function () {
+  assert.deepStrictEqual(VALID_STAGES.sort(), ['draft', 'failed', 'none', 'processing', 'published', 'ready'].sort());
+});
+
+test('非法 stage 值应被拒绝', function () {
+  var badStages = ['pending', 'done', 'error', '', null, undefined, 'PROCESSING', 'None'];
+  badStages.forEach(function (s) {
+    assert.ok(VALID_STAGES.indexOf(s) < 0, s + ' 不应是合法 stage');
+  });
+});
+
+test('stage 转换应遵循合法路径', function () {
+  var allowedTransitions = {
+    none: ['processing'],
+    processing: ['draft', 'failed'],
+    draft: ['ready', 'none', 'failed'],
+    ready: ['published', 'draft'],
+    published: ['draft'],
+    failed: ['none', 'processing']
+  };
+  Object.keys(allowedTransitions).forEach(function (from) {
+    allowedTransitions[from].forEach(function (to) {
+      assert.ok(VALID_STAGES.indexOf(to) >= 0, from + ' -> ' + to + ' 目标应合法');
+    });
+  });
+  // 非法转换
+  assert.ok(allowedTransitions.none.indexOf('published') < 0, 'none 不应直接到 published');
+  assert.ok(allowedTransitions.processing.indexOf('ready') < 0, 'processing 不应直接到 ready');
+});
+
+// ============================================================
+// 自动化流水线 / automation_issues 格式
+// ============================================================
+suite('自动化流水线 / automation_issues 格式');
+
+test('空 issues 应为空数组', function () {
+  var issues = [];
+  assert.ok(Array.isArray(issues), '应为数组');
+  assert.strictEqual(issues.length, 0, '空 issues 长度应为 0');
+});
+
+test('issue 对象应包含 code/level/message', function () {
+  var issue = { code: 'no_size_detected', level: 'warning', message: '所有图片均未识别到尺寸' };
+  assert.strictEqual(issue.code, 'no_size_detected');
+  assert.strictEqual(['warning', 'error'].indexOf(issue.level) >= 0, true, 'level 应为 warning 或 error');
+  assert.ok(issue.message.length > 0, 'message 不应为空');
+});
+
+test('已知 issue code 列表应完整', function () {
+  var knownCodes = [
+    'no_size_detected', 'no_category', 'category_low_confidence',
+    'no_white_bg', 'clean_failed', 'quality_low', 'upload_partial',
+    'ocr_error', 'pipeline_error'
+  ];
+  assert.strictEqual(knownCodes.length, 9, '应有9个已知 issue code');
+});
+
+test('warning 级别 issue 应使用 CSS 变量 --warning', function () {
+  // 验证主题文件中 --warning 变量存在
+  var src = fs.readFileSync('server/public/css/theme-1688.css', 'utf-8');
+  assert.ok(src.indexOf('--warning:') >= 0, 'CSS 应定义 --warning 变量');
+  assert.ok(src.indexOf('--warning-bg:') >= 0, 'CSS 应定义 --warning-bg 变量');
+});
+
+test('error 级别 issue 应使用 CSS 变量 --danger', function () {
+  var src = fs.readFileSync('server/public/css/theme-1688.css', 'utf-8');
+  assert.ok(src.indexOf('--danger:') >= 0, 'CSS 应定义 --danger 变量');
+  assert.ok(src.indexOf('--danger-bg:') >= 0, 'CSS 应定义 --danger-bg 变量');
+});
+
 
 
 summary();

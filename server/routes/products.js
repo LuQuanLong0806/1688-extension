@@ -336,6 +336,7 @@ router.get('/product/check', (req, res) => {
 });
 
 // 商品列表（分页 + 搜索 + 筛选）
+var VALID_STAGES_IN_ROUTE = pipeline.VALID_STAGES;
 router.get('/product', (req, res) => {
   const page = Math.max(1, parseInt(req.query.page) || 1);
   const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize) || 20));
@@ -373,6 +374,12 @@ router.get('/product', (req, res) => {
   } else if (dxmCategory) {
     where.push('custom_category LIKE ?');
     params.push('%' + dxmCategory + '%');
+  }
+
+  // 按自动化阶段筛选
+  if (req.query.stage && VALID_STAGES_IN_ROUTE.indexOf(req.query.stage) >= 0) {
+    where.push('automation_stage = ?');
+    params.push(req.query.stage);
   }
 
   const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
@@ -444,7 +451,12 @@ router.put('/product/:id', (req, res) => {
     variantAttrName2: 'variant_attr_name2',
     variantAttrName3: 'variant_attr_name3',
     variantAttrImages: 'variant_attr_images',
-    productNo: 'product_no'
+    productNo: 'product_no',
+    automationStage: 'automation_stage',
+    automationLog: 'automation_log',
+    automationIssues: 'automation_issues',
+    automationStartedAt: 'automation_started_at',
+    automationFinishedAt: 'automation_finished_at'
   };
 
   for (const [key, col] of Object.entries(allowedFields)) {
@@ -703,6 +715,7 @@ router.patch('/products/backfill-path', (req, res) => {
   (products || []).forEach(function (p) {
     try {
       var dxm = JSON.parse(p.dxm_category);
+var pipeline = require('../services/automation-pipeline');
       if (dxm && dxm.path) {
         run('UPDATE products SET manual_category = ?, updated_at = CURRENT_TIMESTAMP WHERE uid = ?', [dxm.path, p.uid]);
         updated++;
@@ -730,6 +743,131 @@ router.patch('/products/backfill-path', (req, res) => {
 
   scheduleSave();
   res.json({ ok: true, updated: updated, path: treeRow ? treeRow.path : '' });
+});
+
+
+// ===== 自动化流水线路由 =====
+
+// 批量启动自动化处理
+router.post('/product/batch-automate', (req, res) => {
+  var uids = req.body.uids || [];
+  if (!Array.isArray(uids) || uids.length === 0) {
+    return res.json({ ok: false, error: 'uids 不能为空' });
+  }
+
+  var started = [];
+  var skipped = [];
+
+  uids.forEach(function (uid) {
+    var product = dbModule.getOne('SELECT automation_stage, skus FROM products WHERE uid = ?', [uid]);
+    if (!product) {
+      skipped.push({ uid: uid, reason: '商品不存在' });
+      return;
+    }
+    if (pipeline.skuCountExceeds(product, 6)) {
+      skipped.push({ uid: uid, reason: 'SKU超过6个，跳过自动化' });
+      return;
+    }
+    if (product.automation_stage !== 'none') {
+      skipped.push({ uid: uid, reason: '已在处理中或已完成 (' + (product.automation_stage || 'none') + ')' });
+      return;
+    }
+    // 更新状态
+    var now = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    dbModule.run('UPDATE products SET automation_stage = ?, automation_started_at = ?, updated_at = ? WHERE uid = ?',
+      ['processing', now, now, uid]);
+    started.push(uid);
+  });
+
+  // 将成功的 uid 加入队列
+  started.forEach(function (uid) {
+    pipeline.queue.pending.push(uid);
+  });
+
+  res.json({ ok: true, total: uids.length, started: started.length, skipped: skipped });
+});
+
+// 批量更新阶段
+router.post('/product/batch-stage', (req, res) => {
+  var uids = req.body.uids || [];
+  var stage = req.body.stage || '';
+  if (!Array.isArray(uids) || !pipeline.isValidStage(stage)) {
+    return res.json({ ok: false, error: '参数无效' });
+  }
+
+  var updated = [];
+  var skipped = [];
+
+  uids.forEach(function (uid) {
+    var product = dbModule.getOne('SELECT automation_stage FROM products WHERE uid = ?', [uid]);
+    if (!product) {
+      skipped.push({ uid: uid, reason: '商品不存在' });
+      return;
+    }
+    if (!pipeline.isValidTransition(product.automation_stage, stage)) {
+      skipped.push({ uid: uid, reason: '不允许从 ' + product.automation_stage + ' 转换到 ' + stage });
+      return;
+    }
+    var now = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    var updates = { automation_stage: stage, updated_at: now };
+    if (stage === 'published') {
+      updates.status = 1;
+      updates.automation_finished_at = now;
+    }
+    var fields = [];
+    var params = [];
+    Object.keys(updates).forEach(function (col) {
+      fields.push(col + ' = ?');
+      params.push(updates[col]);
+    });
+    params.push(uid);
+    dbModule.run('UPDATE products SET ' + fields.join(', ') + ' WHERE uid = ?', params);
+    updated.push(uid);
+  });
+
+  res.json({ ok: true, updated: updated.length, skipped: skipped });
+});
+
+// 单个商品阶段更新
+router.post('/product/:uid/stage', (req, res) => {
+  var uid = req.params.uid || '';
+  var stage = req.body.stage || '';
+  if (!pipeline.isValidStage(stage)) {
+    return res.json({ ok: false, error: '非法 stage: ' + stage });
+  }
+
+  var product = dbModule.getOne('SELECT automation_stage FROM products WHERE uid = ?', [uid]);
+  if (!product) {
+    return res.json({ ok: false, error: '商品不存在' });
+  }
+  if (!pipeline.isValidTransition(product.automation_stage, stage)) {
+    return res.json({ ok: false, error: '不允许从 ' + product.automation_stage + ' 转换到 ' + stage });
+  }
+
+  var now = new Date().toISOString().replace('T', ' ').substring(0, 19);
+  var updates = { automation_stage: stage, updated_at: now };
+  if (stage === 'published') {
+    updates.status = 1;
+    updates.automation_finished_at = now;
+  }
+  if (stage === 'failed' || stage === 'none') {
+    updates.automation_finished_at = now;
+  }
+  var fields = [];
+  var params = [];
+  Object.keys(updates).forEach(function (col) {
+    fields.push(col + ' = ?');
+    params.push(updates[col]);
+  });
+  params.push(uid);
+  dbModule.run('UPDATE products SET ' + fields.join(', ') + ' WHERE uid = ?', params);
+
+  res.json({ ok: true, uid: uid, stage: stage });
+});
+
+// 查询自动化队列状态
+router.get('/product/automate-status', (req, res) => {
+  res.json({ ok: true, queue: pipeline.getQueueStatus() });
 });
 
 module.exports = router;
