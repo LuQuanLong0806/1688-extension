@@ -10,7 +10,7 @@ Vue.component('detail-modal', {
       selectedSkuIndexes: [],
       selectedDetailIndexes: [],
       selectedMainIndexes: [],
-      selectedSkuImgIndexes: [],  // SKU图片独立选中（仅用于填充店小秘轮播图）
+      // selectedSkuImgIndexes removed - linked with SKU list
       // 图片选择弹窗
       showImagePicker: false,
       imagePickerTarget: null,  // { type:'sku'|'variant', skuIndex, attrIdx, valueIdx }
@@ -163,12 +163,7 @@ Vue.component('detail-modal', {
           this.selectedSkuIndexes = (val.skus || []).map(function (_, i) { return i; });
         }
         // SKU图片独立选中（全选）
-        this.selectedSkuImgIndexes = [];
-        var skuImgList = [];
-        (this.editable.skus || []).forEach(function (s, i) {
-          if (s.image) skuImgList.push(i);
-        });
-        this.selectedSkuImgIndexes = skuImgList.slice();
+// SKU image selection uses selectedSkuIndexes (linked)
         // 详情图选中状态
         var detailImgs = val.detail_images || [];
         var savedDetail = [];
@@ -277,6 +272,16 @@ Vue.component('detail-modal', {
       });
       return checked;
     },
+    addVariantValue: function (attrIdx) {
+      var vm = this;
+      var newVal = prompt('输入新属性值');
+      if (!newVal || !newVal.trim()) return;
+      newVal = newVal.trim();
+      var va = vm.variantAttrs[attrIdx];
+      if (!va) return;
+      if (va.values.indexOf(newVal) >= 0) { vm.$Message.warning('属性值已存在'); return; }
+      va.values.push(newVal);
+    },
     toggleVariantValue: function (attrIdx, value, checked) {
       var vm = this;
       if (!vm.editable || !vm.editable.skus) return;
@@ -362,9 +367,7 @@ Vue.component('detail-modal', {
     removeSkuImage: function (skuIndex) {
       if (!this.editable || !this.editable.skus || !this.editable.skus[skuIndex]) return;
       this.$set(this.editable.skus[skuIndex], 'image', '');
-      // 同步移除SKU图片选中
-      var pos = this.selectedSkuImgIndexes.indexOf(skuIndex);
-      if (pos >= 0) this.selectedSkuImgIndexes.splice(pos, 1);
+
     },
     onSkuImgDropReplace: function (skuIndex, e) {
       if (e) e.preventDefault();
@@ -718,31 +721,31 @@ Vue.component('detail-modal', {
       return this.selectedSkuIndexes.indexOf(idx) >= 0;
     },
     toggleSkuImage: function (item) {
-      var pos = this.selectedSkuImgIndexes.indexOf(item.skuIndex);
-      if (pos >= 0) this.selectedSkuImgIndexes.splice(pos, 1);
-      else this.selectedSkuImgIndexes.push(item.skuIndex);
+      this.toggleSkuItem(item.skuIndex);
     },
     isSkuImageChecked: function (item) {
-      return this.selectedSkuImgIndexes.indexOf(item.skuIndex) >= 0;
+      return this.isSkuChecked(item.skuIndex);
     },
     toggleAllSkuImages: function (checked) {
       var vm = this;
-      if (checked) {
-        vm.selectedSkuImgIndexes = [];
-        (vm.editable.skus || []).forEach(function (s, i) {
-          if (s.image) vm.selectedSkuImgIndexes.push(i);
-        });
-      } else {
-        vm.selectedSkuImgIndexes = [];
-      }
+      (vm.editable.skus || []).forEach(function (s, i) {
+        if (s.image) {
+          var pos = vm.selectedSkuIndexes.indexOf(i);
+          if (checked && pos < 0) vm.selectedSkuIndexes.push(i);
+          else if (!checked && pos >= 0) vm.selectedSkuIndexes.splice(pos, 1);
+        }
+      });
     },
     allSkuImagesSelected: function () {
-      if (!this.editable || !this.editable.skus) return false;
-      var imgSkus = [];
-      this.editable.skus.forEach(function (s, i) { if (s.image) imgSkus.push(i); });
-      return imgSkus.length > 0 && this.selectedSkuImgIndexes.length === imgSkus.length;
-    },
-    toggleDetailImage: function (idx) {
+      if (!this.editable || !this.editable.skus || !this.editable.skus.length) return false;
+      var allHaveImg = true;
+      var imgCount = 0;
+      (this.editable.skus || []).forEach(function (s) {
+        if (s.image) imgCount++;
+      });
+      if (imgCount === 0) return false;
+      return this.selectedSkuIndexes.length === this.editable.skus.length;
+    },    toggleDetailImage: function (idx) {
       var pos = this.selectedDetailIndexes.indexOf(idx);
       if (pos >= 0) this.selectedDetailIndexes.splice(pos, 1);
       else this.selectedDetailIndexes.push(idx);
@@ -1329,7 +1332,7 @@ Vue.component('detail-modal', {
             SKU图 ({{ skuImages.length }})
             <checkbox :value="allSkuImagesSelected()" @on-change="toggleAllSkuImages" style="margin-left:12px;vertical-align:middle"></checkbox>
             <span style="font-size:12px;color:var(--text-muted);margin-left:4px;vertical-align:middle">全选</span>
-            <span style="font-size:12px;color:var(--text-muted);margin-left:12px">已选 {{ selectedSkuImgIndexes.length }} 张（填充店小秘轮播图）</span>
+            <span style="font-size:12px;color:var(--text-muted);margin-left:12px">已选 {{ selectedSkuIndexes.length }} 项SKU</span>
           </div>
           <div class="img-grid">
             <div class="img-item sku-img-checkable sku-img-card" v-for="(item, i) in skuImages" :key="'si'+i"
@@ -1364,45 +1367,26 @@ Vue.component('detail-modal', {
 
         <!-- 变种属性（图片+名称栅格，勾选关联SKU，编辑同步自定义属性） -->
         <div class="detail-section">
-          <div class="detail-section-title">变种属性 <span v-if="dragImageUrl" style="font-size:12px;color:var(--accent);font-weight:400;margin-left:8px">← 拖拽图片到属性值上替换</span></div>
-          <div class="variant-attr-section" v-for="(va, vi) in variantAttrs" :key="vi" v-if="(vi === 0 && va.values && va.values.length) || (vi === 1 && va.name)">
-            <div class="variant-attr-header">
+          <div class="detail-section-title">变种属性</div>
+          <div class="variant-attr-row" v-for="(va, vi) in variantAttrs" :key="vi" v-if="(vi === 0 && va.values && va.values.length) || (vi === 1 && va.name)">
+            <div class="variant-attr-label">
               <span class="variant-attr-index">{{ vi + 1 }}</span>
-              <i-select v-model="va.name" style="width:130px" size="small" placeholder="选择属性名" clearable transfer @on-change="onVariantNameChange(vi)">
+              <i-select v-model="va.name" style="width:120px" size="small" placeholder="选择属性名" clearable transfer @on-change="onVariantNameChange(vi)">
                 <i-option v-for="n in getFilteredOptions(vi)" :key="n" :value="n">{{ n }}</i-option>
               </i-select>
-              <span class="variant-attr-count">{{ va.values.length }}个</span>
             </div>
-            <!-- 只在第一个变种属性中显示属性值栅格 -->
-            <div class="variant-attr-grid" v-if="vi === 0 && va.values.length">
-              <div class="variant-value-card" v-for="(val, vj) in va.values" :key="vi+'-'+vj"
-                @dragover="onVariantImgDragOver(vi, val, $event)">
-                <div class="variant-value-img-wrap">
-                  <img v-if="va.images[val]" :src="va.images[val]" class="variant-value-img" />
-                  <div v-else class="variant-value-img-placeholder" @click.stop="openImagePicker({ type:'variant', attrIdx:vi, valueName:val })">
-                    <span class="variant-value-img-placeholder-icon">+</span>
-                  </div>
-                  <div v-if="va.images[val]" class="variant-value-img-actions">
-                    <span class="variant-img-action-btn variant-img-del" @click.stop="removeVariantImage(vi, val)">×</span>
-                    <span class="variant-img-action-btn variant-img-replace" @click.stop="openImagePicker({ type:'variant', attrIdx:vi, valueName:val })">↻</span>
-                  </div>
-
-                </div>
-                <div class="variant-value-name" v-if="editingVariantValue && editingVariantValue.attrIdx === vi && editingVariantValue.valueIdx === vj">
-                  <input class="variant-value-edit-input" v-model="editingVariantValue.tempName"
-                    @keyup.enter="confirmEditVariantValue"
-                    @keyup.escape="cancelEditVariantValue"
-                    @blur="confirmEditVariantValue"
-                    v-focus />
-                </div>
-                <div class="variant-value-name" v-else @dblclick.stop="startEditVariantValue(vi, vj)">{{ val }}</div>
-              </div>
+            <div class="variant-attr-values" v-if="vi === 0 && va.values.length">
+              <span class="attr-tag attr-tag-variant"
+                v-for="(val, vj) in va.values" :key="vi+'-'+vj"
+                :class="{ 'attr-tag-active': isVariantValueChecked(vi, val) }"
+                @click="toggleVariantValue(vi, val, !isVariantValueChecked(vi, val))">{{ val }}</span>
+              <span class="attr-tag attr-tag-add" @click="addVariantValue(vi)" title="添加属性值">+</span>
             </div>
-            <div class="variant-attr-empty" v-else-if="vi === 0">
+            <div class="variant-attr-values" v-else-if="vi === 0">
               <span style="color:var(--text-muted);font-size:12px">暂无属性值（从SKU自动提取）</span>
             </div>
           </div>
-          <!-- 原始属性标签 -->
+          <!-- 原始属性标签 --><!-- 原始属性标签 -->
           <div v-if="editable.attrs && editable.attrs.length" style="margin-top:8px">
             <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">原始属性 ({{ editable.attrs.length }})</div>
             <div class="attr-tags">

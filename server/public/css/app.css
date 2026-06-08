@@ -1538,14 +1538,16 @@ body {
 .sku-batch-img-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 6px;
+  gap: 8px;
   padding: 8px;
   overflow-y: auto;
   flex: 1;
   max-height: 55vh;
+  align-content: start;
 }
 .sku-batch-img-item {
   position: relative;
+  width: 100%;
   aspect-ratio: 1;
   border-radius: 6px;
   overflow: hidden;
@@ -1632,7 +1634,6 @@ body {
   width: 80px;
   height: 80px;
   border-radius: 6px;
-  overflow: hidden;
 }
 .sku-batch-slot-img img {
   width: 100%;
@@ -1642,22 +1643,22 @@ body {
 }
 .sku-batch-slot-del {
   position: absolute;
-  top: -4px;
-  left: -4px;
-  width: 16px;
-  height: 16px;
+  top: -6px;
+  left: -6px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   background: #e53935;
   color: #fff;
-  font-size: 11px;
-  line-height: 14px;
+  font-size: 13px;
+  line-height: 18px;
   text-align: center;
   cursor: pointer;
   display: none;
   align-items: center;
   justify-content: center;
-  z-index: 3;
-  border: 1.5px solid #fff;
+  z-index: 10;
+  border: 2px solid #fff;
 }
 .sku-batch-slot:hover .sku-batch-slot-del {
   display: flex;
@@ -1678,8 +1679,44 @@ body {
 .sku-batch-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
-  margin-top: 12px;
-  padding-top: 12px;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 16px 0 0;
   border-top: 1px solid var(--border-subtle, #f0f0f0);
+}
+.sku-batch-footer .ivu-btn {
+  min-width: 80px;
+  height: 36px;
+  font-size: 14px;
+}
+/* Variant value tag active state */
+.attr-tag-variant.attr-tag-active {
+  border-color: var(--accent, #409eff);
+  background: rgba(64,158,255,.1);
+  color: var(--accent, #409eff);
+  font-weight: 500;
+}
+.attr-tag-variant.attr-tag-active:hover {
+  border-color: var(--accent, #409eff);
+  color: var(--accent, #409eff);
+}
+/* Add variant value button */
+.attr-tag-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 14px;
+  font-size: 16px;
+  border: 1.5px dashed #c0c0c0;
+  color: #999;
+  cursor: pointer;
+  transition: all .15s;
+  padding: 0;
+}
+.attr-tag-add:hover {
+  border-color: var(--accent, #409eff);
+  color: var(--accent, #409eff);
+  background: rgba(64,158,255,.06);
 }

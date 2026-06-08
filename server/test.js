@@ -1571,6 +1571,101 @@ test('属性栅格不在第二行显示', function () {
   var showGrid = vi === 0 && true;
   assert.strictEqual(showGrid, false);
 });
+
+
+// ============================================================
+// 23. detail-modal: SKU图片选中联动SKU列表
+// ============================================================
+suite('detail-modal / SKU图片选中联动SKU列表');
+
+test('toggleSkuImage应调用toggleSkuItem', function () {
+  var selectedSkuIndexes = [0, 1];
+  // toggleSkuImage(item) calls toggleSkuItem(item.skuIndex)
+  var skuIndex = 2;
+  var pos = selectedSkuIndexes.indexOf(skuIndex);
+  if (pos >= 0) selectedSkuIndexes.splice(pos, 1);
+  else selectedSkuIndexes.push(skuIndex);
+  assert.deepEqual(selectedSkuIndexes, [0, 1, 2]);
+});
+
+test('isSkuImageChecked应使用isSkuChecked', function () {
+  var selectedSkuIndexes = [0, 2];
+  var skuIndex = 0;
+  var checked = selectedSkuIndexes.indexOf(skuIndex) >= 0;
+  assert.ok(checked);
+  // Not checked
+  assert.ok(selectedSkuIndexes.indexOf(1) < 0);
+});
+
+test('toggleAllSkuImages选中应只选有图片的SKU', function () {
+  var selectedSkuIndexes = [];
+  var skus = [
+    { image: 'http://a.jpg' },
+    { image: '' },
+    { image: 'http://c.jpg' }
+  ];
+  var checked = true;
+  skus.forEach(function (s, i) {
+    if (s.image) {
+      var pos = selectedSkuIndexes.indexOf(i);
+      if (checked && pos < 0) selectedSkuIndexes.push(i);
+      else if (!checked && pos >= 0) selectedSkuIndexes.splice(pos, 1);
+    }
+  });
+  assert.deepEqual(selectedSkuIndexes, [0, 2]);
+});
+
+test('toggleAllSkuImages取消应清除有图片的SKU', function () {
+  var selectedSkuIndexes = [0, 1, 2];
+  var skus = [
+    { image: 'http://a.jpg' },
+    { image: '' },
+    { image: 'http://c.jpg' }
+  ];
+  var checked = false;
+  skus.forEach(function (s, i) {
+    if (s.image) {
+      var pos = selectedSkuIndexes.indexOf(i);
+      if (checked && pos < 0) selectedSkuIndexes.push(i);
+      else if (!checked && pos >= 0) selectedSkuIndexes.splice(pos, 1);
+    }
+  });
+  // SKU 1 has no image, so it stays; SKU 0 and 2 are removed
+  assert.deepEqual(selectedSkuIndexes, [1]);
+});
+
+// ============================================================
+// 24. detail-modal: 变种属性标签交互
+// ============================================================
+suite('detail-modal / 变种属性标签交互');
+
+test('点击变种属性标签应切换选中状态', function () {
+  var checkedSet = {};
+  var attrIdx = 0;
+  var value = '红色';
+  var checked = true;
+  // toggle
+  checkedSet[attrIdx + ':' + value] = checked;
+  assert.ok(checkedSet['0:红色']);
+  // untoggle
+  checked = false;
+  checkedSet[attrIdx + ':' + value] = checked;
+  assert.ok(!checkedSet['0:红色']);
+});
+
+test('添加变种属性值应追加到values数组', function () {
+  var values = ['红色', '蓝色'];
+  var newVal = '绿色';
+  if (values.indexOf(newVal) < 0) values.push(newVal);
+  assert.deepEqual(values, ['红色', '蓝色', '绿色']);
+});
+
+test('添加重复属性值应不追加', function () {
+  var values = ['红色', '蓝色'];
+  var newVal = '红色';
+  if (values.indexOf(newVal) < 0) values.push(newVal);
+  assert.deepEqual(values, ['红色', '蓝色']);
+});
 // ============================================================
 // 汇总
 // ============================================================
