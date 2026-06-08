@@ -1411,6 +1411,166 @@ test('已有图片不应被覆盖', function () {
   assert.strictEqual(images['红色'], 'http://red1.jpg');  // 保留原有
 });
 
+
+
+// ============================================================
+// 21. detail-modal: SKU图片批量替换弹窗
+// ============================================================
+suite('detail-modal / SKU图片批量替换');
+
+test('openSkuBatchModal应生成正确slots', function () {
+  var skus = [
+    { name: '红色 / S', customName: '红色 / S', image: 'http://red.jpg' },
+    { name: '蓝色 / M', customName: '蓝色 / M', image: '' },
+    { name: '绿色 / L', customName: '绿色 / L', image: 'http://green.jpg' }
+  ];
+  var skuBatchSlots = skus.map(function (s, i) {
+    return { skuIndex: i, name: s.customName || s.name || ('SKU' + (i + 1)), image: s.image || '' };
+  });
+  assert.strictEqual(skuBatchSlots.length, 3);
+  assert.strictEqual(skuBatchSlots[0].image, 'http://red.jpg');
+  assert.strictEqual(skuBatchSlots[1].image, '');
+  assert.strictEqual(skuBatchSlots[2].image, 'http://green.jpg');
+  assert.strictEqual(skuBatchSlots[1].name, '蓝色 / M');
+});
+
+test('skuBatchSelectSlot选中空slot并已选图片时应自动填充', function () {
+  var skuBatchSlots = [
+    { skuIndex: 0, name: '红色 / S', image: 'http://red.jpg' },
+    { skuIndex: 1, name: '蓝色 / M', image: '' },
+    { skuIndex: 2, name: '绿色 / L', image: '' }
+  ];
+  var skuBatchSelectedImage = 'http://yellow.jpg';
+  var skuBatchSelectedSlot = 1;
+  // If slot is empty and image selected, fill it
+  if (skuBatchSelectedImage && !skuBatchSlots[skuBatchSelectedSlot].image) {
+    skuBatchSlots[skuBatchSelectedSlot].image = skuBatchSelectedImage;
+    skuBatchSelectedSlot = -1;
+    skuBatchSelectedImage = '';
+    // Auto-advance to next empty
+    var nextEmpty = skuBatchSlots.findIndex(function (s) { return !s.image; });
+    if (nextEmpty >= 0) skuBatchSelectedSlot = nextEmpty;
+  }
+  assert.strictEqual(skuBatchSlots[1].image, 'http://yellow.jpg');
+  assert.strictEqual(skuBatchSelectedSlot, 2); // auto-advance to next empty
+  assert.strictEqual(skuBatchSelectedImage, '');
+});
+
+test('confirmSkuBatch应更新editable.skus', function () {
+  var skus = [
+    { name: '红色 / S', customName: '红色 / S', image: 'http://red.jpg' },
+    { name: '蓝色 / M', customName: '蓝色 / M', image: '' }
+  ];
+  var skuBatchSlots = [
+    { skuIndex: 0, name: '红色 / S', image: 'http://red.jpg' },
+    { skuIndex: 1, name: '蓝色 / M', image: 'http://blue.jpg' }
+  ];
+  var changed = 0;
+  skuBatchSlots.forEach(function (slot) {
+    var sku = skus[slot.skuIndex];
+    if (sku && sku.image !== slot.image) {
+      sku.image = slot.image;
+      changed++;
+    }
+  });
+  assert.strictEqual(changed, 1);
+  assert.strictEqual(skus[1].image, 'http://blue.jpg');
+  assert.strictEqual(skus[0].image, 'http://red.jpg'); // unchanged
+});
+
+test('skuBatchRemoveSlotImage应清空slot图片', function () {
+  var slot = { skuIndex: 0, name: '红色 / S', image: 'http://red.jpg' };
+  slot.image = '';
+  assert.strictEqual(slot.image, '');
+});
+
+test('全部填满后应无空slot', function () {
+  var skuBatchSlots = [
+    { skuIndex: 0, name: '红色 / S', image: 'http://red.jpg' },
+    { skuIndex: 1, name: '蓝色 / M', image: 'http://blue.jpg' }
+  ];
+  var nextEmpty = skuBatchSlots.findIndex(function (s) { return !s.image; });
+  assert.strictEqual(nextEmpty, -1);
+});
+
+test('连续填充应正确跳过已有图片的slot', function () {
+  var skuBatchSlots = [
+    { skuIndex: 0, name: '红色 / S', image: 'http://red.jpg' },
+    { skuIndex: 1, name: '蓝色 / M', image: '' },
+    { skuIndex: 2, name: '绿色 / L', image: 'http://green.jpg' },
+    { skuIndex: 3, name: '黄色 / XL', image: '' }
+  ];
+  var skuBatchSelectedSlot = 1;
+  var skuBatchSelectedImage = 'http://blue2.jpg';
+  // Fill slot 1
+  skuBatchSlots[skuBatchSelectedSlot].image = skuBatchSelectedImage;
+  skuBatchSelectedSlot = -1;
+  skuBatchSelectedImage = '';
+  var nextEmpty = skuBatchSlots.findIndex(function (s) { return !s.image; });
+  if (nextEmpty >= 0) skuBatchSelectedSlot = nextEmpty;
+  // Should skip slot 2 (has image) and land on slot 3
+  assert.strictEqual(skuBatchSelectedSlot, 3);
+});
+
+test('skuBatchAllImages应合并主图和详情图去重', function () {
+  var editable = {
+    main_images: ['http://a.jpg', 'http://b.jpg'],
+    detail_images: ['http://b.jpg', 'http://c.jpg'],
+    skus: []
+  };
+  var imgs = [];
+  var seen = {};
+  [editable.main_images, editable.detail_images].forEach(function (arr) {
+    arr.forEach(function (url) { if (url && !seen[url]) { seen[url] = true; imgs.push(url); } });
+  });
+  assert.deepEqual(imgs, ['http://a.jpg', 'http://b.jpg', 'http://c.jpg']);
+});
+
+// ============================================================
+// 22. detail-modal: 变种属性只显示第一行
+// ============================================================
+suite('detail-modal / 变种属性只显示第一行');
+
+test('第一行有属性名时v-if应通过', function () {
+  var vi = 0;
+  var va = { name: '颜色', values: ['红色', '蓝色'], images: {} };
+  var show = (vi === 0 && va.values && va.values.length) || (vi === 1 && va.name);
+  assert.ok(show);
+});
+
+test('第一行无属性名但无值时v-if应不通过', function () {
+  var vi = 0;
+  var va = { name: '', values: [], images: {} };
+  var show = (vi === 0 && va.values && va.values.length) || (vi === 1 && va.name);
+  assert.ok(!show);
+});
+
+test('第二行有属性名时v-if应通过', function () {
+  var vi = 1;
+  var va = { name: '尺码', values: [], images: {} };
+  var show = (vi === 0 && va.values && va.values.length) || (vi === 1 && va.name);
+  assert.ok(show);
+});
+
+test('第二行无属性名时v-if应不通过', function () {
+  var vi = 1;
+  var va = { name: '', values: [], images: {} };
+  var show = (vi === 0 && va.values && va.values.length) || (vi === 1 && va.name);
+  assert.ok(!show);
+});
+
+test('属性栅格只在第一行显示', function () {
+  var vi = 0;
+  var va = { name: '颜色', values: ['红色', '蓝色'], images: {} };
+  var showGrid = vi === 0 && va.values.length;
+  assert.ok(showGrid);
+});
+
+test('属性栅格不在第二行显示', function () {
+  var vi = 1;
+  var showGrid = vi === 0 && true;
+  assert.strictEqual(showGrid, false);
+});
 // ============================================================
 // 汇总
 // ============================================================

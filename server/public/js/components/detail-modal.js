@@ -49,7 +49,12 @@ Vue.component('detail-modal', {
       addingImage: false,
       _addImgPasteHandler: null,
       _addImgEscHandler: null,
-      _addImgTimer: null
+      _addImgTimer: null,
+      // SKU图片批量替换
+      showSkuBatchModal: false,
+      skuBatchSlots: [],
+      skuBatchSelectedSlot: -1,
+      skuBatchSelectedImage: ''
     };
   },
   mounted: function () {
@@ -222,6 +227,18 @@ Vue.component('detail-modal', {
         var otherName = (vm.variantAttrs[otherIdx] || {}).name || '';
         return all.filter(function (n) { return n !== otherName; });
       };
+    },
+    skuBatchAllImages: function () {
+      if (!this.editable) return [];
+      var imgs = [];
+      var seen = {};
+      (this.editable.main_images || []).forEach(function (url) {
+        if (url && !seen[url]) { seen[url] = true; imgs.push(url); }
+      });
+      (this.editable.detail_images || []).forEach(function (url) {
+        if (url && !seen[url]) { seen[url] = true; imgs.push(url); }
+      });
+      return imgs;
     }
   },
   methods: {
@@ -359,6 +376,68 @@ Vue.component('detail-modal', {
       this.dragSourceIdx = -1;
       this.dragOverSkuIdx = -1;
     },
+    // ===== SKU图片批量替换 =====
+    openSkuBatchModal: function () {
+      var vm = this;
+      if (!vm.editable || !vm.editable.skus || !vm.editable.skus.length) return;
+      // Build slots from all SKU items
+      vm.skuBatchSlots = vm.editable.skus.map(function (s, i) {
+        return { skuIndex: i, name: s.customName || s.name || ('SKU' + (i + 1)), image: s.image || '' };
+      });
+      vm.skuBatchSelectedSlot = -1;
+      vm.skuBatchSelectedImage = '';
+      vm.showSkuBatchModal = true;
+    },
+    skuBatchSelectSlot: function (si) {
+      var vm = this;
+      if (si < 0 || si >= vm.skuBatchSlots.length) return;
+      // If an image is selected and slot is empty, fill it
+      if (vm.skuBatchSelectedImage && !vm.skuBatchSlots[si].image) {
+        vm.$set(vm.skuBatchSlots[si], 'image', vm.skuBatchSelectedImage);
+        // Auto-advance to next empty slot
+        vm.skuBatchSelectedSlot = -1;
+        vm.skuBatchSelectedImage = '';
+        var nextEmpty = vm.skuBatchSlots.findIndex(function (s) { return !s.image; });
+        if (nextEmpty >= 0) vm.skuBatchSelectedSlot = nextEmpty;
+        return;
+      }
+      vm.skuBatchSelectedSlot = si;
+    },
+    skuBatchSelectImage: function (url) {
+      var vm = this;
+      vm.skuBatchSelectedImage = url;
+      // If a slot is selected and empty, fill it
+      if (vm.skuBatchSelectedSlot >= 0 && !vm.skuBatchSlots[vm.skuBatchSelectedSlot].image) {
+        vm.$set(vm.skuBatchSlots[vm.skuBatchSelectedSlot], 'image', url);
+        // Auto-advance to next empty slot
+        var nextEmpty = vm.skuBatchSlots.findIndex(function (s, idx) { return idx > vm.skuBatchSelectedSlot && !s.image; });
+        if (nextEmpty === -1) nextEmpty = vm.skuBatchSlots.findIndex(function (s) { return !s.image; });
+        vm.skuBatchSelectedSlot = nextEmpty;
+        vm.skuBatchSelectedImage = '';
+        return;
+      }
+    },
+    skuBatchRemoveSlotImage: function (si) {
+      if (si < 0 || si >= this.skuBatchSlots.length) return;
+      this.$set(this.skuBatchSlots[si], 'image', '');
+      this.skuBatchSelectedSlot = si;
+    },
+    confirmSkuBatch: function () {
+      var vm = this;
+      var changed = 0;
+      vm.skuBatchSlots.forEach(function (slot) {
+        var sku = vm.editable.skus[slot.skuIndex];
+        if (sku && sku.image !== slot.image) {
+          vm.$set(sku, 'image', slot.image);
+          changed++;
+        }
+      });
+      vm.showSkuBatchModal = false;
+      if (changed > 0) {
+        vm.$Message.success(changed + ' 张SKU图片已替换');
+      }
+    },
+
     // ===== 图片选择弹窗用的图片列表 =====
     imagePickerImages: function () {
       if (!this.editable) return [];
@@ -1286,7 +1365,7 @@ Vue.component('detail-modal', {
         <!-- 变种属性（图片+名称栅格，勾选关联SKU，编辑同步自定义属性） -->
         <div class="detail-section">
           <div class="detail-section-title">变种属性 <span v-if="dragImageUrl" style="font-size:12px;color:var(--accent);font-weight:400;margin-left:8px">← 拖拽图片到属性值上替换</span></div>
-          <div class="variant-attr-section" v-for="(va, vi) in variantAttrs" :key="vi" v-if="va.name || (va.values && va.values.length)">
+          <div class="variant-attr-section" v-for="(va, vi) in variantAttrs" :key="vi" v-if="(vi === 0 && va.values && va.values.length) || (vi === 1 && va.name)">
             <div class="variant-attr-header">
               <span class="variant-attr-index">{{ vi + 1 }}</span>
               <i-select v-model="va.name" style="width:130px" size="small" placeholder="选择属性名" clearable transfer @on-change="onVariantNameChange(vi)">
@@ -1294,11 +1373,10 @@ Vue.component('detail-modal', {
               </i-select>
               <span class="variant-attr-count">{{ va.values.length }}个</span>
             </div>
-            <div class="variant-attr-grid" v-if="va.values.length">
+            <!-- 只在第一个变种属性中显示属性值栅格 -->
+            <div class="variant-attr-grid" v-if="vi === 0 && va.values.length">
               <div class="variant-value-card" v-for="(val, vj) in va.values" :key="vi+'-'+vj"
-                :class="{ 'variant-value-checked': isVariantValueChecked(vi, val) }"
-                @dragover="onVariantImgDragOver(vi, val, $event)"
-                @click="toggleVariantValue(vi, val, !isVariantValueChecked(vi, val))">
+                @dragover="onVariantImgDragOver(vi, val, $event)">
                 <div class="variant-value-img-wrap">
                   <img v-if="va.images[val]" :src="va.images[val]" class="variant-value-img" />
                   <div v-else class="variant-value-img-placeholder" @click.stop="openImagePicker({ type:'variant', attrIdx:vi, valueName:val })">
@@ -1308,9 +1386,7 @@ Vue.component('detail-modal', {
                     <span class="variant-img-action-btn variant-img-del" @click.stop="removeVariantImage(vi, val)">×</span>
                     <span class="variant-img-action-btn variant-img-replace" @click.stop="openImagePicker({ type:'variant', attrIdx:vi, valueName:val })">↻</span>
                   </div>
-                  <div class="variant-value-check">
-                    <checkbox :value="isVariantValueChecked(vi, val)" @click.native.stop @on-change="function(c){toggleVariantValue(vi,val,c)}"></checkbox>
-                  </div>
+
                 </div>
                 <div class="variant-value-name" v-if="editingVariantValue && editingVariantValue.attrIdx === vi && editingVariantValue.valueIdx === vj">
                   <input class="variant-value-edit-input" v-model="editingVariantValue.tempName"
@@ -1322,7 +1398,7 @@ Vue.component('detail-modal', {
                 <div class="variant-value-name" v-else @dblclick.stop="startEditVariantValue(vi, vj)">{{ val }}</div>
               </div>
             </div>
-            <div class="variant-attr-empty" v-else>
+            <div class="variant-attr-empty" v-else-if="vi === 0">
               <span style="color:var(--text-muted);font-size:12px">暂无属性值（从SKU自动提取）</span>
             </div>
           </div>
@@ -1337,7 +1413,9 @@ Vue.component('detail-modal', {
 
         <!-- SKU 列表（带复选框 + 可编辑） -->
         <div class="detail-section" style="position:relative">
-          <div class="detail-section-title">SKU ({{ editable.skus ? editable.skus.length : 0 }})</div>
+          <div class="detail-section-title" style="display:flex;align-items:center;gap:8px">SKU ({{ editable.skus ? editable.skus.length : 0 }})
+              <i-button size="small" type="warning" icon="md-images" @click="openSkuBatchModal" style="font-size:12px">批量替换图片</i-button>
+            </div>
           <!-- 批量替换气泡（放在section层级避免被overflow裁剪） -->
           <div class="batch-popover batch-popover-float" v-if="showBatchReplace"
             @mouseenter="clearBatchHide" @mouseleave="scheduleBatchHide">
@@ -1444,7 +1522,48 @@ Vue.component('detail-modal', {
               <div class="img-picker-check">✓</div>
             </div>
           </div>
+                </modal>
+
+        <!-- SKU\u56fe\u7247\u6279\u91cf\u66ff\u6362\u5f39\u7a97 -->
+        <modal v-model="showSkuBatchModal" title="SKU\u56fe\u7247\u6279\u91cf\u66ff\u6362" width="900" footer-hide>
+          <div class="sku-batch-layout">
+            <!-- \u5de6\u4fa7\uff1a\u6240\u6709\u56fe\u7247 -->
+            <div class="sku-batch-left">
+              <div class="sku-batch-panel-title">\u53ef\u9009\u56fe\u7247 ({{ skuBatchAllImages.length }})</div>
+              <div class="sku-batch-img-grid">
+                <div v-for="(url, pi) in skuBatchAllImages" :key="'sb'+pi"
+                  class="sku-batch-img-item"
+                  :class="{ 'sku-batch-img-active': skuBatchSelectedImage === url }"
+                  @click="skuBatchSelectImage(url)">
+                  <img :src="url" loading="lazy" />
+                  <div v-if="skuBatchSelectedImage === url" class="sku-batch-img-selected-mark">\u2713</div>
+                </div>
+              </div>
+            </div>
+            <!-- \u53f3\u4fa7\uff1aSKU\u5c5e\u6027\u56fe\u7247\u6805\u683c -->
+            <div class="sku-batch-right">
+              <div class="sku-batch-panel-title">SKU\u5c5e\u6027\u56fe\u7247 (\u70b9\u51fb\u7a7a\u4f4d\u9009\u4e2d\uff0c\u70b9\u51fb\u5de6\u4fa7\u56fe\u7247\u586b\u5145)</div>
+              <div class="sku-batch-slot-grid">
+                <div v-for="(slot, si) in skuBatchSlots" :key="'slot'+si"
+                  class="sku-batch-slot"
+                  :class="{ 'sku-batch-slot-selected': skuBatchSelectedSlot === si, 'sku-batch-slot-empty': !slot.image }"
+                  @click="skuBatchSelectSlot(si)">
+                  <div class="sku-batch-slot-img">
+                    <img v-if="slot.image" :src="slot.image" loading="lazy" />
+                    <div v-else class="sku-batch-slot-placeholder">+</div>
+                    <span v-if="slot.image" class="sku-batch-slot-del" @click.stop="skuBatchRemoveSlotImage(si)">\u00d7</span>
+                  </div>
+                  <div class="sku-batch-slot-name" :title="slot.name">{{ slot.name }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="sku-batch-footer">
+            <i-button size="small" @click="showSkuBatchModal = false">\u53d6\u6d88</i-button>
+            <i-button type="primary" size="small" @click="confirmSkuBatch">\u786e\u5b9a\u66ff\u6362</i-button>
+          </div>
         </modal>
+</modal>
       </template>
     </modal>`
 });
