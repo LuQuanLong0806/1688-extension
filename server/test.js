@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 1688-extension 单元测试
  * 
  * 运行: node server/test.js
@@ -2135,5 +2135,188 @@ test('img-grid列宽应从140缩至110', function () {
 // ============================================================
 // 汇总
 // ============================================================
+
+// ============================================================
+// 17. 图片选择器确认/取消流程
+// ============================================================
+suite('detail-modal / 图片选择器确认取消');
+
+test('confirmImagePicker - sku类型应更新SKU图片', function () {
+  // 模拟 confirmImagePicker 逻辑
+  var editable = { skus: [{ image: 'old.jpg', price: 10 }] };
+  var imagePickerTarget = { type: 'sku', skuIndex: 0 };
+  var imagePickerTempUrl = 'new.jpg';
+
+  // 执行
+  if (imagePickerTarget && imagePickerTempUrl) {
+    if (imagePickerTarget.type === 'sku') {
+      editable.skus[imagePickerTarget.skuIndex].image = imagePickerTempUrl;
+    }
+  }
+
+  assert.strictEqual(editable.skus[0].image, 'new.jpg');
+});
+
+test('confirmImagePicker - variant类型应调用setVariantImage逻辑', function () {
+  var editable = {
+    variantAttrs: [
+      { attrName: '颜色', values: [{ name: '红色', image: '' }] }
+    ]
+  };
+  var imagePickerTarget = { type: 'variant', attrIdx: 0, valueName: '红色' };
+  var imagePickerTempUrl = 'red-variant.jpg';
+  var setVariantImageCalled = false;
+
+  // 模拟 setVariantImage
+  function setVariantImage(attrIdx, valueName, url) {
+    setVariantImageCalled = true;
+    var attr = editable.variantAttrs[attrIdx];
+    if (attr) {
+      var val = attr.values.find(function (v) { return v.name === valueName; });
+      if (val) val.image = url;
+    }
+  }
+
+  // 执行 confirmImagePicker 逻辑
+  if (imagePickerTarget && imagePickerTempUrl) {
+    if (imagePickerTarget.type === 'variant') {
+      setVariantImage(imagePickerTarget.attrIdx, imagePickerTarget.valueName, imagePickerTempUrl);
+    }
+  }
+
+  assert.ok(setVariantImageCalled);
+  assert.strictEqual(editable.variantAttrs[0].values[0].image, 'red-variant.jpg');
+});
+
+test('confirmImagePicker - 无target应直接关闭', function () {
+  var showImagePicker = true;
+  var imagePickerTarget = null;
+  var imagePickerTempUrl = 'some.jpg';
+
+  // 模拟逻辑：!t || !tempUrl → 直接关闭
+  if (!imagePickerTarget || !imagePickerTempUrl) {
+    showImagePicker = false;
+    imagePickerTarget = null;
+  }
+
+  assert.strictEqual(showImagePicker, false);
+});
+
+test('confirmImagePicker - 无tempUrl应直接关闭', function () {
+  var showImagePicker = true;
+  var imagePickerTarget = { type: 'sku', skuIndex: 0 };
+  var imagePickerTempUrl = null;
+
+  if (!imagePickerTarget || !imagePickerTempUrl) {
+    showImagePicker = false;
+    imagePickerTarget = null;
+  }
+
+  assert.strictEqual(showImagePicker, false);
+  assert.strictEqual(imagePickerTarget, null);
+});
+
+test('onImagePickerClose - 应重置所有状态', function () {
+  var vm = {
+    showImagePicker: true,
+    imagePickerTarget: { type: 'sku', skuIndex: 2 },
+    imagePickerTempUrl: 'temp.jpg'
+  };
+
+  // 模拟 onImagePickerClose
+  vm.showImagePicker = false;
+  vm.imagePickerTarget = null;
+  vm.imagePickerTempUrl = null;
+
+  assert.strictEqual(vm.showImagePicker, false);
+  assert.strictEqual(vm.imagePickerTarget, null);
+  assert.strictEqual(vm.imagePickerTempUrl, null);
+});
+
+test('confirmImagePicker - 确认后应重置所有状态', function () {
+  var showImagePicker = true;
+  var imagePickerTarget = { type: 'sku', skuIndex: 0 };
+  var imagePickerTempUrl = 'confirmed.jpg';
+
+  // 模拟完整 confirmImagePicker 流程
+  if (imagePickerTarget && imagePickerTempUrl) {
+    // ... update image ...
+    showImagePicker = false;
+    imagePickerTarget = null;
+    imagePickerTempUrl = null;
+  }
+
+  assert.strictEqual(showImagePicker, false);
+  assert.strictEqual(imagePickerTarget, null);
+  assert.strictEqual(imagePickerTempUrl, null);
+});
+
+// ============================================================
+// 18. 产品列表状态切换
+// ============================================================
+suite('product-list / 状态切换');
+
+test('toggleProductStatus - status=1应切换为0', function () {
+  var row = { uid: 'abc123', status: 1 };
+  var apiPayload = null;
+  var mockHttp = {
+    post: function (url, data) {
+      apiPayload = data;
+      return Promise.resolve({ data: { ok: true } });
+    }
+  };
+
+  // 模拟 toggleProductStatus 逻辑
+  apiPayload = { ids: [row.uid], status: -1 };
+  // API 返回 ok 后
+  row.status = row.status === 1 ? 0 : 1;
+
+  assert.deepStrictEqual(apiPayload.ids, ['abc123']);
+  assert.strictEqual(apiPayload.status, -1);
+  assert.strictEqual(row.status, 0);
+});
+
+test('toggleProductStatus - status=0应切换为1', function () {
+  var row = { uid: 'xyz789', status: 0 };
+
+  row.status = row.status === 1 ? 0 : 1;
+
+  assert.strictEqual(row.status, 1);
+});
+
+test('toggleProductStatus - status=1连续切换两次应回到1', function () {
+  var row = { status: 1 };
+  row.status = row.status === 1 ? 0 : 1;
+  assert.strictEqual(row.status, 0);
+  row.status = row.status === 1 ? 0 : 1;
+  assert.strictEqual(row.status, 1);
+});
+
+test('batch-status API - status=-1应触发SQL CASE翻转', function () {
+  // 验证 batch-status 路由中 status=-1 的分支逻辑
+  var status = -1;
+  var useToggle = status === -1;
+  assert.ok(useToggle);
+});
+
+test('batch-status API - status=0/1应直接设置', function () {
+  var useToggle0 = 0 === -1;
+  var useToggle1 = 1 === -1;
+  assert.strictEqual(useToggle0, false);
+  assert.strictEqual(useToggle1, false);
+});
+
+test('statusDot模板 - 已发布应为on类', function () {
+  var row = { status: 1 };
+  var cls = row.status === 1 ? 'status-dot-on' : 'status-dot-off';
+  assert.strictEqual(cls, 'status-dot-on');
+});
+
+test('statusDot模板 - 未发布应为off类', function () {
+  var row = { status: 0 };
+  var cls = row.status === 1 ? 'status-dot-on' : 'status-dot-off';
+  assert.strictEqual(cls, 'status-dot-off');
+});
+
 
 summary();

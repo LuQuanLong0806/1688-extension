@@ -456,9 +456,6 @@ Vue.component('detail-modal', {
       this.imagePickerTarget = null;
       this.imagePickerTempUrl = null;
     },
-      this.showImagePicker = false;
-      this.imagePickerTarget = null;
-    },
     // ===== SKU列表图片删除/替换 =====
     removeSkuImage: function (skuIndex) {
       if (!this.editable || !this.editable.skus || !this.editable.skus[skuIndex]) return;
