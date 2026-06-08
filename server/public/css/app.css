@@ -1765,9 +1765,9 @@ body {
 /* 状态圆点 */
 .status-dot-wrap {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 2px;
+  gap: 5px;
   cursor: pointer;
   padding: 4px 0;
 }
