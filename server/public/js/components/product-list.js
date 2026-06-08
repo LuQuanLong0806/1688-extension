@@ -343,6 +343,10 @@ Vue.component('page-products', {
     },
     toggleProductStatus: function (row) {
       var vm = this;
+      if (row._statusPending) return;
+      row._statusPending = true;
+      // 先切换视觉效果（动画）
+      row.status = row.status === 1 ? 0 : 1;
       fetch('/api/product/batch-status', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -350,13 +354,20 @@ Vue.component('page-products', {
       })
         .then(function (res) { return res.json(); })
         .then(function (res) {
-          if (res.ok) {
+          if (!res.ok) {
+            // 失败回滚
             row.status = row.status === 1 ? 0 : 1;
+            vm.$Message.error('切换失败');
+          } else {
             vm.$Message.success(row.status === 1 ? '已发布' : '已取消发布');
           }
         })
         .catch(function () {
+          row.status = row.status === 1 ? 0 : 1;
           vm.$Message.error('切换失败');
+        })
+        .finally(function () {
+          setTimeout(function () { row._statusPending = false; }, 600);
         });
     },
 

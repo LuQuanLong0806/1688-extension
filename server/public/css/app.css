@@ -1775,7 +1775,7 @@ body {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  transition: all 0.25s ease;
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 0 1px 3px rgba(0,0,0,0.12);
 }
 .status-dot:hover {
@@ -1792,4 +1792,5 @@ body {
   font-size: 10px;
   color: var(--text-muted, #999);
   white-space: nowrap;
+  transition: color 0.35s ease;
 }
