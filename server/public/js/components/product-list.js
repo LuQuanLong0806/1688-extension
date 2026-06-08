@@ -41,7 +41,7 @@ Vue.component('page-products', {
           title: '状态',
           width: 70,
           align: 'center',
-          slot: 'status'
+          slot: 'statusDot'
         },
         {
           title: '预览',
