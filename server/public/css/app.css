@@ -1445,7 +1445,6 @@ body {
   flex: 0 0 280px;
   border: 1px solid var(--border-subtle, #f0f0f0);
   border-radius: 8px;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -1453,7 +1452,6 @@ body {
   flex: 1;
   border: 1px solid var(--border-subtle, #f0f0f0);
   border-radius: 8px;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
