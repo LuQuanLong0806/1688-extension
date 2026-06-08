@@ -1459,12 +1459,14 @@ Vue.component('detail-modal', {
             <i-button size="small" type="dashed" icon="md-add" @click="addVariantAttr" style="margin-left:8px;font-size:12px">添加变种属性</i-button>
           </div>
           <div class="variant-attr-row" v-for="(va, vi) in variantAttrs" :key="vi">
-            <div class="variant-attr-label">
-              <span class="variant-attr-index">{{ vi + 1 }}</span>
-              <i-select v-model="va.name" style="width:120px" size="small" placeholder="选择属性名" clearable transfer @on-change="onVariantNameChange(vi)">
-                <i-option v-for="n in getFilteredOptions(vi)" :key="n" :value="n">{{ n }}</i-option>
-              </i-select>
-              <span class="variant-attr-del-row" v-if="vi > 0" @click="removeVariantAttr(vi)" title="删除此变种属性">×</span>
+            <div class="variant-attr-header">
+              <div class="variant-attr-label">
+                <span class="variant-attr-index">{{ vi + 1 }}</span>
+                <i-select v-model="va.name" style="width:130px" size="small" placeholder="选择属性名" clearable transfer @on-change="onVariantNameChange(vi)">
+                  <i-option v-for="n in getFilteredOptions(vi)" :key="n" :value="n">{{ n }}</i-option>
+                </i-select>
+              </div>
+              <span class="variant-attr-del-row" v-if="vi > 0" @click="removeVariantAttr(vi)" title="删除此变种属性">"><i class="ivu-icon ivu-icon-md-close"></i></span>
             </div>
             <div class="variant-attr-values" v-if="va.values.length">
               <span class="attr-tag attr-tag-variant"
@@ -1488,7 +1490,7 @@ Vue.component('detail-modal', {
             </div>
             <div class="variant-attr-add-row">
               <i-input v-model="va._newVal" size="small" placeholder="输入新属性值" style="width:140px" @keyup.enter.native="addVariantValueFromInput(vi)" />
-              <i-button size="small" type="dashed" icon="md-add" @click="addVariantValueFromInput(vi)" style="margin-left:4px">添加</i-button>
+              <i-button size="small" type="text" icon="md-add" @click="addVariantValueFromInput(vi)" style="margin-left:4px;color:var(--accent,#409eff)">添加</i-button>
             </div>
           </div>
           <!-- 原始属性标签 --><!-- 原始属性标签 -->

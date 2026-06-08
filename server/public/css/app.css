@@ -1701,40 +1701,51 @@ body {
   color: var(--accent, #409eff);
 }
 /* Variant attr row layout */
+/* Variant attr row: header + tags + add input, stacked */
 .variant-attr-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 8px;
-  margin-bottom: 12px;
-  padding: 10px;
-  background: var(--bg-card, #fafafa);
+  padding: 14px 16px;
+  margin-bottom: 10px;
   border-radius: 8px;
+  background: var(--bg-elevated, #fafafa);
   border: 1px solid var(--border-subtle, #eee);
+  transition: border-color .2s;
+}
+.variant-attr-row:hover {
+  border-color: var(--accent, #409eff);
+}
+.variant-attr-row:last-child {
+  margin-bottom: 0;
+}
+.variant-attr-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
 }
 .variant-attr-label {
   display: flex;
   align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
+  gap: 8px;
 }
 .variant-attr-index {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   background: var(--accent, #409eff);
   color: #fff;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
+  flex-shrink: 0;
 }
 .variant-attr-del-row {
-  font-size: 16px;
+ margin-left: auto;
   color: #ccc;
   cursor: pointer;
-  margin-left: 2px;
+  font-size: 14px;
+  padding: 2px;
   transition: color .15s;
 }
 .variant-attr-del-row:hover {
@@ -1745,75 +1756,76 @@ body {
   flex-wrap: wrap;
   gap: 6px;
   align-items: center;
-  flex: 1;
-  min-width: 0;
+  min-height: 28px;
 }
 .variant-attr-add-row {
   display: flex;
   align-items: center;
   gap: 4px;
-  width: 100%;
-  margin-top: 6px;
-  padding-top: 6px;
+  margin-top: 10px;
+  padding-top: 10px;
   border-top: 1px dashed var(--border-subtle, #eee);
 }
-/* Variant tag with checkbox + edit */
+/* Variant tag: checkbox + text + actions */
 .attr-tag-variant {
-  display: inline-flex;
+ display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 8px;
+  padding: 3px 6px 3px 8px;
   border-radius: 14px;
   font-size: 13px;
+  background: var(--bg-page, #fff);
+  border: 1px solid var(--border, #ddd);
+  color: var(--text-primary, #333);
   cursor: pointer;
   transition: all .15s;
-  max-width: 200px;
 }
 .attr-tag-variant:hover {
   border-color: var(--accent, #409eff);
 }
 .attr-tag-check {
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
 }
 .attr-tag-check input[type="checkbox"] {
   width: 14px;
   height: 14px;
   cursor: pointer;
   accent-color: var(--accent, #409eff);
+  margin: 0;
 }
 .attr-tag-text {
-  flex: 1;
-  min-width: 0;
+ max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .attr-tag-edit-input {
-  width: 60px;
+ width: 60px;
   height: 22px;
   border: 1px solid var(--accent, #409eff);
   border-radius: 4px;
-  padding: 0 4px;
+  padding: 0 6px;
   font-size: 12px;
   outline: none;
 }
 .attr-tag-action {
-  font-size: 12px;
+ font-size: 12px;
   cursor: pointer;
   opacity: 0;
   transition: opacity .15s;
   flex-shrink: 0;
+  padding: 0 2px;
 }
 .attr-tag-variant:hover .attr-tag-action {
   opacity: 1;
 }
 .attr-tag-edit {
   color: var(--accent, #409eff);
-  margin-left: 2px;
 }
 .attr-tag-del {
   color: #ccc;
-  margin-left: 2px;
 }
 .attr-tag-del:hover {
   color: #e53935;
