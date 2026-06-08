@@ -1489,7 +1489,7 @@ Vue.component('detail-modal', {
               <span style="color:var(--text-muted);font-size:12px">暂无属性值</span>
             </div>
             <div class="variant-attr-add-row">
-              <i-input v-model="va._newVal" size="small" placeholder="输入新属性值" style="width:140px" @keyup.enter.native="addVariantValueFromInput(vi)" />
+              <i-input v-model="va._newVal" size="small" placeholder="输入新属性值" style="width:140px" @on-enter="addVariantValueFromInput(vi)" />
               <i-button size="small" type="text" icon="md-add" @click="addVariantValueFromInput(vi)" style="margin-left:4px;color:var(--accent,#409eff)">添加</i-button>
             </div>
           </div>
