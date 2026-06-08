@@ -342,25 +342,22 @@ Vue.component('page-products', {
       });
     },
     toggleProductStatus: function (row) {
-
       var vm = this;
-
-      vm.$http.post('/api/product/batch-status', { ids: [row.uid], status: -1 }).then(function (res) {
-
-        if (res.data && res.data.ok) {
-
-          row.status = row.status === 1 ? 0 : 1;
-
-          vm.$Message.success(row.status === 1 ? '已发布' : '已取消发布');
-
-        }
-
-      }).catch(function () {
-
-        vm.$Message.error('切换失败');
-
-      });
-
+      fetch('/api/product/batch-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: [row.uid], status: -1 })
+      })
+        .then(function (res) { return res.json(); })
+        .then(function (res) {
+          if (res.ok) {
+            row.status = row.status === 1 ? 0 : 1;
+            vm.$Message.success(row.status === 1 ? '已发布' : '已取消发布');
+          }
+        })
+        .catch(function () {
+          vm.$Message.error('切换失败');
+        });
     },
 
     batchToggleStatus: function () {
