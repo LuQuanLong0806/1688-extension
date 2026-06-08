@@ -398,6 +398,12 @@ async function cleanImage(imageBuffer, options) {
   };
 }
 
+// ========== 上传到图床（走统一 ImgBB 服务） ==========
+function uploadToSmms(imageBuffer) {
+  var imgbb = require('./imgbb-upload');
+  return imgbb.uploadToImgBB(imageBuffer);
+}
+
 // ========== 保存清理后的图片 ==========
 function saveCleanedImage(imageBuffer) {
   var UPLOADS_DIR = path.join(__dirname, '..', 'public', 'uploads');
@@ -428,5 +434,6 @@ module.exports = {
   expandRegionsForBadges: expandRegionsForBadges,
   generateMask: generateMask,
   cleanImage: cleanImage,
-  saveCleanedImage: saveCleanedImage
+  saveCleanedImage: saveCleanedImage,
+  uploadToSmms: uploadToSmms
 };
