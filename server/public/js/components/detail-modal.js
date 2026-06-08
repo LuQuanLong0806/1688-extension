@@ -259,7 +259,7 @@ Vue.component('detail-modal', {
     // ===== 变种属性：属性名变更时同步SKU自定义属性 =====
     onVariantNameChange: function (attrIdx) {
       // 仅用于UI显示，实际数据存储在variantAttrs[attrIdx].name中
-    },
+      var vm = this;
       vm.rebuildSkusFromVariants();
     },
     // ===== 变种属性：勾选（关联SKU列表）=====
