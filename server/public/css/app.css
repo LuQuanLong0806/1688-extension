@@ -1483,7 +1483,7 @@ body {
   width: 100%;
   aspect-ratio: 1;
   border-radius: 6px;
-  overflow: hidden;
+  overflow: visible;
   cursor: pointer;
   border: 2px solid #f0f0f0;
   transition: all .15s;
@@ -1500,6 +1500,8 @@ body {
   height: 100%;
   object-fit: cover;
   display: block;
+  border-radius: 4px;
+  overflow: hidden;
 }
 .sku-batch-img-selected-mark {
   position: absolute;
