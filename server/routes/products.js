@@ -336,6 +336,8 @@ router.get('/product/check', (req, res) => {
 });
 
 // 商品列表（分页 + 搜索 + 筛选）
+var pipeline = require('../services/automation-pipeline');
+
 var VALID_STAGES_IN_ROUTE = pipeline.VALID_STAGES;
 router.get('/product', (req, res) => {
   const page = Math.max(1, parseInt(req.query.page) || 1);
@@ -715,7 +717,7 @@ router.patch('/products/backfill-path', (req, res) => {
   (products || []).forEach(function (p) {
     try {
       var dxm = JSON.parse(p.dxm_category);
-var pipeline = require('../services/automation-pipeline');
+
       if (dxm && dxm.path) {
         run('UPDATE products SET manual_category = ?, updated_at = CURRENT_TIMESTAMP WHERE uid = ?', [dxm.path, p.uid]);
         updated++;
