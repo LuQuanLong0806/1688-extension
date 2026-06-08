@@ -1168,78 +1168,7 @@ body {
 }
 
 /* ===== 对标店小秘 - 变种属性行 ===== */
-.variant-attr-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 16px;
-  padding: 12px 16px;
-  margin-bottom: 8px;
-  border-radius: 8px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-subtle);
-  transition: border-color .2s;
-}
-.variant-attr-row:hover {
-  border-color: var(--accent);
-}
-.variant-attr-row:last-child {
-  margin-bottom: 0;
-}
-.variant-attr-label {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
-  min-width: 180px;
-}
-.variant-attr-index {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: var(--accent);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 600;
-  flex-shrink: 0;
-}
-.variant-attr-values {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  flex: 1;
-  align-items: center;
-  min-height: 32px;
-}
-.variant-attr-empty {
-  align-items: center;
-}
-.attr-tag-variant {
-  padding: 3px 12px;
-  border-radius: 14px;
-  font-size: 13px;
-  background: var(--bg-page);
-  border: 1px solid var(--border);
-  color: var(--text-primary);
-  transition: all .15s;
-}
-.attr-tag-variant:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-.variant-attr-count {
-  font-size: 11px;
-  color: var(--text-muted);
-  margin-left: 4px;
-}
-.attr-tag-muted {
-  opacity: 0.65;
-  background: var(--bg-elevated);
-  border-color: var(--border);
-  color: var(--text-secondary);
-}
+/* variant-attr-row/label/index/values/tag styles moved to bottom */
 
 /* ===== 对标店小秘 - SKU表头 ===== */
 .sku-table th {
@@ -1268,12 +1197,7 @@ body {
 .variant-attr-section:hover {
   border-color: var(--accent, #409eff);
 }
-.variant-attr-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 12px;
-}
+/* variant-attr-header moved to bottom */
 .variant-attr-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
