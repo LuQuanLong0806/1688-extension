@@ -48,6 +48,14 @@
               <i class="menu-icon">📦</i>
               <span class="menu-text">商品管理</span>
             </li>
+            <li class="menu-item" :class="{ active: currentView === 'page-drafts' }" @click="switchView('page-drafts')">
+              <i class="menu-icon">📥</i>
+              <span class="menu-text">草稿箱</span>
+            </li>
+            <li class="menu-item" :class="{ active: currentView === 'page-publish-queue' }" @click="switchView('page-publish-queue')">
+              <i class="menu-icon">🚀</i>
+              <span class="menu-text">待发布</span>
+            </li>
             <li class="menu-item" :class="{ active: currentView === 'page-categories' }" @click="switchView('page-categories')">
               <i class="menu-icon">🏷️</i>
               <span class="menu-text">类目映射</span>
@@ -126,6 +134,8 @@
   <script src="js/components/detail-modal.js"></script>
   <script src="js/components/dashboard.js"></script>
   <script src="js/components/product-list.js"></script>
+  <script src="js/components/page-drafts.js"></script>
+  <script src="js/components/page-publish-queue.js"></script>
   <script src="js/components/category-page.js"></script>
   <script src="js/components/page-editor.js"></script>
   <script src="js/meitu-collage.js"></script>

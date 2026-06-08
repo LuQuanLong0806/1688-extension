@@ -1,4 +1,4 @@
-﻿// 商品列表页面组件
+// 商品列表页面组件
 Vue.component('page-products', {
   data: function () {
     return {
@@ -19,7 +19,8 @@ Vue.component('page-products', {
       batchCatValue: '',
       batchCatPath: '',
       _pollTimer: null,
-      recommending: {}
+      recommending: {},
+      automating: false
     };
   },
   mounted: function () {
@@ -42,6 +43,12 @@ Vue.component('page-products', {
           width: 70,
           align: 'center',
           slot: 'statusDot'
+        },
+        {
+          title: '阶段',
+          width: 80,
+          align: 'center',
+          slot: 'automationStage'
         },
         {
           title: '预览',
@@ -458,6 +465,29 @@ Vue.component('page-products', {
         .catch(function () {
           vm.$Message.error('批量设置失败');
         });
+    },
+    batchAutomate: function () {
+      var vm = this;
+      if (!vm.selectedIds.length) return;
+      vm.$Modal.confirm({
+        title: '批量自动化',
+        content: '将对 ' + vm.selectedIds.length + ' 个商品启动自动化处理（去水印、白底图、分类推荐等）',
+        onOk: function () {
+          vm.automating = true;
+          fetch('/api/product/batch-automate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ uids: vm.selectedIds })
+          }).then(function (r) { return r.json(); }).then(function (data) {
+            vm.automating = false;
+            if (data.ok) {
+              vm.$Message.success('已启动 ' + data.started + ' 个，跳过 ' + data.skipped.length + ' 个');
+              vm.selectedIds = [];
+              vm.loadList(1);
+            }
+          }).catch(function () { vm.automating = false; });
+        }
+      });
     }
   },
   template: `
@@ -496,6 +526,9 @@ Vue.component('page-products', {
           <i-button type="warning" icon="md-pricetag" :disabled="selectedIds.length === 0" @click="openBatchCategory">
             批量设置类目{{ selectedIds.length ? ' (' + selectedIds.length + ')' : '' }}
           </i-button>
+          <i-button v-if="selectedIds.length" type="warning" size="small" @click="batchAutomate" :loading="automating">
+            批量自动化
+          </i-button>
           <i-button type="error" icon="ios-trash" :disabled="selectedIds.length === 0" @click="batchDelete">
             批量删除{{ selectedIds.length ? ' (' + selectedIds.length + ')' : '' }}
           </i-button>
@@ -524,6 +557,16 @@ Vue.component('page-products', {
 
             </div>
 
+          </template>
+          <template slot="automationStage" slot-scope="{ row }">
+            <span v-if="row.automation_stage === 'processing'" class="stage-badge stage-processing">
+              <i class="ivu-icon ivu-icon-ios-loading" style="animation: spin 1s linear infinite"></i>
+              处理中
+            </span>
+            <span v-else-if="row.automation_stage === 'draft'" class="stage-badge stage-draft">草稿箱</span>
+            <span v-else-if="row.automation_stage === 'ready'" class="stage-badge stage-ready">待发布</span>
+            <span v-else-if="row.automation_stage === 'failed'" class="stage-badge stage-failed">失败</span>
+            <span v-else class="stage-text-muted">-</span>
           </template>
 
           <template slot="title" slot-scope="{ row }">
