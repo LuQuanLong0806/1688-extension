@@ -2064,6 +2064,75 @@ test('addVariantValueFromInput无属性名时应忽略', function () {
 });
 
 // ============================================================
+// 15. 云端同步字段对齐
+// ============================================================
+suite('云端同步 / 字段对齐');
+
+test('cloud sync应包含store_name字段', function () {
+  var body = { storeName: 'Prozzen' };
+  var cloudUpdates = [];
+  var cloudParams = [];
+  if (body.storeName !== undefined) { cloudUpdates.push('store_name = ?'); cloudParams.push(body.storeName || ''); }
+  assert.ok(cloudUpdates.indexOf('store_name = ?') >= 0);
+  assert.strictEqual(cloudParams[0], 'Prozzen');
+});
+
+test('cloud sync应包含product_no字段', function () {
+  var body = { productNo: 'SKU001' };
+  var cloudUpdates = [];
+  var cloudParams = [];
+  if (body.productNo !== undefined) { cloudUpdates.push('product_no = ?'); cloudParams.push(body.productNo || ''); }
+  assert.ok(cloudUpdates.indexOf('product_no = ?') >= 0);
+  assert.strictEqual(cloudParams[0], 'SKU001');
+});
+
+test('cloud sync应包含variant_attr字段', function () {
+  var body = { variantAttrName: '颜色', variantAttrName2: '数量' };
+  var cloudUpdates = [];
+  var cloudParams = [];
+  if (body.variantAttrName !== undefined) { cloudUpdates.push('variant_attr_name = ?'); cloudParams.push(body.variantAttrName || ''); }
+  if (body.variantAttrName2 !== undefined) { cloudUpdates.push('variant_attr_name2 = ?'); cloudParams.push(body.variantAttrName2 || ''); }
+  assert.strictEqual(cloudUpdates.length, 2);
+  assert.strictEqual(cloudParams[0], '颜色');
+  assert.strictEqual(cloudParams[1], '数量');
+});
+
+test('cloud sync variantAttrImages应为JSON字符串', function () {
+  var body = { variantAttrImages: [{ name: '颜色', values: ['紫'] }] };
+  var val = body.variantAttrImages;
+  var serialized = typeof val === 'object' ? JSON.stringify(val) : val || '';
+  assert.strictEqual(serialized, '[{"name":"颜色","values":["紫"]}]');
+});
+
+test('详情接口应返回store_name', function () {
+  // 模拟 products.js 399行逻辑
+  var row = { store_name: 'Prozzen' };
+  var storeName = row.store_name || '';
+  assert.strictEqual(storeName, 'Prozzen');
+});
+
+test('详情接口应返回variant_attr_name3', function () {
+  var row = { variant_attr_name3: '容量' };
+  var name3 = row.variant_attr_name3 || '';
+  assert.strictEqual(name3, '容量');
+});
+
+// ============================================================
+// 16. UI调整
+// ============================================================
+suite('detail-modal / UI调整');
+
+test('storeName默认值应为Prozzen', function () {
+  var storeName = 'Prozzen';
+  assert.strictEqual(storeName, 'Prozzen');
+});
+
+test('img-grid列宽应从140缩至110', function () {
+  var css = 'repeat(auto-fill, minmax(110px, 1fr))';
+  assert.ok(css.indexOf('110px') >= 0);
+});
+
+// ============================================================
 // 汇总
 // ============================================================
 

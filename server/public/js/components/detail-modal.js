@@ -1,4 +1,4 @@
-// 商品详情弹窗 — 全屏编辑模式
+﻿// 商品详情弹窗 — 全屏编辑模式
 Vue.component('detail-modal', {
   props: {
     visible: { type: Boolean, default: false },
@@ -30,7 +30,7 @@ Vue.component('detail-modal', {
       saving: false,
       _batchHideTimer: null,
       // 新增：对标店小秘
-      storeName: '',
+      storeName: 'Prozzen',
       variantAttrName: '颜色',
       productNo: '',
       variantAttrs: [
@@ -1330,9 +1330,7 @@ Vue.component('detail-modal', {
             <span class="label">1688类目</span><span class="value">
               <span style="color:var(--text-secondary);font-size:14px">{{ originCategory }}</span>
             </span>
-            <span class="label">产品货号</span><span class="value">
-              <i-input v-model="productNo" style="width:300px" placeholder="可选，自定义货号" />
-            </span>
+            <!-- 产品货号已隐藏 -->
             <span class="label">状态</span><span class="value">
               <span :class="'status-tag ' + (editable.status === 0 ? 'status-unused' : 'status-used')">{{ editable.status === 0 ? '未发布' : '已发布' }}</span>
             </span>
