@@ -1647,7 +1647,7 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 6px;
+  margin-bottom: 10px;
 }
 .variant-attr-label {
   display: flex;
@@ -1673,12 +1673,13 @@ body {
   margin-left: auto;
   color: #ccc;
   cursor: pointer;
-  font-size: 14px;
-  padding: 2px;
-  transition: color .15s;
+  font-size: 18px;
+  padding: 4px;
+  transition: color .15s, transform .15s;
 }
 .variant-attr-del-row:hover {
   color: #e53935;
+  transform: scale(1.2);
 }
 .variant-attr-values {
   display: flex;
@@ -1688,12 +1689,13 @@ body {
   min-height: 28px;
   overflow: visible;
   padding-left: 26px;
+  margin-bottom: 8px;
 }
 .variant-attr-add-row {
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-top: 6px;
+  margin-top: 10px;
   padding-top: 0;
   border-top: none;
   padding-left: 26px;
@@ -1742,24 +1744,48 @@ body {
   outline: none;
 }
 .attr-tag-action {
- font-size: 12px;
+ font-size: 16px;
   cursor: pointer;
   opacity: 0;
-  transition: opacity .15s;
+  transition: opacity .15s, transform .15s;
   flex-shrink: 0;
   padding: 0 2px;
+  line-height: 1;
+}
+.attr-tag-variant:hover .attr-tag-action:hover {
+  transform: scale(1.15);
 }
 .attr-tag-variant:hover .attr-tag-action {
   opacity: 1;
 }
 .attr-tag-edit {
   color: var(--accent, #409eff);
+  filter: drop-shadow(0 0 2px rgba(64,158,255,0.3));
 }
 .attr-tag-del {
   color: #ccc;
 }
 .attr-tag-del:hover {
   color: #e53935;
+  filter: drop-shadow(0 0 2px rgba(229,57,53,0.3));
+}
+/* Variant section: taller selects & inputs */
+.variant-attr-label .ivu-select,
+.variant-attr-label .ivu-select-selection {
+  height: 32px !important;
+  line-height: 32px !important;
+}
+.variant-attr-label .ivu-select-selection .ivu-select-placeholder,
+.variant-attr-label .ivu-select-selection .ivu-select-selected-value {
+  height: 30px !important;
+  line-height: 30px !important;
+  font-size: 13px;
+}
+.variant-attr-add-row .ivu-input-wrapper,
+.variant-attr-add-row .ivu-input {
+  height: 32px !important;
+  line-height: 32px !important;
+  font-size: 13px;
 }
 
 /* 状态圆点 */

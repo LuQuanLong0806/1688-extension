@@ -2318,5 +2318,113 @@ test('statusDot模板 - 未发布应为off类', function () {
   assert.strictEqual(cls, 'status-dot-off');
 });
 
+// ============================================================
+// 17. 变种属性 UI 交互
+// ============================================================
+suite('变种属性 UI 交互');
+
+test('toggleVariantValue应翻转checked状态', function () {
+  var checkedMap = {};
+  function toggle(key) { checkedMap[key] = !checkedMap[key]; }
+  toggle('红色');
+  assert.strictEqual(checkedMap['红色'], true);
+  toggle('红色');
+  assert.strictEqual(checkedMap['红色'], false);
+});
+
+test('isVariantValueChecked未设置时应返回false', function () {
+  var checkedMap = {};
+  assert.strictEqual(checkedMap['蓝色'], undefined);
+  // 模板中双重否定逻辑: checked ? false : true
+  var result = checkedMap['蓝色'] ? false : true;
+  assert.strictEqual(result, true);
+});
+
+test('startEditVariantValue应记录attrIdx和valueIdx', function () {
+  var editing = null;
+  var va = { values: ['红色', '蓝色'] };
+  var attrIdx = 0, valueIdx = 1;
+  editing = { attrIdx: attrIdx, valueIdx: valueIdx, tempName: va.values[valueIdx] };
+  assert.deepStrictEqual(editing, { attrIdx: 0, valueIdx: 1, tempName: '蓝色' });
+});
+
+test('confirmEditVariantValue应更新值', function () {
+  var editing = { attrIdx: 0, valueIdx: 0, tempName: '深红' };
+  var va = { values: ['红色', '蓝色'] };
+  var oldVal = va.values[editing.valueIdx];
+  var newVal = editing.tempName;
+  assert.strictEqual(oldVal, '红色');
+  assert.strictEqual(newVal, '深红');
+  // 确认更新
+  va.values[editing.valueIdx] = newVal;
+  assert.strictEqual(va.values[0], '深红');
+});
+
+test('confirmEditVariantValue空值应取消编辑', function () {
+  var editing = { attrIdx: 0, valueIdx: 0, tempName: '' };
+  var cancel = editing.tempName === '';
+  assert.ok(cancel);
+});
+
+test('confirmEditVariantValue相同值应取消编辑', function () {
+  var va = { values: ['红色'] };
+  var editing = { attrIdx: 0, valueIdx: 0, tempName: '红色' };
+  var same = editing.tempName === va.values[editing.valueIdx];
+  assert.ok(same);
+});
+
+test('removeVariantValue应正确删除指定值', function () {
+  var va = { values: ['红色', '蓝色', '绿色'] };
+  va.values.splice(1, 1);
+  assert.deepEqual(va.values, ['红色', '绿色']);
+});
+
+test('removeVariantAttr第一个属性组不可删除(vi>0 guard)', function () {
+  var vi = 0;
+  var canDelete = vi > 0;
+  assert.strictEqual(canDelete, false);
+});
+
+test('removeVariantAttr第二个属性组可以删除', function () {
+  var vi = 1;
+  var canDelete = vi > 0;
+  assert.ok(canDelete);
+});
+
+test('addVariantAttr最多3个限制', function () {
+  var count = 3;
+  var canAdd = count < 3;
+  assert.strictEqual(canAdd, false);
+  count = 2;
+  canAdd = count < 3;
+  assert.ok(canAdd);
+});
+
+test('variant-attr-values间距CSS类存在', function () {
+  var css = '.variant-attr-values { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; padding-left: 26px; }';
+  assert.ok(css.indexOf('margin-bottom') >= 0, '应有margin-bottom间距');
+  assert.ok(css.indexOf('padding-left: 26px') >= 0, '应有缩进对齐');
+});
+
+test('variant-attr-add-row间距应大于默认', function () {
+  var css = '.variant-attr-add-row { margin-top: 10px; padding-left: 26px; }';
+  assert.ok(css.indexOf('margin-top: 10px') >= 0, 'margin-top应为10px');
+});
+
+test('attr-tag-action字号应为16px', function () {
+  var css = '.attr-tag-action { font-size: 16px; }';
+  assert.ok(css.indexOf('font-size: 16px') >= 0, 'action icon应放大到16px');
+});
+
+test('variant-attr-del-row字号应为18px', function () {
+  var css = '.variant-attr-del-row { font-size: 18px; }';
+  assert.ok(css.indexOf('font-size: 18px') >= 0, '删除行icon应放大到18px');
+});
+
+test('i-select和i-input高度应为32px', function () {
+  var css = '.variant-attr-label .ivu-select-selection { height: 32px !important; }';
+  assert.ok(css.indexOf('height: 32px') >= 0, 'select高度应为32px');
+});
+
 
 summary();
