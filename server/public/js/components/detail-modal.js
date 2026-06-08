@@ -34,8 +34,8 @@ Vue.component('detail-modal', {
       variantAttrName: '颜色',
       productNo: '',
       variantAttrs: [
-        { name: '颜色', values: [], images: {} },
-        { name: '', values: [], images: {} }
+        { name: '颜色', values: [], images: {}, _newVal: '' },
+        { name: '', values: [], images: {}, _newVal: '' }
       ],
       // 变种属性可选名称（对标店小秘，根据分类动态变化，这里放通用集合）
       attrNameOptions: ['颜色', '风格', '材质', '口味', '适用人群', '容量', '成分', '重量', '品类', '数量', '型号', '头发长度', '被套尺码', 'RAM+ROM', '存储容量', '厚被尺码', '手机型号'],
@@ -104,8 +104,8 @@ Vue.component('detail-modal', {
           }
         });
         this.variantAttrs = [
-          { name: val.variantAttrName || val.variant_attr_name || '颜色', values: Object.keys(part1), images: {} },
-          { name: val.variantAttrName2 || '', values: Object.keys(part2), images: {} }
+          { name: val.variantAttrName || val.variant_attr_name || '颜色', values: Object.keys(part1), images: {}, _newVal: '' },
+          { name: val.variantAttrName2 || '', values: Object.keys(part2), images: {}, _newVal: '' }
         ];
         // 恢复变种属性图片缓存
         try {
@@ -260,6 +260,8 @@ Vue.component('detail-modal', {
     onVariantNameChange: function (attrIdx) {
       // 仅用于UI显示，实际数据存储在variantAttrs[attrIdx].name中
     },
+      vm.rebuildSkusFromVariants();
+    },
     // ===== 变种属性：勾选（关联SKU列表）=====
     isVariantValueChecked: function (attrIdx, value) {
       var vm = this;
@@ -328,6 +330,8 @@ Vue.component('detail-modal', {
         vm.$delete(va.images, oldVal);
       }
       vm.editingVariantValue = null;
+      // 同步重建SKU列表
+      vm.rebuildSkusFromVariants();
     },
     cancelEditVariantValue: function () {
       this.editingVariantValue = null;
@@ -342,6 +346,90 @@ Vue.component('detail-modal', {
       var va = this.variantAttrs[attrIdx];
       if (!va) return;
       this.$delete(va.images, value);
+    },
+    // ===== 变种属性：添加/删除属性组 =====
+    addVariantAttr: function () {
+      var vm = this;
+      // 最多支持 3 个变种属性
+      if (vm.variantAttrs.length >= 3) { vm.$Message.warning('最多支持3个变种属性'); return; }
+      vm.variantAttrs.push({ name: '', values: [], images: {}, _newVal: '' });
+    },
+    removeVariantAttr: function (attrIdx) {
+      var vm = this;
+      if (attrIdx === 0) return; // 不允许删除第一个
+      vm.variantAttrs.splice(attrIdx, 1);
+      vm.rebuildSkusFromVariants();
+    },
+    addVariantValueFromInput: function (attrIdx) {
+      var vm = this;
+      var va = vm.variantAttrs[attrIdx];
+      if (!va) return;
+      var newVal = (va._newVal || '').trim();
+      if (!newVal) return;
+      if (va.values.indexOf(newVal) >= 0) { vm.$Message.warning('属性值已存在'); return; }
+      va.values.push(newVal);
+      vm.$set(va, '_newVal', '');
+      vm.rebuildSkusFromVariants();
+    },
+    removeVariantValue: function (attrIdx, valueIdx) {
+      var vm = this;
+      var va = vm.variantAttrs[attrIdx];
+      if (!va || valueIdx >= va.values.length) return;
+      va.values.splice(valueIdx, 1);
+      vm.rebuildSkusFromVariants();
+    },
+    // ===== SKU列表与变种属性联动：笛卡尔积重建 =====
+    rebuildSkusFromVariants: function () {
+      var vm = this;
+      if (!vm.editable || !vm.editable.skus) return;
+      // 收集所有有值的变种属性
+      var activeAttrs = [];
+      vm.variantAttrs.forEach(function (va) {
+        if (va.values.length > 0) activeAttrs.push(va);
+      });
+      // 没有任何变种属性值，不动
+      if (activeAttrs.length === 0) return;
+      // 生成笛卡尔积
+      var combos = activeAttrs[0].values.map(function (v) { return [v]; });
+      for (var ai = 1; ai < activeAttrs.length; ai++) {
+        var newCombos = [];
+        activeAttrs[ai].values.forEach(function (v) {
+          combos.forEach(function (c) { newCombos.push(c.concat(v)); });
+        });
+        combos = newCombos;
+      }
+      // 匹配现有SKU的图片/价格/重量等数据
+      var oldSkus = vm.editable.skus.slice();
+      var getOldMatch = function (combo) {
+        // 构建查找key：按属性位置匹配
+        for (var oi = 0; oi < oldSkus.length; oi++) {
+          var s = oldSkus[oi];
+          var full = (s.customName || s.name || '').trim();
+          var parts = full.split(/\s*\/\s*|\s+/);
+          var match = true;
+          for (var ci = 0; ci < combo.length; ci++) {
+            if (parts[ci] !== combo[ci]) { match = false; break; }
+          }
+          if (match) return s;
+        }
+        return null;
+      };
+      // 建新SKU列表
+      var newSkus = combos.map(function (combo) {
+        var old = getOldMatch(combo);
+        return {
+          name: combo.join(' / '),
+          customName: combo.join(' / '),
+          image: old ? old.image : '',
+          price: old ? old.price : 0,
+          sellPrice: old ? old.sellPrice : 0,
+          size: old ? old.size : '',
+          weight: old ? old.weight : ''
+        };
+      });
+      vm.editable.skus = newSkus;
+      // 清理无效选中
+      vm.selectedSkuIndexes = vm.selectedSkuIndexes.filter(function (i) { return i < newSkus.length; });
     },
     // ===== 图片选择弹窗 =====
     openImagePicker: function (target) {
@@ -1367,23 +1455,40 @@ Vue.component('detail-modal', {
 
         <!-- 变种属性（图片+名称栅格，勾选关联SKU，编辑同步自定义属性） -->
         <div class="detail-section">
-          <div class="detail-section-title">变种属性</div>
-          <div class="variant-attr-row" v-for="(va, vi) in variantAttrs" :key="vi" v-if="(vi === 0 && va.values && va.values.length) || (vi === 1 && va.name)">
+          <div class="detail-section-title">变种属性
+            <i-button size="small" type="dashed" icon="md-add" @click="addVariantAttr" style="margin-left:8px;font-size:12px">添加变种属性</i-button>
+          </div>
+          <div class="variant-attr-row" v-for="(va, vi) in variantAttrs" :key="vi">
             <div class="variant-attr-label">
               <span class="variant-attr-index">{{ vi + 1 }}</span>
               <i-select v-model="va.name" style="width:120px" size="small" placeholder="选择属性名" clearable transfer @on-change="onVariantNameChange(vi)">
                 <i-option v-for="n in getFilteredOptions(vi)" :key="n" :value="n">{{ n }}</i-option>
               </i-select>
+              <span class="variant-attr-del-row" v-if="vi > 0" @click="removeVariantAttr(vi)" title="删除此变种属性">×</span>
             </div>
-            <div class="variant-attr-values" v-if="vi === 0 && va.values.length">
+            <div class="variant-attr-values" v-if="va.values.length">
               <span class="attr-tag attr-tag-variant"
                 v-for="(val, vj) in va.values" :key="vi+'-'+vj"
                 :class="{ 'attr-tag-active': isVariantValueChecked(vi, val) }"
-                @click="toggleVariantValue(vi, val, !isVariantValueChecked(vi, val))">{{ val }}</span>
-              <span class="attr-tag attr-tag-add" @click="addVariantValue(vi)" title="添加属性值">+</span>
+                @click="toggleVariantValue(vi, val, !isVariantValueChecked(vi, val))">
+                <span class="attr-tag-check"><input type="checkbox" :checked="isVariantValueChecked(vi, val)" @click.stop @change="toggleVariantValue(vi, val, $event.target.checked)" /></span>
+                <span class="attr-tag-text" v-if="editingVariantValue && editingVariantValue.attrIdx === vi && editingVariantValue.valueIdx === vj">
+                  <input class="attr-tag-edit-input" v-model="editingVariantValue.tempName"
+                    @keyup.enter="confirmEditVariantValue"
+                    @keyup.escape="cancelEditVariantValue"
+                    @blur="confirmEditVariantValue" v-focus />
+                </span>
+                <span class="attr-tag-text" v-else>{{ val }}</span>
+                <span class="attr-tag-action attr-tag-edit" @click.stop="startEditVariantValue(vi, vj)" title="编辑">✎</span>
+                <span class="attr-tag-action attr-tag-del" @click.stop="removeVariantValue(vi, vj)" title="删除">×</span>
+              </span>
             </div>
-            <div class="variant-attr-values" v-else-if="vi === 0">
-              <span style="color:var(--text-muted);font-size:12px">暂无属性值（从SKU自动提取）</span>
+            <div class="variant-attr-values" v-else>
+              <span style="color:var(--text-muted);font-size:12px">暂无属性值</span>
+            </div>
+            <div class="variant-attr-add-row">
+              <i-input v-model="va._newVal" size="small" placeholder="输入新属性值" style="width:140px" @keyup.enter.native="addVariantValueFromInput(vi)" />
+              <i-button size="small" type="dashed" icon="md-add" @click="addVariantValueFromInput(vi)" style="margin-left:4px">添加</i-button>
             </div>
           </div>
           <!-- 原始属性标签 --><!-- 原始属性标签 -->

@@ -1666,6 +1666,251 @@ test('添加重复属性值应不追加', function () {
   if (values.indexOf(newVal) < 0) values.push(newVal);
   assert.deepEqual(values, ['红色', '蓝色']);
 });
+
+
+// ============================================================
+// 25. detail-modal: 添加/删除变种属性组
+// ============================================================
+suite('detail-modal / 添加删除变种属性组');
+
+test('添加第三个变种属性应成功', function () {
+  var variantAttrs = [
+    { name: '颜色', values: ['红', '蓝'], images: {}, _newVal: '' },
+    { name: '尺码', values: ['S', 'M'], images: {}, _newVal: '' }
+  ];
+  if (variantAttrs.length < 3) {
+    variantAttrs.push({ name: '', values: [], images: {}, _newVal: '' });
+  }
+  assert.equal(variantAttrs.length, 3);
+  assert.deepEqual(variantAttrs[2].values, []);
+});
+
+test('不允许超过3个变种属性', function () {
+  var variantAttrs = [
+    { name: '颜色', values: [], images: {} },
+    { name: '尺码', values: [], images: {} },
+    { name: '', values: [], images: {} }
+  ];
+  var canAdd = variantAttrs.length < 3;
+  assert.ok(!canAdd);
+});
+
+test('删除第二个变种属性应成功', function () {
+  var variantAttrs = [
+    { name: '颜色', values: ['红'], images: {} },
+    { name: '尺码', values: ['S'], images: {} }
+  ];
+  variantAttrs.splice(1, 1);
+  assert.equal(variantAttrs.length, 1);
+  assert.equal(variantAttrs[0].name, '颜色');
+});
+
+test('不允许删除第一个变种属性', function () {
+  var attrIdx = 0;
+  var canRemove = attrIdx > 0;
+  assert.ok(!canRemove);
+});
+
+// ============================================================
+// 26. detail-modal: 从输入框添加属性值
+// ============================================================
+suite('detail-modal / 输入框添加属性值');
+
+test('添加属性值应追加并清空输入框', function () {
+  var va = { name: '颜色', values: ['红'], images: {}, _newVal: '蓝' };
+  var newVal = (va._newVal || '').trim();
+  if (newVal && va.values.indexOf(newVal) < 0) va.values.push(newVal);
+  va._newVal = '';
+  assert.deepEqual(va.values, ['红', '蓝']);
+  assert.equal(va._newVal, '');
+});
+
+test('空值不应添加', function () {
+  var va = { name: '颜色', values: ['红'], images: {}, _newVal: '  ' };
+  var newVal = (va._newVal || '').trim();
+  if (newVal) va.values.push(newVal);
+  assert.deepEqual(va.values, ['红']);
+});
+
+test('重复值不应添加', function () {
+  var va = { name: '颜色', values: ['红'], images: {}, _newVal: '红' };
+  var newVal = (va._newVal || '').trim();
+  var duplicate = newVal && va.values.indexOf(newVal) >= 0;
+  if (!duplicate) va.values.push(newVal);
+  assert.deepEqual(va.values, ['红']);
+});
+
+// ============================================================
+// 27. detail-modal: 删除属性值
+// ============================================================
+suite('detail-modal / 删除属性值');
+
+test('删除属性值应移除', function () {
+  var va = { name: '颜色', values: ['红', '蓝', '绿'], images: {} };
+  var valueIdx = 1;
+  va.values.splice(valueIdx, 1);
+  assert.deepEqual(va.values, ['红', '绿']);
+});
+
+// ============================================================
+// 28. detail-modal: SKU列表与变种属性笛卡尔积联动
+// ============================================================
+suite('detail-modal / SKU列表笛卡尔积联动');
+
+test('单个变种属性应生成对应数量SKU', function () {
+  var variantAttrs = [
+    { name: '颜色', values: ['紫色', '黄色', '红色'], images: {} }
+  ];
+  var activeAttrs = variantAttrs.filter(function (va) { return va.values.length > 0; });
+  var combos = activeAttrs[0].values.map(function (v) { return [v]; });
+  assert.equal(combos.length, 3);
+  assert.deepEqual(combos, [['紫色'], ['黄色'], ['红色']]);
+});
+
+test('两个变种属性应生成笛卡尔积SKU', function () {
+  var variantAttrs = [
+    { name: '颜色', values: ['紫色', '黄色', '红色'], images: {} },
+    { name: '数量', values: ['1PCS', '2PCS'], images: {} }
+  ];
+  var activeAttrs = variantAttrs.filter(function (va) { return va.values.length > 0; });
+  var combos = activeAttrs[0].values.map(function (v) { return [v]; });
+  for (var ai = 1; ai < activeAttrs.length; ai++) {
+    var newCombos = [];
+    activeAttrs[ai].values.forEach(function (v) {
+      combos.forEach(function (c) { newCombos.push(c.concat(v)); });
+    });
+    combos = newCombos;
+  }
+  assert.equal(combos.length, 6);
+  assert.deepEqual(combos[0], ['紫色', '1PCS']);
+  assert.deepEqual(combos[1], ['黄色', '1PCS']);
+  assert.deepEqual(combos[2], ['红色', '1PCS']);
+  assert.deepEqual(combos[3], ['紫色', '2PCS']);
+  assert.deepEqual(combos[4], ['黄色', '2PCS']);
+  assert.deepEqual(combos[5], ['红色', '2PCS']);
+});
+
+test('第二个属性为空应等同单属性', function () {
+  var variantAttrs = [
+    { name: '颜色', values: ['紫色', '黄色', '红色'], images: {} },
+    { name: '', values: [], images: {} }
+  ];
+  var activeAttrs = variantAttrs.filter(function (va) { return va.values.length > 0; });
+  var combos = activeAttrs[0].values.map(function (v) { return [v]; });
+  assert.equal(combos.length, 3);
+  assert.deepEqual(combos, [['紫色'], ['黄色'], ['红色']]);
+});
+
+test('修改属性值后SKU应重建', function () {
+  // 模拟 rebuildSkusFromVariants
+  var variantAttrs = [
+    { name: '颜色', values: ['紫色', '黄色'], images: {} },
+    { name: '数量', values: ['1PCS', '3PCS'], images: {} }  // 2PCS changed to 3PCS
+  ];
+  var activeAttrs = variantAttrs.filter(function (va) { return va.values.length > 0; });
+  var combos = activeAttrs[0].values.map(function (v) { return [v]; });
+  for (var ai = 1; ai < activeAttrs.length; ai++) {
+    var newCombos = [];
+    activeAttrs[ai].values.forEach(function (v) {
+      combos.forEach(function (c) { newCombos.push(c.concat(v)); });
+    });
+    combos = newCombos;
+  }
+  assert.equal(combos.length, 4);
+  assert.deepEqual(combos, [['紫色', '1PCS'], ['黄色', '1PCS'], ['紫色', '3PCS'], ['黄色', '3PCS']]);
+});
+
+test('重建SKU应保留现有图片', function () {
+  var variantAttrs = [
+    { name: '颜色', values: ['紫色', '黄色'], images: {} }
+  ];
+  var oldSkus = [
+    { name: '紫色', customName: '紫色', image: 'http://old.jpg', price: 10 },
+    { name: '黄色', customName: '黄色', image: 'http://old2.jpg', price: 20 }
+  ];
+  var activeAttrs = variantAttrs.filter(function (va) { return va.values.length > 0; });
+  var combos = activeAttrs[0].values.map(function (v) { return [v]; });
+  var getOldMatch = function (combo) {
+    for (var oi = 0; oi < oldSkus.length; oi++) {
+      var s = oldSkus[oi];
+      var full = (s.customName || s.name || '').trim();
+      var parts = full.split(/\s*\/\s*|\s+/);
+      var match = true;
+      for (var ci = 0; ci < combo.length; ci++) {
+        if (parts[ci] !== combo[ci]) { match = false; break; }
+      }
+      if (match) return s;
+    }
+    return null;
+  };
+  var newSkus = combos.map(function (combo) {
+    var old = getOldMatch(combo);
+    return {
+      name: combo.join(' / '),
+      customName: combo.join(' / '),
+      image: old ? old.image : '',
+      price: old ? old.price : 0,
+      sellPrice: old ? old.sellPrice : 0,
+      size: old ? old.size : '',
+      weight: old ? old.weight : ''
+    };
+  });
+  assert.equal(newSkus.length, 2);
+  assert.equal(newSkus[0].image, 'http://old.jpg');
+  assert.equal(newSkus[0].price, 10);
+  assert.equal(newSkus[1].image, 'http://old2.jpg');
+});
+
+test('新增组合应生成无图片SKU', function () {
+  var variantAttrs = [
+    { name: '颜色', values: ['紫色'], images: {} },
+    { name: '数量', values: ['1PCS'], images: {} }
+  ];
+  var oldSkus = [
+    { name: '紫色', customName: '紫色', image: 'http://old.jpg', price: 10 }
+  ];
+  var activeAttrs = variantAttrs.filter(function (va) { return va.values.length > 0; });
+  var combos = activeAttrs[0].values.map(function (v) { return [v]; });
+  for (var ai = 1; ai < activeAttrs.length; ai++) {
+    var nc = [];
+    activeAttrs[ai].values.forEach(function (v) { combos.forEach(function (c) { nc.push(c.concat(v)); }); });
+    combos = nc;
+  }
+  var getOldMatch = function (combo) {
+    for (var oi = 0; oi < oldSkus.length; oi++) {
+      var s = oldSkus[oi];
+      var full = (s.customName || s.name || '').trim();
+      var parts = full.split(/\s*\/\s*|\s+/);
+      var match = true;
+      for (var ci = 0; ci < combo.length; ci++) { if (parts[ci] !== combo[ci]) { match = false; break; } }
+      if (match) return s;
+    }
+    return null;
+  };
+  var newSkus = combos.map(function (combo) {
+    var old = getOldMatch(combo);
+    return { name: combo.join(' / '), customName: combo.join(' / '), image: old ? old.image : '', price: old ? old.price : 0, sellPrice: 0, size: '', weight: '' };
+  });
+  assert.equal(newSkus.length, 1);
+  assert.equal(newSkus[0].customName, '紫色 / 1PCS');
+  assert.equal(newSkus[0].image, '');  // new combo, no image preserved
+});
+
+test('无变种属性值不应触发重建', function () {
+  var variantAttrs = [
+    { name: '颜色', values: [], images: {} },
+    { name: '', values: [], images: {} }
+  ];
+  var activeAttrs = variantAttrs.filter(function (va) { return va.values.length > 0; });
+  assert.equal(activeAttrs.length, 0);
+});
+
+test('选中索引应超出新数量时被清理', function () {
+  var selectedSkuIndexes = [0, 1, 2, 3, 4];
+  var newSkusLength = 3;
+  selectedSkuIndexes = selectedSkuIndexes.filter(function (i) { return i < newSkusLength; });
+  assert.deepEqual(selectedSkuIndexes, [0, 1, 2]);
+});
 // ============================================================
 // 汇总
 // ============================================================
