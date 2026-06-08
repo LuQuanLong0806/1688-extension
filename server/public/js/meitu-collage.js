@@ -157,7 +157,7 @@ function initMeituCollage() {
     saveBoard();
   }
   function applyViewScale() {
-    canvasWrap.style.transform = 'scale(' + viewScale + ')';
+    canvasWrap.style.transform = 'translate(' + panOffsetX + 'px,' + panOffsetY + 'px) scale(' + viewScale + ')';
     canvasWrap.style.transformOrigin = 'center center';
   }
   function setupBoardResize(handle, dir) {
@@ -180,18 +180,64 @@ function initMeituCollage() {
   setupBoardResize(document.getElementById('resizeB'), 'b');
   setupBoardResize(document.getElementById('resizeRB'), 'rb');
 
-  // 滚轮缩放画布视图
+  // 滚轮缩放画布视图（不需要 Ctrl，直接滚轮缩放）
   var canvasArea = document.querySelector('.canvas-area');
+  var panOffsetX = 0, panOffsetY = 0; // 画布平移偏移量
   if (canvasArea) {
     canvasArea.addEventListener('wheel', function (e) {
-      if (e.ctrlKey || e.metaKey) {
-        e.preventDefault();
-        var delta = e.deltaY > 0 ? -0.1 : 0.1;
-        viewScale = Math.max(0.2, Math.min(3, viewScale + delta));
-        applyViewScale();
-        canvasSizeEl.textContent = boardW + ' × ' + boardH + ' (' + Math.round(viewScale * 100) + '%)';
-      }
+      e.preventDefault();
+      var delta = e.deltaY > 0 ? -0.05 : 0.05;
+      viewScale = Math.max(0.1, Math.min(5, viewScale + delta));
+      applyViewScale();
+      updateCanvasStatus();
     }, { passive: false });
+
+    // 添加缩放提示
+    var zoomHint = document.createElement('div');
+    zoomHint.className = 'canvas-zoom-hint';
+    zoomHint.textContent = '滚轮缩放 · 空白区域拖拽移动';
+    canvasArea.appendChild(zoomHint);
+
+    // 画布平移拖拽（在空白区域拖拽，非 canvas-item 上）
+    var isPanning = false;
+    var panStartX = 0, panStartY = 0;
+    var panStartOffsetX = 0, panStartOffsetY = 0;
+
+    canvasArea.addEventListener('mousedown', function (e) {
+      // 不在 canvas-item / canvas-text-item / board-resize 上才启动平移
+      if (e.target.closest('.canvas-item') || e.target.closest('.canvas-text-item') ||
+          e.target.closest('.board-resize') || e.target.closest('.canvas-zoom-hint') ||
+          e.target.closest('.canvas-size')) return;
+      // 不拦截右键和中键（留给其他用途）
+      if (e.button !== 0) return;
+      isPanning = true;
+      panStartX = e.clientX;
+      panStartY = e.clientY;
+      panStartOffsetX = panOffsetX;
+      panStartOffsetY = panOffsetY;
+      canvasArea.classList.add('panning');
+      e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', function (e) {
+      if (!isPanning) return;
+      var dx = e.clientX - panStartX;
+      var dy = e.clientY - panStartY;
+      panOffsetX = panStartOffsetX + dx;
+      panOffsetY = panStartOffsetY + dy;
+      applyViewScale();
+    });
+
+    document.addEventListener('mouseup', function (e) {
+      if (isPanning) {
+        isPanning = false;
+        canvasArea.classList.remove('panning');
+      }
+    });
+  }
+
+  function updateCanvasStatus() {
+    canvasSizeEl.textContent = boardW + ' × ' + boardH + ' (' + Math.round(viewScale * 100) + '%)';
   }
 
   // ========== Custom — Image Pool ==========
@@ -629,19 +675,19 @@ function initMeituCollage() {
     buildPool(); updatePropBar(); updateEditBtn();
   });
 
-  // ========== 生成拼图（生成图片并push到图片列表）==========
+  // ========== 生成拼图（固定800x800）==========
   document.getElementById('btnGenCollage').addEventListener('click', function () {
     if (!canvasItems.length) { showToast('请先添加图片到画布', 'err'); return; }
     renderCustomCanvas(function (canvas) {
-      addToPool(ensureMinSize(canvas, 800).toDataURL('image/png'));
+      addToPool(canvas.toDataURL('image/png'));
       showToast('拼图已生成并添加到图片列表', 'ok');
-    });
+    }, 800);
   });
 
-  // ========== Export ==========
+  // ========== Export（固定800x800）==========
   document.getElementById('btnExport').addEventListener('click', function () {
     if (!canvasItems.length) { showToast('请先添加图片到画布', 'err'); return; }
-    renderCustomCanvas(function (canvas) { downloadCanvas(ensureMinSize(canvas, 800)); });
+    renderCustomCanvas(function (canvas) { downloadCanvas(canvas); }, 800);
   });
 
   // ========== 复制拼图地址 ==========
@@ -657,7 +703,7 @@ function initMeituCollage() {
     renderCustomCanvas(function (canvas) {
       copyCollageBtn.textContent = '⏳ 上传中...';
       showToast('2/3 上传到图床...', 'loading');
-      var base64 = ensureMinSize(canvas, 800).toDataURL('image/png');
+      var base64 = canvas.toDataURL('image/png');
       uploadToSmms(base64).then(function (url) {
         uploadedUrlCache[srcToCacheKey(base64)] = url;
         copyCollageBtn.textContent = '⏳ 复制中...';
@@ -673,7 +719,7 @@ function initMeituCollage() {
         copyCollageBtn.disabled = false;
         copyCollageBtn.textContent = origText;
       });
-    });
+    }, 800);
   });
   function ensureMinSize(canvas, min) {
     if (canvas.width >= min && canvas.height >= min) return canvas;
@@ -832,12 +878,16 @@ function initMeituCollage() {
 
 
   // ========== Render — Custom ==========
-  function renderCustomCanvas(onDone) {
+  function renderCustomCanvas(onDone, exportSize) {
+    var outW = exportSize || boardW;
+    var outH = exportSize || boardH;
+    var scale = exportSize ? Math.min(exportSize / boardW, exportSize / boardH) : 1;
     var canvas = document.createElement('canvas');
-    canvas.width = boardW; canvas.height = boardH;
+    canvas.width = Math.round(boardW * scale); canvas.height = Math.round(boardH * scale);
     var ctx = canvas.getContext('2d');
     ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, boardW, boardH);
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.scale(scale, scale);
     var sorted = canvasItems.slice().sort(function (a, b) { return (a.z || 0) - (b.z || 0); });
     var loaded = 0, needed = 0;
     sorted.forEach(function (item) { if (item.type !== 'text') needed++; });

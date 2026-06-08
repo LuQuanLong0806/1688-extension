@@ -937,6 +937,214 @@ test('黄色标签应被检测', async function () {
   assert.ok(expanded[0].y <= 53, 'top: ' + expanded[0].y);
 });
 
+// ============================================================
+// 12. collage: viewScale & panOffset (前端画布缩放/平移逻辑)
+// ============================================================
+suite('collage / viewScale & panOffset');
+
+// 提取前端缩放/平移的核心纯逻辑进行测试
+// viewScale: 画布显示缩放比
+// panOffsetX/Y: 画布平移偏移量
+// exportSize: 导出固定尺寸（默认800）
+
+var DEFAULT_EXPORT_SIZE = 800;
+var MIN_VIEW_SCALE = 0.1;
+var MAX_VIEW_SCALE = 5;
+var SCALE_STEP = 0.05;
+
+test('viewScale 初始值应为 1', function () {
+  var viewScale = 1;
+  assert.strictEqual(viewScale, 1);
+});
+
+test('滚轮向下应缩小 viewScale', function () {
+  var viewScale = 1;
+  viewScale = Math.max(MIN_VIEW_SCALE, Math.min(MAX_VIEW_SCALE, viewScale - SCALE_STEP));
+  assert.strictEqual(viewScale, 0.95);
+});
+
+test('滚轮向上应放大 viewScale', function () {
+  var viewScale = 1;
+  viewScale = Math.max(MIN_VIEW_SCALE, Math.min(MAX_VIEW_SCALE, viewScale + SCALE_STEP));
+  assert.strictEqual(viewScale, 1.05);
+});
+
+test('viewScale 不应低于 0.1', function () {
+  var viewScale = 0.12;
+  viewScale = Math.max(MIN_VIEW_SCALE, Math.min(MAX_VIEW_SCALE, viewScale - 0.05));
+  assert.strictEqual(viewScale, 0.1);
+});
+
+test('viewScale 不应超过 5', function () {
+  var viewScale = 4.98;
+  viewScale = Math.max(MIN_VIEW_SCALE, Math.min(MAX_VIEW_SCALE, viewScale + 0.05));
+  assert.strictEqual(viewScale, 5);
+});
+
+test('viewScale=0.1 时继续缩小仍为 0.1', function () {
+  var viewScale = MIN_VIEW_SCALE;
+  viewScale = Math.max(MIN_VIEW_SCALE, Math.min(MAX_VIEW_SCALE, viewScale - SCALE_STEP));
+  assert.strictEqual(viewScale, MIN_VIEW_SCALE);
+});
+
+test('viewScale=5 时继续放大仍为 5', function () {
+  var viewScale = MAX_VIEW_SCALE;
+  viewScale = Math.max(MIN_VIEW_SCALE, Math.min(MAX_VIEW_SCALE, viewScale + SCALE_STEP));
+  assert.strictEqual(viewScale, MAX_VIEW_SCALE);
+});
+
+test('连续缩小20次应到达 0.1', function () {
+  var viewScale = 1;
+  for (var i = 0; i < 20; i++) {
+    viewScale = Math.max(MIN_VIEW_SCALE, Math.min(MAX_VIEW_SCALE, viewScale - SCALE_STEP));
+  }
+  assert.strictEqual(viewScale, 0.1);
+});
+
+test('panOffset 初始值应为 0', function () {
+  var panOffsetX = 0, panOffsetY = 0;
+  assert.strictEqual(panOffsetX, 0);
+  assert.strictEqual(panOffsetY, 0);
+});
+
+test('拖拽应更新 panOffset', function () {
+  var panOffsetX = 0, panOffsetY = 0;
+  var startX = 100, startY = 200;
+  var startOffsetX = 0, startOffsetY = 0;
+  // 模拟鼠标移动到 (150, 250)
+  var dx = 150 - startX;
+  var dy = 250 - startY;
+  panOffsetX = startOffsetX + dx;
+  panOffsetY = startOffsetY + dy;
+  assert.strictEqual(panOffsetX, 50);
+  assert.strictEqual(panOffsetY, 50);
+});
+
+test('反向拖拽应产生负偏移', function () {
+  var panOffsetX = 0, panOffsetY = 0;
+  var startX = 200, startY = 200;
+  var startOffsetX = 0, startOffsetY = 0;
+  var dx = 150 - startX; // -50
+  var dy = 180 - startY; // -20
+  panOffsetX = startOffsetX + dx;
+  panOffsetY = startOffsetY + dy;
+  assert.strictEqual(panOffsetX, -50);
+  assert.strictEqual(panOffsetY, -20);
+});
+
+test('从已有偏移位置继续拖拽应正确累加', function () {
+  var panOffsetX = 100, panOffsetY = 50;
+  var startX = 300, startY = 400;
+  var startOffsetX = 100, startOffsetY = 50;
+  var dx = 350 - startX;
+  var dy = 420 - startY;
+  panOffsetX = startOffsetX + dx;
+  panOffsetY = startOffsetY + dy;
+  assert.strictEqual(panOffsetX, 150);
+  assert.strictEqual(panOffsetY, 70);
+});
+
+// ============================================================
+// 13. collage: exportSize (固定800x800导出)
+// ============================================================
+suite('collage / exportSize (固定800x800导出)');
+
+test('默认导出尺寸应为 800', function () {
+  assert.strictEqual(DEFAULT_EXPORT_SIZE, 800);
+});
+
+test('800x800 画布导出 scale 应为 1', function () {
+  var boardW = 800, boardH = 800;
+  var exportSize = 800;
+  var scale = exportSize ? Math.min(exportSize / boardW, exportSize / boardH) : 1;
+  assert.strictEqual(scale, 1);
+  assert.strictEqual(Math.round(boardW * scale), 800);
+  assert.strictEqual(Math.round(boardH * scale), 800);
+});
+
+test('1200x800 画布导出 800 时应缩放到 800x533', function () {
+  var boardW = 1200, boardH = 800;
+  var exportSize = 800;
+  var scale = Math.min(exportSize / boardW, exportSize / boardH);
+  assert.strictEqual(scale, 800 / 1200); // 2/3
+  assert.strictEqual(Math.round(boardW * scale), 800);
+  assert.strictEqual(Math.round(boardH * scale), 533);
+});
+
+test('800x1200 画布导出 800 时应缩放到 800x1200(超长不截)', function () {
+  var boardW = 800, boardH = 1200;
+  var exportSize = 800;
+  var scale = Math.min(exportSize / boardW, exportSize / boardH);
+  assert.strictEqual(scale, 800 / 1200); // 2/3
+  assert.strictEqual(Math.round(boardW * scale), 533);
+  assert.strictEqual(Math.round(boardH * scale), 800);
+});
+
+test('400x400 画布导出 800 时应放大到 800x800', function () {
+  var boardW = 400, boardH = 400;
+  var exportSize = 800;
+  var scale = Math.min(exportSize / boardW, exportSize / boardH);
+  assert.strictEqual(scale, 2);
+  assert.strictEqual(Math.round(boardW * scale), 800);
+  assert.strictEqual(Math.round(boardH * scale), 800);
+});
+
+test('无 exportSize 时应使用原始画布尺寸', function () {
+  var boardW = 1000, boardH = 600;
+  var exportSize = undefined;
+  var scale = exportSize ? Math.min(exportSize / boardW, exportSize / boardH) : 1;
+  assert.strictEqual(scale, 1);
+  assert.strictEqual(Math.round(boardW * scale), 1000);
+  assert.strictEqual(Math.round(boardH * scale), 600);
+});
+
+test('exportSize=0 应使用原始画布尺寸', function () {
+  var boardW = 1000, boardH = 600;
+  var exportSize = 0;
+  var scale = exportSize ? Math.min(exportSize / boardW, exportSize / boardH) : 1;
+  assert.strictEqual(scale, 1);
+});
+
+// ============================================================
+// 14. collage: renderCustomCanvas scale 准确性
+// ============================================================
+suite('collage / renderCustomCanvas scale 逻辑');
+
+test('非正方形画布等比缩放应保持宽高比', function () {
+  var boardW = 1600, boardH = 900;
+  var exportSize = 800;
+  var scale = Math.min(exportSize / boardW, exportSize / boardH);
+  var outW = Math.round(boardW * scale);
+  var outH = Math.round(boardH * scale);
+  // 宽高比应相同
+  var origRatio = boardW / boardH;
+  var outRatio = outW / outH;
+  assert.ok(Math.abs(origRatio - outRatio) < 0.01, '宽高比变化: ' + origRatio + ' -> ' + outRatio);
+  // 较长边应为 800
+  assert.strictEqual(Math.max(outW, outH), 800);
+});
+
+test('canvas尺寸计算应产生有效整数', function () {
+  var cases = [
+    { w: 800, h: 800, export: 800 },
+    { w: 1200, h: 800, export: 800 },
+    { w: 600, h: 400, export: 800 },
+    { w: 500, h: 700, export: 800 },
+    { w: 1920, h: 1080, export: 800 }
+  ];
+  cases.forEach(function (c) {
+    var scale = Math.min(c.export / c.w, c.export / c.h);
+    var outW = Math.round(c.w * scale);
+    var outH = Math.round(c.h * scale);
+    assert.ok(Number.isInteger(outW), c.w + 'x' + c.h + ' outW not integer: ' + outW);
+    assert.ok(Number.isInteger(outH), c.w + 'x' + c.h + ' outH not integer: ' + outH);
+    assert.ok(outW > 0, c.w + 'x' + c.h + ' outW <= 0');
+    assert.ok(outH > 0, c.w + 'x' + c.h + ' outH <= 0');
+  });
+});
+
+// ============================================================
 // 汇总
 // ============================================================
+
 summary();

@@ -47,10 +47,12 @@
 .collage-main { flex: 1; display: flex; overflow: hidden; }
 .custom-area { flex: 1; overflow: auto; }
 .custom-body { flex: 1; display: flex; flex-direction: column; min-height: 0; }
-.canvas-area { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; overflow: auto; background: linear-gradient(45deg,#e8e8e8 25%,transparent 25%),linear-gradient(-45deg,#e8e8e8 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#e8e8e8 75%),linear-gradient(-45deg,transparent 75%,#e8e8e8 75%); background-size: 16px 16px; background-position: 0 0,0 8px,8px -8px,-8px 0; background-color: #f5f5f5; }
-.canvas-wrap { position: relative; display: inline-block; }
+.canvas-area { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; overflow: hidden; background: linear-gradient(45deg,#e8e8e8 25%,transparent 25%),linear-gradient(-45deg,#e8e8e8 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#e8e8e8 75%),linear-gradient(-45deg,transparent 75%,#e8e8e8 75%); background-size: 16px 16px; background-position: 0 0,0 8px,8px -8px,-8px 0; background-color: #f5f5f5; cursor: grab; }
+.canvas-area.panning { cursor: grabbing; }
+.canvas-wrap { position: relative; display: inline-block; transition: transform 0.05s linear; }
 .canvas-board { position: relative; background: #fff; box-shadow: 0 2px 16px rgba(0,0,0,.12); overflow: hidden; border-radius: 2px; }
-.canvas-size { margin-top: 8px; font-size: 12px; color: #999; text-align: center; }
+.canvas-size { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); font-size: 12px; color: #999; text-align: center; background: rgba(255,255,255,.8); padding: 2px 10px; border-radius: 10px; pointer-events: none; z-index: 50; }
+.canvas-zoom-hint { position: absolute; top: 8px; right: 8px; font-size: 11px; color: #aaa; pointer-events: none; z-index: 50; background: rgba(255,255,255,.7); padding: 2px 8px; border-radius: 8px; }
 .board-resize { position: absolute; z-index: 100; }
 .board-resize-r { right: -6px; top: 0; width: 12px; height: 100%; cursor: ew-resize; }
 .board-resize-b { bottom: -6px; left: 0; height: 12px; width: 100%; cursor: ns-resize; }
