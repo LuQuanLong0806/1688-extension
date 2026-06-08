@@ -1,4 +1,4 @@
-const initSqlJs = require('sql.js');
+﻿const initSqlJs = require('sql.js');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -176,6 +176,7 @@ var LOCAL_TABLE_DEFS = [
       variant_attr_name TEXT DEFAULT '',
       product_no TEXT DEFAULT '',
       variant_attr_name2 TEXT DEFAULT '',
+      variant_attr_name3 TEXT DEFAULT '',
       variant_attr_images TEXT DEFAULT ''
     )`
   },

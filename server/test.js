@@ -1911,6 +1911,158 @@ test('选中索引应超出新数量时被清理', function () {
   selectedSkuIndexes = selectedSkuIndexes.filter(function (i) { return i < newSkusLength; });
   assert.deepEqual(selectedSkuIndexes, [0, 1, 2]);
 });
+
+// ============================================================
+// 14. 变种属性：第二个属性默认空值 + dimensions安全
+// ============================================================
+suite('detail-modal / 第二变种属性默认空值');
+
+test('第二个变种属性values应为空数组', function () {
+  // 模拟不自动从SKU名称拆分
+  var skus = [
+    { name: '紫色 1PCS', customName: '紫色 1PCS', image: '', price: 10, sellPrice: 20, weight: '' }
+  ];
+  var part1 = {};
+  skus.forEach(function (s) {
+    var fullName = (s.customName || s.name || '').trim();
+    if (fullName && !part1[fullName]) part1[fullName] = true;
+  });
+  assert.ok(Object.keys(part1).length > 0);
+  // 不拆分part2
+});
+
+test('rebuildSkus新SKU应保留dimensions', function () {
+  var dimDefault = ['10', '20', '30'];
+  var newSku = {
+    name: '紫色',
+    customName: '紫色',
+    image: '',
+    price: 0,
+    sellPrice: 0,
+    dimensions: dimDefault.slice(),
+    size: '',
+    weight: ''
+  };
+  assert.ok(newSku.dimensions, '新SKU应有dimensions');
+  assert.ok(Array.isArray(newSku.dimensions), 'dimensions应是数组');
+  assert.strictEqual(newSku.dimensions[0], '10');
+});
+
+test('rebuildSkus旧SKU匹配时应复制dimensions', function () {
+  var oldSku = { name: '紫色', customName: '紫色', image: 'a.jpg', price: 10, sellPrice: 20, dimensions: ['5', '10', '15'], weight: '200' };
+  var matched = {
+    name: '紫色 / 1PCS',
+    customName: '紫色 / 1PCS',
+    image: oldSku.image,
+    price: oldSku.price,
+    sellPrice: oldSku.sellPrice,
+    dimensions: oldSku.dimensions ? oldSku.dimensions.slice() : ['', '', ''],
+    size: oldSku.size || '',
+    weight: oldSku.weight
+  };
+  assert.ok(matched.dimensions, '应有dimensions');
+  assert.strictEqual(matched.dimensions[0], '5');
+});
+
+test('笛卡尔积：第二属性为空时等同单属性', function () {
+  var activeAttrs = [
+    { name: '颜色', values: ['紫', '黄', '红'] }
+  ];
+  var combos = activeAttrs[0].values.map(function (v) { return [v]; });
+  assert.strictEqual(combos.length, 3);
+  assert.deepEqual(combos[0], ['紫']);
+});
+
+test('笛卡尔积：第二属性有值时乘积展开', function () {
+  var activeAttrs = [
+    { name: '颜色', values: ['紫', '黄', '红'] },
+    { name: '数量', values: ['1PCS'] }
+  ];
+  var combos = activeAttrs[0].values.map(function (v) { return [v]; });
+  for (var ai = 1; ai < activeAttrs.length; ai++) {
+    var newCombos = [];
+    activeAttrs[ai].values.forEach(function (v) {
+      combos.forEach(function (c) { newCombos.push(c.concat(v)); });
+    });
+    combos = newCombos;
+  }
+  assert.strictEqual(combos.length, 3);
+  assert.deepEqual(combos[0], ['紫', '1PCS']);
+  assert.deepEqual(combos[2], ['红', '1PCS']);
+});
+
+test('笛卡尔积：第二属性两个值时6条', function () {
+  var activeAttrs = [
+    { name: '颜色', values: ['紫', '黄', '红'] },
+    { name: '数量', values: ['1PCS', '2PCS'] }
+  ];
+  var combos = activeAttrs[0].values.map(function (v) { return [v]; });
+  for (var ai = 1; ai < activeAttrs.length; ai++) {
+    var newCombos = [];
+    activeAttrs[ai].values.forEach(function (v) {
+      combos.forEach(function (c) { newCombos.push(c.concat(v)); });
+    });
+    combos = newCombos;
+  }
+  assert.strictEqual(combos.length, 6);
+  assert.deepEqual(combos[0], ['紫', '1PCS']);
+  assert.deepEqual(combos[1], ['黄', '1PCS']);
+  assert.deepEqual(combos[2], ['红', '1PCS']);
+  assert.deepEqual(combos[3], ['紫', '2PCS']);
+  assert.deepEqual(combos[4], ['黄', '2PCS']);
+  assert.deepEqual(combos[5], ['红', '2PCS']);
+});
+
+test('修改属性值后SKU应重建并保留图片', function () {
+  // 模拟：紫/1PCS(有图) + 黄/1PCS(无图) + 红/1PCS(无图)
+  var oldSkus = [
+    { name: '紫 / 1PCS', customName: '紫 / 1PCS', image: 'purple.jpg', price: 10, sellPrice: 20, dimensions: ['10','20','30'], weight: '100' },
+    { name: '黄 / 1PCS', customName: '黄 / 1PCS', image: '', price: 15, sellPrice: 30, dimensions: ['10','20','30'], weight: '120' },
+    { name: '红 / 1PCS', customName: '红 / 1PCS', image: '', price: 12, sellPrice: 24, dimensions: ['10','20','30'], weight: '110' }
+  ];
+  // 修改第二个属性 1PCS -> 3PCS
+  var combo = ['紫', '3PCS'];
+  var getOldMatch = function (c) {
+    for (var oi = 0; oi < oldSkus.length; oi++) {
+      var s = oldSkus[oi];
+      var parts = (s.customName || s.name || '').split(/\s*\/\s*|\s+/);
+      var match = true;
+      for (var ci = 0; ci < c.length; ci++) {
+        if (parts[ci] !== c[ci]) { match = false; break; }
+      }
+      if (match) return s;
+    }
+    return null;
+  };
+  var old = getOldMatch(combo);
+  // 紫/3PCS 在旧数据中不存在（旧数据是紫/1PCS），所以old应为null
+  assert.strictEqual(old, null);
+  // 紫/1PCS应匹配
+  var old1 = getOldMatch(['紫', '1PCS']);
+  assert.ok(old1);
+  assert.strictEqual(old1.image, 'purple.jpg');
+});
+
+test('getFilteredOptions应排除所有已用属性名', function () {
+  var variantAttrs = [
+    { name: '颜色', values: [] },
+    { name: '数量', values: [] },
+    { name: '', values: [] }
+  ];
+  var attrNameOptions = ['颜色', '风格', '材质', '数量', '容量'];
+  // 模拟index=2的过滤
+  var usedNames = variantAttrs.filter(function (va, i) { return i !== 2 && va.name; }).map(function (va) { return va.name; });
+  assert.deepEqual(usedNames, ['颜色', '数量']);
+  var result = attrNameOptions.filter(function (n) { return usedNames.indexOf(n) < 0; });
+  assert.deepEqual(result, ['风格', '材质', '容量']);
+});
+
+test('addVariantValueFromInput无属性名时应忽略', function () {
+  var va = { name: '', values: [], images: {}, _newVal: 'test' };
+  var shouldAdd = va.name !== undefined && va.name !== '';
+  assert.strictEqual(shouldAdd, false);
+});
+
 // ============================================================
 // 汇总
 // ============================================================

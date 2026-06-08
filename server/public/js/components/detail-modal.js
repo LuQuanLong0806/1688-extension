@@ -90,22 +90,15 @@ Vue.component('detail-modal', {
         this.variantAttrName = val.variantAttrName || val.variant_attr_name || '颜色';
         this.productNo = val.productNo || val.product_no || '';
         this.imageSizeCache = {};
-        // 从 SKU name 自动拆分两个变种属性值
-        var part1 = {}, part2 = {};
+        // 只从 SKU name 拆分第一个变种属性值，第二个及之后默认为空
+        var part1 = {};
         (this.editable.skus || []).forEach(function (s) {
           var fullName = (s.customName || s.name || '').trim();
-          // 按 / 或 空格 拆分
-          var parts = fullName.split(/\s*\/\s*|\s+/);
-          if (parts.length >= 2) {
-            if (parts[0] && !part1[parts[0]]) part1[parts[0]] = true;
-            if (parts[1] && !part2[parts[1]]) part2[parts[1]] = true;
-          } else {
-            if (fullName && !part1[fullName]) part1[fullName] = true;
-          }
+          if (fullName && !part1[fullName]) part1[fullName] = true;
         });
         this.variantAttrs = [
           { name: val.variantAttrName || val.variant_attr_name || '颜色', values: Object.keys(part1), images: {}, _newVal: '' },
-          { name: val.variantAttrName2 || '', values: Object.keys(part2), images: {}, _newVal: '' }
+          { name: val.variantAttrName2 || '', values: [], images: {}, _newVal: '' }
         ];
         // 恢复变种属性图片缓存
         try {
@@ -218,9 +211,8 @@ Vue.component('detail-modal', {
       var vm = this;
       var all = vm.attrNameOptions;
       return function (index) {
-        var otherIdx = index === 0 ? 1 : 0;
-        var otherName = (vm.variantAttrs[otherIdx] || {}).name || '';
-        return all.filter(function (n) { return n !== otherName; });
+        var usedNames = vm.variantAttrs.filter(function (va, i) { return i !== index && va.name; }).map(function (va) { return va.name; });
+        return all.filter(function (n) { return usedNames.indexOf(n) < 0; });
       };
     },
     skuBatchAllImages: function () {
@@ -363,7 +355,7 @@ Vue.component('detail-modal', {
     addVariantValueFromInput: function (attrIdx) {
       var vm = this;
       var va = vm.variantAttrs[attrIdx];
-      if (!va) return;
+      if (!va || !va.name) return;
       var newVal = (va._newVal || '').trim();
       if (!newVal) return;
       if (va.values.indexOf(newVal) >= 0) { vm.$Message.warning('属性值已存在'); return; }
@@ -400,6 +392,8 @@ Vue.component('detail-modal', {
       }
       // 匹配现有SKU的图片/价格/重量等数据
       var oldSkus = vm.editable.skus.slice();
+      var dimDefault = ['', '', ''];
+      if (oldSkus.length > 0 && oldSkus[0].dimensions) dimDefault = oldSkus[0].dimensions.slice();
       var getOldMatch = function (combo) {
         // 构建查找key：按属性位置匹配
         for (var oi = 0; oi < oldSkus.length; oi++) {
@@ -423,6 +417,7 @@ Vue.component('detail-modal', {
           image: old ? old.image : '',
           price: old ? old.price : 0,
           sellPrice: old ? old.sellPrice : 0,
+          dimensions: old && old.dimensions ? old.dimensions.slice() : dimDefault.slice(),
           size: old ? old.size : '',
           weight: old ? old.weight : ''
         };
@@ -1466,7 +1461,7 @@ Vue.component('detail-modal', {
                   <i-option v-for="n in getFilteredOptions(vi)" :key="n" :value="n">{{ n }}</i-option>
                 </i-select>
               </div>
-              <span class="variant-attr-del-row" v-if="vi > 0" @click="removeVariantAttr(vi)" title="删除此变种属性">"><i class="ivu-icon ivu-icon-md-close"></i></span>
+              <span class="variant-attr-del-row" v-if="vi > 0" @click="removeVariantAttr(vi)" title="删除此变种属性"><i class="ivu-icon ivu-icon-md-close"></i></span>
             </div>
             <div class="variant-attr-values" v-if="va.values.length">
               <span class="attr-tag attr-tag-variant"
@@ -1488,7 +1483,7 @@ Vue.component('detail-modal', {
             <div class="variant-attr-values" v-else>
               <span style="color:var(--text-muted);font-size:12px">暂无属性值</span>
             </div>
-            <div class="variant-attr-add-row">
+            <div class="variant-attr-add-row" v-if="va.name">
               <i-input v-model="va._newVal" size="small" placeholder="输入新属性值" style="width:200px" @on-enter="addVariantValueFromInput(vi)" />
               <i-button size="small" type="text" icon="md-add" @click="addVariantValueFromInput(vi)" style="margin-left:4px;color:var(--accent,#409eff)">添加</i-button>
             </div>

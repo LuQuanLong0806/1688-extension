@@ -1,4 +1,4 @@
-const { Router } = require('express');
+﻿const { Router } = require('express');
 const dbModule = require('../db');
 const { run, getOne, getAll, scheduleSave, saveNow, sseBroadcast, parseRow, treeGetOne } = dbModule;
 const cloudDb = require('../cloud/index');
@@ -398,6 +398,7 @@ router.get('/product', (req, res) => {
     storeName: row.store_name || '',
     variantAttrName: row.variant_attr_name || '',
     variantAttrName2: row.variant_attr_name2 || '',
+    variantAttrName3: row.variant_attr_name3 || '',
     variantAttrImages: row.variant_attr_images || '',
     productNo: row.product_no || ''
   }));
@@ -441,6 +442,7 @@ router.put('/product/:id', (req, res) => {
     storeName: 'store_name',
     variantAttrName: 'variant_attr_name',
     variantAttrName2: 'variant_attr_name2',
+    variantAttrName3: 'variant_attr_name3',
     variantAttrImages: 'variant_attr_images',
     productNo: 'product_no'
   };
