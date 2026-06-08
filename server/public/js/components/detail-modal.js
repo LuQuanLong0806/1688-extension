@@ -225,6 +225,9 @@ Vue.component('detail-modal', {
       (this.editable.detail_images || []).forEach(function (url) {
         if (url && !seen[url]) { seen[url] = true; imgs.push(url); }
       });
+      (this.editable.skus || []).forEach(function (s) {
+        if (s.image && !seen[s.image]) { seen[s.image] = true; imgs.push(s.image); }
+      });
       return imgs;
     }
   },
