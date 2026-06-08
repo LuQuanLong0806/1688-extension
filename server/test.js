@@ -2674,4 +2674,210 @@ test('error 级别 issue 应使用 CSS 变量 --danger', function () {
 
 
 
+// ============================================================
+// 自动化流水线 / processProduct 7步流水线
+// ============================================================
+suite('自动化流水线 / processProduct 7步流水线');
+
+var pipeline = require(path.join(__dirname, 'services', 'automation-pipeline'));
+
+test('downloadImage 应导出为函数', function () {
+  assert.strictEqual(typeof pipeline.downloadImage, 'function');
+});
+
+test('processProduct 应导出为函数', function () {
+  assert.strictEqual(typeof pipeline.processProduct, 'function');
+});
+
+test('startQueue 应导出为函数', function () {
+  assert.strictEqual(typeof pipeline.startQueue, 'function');
+});
+
+test('enqueue 应导出为函数', function () {
+  assert.strictEqual(typeof pipeline.enqueue, 'function');
+});
+
+test('recoverStaleJobs 应导出为函数', function () {
+  assert.strictEqual(typeof pipeline.recoverStaleJobs, 'function');
+});
+
+test('queue 应初始化为 idle 状态', function () {
+  assert.strictEqual(pipeline.queue.state, 'idle');
+  assert.strictEqual(pipeline.queue.currentUid, null);
+  assert.ok(Array.isArray(pipeline.queue.pending));
+  assert.strictEqual(pipeline.queue.pending.length, 0);
+});
+
+test('enqueue 应将 uid 加入 pending 列表并返回 added', function () {
+  var origState = pipeline.queue.state;
+  var origPending = pipeline.queue.pending.slice();
+  var origCurrent = pipeline.queue.currentUid;
+  pipeline.queue.state = 'idle';
+  pipeline.queue.currentUid = null;
+  pipeline.queue.pending = [];
+
+  var mockDb = { run: function () {}, getOne: function () {}, getAll: function () { return []; } };
+  var added = pipeline.enqueue(['uid-a', 'uid-b'], mockDb);
+  assert.deepStrictEqual(added, ['uid-a', 'uid-b']);
+  assert.strictEqual(pipeline.queue.pending.length, 2);
+  assert.strictEqual(pipeline.queue.pending[0], 'uid-a');
+  assert.strictEqual(pipeline.queue.pending[1], 'uid-b');
+
+  pipeline.queue.state = origState;
+  pipeline.queue.currentUid = origCurrent;
+  pipeline.queue.pending = origPending;
+});
+
+test('enqueue 应自动去重已有 pending 的 uid', function () {
+  var origPending = pipeline.queue.pending.slice();
+  pipeline.queue.pending = ['uid-x'];
+
+  var mockDb = { run: function () {}, getOne: function () {}, getAll: function () { return []; } };
+  var added = pipeline.enqueue(['uid-x', 'uid-y'], mockDb);
+  assert.deepStrictEqual(added, ['uid-y']);
+  assert.strictEqual(pipeline.queue.pending.length, 2);
+
+  pipeline.queue.pending = origPending;
+});
+
+test('enqueue 应排除正在处理的 currentUid', function () {
+  var origPending = pipeline.queue.pending.slice();
+  var origCurrent = pipeline.queue.currentUid;
+  pipeline.queue.pending = [];
+  pipeline.queue.currentUid = 'uid-z';
+
+  var mockDb = { run: function () {}, getOne: function () {}, getAll: function () { return []; } };
+  var added = pipeline.enqueue(['uid-z', 'uid-w'], mockDb);
+  assert.deepStrictEqual(added, ['uid-w']);
+  assert.strictEqual(pipeline.queue.pending.length, 1);
+
+  pipeline.queue.pending = origPending;
+  pipeline.queue.currentUid = origCurrent;
+});
+
+test('enqueue 空 uids 应返回空数组', function () {
+  var mockDb = { run: function () {}, getOne: function () {}, getAll: function () { return []; } };
+  var added = pipeline.enqueue([], mockDb);
+  assert.deepStrictEqual(added, []);
+});
+
+test('processProduct 不存在的 uid 应返回 failed', async function () {
+  var mockDb = {
+    getOne: function () { return null; },
+    run: function () {},
+    getAll: function () { return []; }
+  };
+  var result = await pipeline.processProduct('nonexistent-uid', mockDb);
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.stage, 'failed');
+  assert.ok(result.error.indexOf('not found') >= 0, 'should contain not found: ' + result.error);
+});
+
+test('processProduct 无图片的 uid 应返回 failed', async function () {
+  var mockDb = {
+    getOne: function () { return { uid: 'test-uid', main_images: '[]', attrs: '[]' }; },
+    run: function () {},
+    getAll: function () { return []; }
+  };
+  var result = await pipeline.processProduct('test-uid', mockDb);
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.stage, 'failed');
+  assert.ok(result.error.indexOf('No images') >= 0, 'should contain No images: ' + result.error);
+});
+
+test('processProduct 质检失败应降级为默认值并继续', async function () {
+  var mockDb = {
+    getOne: function () { return { uid: 'q-uid', main_images: '["http://fake.com/1.jpg"]', attrs: '[]', title: 'test' }; },
+    run: function () {},
+    getAll: function () { return []; }
+  };
+  var result = await pipeline.processProduct('q-uid', mockDb);
+  assert.ok(result.log !== undefined, 'should return log');
+  var qualityStep = result.log.steps.find(function (s) { return s.name === 'quality_check'; });
+  assert.ok(qualityStep !== undefined, 'log should contain quality_check step');
+  assert.strictEqual(qualityStep.status, 'error', 'quality check should be error');
+});
+
+test('createEmptyLog 应返回正确结构', function () {
+  var log = pipeline.createEmptyLog('test-uid');
+  assert.ok(Array.isArray(log.steps));
+  assert.strictEqual(log.steps.length, 0);
+  assert.strictEqual(log.totalDuration, 0);
+  assert.ok(log.startedAt);
+  assert.strictEqual(log.finishedAt, null);
+});
+
+test('addStepResult 应正确添加步骤', function () {
+  var log = pipeline.createEmptyLog('test');
+  pipeline.addStepResult(log, 'test_step', 'ok', 100, { key: 'val' });
+  assert.strictEqual(log.steps.length, 1);
+  assert.strictEqual(log.steps[0].name, 'test_step');
+  assert.strictEqual(log.steps[0].status, 'ok');
+  assert.strictEqual(log.steps[0].duration, 100);
+  assert.deepStrictEqual(log.steps[0].result, { key: 'val' });
+});
+
+test('addStepResult 带 note 应正确记录', function () {
+  var log = pipeline.createEmptyLog('test');
+  pipeline.addStepResult(log, 'step_with_note', 'skipped', 0, { reason: 'test' }, 'extra note');
+  assert.strictEqual(log.steps[0].note, 'extra note');
+});
+
+test('finalizeLog 应计算总耗时', function () {
+  var log = pipeline.createEmptyLog('test');
+  pipeline.addStepResult(log, 's1', 'ok', 100, null);
+  pipeline.addStepResult(log, 's2', 'ok', 200, null);
+  pipeline.addStepResult(log, 's3', 'skipped', 0, null);
+  pipeline.finalizeLog(log);
+  assert.ok(log.finishedAt);
+  assert.strictEqual(log.totalDuration, 300);
+});
+
+test('diagnoseIssues 应检测无分类', function () {
+  var product = { custom_category: '' };
+  var log = pipeline.createEmptyLog('test');
+  var issues = pipeline.diagnoseIssues(product, log);
+  assert.ok(issues.some(function (i) { return i.code === 'no_category'; }));
+});
+
+test('diagnoseIssues 有分类时应无 no_category', function () {
+  var product = { custom_category: '家居' };
+  var log = pipeline.createEmptyLog('test');
+  var issues = pipeline.diagnoseIssues(product, log);
+  assert.ok(!issues.some(function (i) { return i.code === 'no_category'; }));
+});
+
+test('diagnoseIssues 应检测白底图全部失败', function () {
+  var product = { custom_category: '家居' };
+  var log = pipeline.createEmptyLog('test');
+  pipeline.addStepResult(log, 'white_bg', 'ok', 0, { failed: 5, generated: 0 });
+  var issues = pipeline.diagnoseIssues(product, log);
+  assert.ok(issues.some(function (i) { return i.code === 'no_white_bg'; }));
+});
+
+test('diagnoseIssues 白底部分成功不应报 no_white_bg', function () {
+  var product = { custom_category: '家居' };
+  var log = pipeline.createEmptyLog('test');
+  pipeline.addStepResult(log, 'white_bg', 'ok', 0, { failed: 1, generated: 3 });
+  var issues = pipeline.diagnoseIssues(product, log);
+  assert.ok(!issues.some(function (i) { return i.code === 'no_white_bg'; }));
+});
+
+test('diagnoseIssues 应检测上传部分失败', function () {
+  var product = { custom_category: '家居' };
+  var log = pipeline.createEmptyLog('test');
+  pipeline.addStepResult(log, 'upload_imgbb', 'ok', 0, { failed: 1 });
+  var issues = pipeline.diagnoseIssues(product, log);
+  assert.ok(issues.some(function (i) { return i.code === 'upload_partial'; }));
+});
+
+test('getQueueStatus 应返回队列状态', function () {
+  var status = pipeline.getQueueStatus();
+  assert.ok(status.state);
+  assert.ok('currentUid' in status);
+  assert.ok('pending' in status);
+});
+
+
+
 summary();

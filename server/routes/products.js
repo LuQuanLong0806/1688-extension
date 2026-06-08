@@ -772,19 +772,13 @@ router.post('/product/batch-automate', (req, res) => {
       skipped.push({ uid: uid, reason: '已在处理中或已完成 (' + (product.automation_stage || 'none') + ')' });
       return;
     }
-    // 更新状态
-    var now = new Date().toISOString().replace('T', ' ').substring(0, 19);
-    dbModule.run('UPDATE products SET automation_stage = ?, automation_started_at = ?, updated_at = ? WHERE uid = ?',
-      ['processing', now, now, uid]);
     started.push(uid);
   });
 
-  // 将成功的 uid 加入队列
-  started.forEach(function (uid) {
-    pipeline.queue.pending.push(uid);
-  });
+  // 通过 enqueue 启动队列（自动去重 + 串行处理）
+  var added = pipeline.enqueue(started, dbModule);
 
-  res.json({ ok: true, total: uids.length, started: started.length, skipped: skipped });
+  res.json({ ok: true, total: uids.length, started: added.length, skipped: skipped });
 });
 
 // 批量更新阶段
