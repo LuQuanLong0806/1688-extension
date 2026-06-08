@@ -37,6 +37,7 @@ Vue.component('detail-modal', {
       storeOptions: ['Frotel', 'Tralli', 'Koetun', 'Xpoine', 'Zondon', 'Prozzen', 'yandonghuoduoduo', 'Smiertl', 'APrioX'],
       // 图片尺寸缓存
       imageSizeCache: {},
+      replacingBg: false,
       _imgSizeTimer: null,
       // 添加图片粘贴模式
       addingImage: false,
@@ -347,6 +348,98 @@ Vue.component('detail-modal', {
         try { sessionStorage.setItem('__meitu_auto_open_editor', '1'); } catch (e) {}
         vm.$root.showCollageModal = true;
       }
+    },
+    // ===== 换背景 =====
+    replaceBackground: function () {
+      var vm = this;
+      if (!vm.editable) return;
+      if (vm.replacingBg) return;
+
+      // 收集选中的图片
+      var urls = [];
+      var mainImgs = vm.editable.main_images || [];
+      vm.selectedMainIndexes.forEach(function (i) { if (mainImgs[i]) urls.push({ url: mainImgs[i], field: 'main_images', index: i }); });
+      var detailImgs = vm.editable.detail_images || [];
+      vm.selectedDetailIndexes.forEach(function (i) { if (detailImgs[i]) urls.push({ url: detailImgs[i], field: 'detail_images', index: i }); });
+
+      if (!urls.length) {
+        vm.$Message.warning('请先选择要换背景的图片');
+        return;
+      }
+
+      // 弹出背景选择弹窗（上传背景图）
+      var bgInput = document.createElement('input');
+      bgInput.type = 'file';
+      bgInput.accept = 'image/*';
+      bgInput.onchange = function () {
+        var file = bgInput.files[0];
+        if (!file) return;
+        var reader = new FileReader();
+        reader.onload = function () {
+          var bgBase64 = reader.result;
+          vm.replacingBg = true;
+          vm.$Message.info('正在处理 ' + urls.length + ' 张图片换背景...');
+
+          var processed = 0;
+          var failed = 0;
+          var results = [];
+
+          function processNext() {
+            if (processed + failed >= urls.length) {
+              vm.replacingBg = false;
+              if (failed > 0) {
+                vm.$Message.warning('完成: ' + (urls.length - failed) + ' 张成功, ' + failed + ' 张失败');
+              } else {
+                vm.$Message.success('全部 ' + urls.length + ' 张换背景完成');
+              }
+              // 替换原图 URL
+              results.forEach(function (r) {
+                if (r.newUrl) vm.editable[r.field][r.index] = r.newUrl;
+              });
+              return;
+            }
+            var item = urls[processed + failed];
+            var serverBase = vm.getServerBase ? vm.getServerBase() : (typeof getServerBase === 'function' ? getServerBase() : '');
+            // 下载图片为 base64
+            var img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = function () {
+              var canvas = document.createElement('canvas');
+              canvas.width = img.width;
+              canvas.height = img.height;
+              canvas.getContext('2d').drawImage(img, 0, 0);
+              var productBase64 = canvas.toDataURL('image/png');
+              // 调后端换背景 API（不依赖 ComfyUI）
+              fetch(serverBase + '/api/ai/replace-bg', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ product_base64: productBase64, bg_base64: bgBase64 })
+              }).then(function (r) { return r.json(); }).then(function (data) {
+                if (data.ok && data.url) {
+                  results.push({ newUrl: data.url, field: item.field, index: item.index });
+                  processed++;
+                } else {
+                  failed++;
+                  console.error('换背景失败:', data.error);
+                }
+                processNext();
+              }).catch(function (e) {
+                failed++;
+                console.error('换背景请求失败:', e);
+                processNext();
+              });
+            };
+            img.onerror = function () {
+              failed++;
+              processNext();
+            };
+            img.src = item.url;
+          }
+          processNext();
+        };
+        reader.readAsDataURL(file);
+      };
+      bgInput.click();
     },
     toggleSkuAll: function (checked) {
       var vm = this;
@@ -1077,6 +1170,7 @@ Vue.component('detail-modal', {
           <i-button icon="md-grid" @click="goToMeituCollage">拼图</i-button>
           <i-button type="error" icon="md-brush" @click="goToMeituCleaner">一键去中文</i-button>
           <i-button type="info" icon="md-pricetags" @click="goToMeituAnnotate">📏 尺寸标注</i-button>
+          <i-button icon="md-color-palette" @click="replaceBackground" :loading="replacingBg">🖼️ 换背景</i-button>
           <i-button :type="editable.status === 0 ? 'success' : 'error'" @click="toggleStatus">
             {{ editable.status === 0 ? '标记已发布' : '标记未发布' }}
           </i-button>

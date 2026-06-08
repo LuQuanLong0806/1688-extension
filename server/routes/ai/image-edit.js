@@ -252,8 +252,8 @@ router.post('/replace-bg', function (req, res) {
   console.log('[换背景] 开始...');
   var t0 = Date.now();
 
-  var productBuf = Buffer.from(productBase64.replace(/^data:\/\/[\w+]+;base64,/, ''), 'base64');
-  var bgBuf = Buffer.from(bgBase64.replace(/^data:\/\/[\w+]+;base64,/, ''), 'base64');
+  var productBuf = Buffer.from(productBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+  var bgBuf = Buffer.from(bgBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64');
 
   var opts = {
     scale: parseFloat(req.body.scale) || 0.7,
