@@ -131,6 +131,157 @@ function expandPolygon(polygon, dilatePx) {
   });
 }
 
+// ========== 徽章检测（Badge Detection）==========
+// 处理"文字印在纯色背景块"场景（如"包邮""特价"标签），将mask扩展覆盖整个背景块
+
+var BADGE_SCAN_MAX_PX = 80;      // 最大向外扫描像素
+var BADGE_MAX_AREA_RATIO = 0.25;  // 徽章最大占图面积比
+var BADGE_COLOR_THRESHOLD = 50;  // 颜色相似判定阈值
+var BADGE_VOTE_RATIO = 0.55;     // 列/行匹配像素最小占比
+var BADGE_MAX_CONSEC_FAIL = 3;   // 连续不匹配容忍列/行数
+
+function colorDistance(c1, c2) {
+  var dr = c1[0] - c2[0], dg = c1[1] - c2[1], db = c1[2] - c2[2];
+  return Math.sqrt(dr * dr + dg * dg + db * db);
+}
+
+function getRegionBBox(region) {
+  if (region.polygon && region.polygon.length >= 3) {
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (var i = 0; i < region.polygon.length; i++) {
+      var px = region.polygon[i][0], py = region.polygon[i][1];
+      if (px < minX) minX = px; if (py < minY) minY = py;
+      if (px > maxX) maxX = px; if (py > maxY) maxY = py;
+    }
+    return { x: Math.round(minX), y: Math.round(minY), w: Math.round(maxX - minX), h: Math.round(maxY - minY) };
+  }
+  return { x: Math.round(region.x || 0), y: Math.round(region.y || 0), w: Math.round(region.width || 0), h: Math.round(region.height || 0) };
+}
+
+function _getPixel(raw, W, x, y) {
+  var idx = (y * W + x) * 3;
+  return [raw[idx], raw[idx + 1], raw[idx + 2]];
+}
+
+function _getDominantColor(pixels, maxVariance) {
+  if (!pixels || pixels.length < 4) return null;
+  var r = 0, g = 0, b = 0;
+  for (var i = 0; i < pixels.length; i++) { r += pixels[i][0]; g += pixels[i][1]; b += pixels[i][2]; }
+  var n = pixels.length;
+  var avg = [r / n, g / n, b / n];
+  var totalDist = 0;
+  for (var i = 0; i < n; i++) totalDist += colorDistance(pixels[i], avg);
+  if (totalDist / n > (maxVariance || 35)) return null;
+  return { color: avg, variance: totalDist / n };
+}
+
+function _scanOutward(raw, W, H, startPos, rangeMin, rangeMax, bgColor, direction, opts) {
+  opts = opts || {};
+  var threshold = opts.threshold || BADGE_COLOR_THRESHOLD;
+  var maxPx = opts.maxPx || BADGE_SCAN_MAX_PX;
+  var voteRatio = opts.voteRatio || BADGE_VOTE_RATIO;
+  var maxFail = opts.maxFail || BADGE_MAX_CONSEC_FAIL;
+  var step = opts.step || 3;
+  var range = rangeMax - rangeMin;
+  if (range <= 0) return startPos;
+  var requiredVotes = Math.ceil(Math.ceil(range / step) * voteRatio);
+  var furthest = startPos;
+  var consecutiveFail = 0;
+
+  var isNeg = (direction === 'left' || direction === 'up');
+  var posLimit = isNeg ? Math.max(0, startPos - maxPx) : Math.min(direction === 'right' ? W : H, startPos + maxPx);
+
+  for (var pos = startPos; isNeg ? pos >= posLimit : pos < posLimit; pos += isNeg ? -1 : 1) {
+    var votes = 0;
+    for (var s = rangeMin; s <= rangeMax; s += step) {
+      var px = (direction === 'left' || direction === 'right')
+        ? _getPixel(raw, W, pos, s)
+        : _getPixel(raw, W, s, pos);
+      if (colorDistance(px, bgColor) <= threshold) votes++;
+    }
+    if (votes >= requiredVotes) {
+      furthest = pos;
+      consecutiveFail = 0;
+    } else {
+      consecutiveFail++;
+      if (consecutiveFail >= maxFail) break;
+    }
+  }
+  return furthest;
+}
+
+function _sampleBadgeEdgePixels(raw, W, H, bbox) {
+  var pad = Math.max(2, Math.round(Math.min(bbox.w, bbox.h) * 0.08));
+  var pixels = [];
+  for (var x = bbox.x; x <= bbox.x + bbox.w && x < W; x += 2) {
+    if (bbox.y - pad >= 0) pixels.push(_getPixel(raw, W, x, bbox.y - pad));
+    if (bbox.y + bbox.h + pad < H) pixels.push(_getPixel(raw, W, x, bbox.y + bbox.h + pad));
+  }
+  for (var y = bbox.y; y <= bbox.y + bbox.h && y < H; y += 2) {
+    if (bbox.x - pad >= 0) pixels.push(_getPixel(raw, W, bbox.x - pad, y));
+    if (bbox.x + bbox.w + pad < W) pixels.push(_getPixel(raw, W, bbox.x + bbox.w + pad, y));
+  }
+  return pixels;
+}
+
+function _badgeColorDiffersFromSurrounding(raw, W, H, bbox, bgColor) {
+  var dist = BADGE_SCAN_MAX_PX + 15;
+  var pts = [
+    [bbox.x + bbox.w / 2, bbox.y - dist],
+    [bbox.x + bbox.w / 2, bbox.y + bbox.h + dist],
+    [bbox.x - dist, bbox.y + bbox.h / 2],
+    [bbox.x + bbox.w + dist, bbox.y + bbox.h / 2]
+  ];
+  var samples = [];
+  for (var i = 0; i < pts.length; i++) {
+    var sx = Math.max(0, Math.min(W - 1, Math.round(pts[i][0])));
+    var sy = Math.max(0, Math.min(H - 1, Math.round(pts[i][1])));
+    samples.push(_getPixel(raw, W, sx, sy));
+  }
+  var surround = _getDominantColor(samples);
+  if (!surround) return true;
+  return colorDistance(bgColor, surround.color) >= BADGE_COLOR_THRESHOLD;
+}
+
+async function expandRegionsForBadges(imageBuffer, regions) {
+  var meta = await sharp(imageBuffer).metadata();
+  var W = meta.width, H = meta.height;
+  var raw = await sharp(imageBuffer).removeAlpha().raw().toBuffer();
+  var imgArea = W * H;
+  var expanded = [];
+  var badgeCount = 0;
+
+  for (var ri = 0; ri < regions.length; ri++) {
+    var region = regions[ri];
+    var bbox = getRegionBBox(region);
+    if (bbox.w < 8 || bbox.h < 8 || bbox.w * bbox.h > imgArea * 0.4) {
+      expanded.push(region); continue;
+    }
+    var edgePixels = _sampleBadgeEdgePixels(raw, W, H, bbox);
+    var dominant = _getDominantColor(edgePixels);
+    if (!dominant) { expanded.push(region); continue; }
+    if (!_badgeColorDiffersFromSurrounding(raw, W, H, bbox, dominant.color)) {
+      expanded.push(region); continue;
+    }
+    var leftBound   = _scanOutward(raw, W, H, bbox.x,         bbox.y, bbox.y + bbox.h, dominant.color, 'left');
+    var rightBound  = _scanOutward(raw, W, H, bbox.x + bbox.w, bbox.y, bbox.y + bbox.h, dominant.color, 'right');
+    var topBound    = _scanOutward(raw, W, H, bbox.y,         bbox.x, bbox.x + bbox.w, dominant.color, 'up');
+    var bottomBound = _scanOutward(raw, W, H, bbox.y + bbox.h, bbox.x, bbox.x + bbox.w, dominant.color, 'down');
+    var newW = rightBound - leftBound + 1;
+    var newH = bottomBound - topBound + 1;
+    if ((newW - bbox.w) < 3 && (newH - bbox.h) < 3) {
+      expanded.push(region); continue;
+    }
+    if (newW * newH > imgArea * BADGE_MAX_AREA_RATIO) {
+      expanded.push(region); continue;
+    }
+    badgeCount++;
+    expanded.push({ x: leftBound, y: topBound, width: newW, height: newH, _badgeExpanded: true });
+  }
+  console.log('[Badge] 检测到 ' + badgeCount + '/' + regions.length + ' 个徽章区域');
+  return expanded;
+}
+
 // ========== 生成 Mask（白色=需修复区域）==========
 async function generateMask(imageWidth, imageHeight, regions, options) {
   options = options || {};
@@ -197,6 +348,15 @@ async function cleanImage(imageBuffer, options) {
   var imgW = detectResult.image_width;
   var imgH = detectResult.image_height;
 
+  // Step 2.5: 徽章扩展（检测文字在纯色背景块上的场景）
+  if (options.detectBadges !== false) {
+    try {
+      regions = await expandRegionsForBadges(imageBuffer, regions);
+    } catch (e) {
+      console.warn('[Badge] 扩展失败，使用原始区域:', e.message);
+    }
+  }
+
   // Step 3: 检查 LaMa 模型可用性
   var lamaAvailable = false;
   try {
@@ -258,6 +418,14 @@ module.exports = {
   callOcrService: callOcrService,
   checkOcrHealth: checkOcrHealth,
   downloadImage: downloadImage,
+  colorDistance: colorDistance,
+  getRegionBBox: getRegionBBox,
+  _getPixel: _getPixel,
+  _getDominantColor: _getDominantColor,
+  _scanOutward: _scanOutward,
+  _sampleBadgeEdgePixels: _sampleBadgeEdgePixels,
+  _badgeColorDiffersFromSurrounding: _badgeColorDiffersFromSurrounding,
+  expandRegionsForBadges: expandRegionsForBadges,
   generateMask: generateMask,
   cleanImage: cleanImage,
   saveCleanedImage: saveCleanedImage

@@ -204,34 +204,77 @@ router.post('/remove-bg', function (req, res) {
 });
 
 // ===== AI抠图（onnxruntime-node + ISNet 本地推理 — 供扩展页面使用）=====
+// ===== AI抠图（ComfyUI Rembg 优先 + ISNet 本地兜底）=====
 var removeBgService = require('../../services/remove-bg');
 
 router.post('/remove-bg-local', function (req, res) {
   var imageBase64 = req.body.image_base64;
   if (!imageBase64) return res.status(400).json({ error: '请先加载图片' });
 
-  console.log('[AI抠图-本地] 开始...');
+  console.log('[AI抠图] 开始...');
   var t0 = Date.now();
 
   var base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
   var buf = Buffer.from(base64Data, 'base64');
 
-  removeBgService.removeBackground(buf).then(function (resultBuf) {
+  // 优先用 ComfyUI Rembg（GPU，质量更好），降级到 ISNet 本地
+  var removePromise;
+  if (comfyuiInpaint && comfyuiInpaint.isAvailable()) {
+    removePromise = comfyuiInpaint.removeBackground(buf);
+  } else {
+    removePromise = removeBgService.removeBackground(buf);
+  }
+
+  removePromise.then(function (resultBuf) {
     var filename = 'removebg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8) + '.png';
     var filepath = path.join(UPLOADS_DIR, filename);
     fs.writeFile(filepath, resultBuf, function (err) {
       if (err) return res.status(500).json({ error: '保存失败' });
-      console.log('[AI抠图-本地] 完成, 耗时:', Date.now() - t0, 'ms');
+      console.log('[AI抠图] 完成, 耗时:', Date.now() - t0, 'ms');
       res.json({ ok: true, url: '/uploads/' + filename });
     });
   }).catch(function (err) {
-    console.error('[AI抠图-本地失败]', err.message);
+    console.error('[AI抠图失败]', err.message);
     if (!res.headersSent) res.status(502).json({ error: err.message });
   });
 });
 
 // ===== PaddleOCR 文字检测 =====
 var textCleaner = require('../../services/text-cleaner');
+// ===== 换背景（抠图 + 合成，一步到位）=====
+var replaceBgService = require('../../services/replace-bg-composite');
+
+router.post('/replace-bg', function (req, res) {
+  var productBase64 = req.body.product_base64;
+  var bgBase64 = req.body.bg_base64;
+  if (!productBase64 || !bgBase64) return res.status(400).json({ error: '请提供 product_base64 和 bg_base64' });
+
+  console.log('[换背景] 开始...');
+  var t0 = Date.now();
+
+  var productBuf = Buffer.from(productBase64.replace(/^data:\/\/[\w+]+;base64,/, ''), 'base64');
+  var bgBuf = Buffer.from(bgBase64.replace(/^data:\/\/[\w+]+;base64,/, ''), 'base64');
+
+  var opts = {
+    scale: parseFloat(req.body.scale) || 0.7,
+    position: req.body.position || 'center',
+    padding: parseFloat(req.body.padding) || 0.05,
+    shadow: req.body.shadow !== 'false'
+  };
+
+  replaceBgService.replaceBackground(productBuf, bgBuf, opts).then(function (resultBuf) {
+    var filename = 'replacebg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8) + '.png';
+    var filepath = path.join(UPLOADS_DIR, filename);
+    fs.writeFile(filepath, resultBuf, function (err) {
+      if (err) return res.status(500).json({ error: '保存失败' });
+      console.log('[换背景] 完成, 耗时:', Date.now() - t0, 'ms');
+      res.json({ ok: true, url: '/uploads/' + filename });
+    });
+  }).catch(function (err) {
+    console.error('[换背景失败]', err.message);
+    if (!res.headersSent) res.status(502).json({ error: err.message });
+  });
+});
 
 router.post('/detect-text', function (req, res) {
   var imageBase64 = req.body.image_base64;

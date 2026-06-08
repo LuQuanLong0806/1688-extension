@@ -400,6 +400,50 @@ test('seed 应为正整数', function () {
 
 
 // ============================================================
+// 3b. comfyui-inpaint: buildRembgWorkflow
+// ============================================================
+suite('comfyui-inpaint / buildRembgWorkflow');
+
+// 从 comfyui-inpaint.js 导入（重新加载以获取新函数）
+var comfyuiModule2 = require(path.join(__dirname, 'services', 'comfyui-inpaint'));
+var buildRembgWorkflow = comfyuiModule2.buildRembgWorkflow;
+
+test('应包含3个节点（LoadImage + RemoveImageBG + SaveImage）', function () {
+  var wf = buildRembgWorkflow('test.png');
+  assert.strictEqual(Object.keys(wf).length, 3);
+  assert.strictEqual(wf['10'].class_type, 'LoadImage');
+  assert.strictEqual(wf['11'].class_type, 'RemoveImageBG');
+  assert.strictEqual(wf['12'].class_type, 'SaveImage');
+});
+
+test('LoadImage 应使用传入的图片名', function () {
+  var wf = buildRembgWorkflow('my_photo.png');
+  assert.strictEqual(wf['10'].inputs.image, 'my_photo.png');
+});
+
+test('DAG引用应正确', function () {
+  var wf = buildRembgWorkflow('test.png');
+  // RemoveImageBG 的 image 来自 LoadImage
+  assert.deepStrictEqual(wf['11'].inputs.image, ['10', 0]);
+  // SaveImage 的 images 来自 RemoveImageBG
+  assert.deepStrictEqual(wf['12'].inputs.images, ['11', 0]);
+});
+
+test('SaveImage前缀应包含rembg', function () {
+  var wf = buildRembgWorkflow('test.png');
+  assert.ok(wf['12'].inputs.filename_prefix.startsWith('rembg_'));
+});
+
+test('不同图片名应生成不同前缀', function () {
+  var wf1 = buildRembgWorkflow('a.png');
+  var wf2 = buildRembgWorkflow('b.png');
+  // 至少前缀不同（时间戳可能相同，但函数名应包含rembg）
+  assert.ok(wf1['12'].inputs.filename_prefix.startsWith('rembg_'));
+  assert.ok(wf2['12'].inputs.filename_prefix.startsWith('rembg_'));
+});
+
+
+// ============================================================
 // 4. text-cleaner: generateMask
 // ============================================================
 suite('text-cleaner / generateMask');
@@ -612,6 +656,287 @@ test('应正确解析带端口URL', function () {
 
 
 // ============================================================
+// 汇总
+// ============================================================
+
+// ============================================================
+// 7. badge detection: colorDistance
+// ============================================================
+suite('badge detection / colorDistance');
+
+var badgeModule = require(path.join(__dirname, 'services', 'text-cleaner'));
+var colorDistance = badgeModule.colorDistance;
+var getRegionBBox = badgeModule.getRegionBBox;
+var _getPixel = badgeModule._getPixel;
+var _getDominantColor = badgeModule._getDominantColor;
+var _scanOutward = badgeModule._scanOutward;
+var expandRegionsForBadges = badgeModule.expandRegionsForBadges;
+
+test('相同颜色应为0', function () {
+  assert.strictEqual(colorDistance([255, 0, 0], [255, 0, 0]), 0);
+  assert.strictEqual(colorDistance([0, 0, 0], [0, 0, 0]), 0);
+  assert.strictEqual(colorDistance([128, 128, 128], [128, 128, 128]), 0);
+});
+
+test('黑白应约为441.67', function () {
+  var d = colorDistance([0, 0, 0], [255, 255, 255]);
+  assert.ok(Math.abs(d - Math.sqrt(255 * 255 * 3)) < 0.01, 'got ' + d);
+});
+
+test('红绿应约为367', function () {
+  var d = colorDistance([255, 0, 0], [0, 255, 0]);
+  assert.ok(Math.abs(d - Math.sqrt(255 * 255 + 255 * 255)) < 0.01, 'got ' + d);
+});
+
+test('微小色差应小于5', function () {
+  assert.ok(colorDistance([100, 100, 100], [102, 101, 99]) < 5);
+});
+
+
+// ============================================================
+// 8. badge detection: getRegionBBox
+// ============================================================
+suite('badge detection / getRegionBBox');
+
+test('从polygon计算正确bbox', function () {
+  var bbox = getRegionBBox({ polygon: [[10, 20], [50, 20], [50, 60], [10, 60]] });
+  assert.strictEqual(bbox.x, 10);
+  assert.strictEqual(bbox.y, 20);
+  assert.strictEqual(bbox.w, 40);
+  assert.strictEqual(bbox.h, 40);
+});
+
+test('不规则polygon应取外接矩形', function () {
+  var bbox = getRegionBBox({ polygon: [[5, 10], [100, 15], [80, 90], [20, 95]] });
+  assert.strictEqual(bbox.x, 5);
+  assert.strictEqual(bbox.y, 10);
+  assert.strictEqual(bbox.w, 95);
+  assert.strictEqual(bbox.h, 85);
+});
+
+test('从x/y/width/height计算', function () {
+  var bbox = getRegionBBox({ x: 10, y: 20, width: 40, height: 30 });
+  assert.strictEqual(bbox.x, 10);
+  assert.strictEqual(bbox.y, 20);
+  assert.strictEqual(bbox.w, 40);
+  assert.strictEqual(bbox.h, 30);
+});
+
+test('无字段应返回零bbox', function () {
+  var bbox = getRegionBBox({});
+  assert.strictEqual(bbox.x, 0);
+  assert.strictEqual(bbox.y, 0);
+  assert.strictEqual(bbox.w, 0);
+  assert.strictEqual(bbox.h, 0);
+});
+
+test('空polygon应返回零bbox', function () {
+  var bbox = getRegionBBox({ polygon: [] });
+  assert.strictEqual(bbox.x, 0);
+  assert.strictEqual(bbox.y, 0);
+});
+
+
+// ============================================================
+// 9. badge detection: _getDominantColor
+// ============================================================
+suite('badge detection / _getDominantColor');
+
+test('均匀红色应返回红色', function () {
+  var pixels = [[220, 40, 40], [220, 40, 40], [220, 40, 40], [220, 40, 40], [220, 40, 40]];
+  var result = _getDominantColor(pixels);
+  assert.ok(result !== null);
+  assert.ok(result.color[0] > 210, 'R too low: ' + result.color[0]);
+  assert.ok(result.color[1] < 60, 'G too high: ' + result.color[1]);
+  assert.ok(result.variance < 5);
+});
+
+test('多样颜色应返回null', function () {
+  var pixels = [[255, 0, 0], [0, 255, 0], [0, 0, 255], [255, 255, 0], [0, 255, 255]];
+  var result = _getDominantColor(pixels);
+  assert.strictEqual(result, null);
+});
+
+test('像素不足应返回null', function () {
+  assert.strictEqual(_getDominantColor([]), null);
+  assert.strictEqual(_getDominantColor([[1, 2, 3]]), null);
+  assert.strictEqual(_getDominantColor([[1, 2, 3], [4, 5, 6]]), null);
+});
+
+test('接近均匀但略有偏差应接受', function () {
+  var pixels = [[220, 40, 40], [218, 42, 38], [222, 39, 41], [219, 41, 39]];
+  var result = _getDominantColor(pixels);
+  assert.ok(result !== null, '应接受微小偏差');
+  assert.ok(result.variance < 10, 'variance too high: ' + result.variance);
+});
+
+test('大幅偏差应拒绝', function () {
+  var pixels = [[255, 0, 0], [0, 0, 255], [255, 0, 0], [0, 0, 255], [255, 0, 0]];
+  var result = _getDominantColor(pixels);
+  assert.strictEqual(result, null);
+});
+
+
+// ============================================================
+// 10. badge detection: _scanOutward
+// ============================================================
+suite('badge detection / _scanOutward');
+
+test('向左扫描应找到红色边界', function () {
+  var buf = Buffer.alloc(100 * 50 * 3);
+  for (var y = 0; y < 50; y++) {
+    for (var x = 0; x < 100; x++) {
+      var idx = (y * 100 + x) * 3;
+      if (x < 60) { buf[idx] = 255; buf[idx + 1] = 255; buf[idx + 2] = 255; }
+      else { buf[idx] = 220; buf[idx + 1] = 40; buf[idx + 2] = 40; }
+    }
+  }
+  var result = _scanOutward(buf, 100, 50, 70, 0, 50, [220, 40, 40], 'left', { maxPx: 30 });
+  assert.ok(result <= 60, '应到达x=60, got ' + result);
+  assert.ok(result >= 59, '不应超过边界, got ' + result);
+});
+
+test('向右扫描应找到边界', function () {
+  var buf = Buffer.alloc(100 * 50 * 3);
+  for (var y = 0; y < 50; y++) {
+    for (var x = 0; x < 100; x++) {
+      var idx = (y * 100 + x) * 3;
+      if (x < 40) { buf[idx] = 220; buf[idx + 1] = 40; buf[idx + 2] = 40; }
+      else { buf[idx] = 255; buf[idx + 1] = 255; buf[idx + 2] = 255; }
+    }
+  }
+  var result = _scanOutward(buf, 100, 50, 30, 0, 50, [220, 40, 40], 'right', { maxPx: 30 });
+  assert.ok(result >= 39, '应到达x=39, got ' + result);
+  assert.ok(result <= 40, '不应超出边界, got ' + result);
+});
+
+test('向上扫描应找到边界', function () {
+  var buf = Buffer.alloc(100 * 80 * 3);
+  for (var y = 0; y < 80; y++) {
+    for (var x = 0; x < 100; x++) {
+      var idx = (y * 100 + x) * 3;
+      if (y < 30) { buf[idx] = 255; buf[idx + 1] = 255; buf[idx + 2] = 255; }
+      else { buf[idx] = 220; buf[idx + 1] = 40; buf[idx + 2] = 40; }
+    }
+  }
+  var result = _scanOutward(buf, 100, 80, 50, 0, 100, [220, 40, 40], 'up', { maxPx: 30 });
+  assert.ok(result <= 30, '应到达y=30, got ' + result);
+  assert.ok(result >= 29, 'got ' + result);
+});
+
+test('向下扫描应找到边界', function () {
+  var buf = Buffer.alloc(100 * 80 * 3);
+  for (var y = 0; y < 80; y++) {
+    for (var x = 0; x < 100; x++) {
+      var idx = (y * 100 + x) * 3;
+      if (y < 50) { buf[idx] = 220; buf[idx + 1] = 40; buf[idx + 2] = 40; }
+      else { buf[idx] = 255; buf[idx + 1] = 255; buf[idx + 2] = 255; }
+    }
+  }
+  var result = _scanOutward(buf, 100, 80, 40, 0, 100, [220, 40, 40], 'down', { maxPx: 30 });
+  assert.ok(result >= 49, '应到达y=49, got ' + result);
+  assert.ok(result <= 50, 'got ' + result);
+});
+
+test('range为0应直接返回startPos', function () {
+  var buf = Buffer.alloc(100);
+  assert.strictEqual(_scanOutward(buf, 10, 10, 5, 5, 5, [0, 0, 0], 'left'), 5);
+});
+
+
+// ============================================================
+// 11. badge detection: expandRegionsForBadges (集成测试)
+// ============================================================
+suite('badge detection / expandRegionsForBadges (集成)');
+
+async function createSolidImage(W, H, r, g, b) {
+  return sharp({ create: { width: W, height: H, channels: 3, background: { r, g, b } } }).png().toBuffer();
+}
+
+async function drawRect(baseBuffer, x, y, w, h, r, g, b) {
+  var rect = await sharp({ create: { width: w, height: h, channels: 3, background: { r, g, b } } }).png().toBuffer();
+  return sharp(baseBuffer).composite([{ input: rect, left: x, top: y }]).png().toBuffer();
+}
+
+test('红色徽章应在白色背景上正确扩展', async function () {
+  var img = await createSolidImage(200, 200, 255, 255, 255);
+  img = await drawRect(img, 50, 70, 100, 60, 220, 40, 40);
+  var textRegion = { x: 70, y: 85, width: 60, height: 30 };
+  var expanded = await expandRegionsForBadges(img, [textRegion]);
+  assert.strictEqual(expanded.length, 1, '应返回1个区域');
+  assert.strictEqual(expanded[0]._badgeExpanded, true, '应标记为徽章扩展');
+  assert.ok(expanded[0].x <= 53, 'left: ' + expanded[0].x + ' > 53');
+  assert.ok(expanded[0].y <= 73, 'top: ' + expanded[0].y + ' > 73');
+  assert.ok(expanded[0].x + expanded[0].width >= 147, 'right: ' + (expanded[0].x + expanded[0].width) + ' < 147');
+  assert.ok(expanded[0].y + expanded[0].height >= 127, 'bottom: ' + (expanded[0].y + expanded[0].height) + ' < 127');
+});
+
+test('深蓝徽章应在浅灰背景上正确扩展', async function () {
+  var img = await createSolidImage(300, 200, 240, 240, 240);
+  img = await drawRect(img, 80, 60, 120, 40, 30, 60, 160);
+  var textRegion = { x: 100, y: 68, width: 80, height: 24 };
+  var expanded = await expandRegionsForBadges(img, [textRegion]);
+  assert.strictEqual(expanded.length, 1);
+  assert.strictEqual(expanded[0]._badgeExpanded, true);
+  assert.ok(expanded[0].x <= 83, 'left: ' + expanded[0].x);
+  assert.ok(expanded[0].y <= 63, 'top: ' + expanded[0].y);
+});
+
+test('纯白背景上无徽章文字不应扩展', async function () {
+  var img = await createSolidImage(200, 200, 255, 255, 255);
+  var region = { x: 50, y: 50, width: 30, height: 20 };
+  var expanded = await expandRegionsForBadges(img, [region]);
+  assert.strictEqual(expanded.length, 1);
+  assert.strictEqual(expanded[0]._badgeExpanded, undefined);
+});
+
+test('多个区域应独立处理', async function () {
+  var img = await createSolidImage(300, 200, 255, 255, 255);
+  img = await drawRect(img, 20, 50, 80, 40, 220, 40, 40);
+  img = await drawRect(img, 200, 100, 70, 35, 40, 120, 200);
+  var regions = [
+    { x: 40, y: 60, width: 40, height: 20 },
+    { x: 215, y: 108, width: 40, height: 15 }
+  ];
+  var expanded = await expandRegionsForBadges(img, regions);
+  assert.strictEqual(expanded.length, 2);
+  assert.strictEqual(expanded[0]._badgeExpanded, true);
+  assert.strictEqual(expanded[1]._badgeExpanded, true);
+});
+
+test('与背景同色的徽章不应扩展', async function () {
+  var img = await createSolidImage(200, 200, 255, 255, 255);
+  img = await drawRect(img, 50, 70, 100, 60, 255, 255, 255);
+  var region = { x: 70, y: 85, width: 60, height: 30 };
+  var expanded = await expandRegionsForBadges(img, [region]);
+  assert.strictEqual(expanded.length, 1);
+  assert.strictEqual(expanded[0]._badgeExpanded, undefined, '同色不应扩展');
+});
+
+test('太小区域(w<8)应跳过', async function () {
+  var img = await createSolidImage(200, 200, 255, 255, 255);
+  img = await drawRect(img, 50, 70, 100, 60, 220, 40, 40);
+  var region = { x: 70, y: 85, width: 3, height: 3 };
+  var expanded = await expandRegionsForBadges(img, [region]);
+  assert.strictEqual(expanded[0]._badgeExpanded, undefined);
+});
+
+test('空区域列表应返回空', async function () {
+  var img = await createSolidImage(100, 100, 255, 255, 255);
+  var expanded = await expandRegionsForBadges(img, []);
+  assert.strictEqual(expanded.length, 0);
+});
+
+test('黄色标签应被检测', async function () {
+  var img = await createSolidImage(300, 200, 245, 245, 245);
+  img = await drawRect(img, 100, 50, 100, 45, 255, 200, 0);
+  var region = { x: 120, y: 60, width: 60, height: 25 };
+  var expanded = await expandRegionsForBadges(img, [region]);
+  assert.strictEqual(expanded[0]._badgeExpanded, true);
+  assert.ok(expanded[0].x <= 103, 'left: ' + expanded[0].x);
+  assert.ok(expanded[0].y <= 53, 'top: ' + expanded[0].y);
+});
+
 // 汇总
 // ============================================================
 summary();

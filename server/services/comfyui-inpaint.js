@@ -415,10 +415,117 @@ function getWorkflowModel() {
   } catch (e) { return ''; }
 }
 
+// ========== ComfyUI 抠图（Rembg）==========
+// 使用 ComfyUI 的 rembg 节点进行 GPU 加速抠图
+
+function buildRembgWorkflow(imageName) {
+  return {
+    "10": {
+      "class_type": "LoadImage",
+      "inputs": { "image": imageName }
+    },
+    "11": {
+      "class_type": "RemoveImageBG",
+      "inputs": { "image": ["10", 0] }
+    },
+    "12": {
+      "class_type": "SaveImage",
+      "inputs": { "filename_prefix": "rembg_" + Date.now(), "images": ["11", 0] }
+    }
+  };
+}
+
+async function removeBackground(imageBuffer, options) {
+  options = options || {};
+  var base = getComfyuiBase();
+  if (!base) {
+    console.log('[ComfyUI-Rembg] 未配置 ComfyUI，降级到本地 ISNet');
+    return require('./remove-bg').removeBackground(imageBuffer);
+  }
+
+  var t0 = Date.now();
+  console.log('[ComfyUI-Rembg] 开始抠图...');
+
+  var timestamp = Date.now();
+  var imgName;
+  try {
+    imgName = await uploadImage(imageBuffer, 'rembg_' + timestamp + '.png', 'input');
+    console.log('[ComfyUI-Rembg] 上传完成:', imgName);
+  } catch (uploadErr) {
+    console.warn('[ComfyUI-Rembg] 上传失败，降级到本地 ISNet:', uploadErr.message);
+    return require('./remove-bg').removeBackground(imageBuffer);
+  }
+
+  var workflow = buildRembgWorkflow(imgName);
+  var client_id = 'rembg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+  var promptResult;
+  try {
+    promptResult = await comfyuiRequest('/prompt', 'POST', {
+      prompt: workflow,
+      client_id: client_id
+    });
+  } catch (submitErr) {
+    console.warn('[ComfyUI-Rembg] 提交失败，降级到本地 ISNet:', submitErr.message);
+    return require('./remove-bg').removeBackground(imageBuffer);
+  }
+
+  var promptId = promptResult.prompt_id;
+  console.log('[ComfyUI-Rembg] 任务已提交, prompt_id:', promptId);
+
+  // 轮询等待结果
+  var outputFilename = null;
+  var startTime = Date.now();
+  while (Date.now() - startTime < POLL_TIMEOUT) {
+    await new Promise(function (r) { setTimeout(r, POLL_INTERVAL); });
+    try {
+      var history = await comfyuiRequest('/history/' + promptId);
+      var item = history[promptId];
+      if (!item) continue;
+      var status = item.status || {};
+      if (status.completed || status.status_str === 'success') {
+        var outputs = item.outputs;
+        if (outputs) {
+          for (var nodeId in outputs) {
+            var nodeOutput = outputs[nodeId];
+            if (nodeOutput.images && nodeOutput.images.length) {
+              outputFilename = nodeOutput.images[0].filename;
+              var sf = nodeOutput.images[0].subfolder || '';
+              if (sf) outputFilename = sf + '/' + outputFilename;
+              break;
+            }
+          }
+        }
+        break;
+      }
+      if (status.status_str === 'error') {
+        var errMsg = (item.status && item.status.messages && JSON.stringify(item.status.messages)) || '未知错误';
+        console.error('[ComfyUI-Rembg] 执行失败:', errMsg);
+        return require('./remove-bg').removeBackground(imageBuffer);
+      }
+    } catch (pollErr) { /* continue */ }
+  }
+
+  if (!outputFilename) {
+    console.warn('[ComfyUI-Rembg] 等待超时，降级到本地 ISNet');
+    return require('./remove-bg').removeBackground(imageBuffer);
+  }
+
+  try {
+    var resultBuffer = await downloadFromComfyui(outputFilename);
+    console.log('[ComfyUI-Rembg] 完成, 耗时:', Date.now() - t0, 'ms');
+    return resultBuffer;
+  } catch (downloadErr) {
+    console.warn('[ComfyUI-Rembg] 下载失败，降级到本地 ISNet:', downloadErr.message);
+    return require('./remove-bg').removeBackground(imageBuffer);
+  }
+}
+
 // ========== 导出 ==========
 
 module.exports = {
   inpaint: inpaint,
+  removeBackground: removeBackground,
+  buildRembgWorkflow: buildRembgWorkflow,
   isAvailable: isAvailable,
   checkHealth: checkHealth,
   getComfyuiBase: getComfyuiBase,
