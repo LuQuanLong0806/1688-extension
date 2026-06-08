@@ -706,8 +706,7 @@ body {
   border-collapse: separate;
   border-spacing: 0;
   font-size: 15px;
-  border-radius: 8px;
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid #f0f0f0;
 }
 
@@ -1646,6 +1645,7 @@ body {
   background: var(--bg-elevated, #fafafa);
   border: 1px solid var(--border-subtle, #eee);
   transition: border-color .2s;
+  overflow: visible;
 }
 .variant-attr-row:hover {
   border-color: var(--accent, #409eff);
@@ -1694,6 +1694,7 @@ body {
   gap: 6px;
   align-items: center;
   min-height: 28px;
+  overflow: visible;
 }
 .variant-attr-add-row {
   display: flex;
@@ -1733,9 +1734,8 @@ body {
   margin: 0;
 }
 .attr-tag-text {
- max-width: 120px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+ max-width: 200px;
+  overflow: visible;
   white-space: nowrap;
 }
 .attr-tag-edit-input {
