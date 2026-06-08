@@ -1599,7 +1599,7 @@ Vue.component('detail-modal', {
         </modal>
 
         <!-- 图片选择弹窗 -->
-        <modal v-model="showImagePicker" title="选择图片" width="680" footer-hide>
+        <modal v-model="showImagePicker" title="选择图片" width="900" footer-hide>
           <div style="margin-bottom:10px;font-size:12px;color:var(--text-muted)">点击图片选择（拖拽图片也可替换）</div>
           <div class="img-picker-grid">
             <div class="img-picker-item" v-for="(url, pi) in imagePickerImages" :key="'pi'+pi"
@@ -1612,7 +1612,7 @@ Vue.component('detail-modal', {
                 </modal>
 
         <!-- SKU\u56fe\u7247\u6279\u91cf\u66ff\u6362\u5f39\u7a97 -->
-        <modal v-model="showSkuBatchModal" title="SKU\u56fe\u7247\u6279\u91cf\u66ff\u6362" width="900" footer-hide>
+        <modal v-model="showSkuBatchModal" title="SKU\u56fe\u7247\u6279\u91cf\u66ff\u6362" width="1200" footer-hide>
           <div class="sku-batch-layout">
             <!-- \u5de6\u4fa7\uff1a\u6240\u6709\u56fe\u7247 -->
             <div class="sku-batch-left">
