@@ -1038,7 +1038,11 @@ Vue.component('detail-modal', {
       };
 
       vm._addImgEscHandler = function (e) {
-        if (e.key === 'Escape') vm.stopAddImagePaste();
+        if (e.key === 'Escape') {
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          vm.stopAddImagePaste();
+        }
       };
 
       document.addEventListener('paste', vm._addImgPasteHandler, true);
@@ -1470,7 +1474,7 @@ Vue.component('detail-modal', {
                 <span class="attr-tag-text" v-if="editingVariantValue && editingVariantValue.attrIdx === vi && editingVariantValue.valueIdx === vj">
                   <input class="attr-tag-edit-input" v-model="editingVariantValue.tempName"
                     @keyup.enter="confirmEditVariantValue"
-                    @keyup.escape="cancelEditVariantValue"
+                    @keyup.escape="$event.stopPropagation(); cancelEditVariantValue()"
                     @blur="confirmEditVariantValue" v-focus />
                 </span>
                 <span class="attr-tag-text" v-else>{{ val }}</span>
