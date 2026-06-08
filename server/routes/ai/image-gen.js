@@ -147,8 +147,11 @@ router.post('/enhance', function (req, res) {
   });
 });
 
-// ===== ImgBB 图床（免费） =====
+// ===== ImgBB 图床（免费） + 按日期相册 =====
 var sec = require('../../crypto');
+
+// 日期 → album ID 缓存，避免重复创建
+var _albumCache = {}; // { '2026-06-08': 'abc123', ... }
 
 function getImgbbKey() {
   try {
@@ -157,6 +160,58 @@ function getImgbbKey() {
   } catch (e) {
     return '';
   }
+}
+
+/**
+ * 获取或创建日期相册，返回 album ID
+ * ImgBB Album API: POST /1/album  key=xxx&title=xxx
+ */
+function ensureDateAlbum(apiKey, dateStr) {
+  if (_albumCache[dateStr]) {
+    return Promise.resolve(_albumCache[dateStr]);
+  }
+  var postData = 'key=' + encodeURIComponent(apiKey) + '&title=' + encodeURIComponent(dateStr);
+  var opts = {
+    hostname: 'api.imgbb.com',
+    port: 443,
+    path: '/1/album',
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Content-Length': Buffer.byteLength(postData)
+    }
+  };
+  return new Promise(function (resolve, reject) {
+    var req = https.request(opts, function (res) {
+      var chunks = [];
+      res.on('data', function (c) { chunks.push(c); });
+      res.on('end', function () {
+        var raw = Buffer.concat(chunks).toString();
+        try {
+          var json = JSON.parse(raw);
+          if (json.success && json.data && json.data.id) {
+            _albumCache[dateStr] = json.data.id;
+            console.log('[ImgBB] Album created:', dateStr, '→', json.data.id);
+            resolve(json.data.id);
+          } else {
+            // API 不支持 album 或其他错误，静默降级
+            var errMsg = (json.error && json.error.message) || raw;
+            console.warn('[ImgBB] Album create failed:', errMsg, '- will upload without album');
+            resolve(null);
+          }
+        } catch (e) {
+          console.warn('[ImgBB] Album response parse error:', e.message);
+          resolve(null);
+        }
+      });
+    });
+    req.on('error', function (e) {
+      console.warn('[ImgBB] Album request error:', e.message, '- will upload without album');
+      resolve(null);
+    });
+    req.write(postData);
+    req.end();
+  });
 }
 
 router.post('/smms-upload', function (req, res) {
@@ -168,59 +223,68 @@ router.post('/smms-upload', function (req, res) {
 
   var base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
 
-  // 按日期自动创建文件夹路径（如 2026/06/03/xxx.png）
+  // 文件名（不含路径，ImgBB 不支持 name 创建相册）
+  var now = new Date();
   var nameParam = req.body.name || '';
   if (!nameParam) {
-    var now = new Date();
-    var y = now.getFullYear();
-    var m = String(now.getMonth() + 1).padStart(2, '0');
-    var d = String(now.getDate()).padStart(2, '0');
     var rand = Math.random().toString(36).substring(2, 8);
-    nameParam = y + '/' + m + '/' + d + '/' + Date.now() + '_' + rand + '.png';
+    nameParam = Date.now() + '_' + rand + '.png';
   }
 
-  var postData = 'key=' + encodeURIComponent(apiKey) + '&image=' + encodeURIComponent(base64Data) + '&name=' + encodeURIComponent(nameParam);
+  // 日期相册：如 2026-06-08
+  var dateStr = now.getFullYear() + '-' +
+    String(now.getMonth() + 1).padStart(2, '0') + '-' +
+    String(now.getDate()).padStart(2, '0');
 
-  var options = {
-    hostname: 'api.imgbb.com',
-    port: 443,
-    path: '/1/upload',
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'Content-Length': Buffer.byteLength(postData)
+  ensureDateAlbum(apiKey, dateStr).then(function (albumId) {
+    var postData = 'key=' + encodeURIComponent(apiKey) +
+      '&image=' + encodeURIComponent(base64Data) +
+      '&name=' + encodeURIComponent(nameParam);
+    if (albumId) {
+      postData += '&album=' + encodeURIComponent(albumId);
     }
-  };
 
-  var uploadReq = https.request(options, function (uploadRes) {
-    var chunks = [];
-    uploadRes.on('data', function (c) { chunks.push(c); });
-    uploadRes.on('end', function () {
-      var raw = Buffer.concat(chunks).toString();
-      try {
-        var json = JSON.parse(raw);
-        if (json.success && json.data && json.data.url) {
-          console.log('[ImgBB] Upload success:', json.data.url, 'name:', nameParam);
-          var buf = Buffer.from(base64Data, 'base64');
-          var localName = 'imgbb_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8) + '.png';
-          fs.writeFile(path.join(UPLOADS_DIR, localName), buf, function () {});
-          res.json({ ok: true, url: json.data.url, delete: json.data.delete_url });
-        } else {
-          var errMsg = (json.error && json.error.message) || JSON.stringify(json);
-          console.error('[ImgBB] Upload failed:', errMsg);
-          res.status(502).json({ error: 'ImgBB 上传失败: ' + errMsg });
-        }
-      } catch (e) {
-        res.status(502).json({ error: 'ImgBB 响应解析失败' });
+    var options = {
+      hostname: 'api.imgbb.com',
+      port: 443,
+      path: '/1/upload',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Length': Buffer.byteLength(postData)
       }
+    };
+
+    var uploadReq = https.request(options, function (uploadRes) {
+      var chunks = [];
+      uploadRes.on('data', function (c) { chunks.push(c); });
+      uploadRes.on('end', function () {
+        var raw = Buffer.concat(chunks).toString();
+        try {
+          var json = JSON.parse(raw);
+          if (json.success && json.data && json.data.url) {
+            console.log('[ImgBB] Upload success:', json.data.url, 'album:', albumId || 'none', 'date:', dateStr);
+            var buf = Buffer.from(base64Data, 'base64');
+            var localName = 'imgbb_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8) + '.png';
+            fs.writeFile(path.join(UPLOADS_DIR, localName), buf, function () {});
+            res.json({ ok: true, url: json.data.url, delete: json.data.delete_url, album: dateStr });
+          } else {
+            var errMsg = (json.error && json.error.message) || JSON.stringify(json);
+            console.error('[ImgBB] Upload failed:', errMsg);
+            res.status(502).json({ error: 'ImgBB 上传失败: ' + errMsg });
+          }
+        } catch (e) {
+          res.status(502).json({ error: 'ImgBB 响应解析失败' });
+        }
+      });
     });
+    uploadReq.on('error', function (e) {
+      console.error('[ImgBB] Request error:', e.message);
+      res.status(502).json({ error: 'ImgBB 请求失败: ' + e.message });
+    });
+    uploadReq.write(postData);
+    uploadReq.end();
   });
-  uploadReq.on('error', function (e) {
-    console.error('[ImgBB] Request error:', e.message);
-    res.status(502).json({ error: 'ImgBB 请求失败: ' + e.message });
-  });
-  uploadReq.write(postData);
-  uploadReq.end();
 });
 
 router.get('/smms-token', function (req, res) {
