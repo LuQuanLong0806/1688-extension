@@ -1603,8 +1603,9 @@ Vue.component('detail-modal', {
 
         <!-- 图片选择弹窗 -->
         <modal v-model="showImagePicker" title="选择图片" width="900" footer-hide>
-          <div style="margin-bottom:10px;font-size:12px;color:var(--text-muted)">点击图片选择（拖拽图片也可替换）</div>
-          <div class="img-picker-grid">
+          <div style="margin-bottom:10px;font-size:12px;color:var(--text-muted)">点击图片选择（拖拽图片也可替换）共 {{ imagePickerImages.length }} 张</div>
+          <div v-if="!imagePickerImages.length" style="padding:40px;text-align:center;color:#999">当前产品没有图片，请先添加主图或详情图</div>
+          <div class="img-picker-grid" v-show="imagePickerImages.length">
             <div class="img-picker-item" v-for="(url, pi) in imagePickerImages" :key="'pi'+pi"
               :class="{ 'img-picker-selected': (imagePickerTarget && ((imagePickerTarget.type==='sku' && editable.skus[imagePickerTarget.skuIndex] && editable.skus[imagePickerTarget.skuIndex].image===url) || (imagePickerTarget.type==='variant' && variantAttrs[imagePickerTarget.attrIdx] && variantAttrs[imagePickerTarget.attrIdx].images[imagePickerTarget.valueName]===url))) }"
               @click="onImagePickerSelect(url)">
