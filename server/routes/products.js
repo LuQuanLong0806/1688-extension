@@ -387,7 +387,7 @@ router.get('/product', (req, res) => {
   const total = countRow ? countRow.count : 0;
   const offset = (page - 1) * pageSize;
   const list = getAll(
-    `SELECT id, uid, source_url, title, category, custom_category, manual_category, dxm_category, attrs, skus, main_images, status, created_at, updated_at
+    `SELECT id, uid, source_url, title, category, custom_category, manual_category, dxm_category, attrs, skus, main_images, status, created_at, updated_at, automation_stage
      FROM products ${whereClause}
      ORDER BY created_at DESC, id DESC
      LIMIT ? OFFSET ?`,
