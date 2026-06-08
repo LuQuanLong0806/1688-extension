@@ -397,6 +397,8 @@ router.get('/product', (req, res) => {
     skuCount: JSON.parse(row.skus || '[]').length,
     storeName: row.store_name || '',
     variantAttrName: row.variant_attr_name || '',
+    variantAttrName2: row.variant_attr_name2 || '',
+    variantAttrImages: row.variant_attr_images || '',
     productNo: row.product_no || ''
   }));
 
@@ -438,6 +440,8 @@ router.put('/product/:id', (req, res) => {
     dxmCategory: 'dxm_category',
     storeName: 'store_name',
     variantAttrName: 'variant_attr_name',
+    variantAttrName2: 'variant_attr_name2',
+    variantAttrImages: 'variant_attr_images',
     productNo: 'product_no'
   };
 
@@ -446,7 +450,7 @@ router.put('/product/:id', (req, res) => {
       let val = req.body[key];
       if (col === 'dxm_category' && val === '') {
         // 清空时直接存空字符串，不做JSON.stringify
-      } else if (['main_images', 'desc_images', 'detail_images', 'attrs', 'skus', 'dxm_category'].includes(col) || Array.isArray(val)) {
+      } else if (['main_images', 'desc_images', 'detail_images', 'attrs', 'skus', 'dxm_category', 'variant_attr_images'].includes(col) || Array.isArray(val)) {
         val = JSON.stringify(val);
       }
       fields.push(`${col} = ?`);

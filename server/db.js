@@ -174,7 +174,9 @@ var LOCAL_TABLE_DEFS = [
       deleted INTEGER DEFAULT 0,
       store_name TEXT DEFAULT '',
       variant_attr_name TEXT DEFAULT '',
-      product_no TEXT DEFAULT ''
+      product_no TEXT DEFAULT '',
+      variant_attr_name2 TEXT DEFAULT '',
+      variant_attr_images TEXT DEFAULT ''
     )`
   },
   {

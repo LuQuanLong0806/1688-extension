@@ -10,6 +10,12 @@ Vue.component('detail-modal', {
       selectedSkuIndexes: [],
       selectedDetailIndexes: [],
       selectedMainIndexes: [],
+      selectedSkuImgIndexes: [],  // SKU图片独立选中（仅用于填充店小秘轮播图）
+      // 图片选择弹窗
+      showImagePicker: false,
+      imagePickerTarget: null,  // { type:'sku'|'variant', skuIndex, attrIdx, valueIdx }
+      // 变种属性编辑状态
+      editingVariantValue: null,  // { attrIdx, valueIdx, tempName }
       dragImageUrl: '',
       dragSourceIdx: -1,
       dragSourceField: '',
@@ -28,8 +34,8 @@ Vue.component('detail-modal', {
       variantAttrName: '颜色',
       productNo: '',
       variantAttrs: [
-        { name: '颜色', values: [] },
-        { name: '', values: [] }
+        { name: '颜色', values: [], images: {} },
+        { name: '', values: [], images: {} }
       ],
       // 变种属性可选名称（对标店小秘，根据分类动态变化，这里放通用集合）
       attrNameOptions: ['颜色', '风格', '材质', '口味', '适用人群', '容量', '成分', '重量', '品类', '数量', '型号', '头发长度', '被套尺码', 'RAM+ROM', '存储容量', '厚被尺码', '手机型号'],
@@ -93,9 +99,32 @@ Vue.component('detail-modal', {
           }
         });
         this.variantAttrs = [
-          { name: val.variantAttrName || val.variant_attr_name || '颜色', values: Object.keys(part1) },
-          { name: val.variantAttrName2 || '', values: Object.keys(part2) }
+          { name: val.variantAttrName || val.variant_attr_name || '颜色', values: Object.keys(part1), images: {} },
+          { name: val.variantAttrName2 || '', values: Object.keys(part2), images: {} }
         ];
+        // 恢复变种属性图片缓存
+        try {
+          var savedImages = val.variantAttrImages || {};
+          if (typeof savedImages === 'string') savedImages = JSON.parse(savedImages);
+          this.variantAttrs.forEach(function (va, vi) {
+            if (savedImages[vi]) va.images = JSON.parse(JSON.stringify(savedImages[vi]));
+          });
+        } catch (e) {}
+        // 自动为变种属性值匹配 SKU 图片
+        var vm = this;
+        vm.variantAttrs.forEach(function (va, vi) {
+          va.values.forEach(function (val) {
+            if (!va.images[val]) {
+              (vm.editable.skus || []).forEach(function (s) {
+                var fullName = (s.customName || s.name || '').trim();
+                var parts = fullName.split(/\s*\/\s*|\s+/);
+                if (parts[vi] === val && s.image) {
+                  va.images[val] = s.image;
+                }
+              });
+            }
+          });
+        });
         // 自动计算售价（仅对尚未设置售价的 SKU）
         var vm = this;
         vm.$nextTick(function () {
@@ -128,6 +157,13 @@ Vue.component('detail-modal', {
         } else {
           this.selectedSkuIndexes = (val.skus || []).map(function (_, i) { return i; });
         }
+        // SKU图片独立选中（全选）
+        this.selectedSkuImgIndexes = [];
+        var skuImgList = [];
+        (this.editable.skus || []).forEach(function (s, i) {
+          if (s.image) skuImgList.push(i);
+        });
+        this.selectedSkuImgIndexes = skuImgList.slice();
         // 详情图选中状态
         var detailImgs = val.detail_images || [];
         var savedDetail = [];
@@ -151,6 +187,11 @@ Vue.component('detail-modal', {
     'editable.skus': {
       handler: function () {},
       deep: true
+    }
+  },
+  directives: {
+    focus: {
+      inserted: function (el) { el.focus(); }
     }
   },
   computed: {
@@ -202,6 +243,146 @@ Vue.component('detail-modal', {
     allMainSelected: function () {
       if (!this.editable || !this.editable.main_images || !this.editable.main_images.length) return false;
       return this.selectedMainIndexes.length === this.editable.main_images.length;
+    },
+    // ===== 变种属性：属性名变更时同步SKU自定义属性 =====
+    onVariantNameChange: function (attrIdx) {
+      // 仅用于UI显示，实际数据存储在variantAttrs[attrIdx].name中
+    },
+    // ===== 变种属性：勾选（关联SKU列表）=====
+    isVariantValueChecked: function (attrIdx, value) {
+      var vm = this;
+      if (!vm.editable || !vm.editable.skus) return false;
+      var checked = false;
+      vm.editable.skus.forEach(function (s, i) {
+        var fullName = (s.customName || s.name || '').trim();
+        var parts = fullName.split(/\s*\/\s*|\s+/);
+        if (parts[attrIdx] === value && vm.isSkuChecked(i)) checked = true;
+      });
+      return checked;
+    },
+    toggleVariantValue: function (attrIdx, value, checked) {
+      var vm = this;
+      if (!vm.editable || !vm.editable.skus) return;
+      vm.editable.skus.forEach(function (s, i) {
+        var fullName = (s.customName || s.name || '').trim();
+        var parts = fullName.split(/\s*\/\s*|\s+/);
+        if (parts[attrIdx] === value) {
+          var pos = vm.selectedSkuIndexes.indexOf(i);
+          if (checked && pos < 0) vm.selectedSkuIndexes.push(i);
+          else if (!checked && pos >= 0) vm.selectedSkuIndexes.splice(pos, 1);
+        }
+      });
+    },
+    // ===== 变种属性：编辑属性值 =====
+    startEditVariantValue: function (attrIdx, valueIdx) {
+      var va = this.variantAttrs[attrIdx];
+      if (!va || valueIdx >= va.values.length) return;
+      this.editingVariantValue = { attrIdx: attrIdx, valueIdx: valueIdx, tempName: va.values[valueIdx] };
+    },
+    confirmEditVariantValue: function () {
+      var ev = this.editingVariantValue;
+      if (!ev) return;
+      var va = this.variantAttrs[ev.attrIdx];
+      if (!va) { this.editingVariantValue = null; return; }
+      var oldVal = va.values[ev.valueIdx];
+      var newVal = ev.tempName.trim();
+      if (!newVal) { this.editingVariantValue = null; return; }
+      if (newVal === oldVal) { this.editingVariantValue = null; return; }
+      // 同步修改 SKU customName 中对应位置的值
+      var vm = this;
+      (vm.editable.skus || []).forEach(function (s) {
+        var fullName = (s.customName || s.name || '').trim();
+        var parts = fullName.split(/\s*\/\s*|\s+/);
+        if (parts[ev.attrIdx] === oldVal) {
+          parts[ev.attrIdx] = newVal;
+          s.customName = parts.join(' / ');
+        }
+      });
+      // 更新变种属性值
+      vm.$set(va.values, ev.valueIdx, newVal);
+      // 迁移图片映射
+      if (va.images[oldVal] !== undefined) {
+        vm.$set(va.images, newVal, va.images[oldVal]);
+        vm.$delete(va.images, oldVal);
+      }
+      vm.editingVariantValue = null;
+    },
+    cancelEditVariantValue: function () {
+      this.editingVariantValue = null;
+    },
+    // ===== 变种属性：图片操作 =====
+    setVariantImage: function (attrIdx, value, url) {
+      var va = this.variantAttrs[attrIdx];
+      if (!va) return;
+      this.$set(va.images, value, url);
+    },
+    removeVariantImage: function (attrIdx, value) {
+      var va = this.variantAttrs[attrIdx];
+      if (!va) return;
+      this.$delete(va.images, value);
+    },
+    // ===== 图片选择弹窗 =====
+    openImagePicker: function (target) {
+      this.imagePickerTarget = target;
+      this.showImagePicker = true;
+    },
+    onImagePickerSelect: function (url) {
+      var t = this.imagePickerTarget;
+      if (!t) return;
+      if (t.type === 'sku') {
+        this.$set(this.editable.skus[t.skuIndex], 'image', url);
+      } else if (t.type === 'variant') {
+        this.setVariantImage(t.attrIdx, t.valueName, url);
+      }
+      this.showImagePicker = false;
+      this.imagePickerTarget = null;
+    },
+    onImagePickerClose: function () {
+      this.showImagePicker = false;
+      this.imagePickerTarget = null;
+    },
+    // ===== SKU列表图片删除/替换 =====
+    removeSkuImage: function (skuIndex) {
+      if (!this.editable || !this.editable.skus || !this.editable.skus[skuIndex]) return;
+      this.$set(this.editable.skus[skuIndex], 'image', '');
+      // 同步移除SKU图片选中
+      var pos = this.selectedSkuImgIndexes.indexOf(skuIndex);
+      if (pos >= 0) this.selectedSkuImgIndexes.splice(pos, 1);
+    },
+    onSkuImgDropReplace: function (skuIndex, e) {
+      if (e) e.preventDefault();
+      if (!this.dragImageUrl || !this.editable || !this.editable.skus) return;
+      this.$set(this.editable.skus[skuIndex], 'image', this.dragImageUrl);
+      this.$Message.success('SKU图已替换');
+      this.dragImageUrl = '';
+      this.dragSourceField = '';
+      this.dragSourceIdx = -1;
+      this.dragOverSkuIdx = -1;
+    },
+    // ===== 图片选择弹窗用的图片列表 =====
+    imagePickerImages: function () {
+      if (!this.editable) return [];
+      var imgs = [];
+      var seen = {};
+      // 主图
+      (this.editable.main_images || []).forEach(function (url) {
+        if (url && !seen[url]) { seen[url] = true; imgs.push(url); }
+      });
+      // 详情图
+      (this.editable.detail_images || []).forEach(function (url) {
+        if (url && !seen[url]) { seen[url] = true; imgs.push(url); }
+      });
+      // SKU图
+      (this.editable.skus || []).forEach(function (s) {
+        if (s.image && !seen[s.image]) { seen[s.image] = true; imgs.push(s.image); }
+      });
+      return imgs;
+    },
+    // ===== 变种属性拖拽 =====
+    onVariantImgDragOver: function (attrIdx, valueName, e) {
+      e.preventDefault();
+      if (!this.dragImageUrl) return;
+      this.setVariantImage(attrIdx, valueName, this.dragImageUrl);
     },
     removeMainImage: function (idx) {
       this.selectedMainIndexes = this.selectedMainIndexes
@@ -458,12 +639,29 @@ Vue.component('detail-modal', {
       return this.selectedSkuIndexes.indexOf(idx) >= 0;
     },
     toggleSkuImage: function (item) {
-      var pos = this.selectedSkuIndexes.indexOf(item.skuIndex);
-      if (pos >= 0) this.selectedSkuIndexes.splice(pos, 1);
-      else this.selectedSkuIndexes.push(item.skuIndex);
+      var pos = this.selectedSkuImgIndexes.indexOf(item.skuIndex);
+      if (pos >= 0) this.selectedSkuImgIndexes.splice(pos, 1);
+      else this.selectedSkuImgIndexes.push(item.skuIndex);
     },
     isSkuImageChecked: function (item) {
-      return this.selectedSkuIndexes.indexOf(item.skuIndex) >= 0;
+      return this.selectedSkuImgIndexes.indexOf(item.skuIndex) >= 0;
+    },
+    toggleAllSkuImages: function (checked) {
+      var vm = this;
+      if (checked) {
+        vm.selectedSkuImgIndexes = [];
+        (vm.editable.skus || []).forEach(function (s, i) {
+          if (s.image) vm.selectedSkuImgIndexes.push(i);
+        });
+      } else {
+        vm.selectedSkuImgIndexes = [];
+      }
+    },
+    allSkuImagesSelected: function () {
+      if (!this.editable || !this.editable.skus) return false;
+      var imgSkus = [];
+      this.editable.skus.forEach(function (s, i) { if (s.image) imgSkus.push(i); });
+      return imgSkus.length > 0 && this.selectedSkuImgIndexes.length === imgSkus.length;
     },
     toggleDetailImage: function (idx) {
       var pos = this.selectedDetailIndexes.indexOf(idx);
@@ -898,6 +1096,7 @@ Vue.component('detail-modal', {
       var mainImages = (vm.editable.main_images || []).map(function (url, i) {
         return { url: url, _selected: vm.selectedMainIndexes.indexOf(i) >= 0 };
       });
+      var variantAttrImages = vm.variantAttrs.map(function (va) { return JSON.parse(JSON.stringify(va.images || {})); });
       var payload = {
         title: vm.editable.title,
         customCategory: vm.editable.customCategory,
@@ -911,7 +1110,8 @@ Vue.component('detail-modal', {
         storeName: vm.storeName,
         variantAttrName: (vm.variantAttrs[0] || {}).name || '',
         variantAttrName2: (vm.variantAttrs[1] || {}).name || '',
-        productNo: vm.productNo
+        productNo: vm.productNo,
+        variantAttrImages: variantAttrImages
       };
       return fetch('/api/product/' + vm.editable.uid, {
         method: 'PUT',
@@ -1044,9 +1244,14 @@ Vue.component('detail-modal', {
           </div>
         </div>
 
-        <!-- SKU图（可勾选，关联SKU列表，可拖拽替换） -->
+        <!-- SKU图（独立选中，仅用于填充店小秘产品轮播图） -->
         <div class="detail-section" v-if="skuImages.length">
-          <div class="detail-section-title">SKU图 ({{ skuImages.length }}) <span v-if="dragImageUrl" style="font-size:12px;color:var(--accent);font-weight:400;margin-left:8px">← 拖拽主图/详情图到此处替换</span></div>
+          <div class="detail-section-title">
+            SKU图 ({{ skuImages.length }})
+            <checkbox :value="allSkuImagesSelected()" @on-change="toggleAllSkuImages" style="margin-left:12px;vertical-align:middle"></checkbox>
+            <span style="font-size:12px;color:var(--text-muted);margin-left:4px;vertical-align:middle">全选</span>
+            <span style="font-size:12px;color:var(--text-muted);margin-left:12px">已选 {{ selectedSkuImgIndexes.length }} 张（填充店小秘轮播图）</span>
+          </div>
           <div class="img-grid">
             <div class="img-item sku-img-checkable sku-img-card" v-for="(item, i) in skuImages" :key="'si'+i"
               :class="{ 'sku-img-unchecked': !isSkuImageChecked(item), 'img-drag-over': dragOverSkuImgIdx === i }"
@@ -1078,21 +1283,46 @@ Vue.component('detail-modal', {
           </div>
         </div>
 
-        <!-- 变种属性（两行：属性1 + 属性2，对标店小秘） -->
+        <!-- 变种属性（图片+名称栅格，勾选关联SKU，编辑同步自定义属性） -->
         <div class="detail-section">
-          <div class="detail-section-title">变种属性</div>
-          <div class="variant-attr-row" v-for="(va, vi) in variantAttrs" :key="vi">
-            <div class="variant-attr-label">
+          <div class="detail-section-title">变种属性 <span v-if="dragImageUrl" style="font-size:12px;color:var(--accent);font-weight:400;margin-left:8px">← 拖拽图片到属性值上替换</span></div>
+          <div class="variant-attr-section" v-for="(va, vi) in variantAttrs" :key="vi" v-if="va.name || (va.values && va.values.length)">
+            <div class="variant-attr-header">
               <span class="variant-attr-index">{{ vi + 1 }}</span>
-              <i-select v-model="va.name" style="width:130px" size="small" placeholder="选择属性名" clearable transfer>
+              <i-select v-model="va.name" style="width:130px" size="small" placeholder="选择属性名" clearable transfer @on-change="onVariantNameChange(vi)">
                 <i-option v-for="n in getFilteredOptions(vi)" :key="n" :value="n">{{ n }}</i-option>
               </i-select>
-            </div>
-            <div class="variant-attr-values" v-if="va.values.length">
-              <span class="attr-tag attr-tag-variant" v-for="(v, vj) in va.values" :key="vi+'-'+vj">{{ v }}</span>
               <span class="variant-attr-count">{{ va.values.length }}个</span>
             </div>
-            <div class="variant-attr-values variant-attr-empty" v-else>
+            <div class="variant-attr-grid" v-if="va.values.length">
+              <div class="variant-value-card" v-for="(val, vj) in va.values" :key="vi+'-'+vj"
+                :class="{ 'variant-value-checked': isVariantValueChecked(vi, val) }"
+                @dragover="onVariantImgDragOver(vi, val, $event)"
+                @click="toggleVariantValue(vi, val, !isVariantValueChecked(vi, val))">
+                <div class="variant-value-img-wrap">
+                  <img v-if="va.images[val]" :src="va.images[val]" class="variant-value-img" />
+                  <div v-else class="variant-value-img-placeholder" @click.stop="openImagePicker({ type:'variant', attrIdx:vi, valueName:val })">
+                    <span class="variant-value-img-placeholder-icon">+</span>
+                  </div>
+                  <div v-if="va.images[val]" class="variant-value-img-actions">
+                    <span class="variant-img-action-btn variant-img-del" @click.stop="removeVariantImage(vi, val)">×</span>
+                    <span class="variant-img-action-btn variant-img-replace" @click.stop="openImagePicker({ type:'variant', attrIdx:vi, valueName:val })">↻</span>
+                  </div>
+                  <div class="variant-value-check">
+                    <checkbox :value="isVariantValueChecked(vi, val)" @click.native.stop @on-change="function(c){toggleVariantValue(vi,val,c)}"></checkbox>
+                  </div>
+                </div>
+                <div class="variant-value-name" v-if="editingVariantValue && editingVariantValue.attrIdx === vi && editingVariantValue.valueIdx === vj">
+                  <input class="variant-value-edit-input" v-model="editingVariantValue.tempName"
+                    @keyup.enter="confirmEditVariantValue"
+                    @keyup.escape="cancelEditVariantValue"
+                    @blur="confirmEditVariantValue"
+                    v-focus />
+                </div>
+                <div class="variant-value-name" v-else @dblclick.stop="startEditVariantValue(vi, vj)">{{ val }}</div>
+              </div>
+            </div>
+            <div class="variant-attr-empty" v-else>
               <span style="color:var(--text-muted);font-size:12px">暂无属性值（从SKU自动提取）</span>
             </div>
           </div>
@@ -1134,12 +1364,17 @@ Vue.component('detail-modal', {
                   <td class="sku-img-drop" :class="{ 'img-drag-over': dragOverSkuIdx === i }"
                     @dragover="onSkuDragOver(i, $event)"
                     @dragleave="onSkuDragLeave(i)"
-                    @drop="onSkuDrop(i, $event)">
-                    <img v-if="sku.image" :src="sku.image" loading="lazy"
-                      @mouseenter="onSkuImgEnter(sku.image, $event)"
-                      @mousemove="onSkuImgMove($event)"
-                      @mouseleave="onSkuImgLeave" />
-                    <span v-else class="sku-img-placeholder">拖图替换</span>
+                    @drop="onSkuImgDropReplace(i, $event)">
+                    <div v-if="sku.image" class="sku-img-wrap">
+                      <img :src="sku.image" loading="lazy"
+                        @mouseenter="onSkuImgEnter(sku.image, $event)"
+                        @mousemove="onSkuImgMove($event)"
+                        @mouseleave="onSkuImgLeave" />
+                      <span class="sku-img-remove" @click.stop="removeSkuImage(i)" title="删除图片">×</span>
+                    </div>
+                    <div v-else class="sku-img-placeholder" @click.stop="openImagePicker({ type:'sku', skuIndex: i })" title="点击选择图片">
+                      <span style="font-size:16px;color:#ccc">+</span>
+                    </div>
                   </td>
                   <td>{{ sku.name || '-' }}</td>
                   <td><i-input v-model="sku.customName" :placeholder="sku.name || '-'" style="width:200px" /></td>
@@ -1195,6 +1430,19 @@ Vue.component('detail-modal', {
             <i-button size="small" icon="md-add" @click="addFormulaRow">添加区间</i-button>
             <i-button type="primary" size="small" @click="saveFormulas">保存公式</i-button>
             <i-button type="success" size="small" @click="applyPriceFormula">应用公式</i-button>
+          </div>
+        </modal>
+
+        <!-- 图片选择弹窗 -->
+        <modal v-model="showImagePicker" title="选择图片" width="680" footer-hide>
+          <div style="margin-bottom:10px;font-size:12px;color:var(--text-muted)">点击图片选择（拖拽图片也可替换）</div>
+          <div class="img-picker-grid">
+            <div class="img-picker-item" v-for="(url, pi) in imagePickerImages" :key="'pi'+pi"
+              :class="{ 'img-picker-selected': (imagePickerTarget && ((imagePickerTarget.type==='sku' && editable.skus[imagePickerTarget.skuIndex] && editable.skus[imagePickerTarget.skuIndex].image===url) || (imagePickerTarget.type==='variant' && variantAttrs[imagePickerTarget.attrIdx] && variantAttrs[imagePickerTarget.attrIdx].images[imagePickerTarget.valueName]===url))) }"
+              @click="onImagePickerSelect(url)">
+              <img :src="url" loading="lazy" />
+              <div class="img-picker-check">✓</div>
+            </div>
           </div>
         </modal>
       </template>

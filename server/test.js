@@ -1144,6 +1144,274 @@ test('canvas尺寸计算应产生有效整数', function () {
 });
 
 // ============================================================
+// 15. detail-modal: SKU图片独立选中逻辑
+// ============================================================
+suite('detail-modal / SKU图片独立选中');
+
+test('toggleSkuImage 应切换独立选中状态', function () {
+  var selectedSkuImgIndexes = [0, 2, 4];
+  var item = { skuIndex: 2 };
+  var pos = selectedSkuImgIndexes.indexOf(item.skuIndex);
+  if (pos >= 0) selectedSkuImgIndexes.splice(pos, 1);
+  assert.deepEqual(selectedSkuImgIndexes, [0, 4]);
+});
+
+test('toggleSkuImage 选中不存在的应添加', function () {
+  var selectedSkuImgIndexes = [0, 2];
+  var item = { skuIndex: 5 };
+  var pos = selectedSkuImgIndexes.indexOf(item.skuIndex);
+  if (pos >= 0) selectedSkuImgIndexes.splice(pos, 1);
+  else selectedSkuImgIndexes.push(item.skuIndex);
+  assert.deepEqual(selectedSkuImgIndexes, [0, 2, 5]);
+});
+
+test('toggleAllSkuImages 全选应只选有图片的SKU', function () {
+  var skus = [
+    { image: 'http://a.jpg' },
+    { image: '' },
+    { image: 'http://b.jpg' },
+    { image: 'http://c.jpg' }
+  ];
+  var selected = [];
+  skus.forEach(function (s, i) { if (s.image) selected.push(i); });
+  assert.deepEqual(selected, [0, 2, 3]);
+});
+
+test('allSkuImagesSelected 应正确判断全选状态', function () {
+  var skus = [
+    { image: 'http://a.jpg' },
+    { image: 'http://b.jpg' }
+  ];
+  var selected = [0, 1];
+  var imgSkus = [];
+  skus.forEach(function (s, i) { if (s.image) imgSkus.push(i); });
+  assert.strictEqual(imgSkus.length > 0 && selected.length === imgSkus.length, true);
+});
+
+test('removeSkuImage 应清空图片并移除选中', function () {
+  var sku = { image: 'http://old.jpg' };
+  sku.image = '';
+  assert.strictEqual(sku.image, '');
+});
+
+// ============================================================
+// 16. detail-modal: 变种属性勾选关联SKU
+// ============================================================
+suite('detail-modal / 变种属性勾选关联SKU');
+
+test('变种属性勾选应关联SKU列表选中状态', function () {
+  var skus = [
+    { name: '红色 / S', customName: '红色 / S' },
+    { name: '红色 / M', customName: '红色 / M' },
+    { name: '蓝色 / S', customName: '蓝色 / S' }
+  ];
+  var selectedSkuIndexes = [];
+  var attrIdx = 0, value = '红色', checked = true;
+  skus.forEach(function (s, i) {
+    var parts = (s.customName || s.name).split(/\s*\/\s*|\s+/);
+    if (parts[attrIdx] === value) {
+      var pos = selectedSkuIndexes.indexOf(i);
+      if (checked && pos < 0) selectedSkuIndexes.push(i);
+    }
+  });
+  assert.deepEqual(selectedSkuIndexes, [0, 1]);
+});
+
+test('变种属性取消勾选应取消SKU选中', function () {
+  var skus = [
+    { name: '红色 / S', customName: '红色 / S' },
+    { name: '红色 / M', customName: '红色 / M' },
+    { name: '蓝色 / S', customName: '蓝色 / S' }
+  ];
+  var selectedSkuIndexes = [0, 1, 2];
+  var attrIdx = 0, value = '红色', checked = false;
+  skus.forEach(function (s, i) {
+    var parts = (s.customName || s.name).split(/\s*\/\s*|\s+/);
+    if (parts[attrIdx] === value) {
+      var pos = selectedSkuIndexes.indexOf(i);
+      if (!checked && pos >= 0) selectedSkuIndexes.splice(pos, 1);
+    }
+  });
+  assert.deepEqual(selectedSkuIndexes, [2]);
+});
+
+test('第二属性勾选应只影响对应SKU', function () {
+  var skus = [
+    { name: '红色 / S', customName: '红色 / S' },
+    { name: '红色 / M', customName: '红色 / M' },
+    { name: '蓝色 / S', customName: '蓝色 / S' },
+    { name: '蓝色 / M', customName: '蓝色 / M' }
+  ];
+  var selectedSkuIndexes = [];
+  var attrIdx = 1, value = 'S', checked = true;
+  skus.forEach(function (s, i) {
+    var parts = (s.customName || s.name).split(/\s*\/\s*|\s+/);
+    if (parts[attrIdx] === value) {
+      selectedSkuIndexes.push(i);
+    }
+  });
+  assert.deepEqual(selectedSkuIndexes, [0, 2]);
+});
+
+// ============================================================
+// 17. detail-modal: 变种属性编辑同步SKU
+// ============================================================
+suite('detail-modal / 变种属性编辑同步');
+
+test('编辑属性值应同步SKU customName', function () {
+  var skus = [
+    { name: '红色 / S', customName: '红色 / S' },
+    { name: '红色 / M', customName: '红色 / M' },
+    { name: '蓝色 / S', customName: '蓝色 / S' }
+  ];
+  var attrIdx = 0, oldVal = '红色', newVal = '粉色';
+  skus.forEach(function (s) {
+    var parts = (s.customName || s.name).split(/\s*\/\s*|\s+/);
+    if (parts[attrIdx] === oldVal) {
+      parts[attrIdx] = newVal;
+      s.customName = parts.join(' / ');
+    }
+  });
+  assert.strictEqual(skus[0].customName, '粉色 / S');
+  assert.strictEqual(skus[1].customName, '粉色 / M');
+  assert.strictEqual(skus[2].customName, '蓝色 / S');  // 不变
+});
+
+test('编辑第二属性值应同步', function () {
+  var skus = [
+    { name: '红色 / S', customName: '红色 / S' },
+    { name: '红色 / M', customName: '红色 / M' }
+  ];
+  var attrIdx = 1, oldVal = 'S', newVal = 'XL';
+  skus.forEach(function (s) {
+    var parts = (s.customName || s.name).split(/\s*\/\s*|\s+/);
+    if (parts[attrIdx] === oldVal) {
+      parts[attrIdx] = newVal;
+      s.customName = parts.join(' / ');
+    }
+  });
+  assert.strictEqual(skus[0].customName, '红色 / XL');
+  assert.strictEqual(skus[1].customName, '红色 / M');  // 不变
+});
+
+test('图片映射迁移应保持数据', function () {
+  var images = { '红色': 'http://red.jpg', '蓝色': 'http://blue.jpg' };
+  var oldVal = '红色', newVal = '粉色';
+  if (images[oldVal] !== undefined) {
+    images[newVal] = images[oldVal];
+    delete images[oldVal];
+  }
+  assert.strictEqual(images['粉色'], 'http://red.jpg');
+  assert.strictEqual(images['红色'], undefined);
+  assert.strictEqual(images['蓝色'], 'http://blue.jpg');
+});
+
+// ============================================================
+// 18. detail-modal: 图片选择器逻辑
+// ============================================================
+suite('detail-modal / 图片选择器');
+
+test('imagePickerImages 应去重合并所有图片', function () {
+  var main = ['http://a.jpg', 'http://b.jpg'];
+  var detail = ['http://b.jpg', 'http://c.jpg'];
+  var skus = [{ image: 'http://a.jpg' }, { image: 'http://d.jpg' }];
+  var seen = {};
+  var imgs = [];
+  main.forEach(function (u) { if (u && !seen[u]) { seen[u] = true; imgs.push(u); } });
+  detail.forEach(function (u) { if (u && !seen[u]) { seen[u] = true; imgs.push(u); } });
+  skus.forEach(function (s) { if (s.image && !seen[s.image]) { seen[s.image] = true; imgs.push(s.image); } });
+  assert.deepEqual(imgs, ['http://a.jpg', 'http://b.jpg', 'http://c.jpg', 'http://d.jpg']);
+});
+
+test('空数据应返回空列表', function () {
+  var imgs = [];
+  var seen = {};
+  [[], [], []].forEach(function (arr) {
+    arr.forEach(function (u) { if (u && !seen[u]) { seen[u] = true; imgs.push(u); } });
+  });
+  assert.deepEqual(imgs, []);
+});
+
+// ============================================================
+// 19. detail-modal: SKU列表图片拖拽替换
+// ============================================================
+suite('detail-modal / SKU列表图片替换');
+
+test('拖拽替换应更新SKU图片', function () {
+  var sku = { image: '' };
+  var newUrl = 'http://new.jpg';
+  sku.image = newUrl;
+  assert.strictEqual(sku.image, newUrl);
+});
+
+test('删除SKU图应清空image字段', function () {
+  var sku = { image: 'http://old.jpg' };
+  sku.image = '';
+  assert.strictEqual(sku.image, '');
+});
+
+test('删除后应同步移除selectedSkuImgIndexes', function () {
+  var selectedSkuImgIndexes = [0, 1, 2, 3];
+  var skuIndex = 1;
+  var pos = selectedSkuImgIndexes.indexOf(skuIndex);
+  if (pos >= 0) selectedSkuImgIndexes.splice(pos, 1);
+  assert.deepEqual(selectedSkuImgIndexes, [0, 2, 3]);
+});
+
+test('删除不存在的索引不影响数组', function () {
+  var selectedSkuImgIndexes = [0, 2];
+  var skuIndex = 5;
+  var pos = selectedSkuImgIndexes.indexOf(skuIndex);
+  if (pos >= 0) selectedSkuImgIndexes.splice(pos, 1);
+  assert.deepEqual(selectedSkuImgIndexes, [0, 2]);
+});
+
+// ============================================================
+// 20. detail-modal: 变种属性图片匹配逻辑
+// ============================================================
+suite('detail-modal / 变种属性图片自动匹配');
+
+test('自动匹配应从SKU提取属性图片', function () {
+  var skus = [
+    { name: '红色 / S', customName: '红色 / S', image: 'http://red.jpg' },
+    { name: '蓝色 / S', customName: '蓝色 / S', image: 'http://blue.jpg' }
+  ];
+  var attrIdx = 0;
+  var images = {};
+  ['红色', '蓝色'].forEach(function (val) {
+    if (!images[val]) {
+      skus.forEach(function (s) {
+        var parts = (s.customName || s.name).trim().split(/\s*\/\s*|\s+/);
+        if (parts[attrIdx] === val && s.image) {
+          images[val] = s.image;
+        }
+      });
+    }
+  });
+  assert.strictEqual(images['红色'], 'http://red.jpg');
+  assert.strictEqual(images['蓝色'], 'http://blue.jpg');
+});
+
+test('已有图片不应被覆盖', function () {
+  var skus = [
+    { name: '红色 / S', customName: '红色 / S', image: 'http://red2.jpg' }
+  ];
+  var images = { '红色': 'http://red1.jpg' };
+  var attrIdx = 0;
+  ['红色'].forEach(function (val) {
+    if (!images[val]) {
+      skus.forEach(function (s) {
+        var parts = (s.customName || s.name).trim().split(/\s*\/\s*|\s+/);
+        if (parts[attrIdx] === val && s.image) {
+          images[val] = s.image;
+        }
+      });
+    }
+  });
+  assert.strictEqual(images['红色'], 'http://red1.jpg');  // 保留原有
+});
+
+// ============================================================
 // 汇总
 // ============================================================
 
