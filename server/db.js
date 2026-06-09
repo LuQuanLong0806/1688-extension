@@ -182,7 +182,8 @@ var LOCAL_TABLE_DEFS = [
       automation_log TEXT DEFAULT '',
       automation_issues TEXT DEFAULT '',
       automation_started_at DATETIME,
-      automation_finished_at DATETIME
+      automation_finished_at DATETIME,
+      original_images TEXT DEFAULT ''
     )`
   },
   {

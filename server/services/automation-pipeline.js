@@ -712,6 +712,7 @@ async function processProduct(uid, db) {
     broadcast('pipeline-progress', { uid: uid, step: 7, total: totalSteps, stage: 'processing', message: 'Step 7/7 上传图床中...' });
     var uploadedMainUrls = [];
     var uploadedSkuMap = {};
+    var imageMapping = []; // [{original, uploaded, type}]
     try {
       var t7 = Date.now();
       var imgbb = require('../services/imgbb-upload');
@@ -719,18 +720,20 @@ async function processProduct(uid, db) {
 
       // 上传主图
       for (var m = 0; m < processedMain.length; m++) {
+        var originalUrl = processedMain[m].url;
         try {
           var filename = uid + '_main_' + m + '.png';
           var uploadResult = await imgbb.uploadToImgBB(processedMain[m].buffer, filename);
           if (uploadResult.ok) {
             uploadedMainUrls.push(uploadResult.url);
+            imageMapping.push({ original: originalUrl, uploaded: uploadResult.url, type: 'main' });
             uploadOk++;
           } else {
-            uploadedMainUrls.push(processedMain[m].url);
+            uploadedMainUrls.push(originalUrl);
             uploadFail++;
           }
         } catch (e) {
-          uploadedMainUrls.push(processedMain[m].url);
+          uploadedMainUrls.push(originalUrl);
           uploadFail++;
         }
       }
@@ -742,6 +745,7 @@ async function processProduct(uid, db) {
           var skuUploadResult = await imgbb.uploadToImgBB(processedSkus[s].buffer, skuFilename);
           if (skuUploadResult.ok) {
             uploadedSkuMap[processedSkus[s].url] = skuUploadResult.url;
+            imageMapping.push({ original: processedSkus[s].url, uploaded: skuUploadResult.url, type: 'sku' });
             uploadOk++;
           } else {
             uploadFail++;
@@ -751,9 +755,19 @@ async function processProduct(uid, db) {
         }
       }
 
-      // 更新数据库: 主图
-      if (uploadedMainUrls.length > 0) {
-        db.run("UPDATE products SET main_images = ? WHERE uid = ?", [JSON.stringify(uploadedMainUrls), uid]);
+      // 备份原始图片对应关系，再覆盖
+      if (uploadedMainUrls.length > 0 || Object.keys(uploadedSkuMap).length > 0) {
+        var existingMapping = [];
+        try { existingMapping = JSON.parse(product.original_images || '[]'); } catch (e) {}
+        if (!Array.isArray(existingMapping) || (existingMapping.length && typeof existingMapping[0] === 'string')) {
+          existingMapping = [];
+        }
+        if (!existingMapping.length) {
+          db.run("UPDATE products SET original_images = ? WHERE uid = ?", [JSON.stringify(imageMapping), uid]);
+        }
+        if (uploadedMainUrls.length > 0) {
+          db.run("UPDATE products SET main_images = ? WHERE uid = ?", [JSON.stringify(uploadedMainUrls), uid]);
+        }
       }
 
       // 更新数据库: SKU 图

@@ -97,7 +97,7 @@ function getProviderConfig(provider) {
 
 function isRateLimitError(err) {
   var msg = (err && err.message) || '';
-  var keywords = ['访问量过大', '限流', '速率限制', '请求频率', 'rate', 'Rate', '余额', 'ResourceExhausted', 'Throttling', 'frequency', 'quota', '429', '限制'];
+  var keywords = ['访问量过大', '限流', '速率限制', '请求频率', 'rate limit', 'Rate limit', '余额不足', 'ResourceExhausted', 'Throttling', 'frequency', 'quota exceeded', '429', '并发限制'];
   for (var i = 0; i < keywords.length; i++) { if (msg.indexOf(keywords[i]) >= 0) return true; }
   return false;
 }
@@ -367,7 +367,7 @@ function dispatchByCategory(category, apiPath, body) {
             console.log('[调度]', label, '所有Key限流，跳下一厂商');
             return tryEntry(i + 1);
           }
-          markModelFail(label); throw err;
+          throw err;
         });
     }
     if (entry.vendor === 'qwen') {
@@ -386,7 +386,7 @@ function dispatchByCategory(category, apiPath, body) {
               console.log('[调度]', label, '所有Key限流，跳下一厂商');
               return tryEntry(i + 1);
             }
-            markModelFail(label); throw err;
+            throw err;
           });
       }
       return tryKeysDispatch('qwen', keys, 0, function (k) {
@@ -398,7 +398,7 @@ function dispatchByCategory(category, apiPath, body) {
             console.log('[调度]', label, '所有Key限流，跳下一厂商');
             return tryEntry(i + 1);
           }
-          markModelFail(label); throw err;
+          throw err;
         });
     }
     if (entry.vendor === 'hunyuan') {
@@ -413,7 +413,7 @@ function dispatchByCategory(category, apiPath, body) {
             console.log('[调度]', label, '所有Key限流，跳下一厂商');
             return tryEntry(i + 1);
           }
-          markModelFail(label); throw err;
+          throw err;
         });
     }
     if (entry.vendor === 'ollama') {

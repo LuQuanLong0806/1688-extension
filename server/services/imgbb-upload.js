@@ -131,12 +131,21 @@ function uploadToImgBB(imageData, opts) {
           try {
             var json = JSON.parse(raw);
             if (json.success && json.data && json.data.url) {
+              console.log('[ImgBB] Response URLs:', JSON.stringify({
+                url: json.data.url,
+                display_url: json.data.display_url || '',
+                thumb_url: (json.data.thumb && json.data.thumb.url) || '',
+                medium_url: (json.data.medium && json.data.medium.url) || '',
+                image_url: (json.data.image && json.data.image.url) || ''
+              }));
               // 本地备份
               var buf = Buffer.from(base64Str, 'base64');
               var localName = 'imgbb_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8) + '.png';
               fs.writeFile(path.join(UPLOADS_DIR, localName), buf, function () {});
-              console.log('[ImgBB] Upload success:', json.data.url, 'album:', albumId || 'none', 'date:', dateStr);
-              resolve({ ok: true, url: json.data.url, delete: json.data.delete_url, album: dateStr });
+              // 优先用原图直链，回退到 data.url
+              var originalUrl = (json.data.image && json.data.image.url) || json.data.url;
+              console.log('[ImgBB] Upload success:', originalUrl, 'album:', albumId || 'none', 'date:', dateStr);
+              resolve({ ok: true, url: originalUrl, delete: json.data.delete_url, album: dateStr });
             } else {
               var errMsg = (json.error && json.error.message) || JSON.stringify(json);
               reject(new Error('ImgBB upload failed: ' + errMsg));
