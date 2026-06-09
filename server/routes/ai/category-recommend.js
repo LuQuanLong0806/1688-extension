@@ -676,17 +676,50 @@ router.post('/suggest-category', async function (req, res) {
       });
     }
 
-    if (best.score >= 0.25) {
-      console.log('[分类推荐] 低置信度命中:', best.name, '分数:', best.score.toFixed(3));
-      return res.json({
-        ok: true, source: 'score_low', category: best.name,
-        path: best.path, confidence: best.score,
-        alternatives: candidates.slice(1, 6),
-        keywords: searchKeywords
-      });
+    // Step 7.1: 相似类目映射查找（best.score < 0.4 时触发）
+    if (aliCategory) {
+      var similarCandidates = findSimilarMappings(aliCategory, aliCategoryWordsAll, seenPaths);
+      if (similarCandidates.length > 0) {
+        similarCandidates.forEach(function (sc) {
+          if (!seenPaths[sc.path]) {
+            seenPaths[sc.path] = true;
+            sc.score = scoreCategory(titleKws, aliWords, sc, blEntries);
+            candidates.push(sc);
+          }
+        });
+        candidates.sort(function (a, b) { return (b.score || 0) - (a.score || 0); });
+        var newBest = candidates[0];
+        if (newBest.score >= 0.4) {
+          console.log('[分类推荐] 相似映射命中:', newBest.name, '分数:', newBest.score.toFixed(3),
+            '(来自相似类目:', (newBest.similarCategoryName || ''), ')');
+          return res.json({
+            ok: true, source: 'similar_mapping', category: newBest.name,
+            path: newBest.path, confidence: Math.min(0.9, newBest.score),
+            alternatives: candidates.slice(1, 6),
+            keywords: searchKeywords
+          });
+        }
+      }
     }
 
-    // 分数太低，标记人工审核
+    // Step 7.2: LLM 兜底决策
+    if (candidates.length > 0) {
+      try {
+        var llmResult = await llmDecideFromCandidates(title, aliCategory, attrSummary, candidates);
+        if (llmResult && llmResult.confidence >= 0.4) {
+          return res.json({
+            ok: true, source: 'llm_decision', category: llmResult.category,
+            path: llmResult.path, confidence: llmResult.confidence,
+            alternatives: candidates.filter(function (c) { return c.name !== llmResult.category; }).slice(0, 5),
+            keywords: searchKeywords
+          });
+        }
+      } catch (llmErr) {
+        console.log('[分类推荐] LLM兜底异常:', llmErr.message);
+      }
+    }
+
+    // 所有降级均失败，标记人工审核
     console.log('[分类推荐] 最高分仅', best.score.toFixed(3), '，标记人工审核');
     return res.json({
       ok: true, source: 'manual_review', category: '', path: '', confidence: 0,
@@ -807,6 +840,120 @@ function fallbackLocalSearch(title, aliCategory, res) {
     path: candidates[0].path,
     confidence: Math.max(0.3, candidates[0].score || 0.3),
     alternatives: candidates.slice(1, 6)
+  });
+}
+
+// Step 7.1: 相似类目映射查找 — 用 1688 类目子词在映射表中搜相似类目的映射结果
+function findSimilarMappings(aliCategory, aliCategoryWords, existingPaths) {
+  if (!aliCategory) return [];
+  var allWords = [aliCategory].concat(aliCategoryWords || []).filter(function (w) { return w && w.length >= 2; });
+  // 去重
+  var seen = {};
+  var uniqueWords = [];
+  allWords.forEach(function (w) { if (!seen[w]) { seen[w] = true; uniqueWords.push(w); } });
+  if (!uniqueWords.length) return [];
+
+  var conditions = '(' + uniqueWords.map(function () { return 'category_name LIKE ?'; }).join(' OR ') + ')';
+  var params = uniqueWords.map(function (w) { return '%' + w + '%'; });
+  // 排除精确匹配当前 1688 类目的行（Step 1 已处理）
+  if (aliCategory) {
+    conditions += ' AND category_name != ?';
+    params.push(aliCategory);
+  }
+  params.push(20); // LIMIT
+
+  var rows = dbModule.getAll(
+    'SELECT DISTINCT custom_category, category_name, count FROM category_mappings WHERE ' + conditions + ' ORDER BY count DESC LIMIT ?',
+    params
+  );
+  if (!rows || !rows.length) return [];
+
+  var result = [];
+  var seenCats = {};
+  existingPaths = existingPaths || {};
+  rows.forEach(function (r) {
+    if (seenCats[r.custom_category]) return;
+    seenCats[r.custom_category] = true;
+    var pathRow = dbModule.treeGetOne(
+      'SELECT path FROM dxm_category_tree WHERE cat_name = ? AND is_leaf = 1 LIMIT 1',
+      [r.custom_category]
+    );
+    var path = pathRow ? pathRow.path : r.custom_category;
+    if (existingPaths[path]) return; // 已在候选池
+    result.push({
+      name: r.custom_category,
+      path: path,
+      fromSimilarMapping: true,
+      similarCategoryName: r.category_name,
+      mappingCount: r.count || 1
+    });
+  });
+
+  console.log('[分类推荐] 相似映射查找: 找到', result.length, '个候选');
+  return result;
+}
+
+// Step 7.2: LLM 兜底决策 — 从候选中让文本模型选
+function llmDecideFromCandidates(title, aliCategory, attrSummary, candidates) {
+  if (!candidates || !candidates.length) return Promise.resolve(null);
+
+  var topCandidates = candidates.slice(0, 8);
+  var candidateList = topCandidates.map(function (c, i) {
+    return (i + 1) + '. ' + (c.path || c.name) + ' (评分:' + (c.score || 0).toFixed(2) +
+      (c.fromMapping ? ', 映射来源' : '') +
+      (c.fromSimilarMapping ? ', 相似映射(' + (c.similarCategoryName || '') + ')' : '') +
+      ')';
+  }).join('\n');
+
+  var prompt = '你是跨境电商分类专家。根据商品信息，从以下候选类目中选择最匹配的。\n\n';
+  if (title) prompt += '商品标题: ' + title + '\n';
+  if (aliCategory) prompt += '来源类目: ' + aliCategory + '\n';
+  if (attrSummary) prompt += '规格参数: ' + attrSummary + '\n';
+  prompt += '\n候选类目:\n' + candidateList;
+  prompt += '\n\n选择规则:\n';
+  prompt += '1. 优先贴合商品实际用途和使用场景\n';
+  prompt += '2. 参考评分排序，但不唯评分\n';
+  prompt += '3. 如果商品特征与所有候选都不匹配，confidence设为0.3以下\n';
+  prompt += '\n返回JSON：{"choice": 序号, "confidence": 0.0-1.0}\n只返回一行JSON。';
+
+  return providers.categoryLLMRequest('/chat/completions', {
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.1,
+    max_tokens: 200
+  }).then(function (result) {
+    var msg = result.choices && result.choices[0] && result.choices[0].message;
+    var text = (msg && msg.content) || '';
+    if (!text && msg && msg.reasoning_content) {
+      var m = msg.reasoning_content.match(/\{[^{}]*"choice"[^{}]*\}/);
+      if (m) text = m[0];
+    }
+    if (!text) return null;
+    try {
+      var jsonStr = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+      var parsed = JSON.parse(jsonStr);
+      var idx = (parsed.choice || 1) - 1;
+      if (idx >= 0 && idx < topCandidates.length) {
+        var conf = parsed.confidence !== undefined ? parsed.confidence : 0.6;
+        if (conf < 0.4) {
+          console.log('[分类推荐] LLM兜底决策: 置信度过低', conf);
+          return null;
+        }
+        var selected = topCandidates[idx];
+        var validation = postSelectionValidate(title, selected.name, selected.path);
+        if (validation) {
+          console.log('[分类推荐] LLM兜底决策: 互斥拦截', selected.name);
+          return null;
+        }
+        console.log('[分类推荐] LLM兜底决策:', selected.name, '置信度:', conf);
+        return { category: selected.name, path: selected.path, confidence: conf };
+      }
+    } catch (e) {
+      console.log('[分类推荐] LLM兜底决策JSON解析失败:', text.substring(0, 100));
+    }
+    return null;
+  }).catch(function (e) {
+    console.log('[分类推荐] LLM兜底决策失败:', e.message);
+    return null;
   });
 }
 
@@ -943,5 +1090,6 @@ module.exports._test = {
   cleanTitleKeywords: cleanTitleKeywords,
   calcHitDetail: calcHitDetail,
   loadMutexGroups: loadMutexGroups,
-  clearConfigCache: clearConfigCache
+  clearConfigCache: clearConfigCache,
+  findSimilarMappings: findSimilarMappings
 };
