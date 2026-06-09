@@ -512,6 +512,7 @@
     saveAutoResize: saveAutoResize,
     loadFromServer: loadFromServer,
     getServerUrl: getServerUrl,
+    setServerUrl: setServerUrl,
     setInputValue: setInputValue,
     applyFilters: applyFilters,
     findVisibleModal: findVisibleModal,

@@ -259,6 +259,31 @@ Vue.component('detail-modal', {
       var vm = this;
       vm.rebuildSkusFromVariants();
     },
+    // SKU自定义名称变更 → 同步变种属性值 + 图片映射
+    syncVariantFromSku: function (skuIndex) {
+      var vm = this;
+      if (!vm.variantAttrs || !vm.variantAttrs[0]) return;
+      var va = vm.variantAttrs[0];
+      var oldValues = va.values.slice();
+      var oldImages = va.images || {};
+      var newValues = [];
+      var newImages = {};
+      var seen = {};
+      vm.editable.skus.forEach(function (s, i) {
+        var name = (s.customName || s.name || '').trim();
+        if (name && !seen[name]) {
+          newValues.push(name);
+          seen[name] = true;
+          if (oldImages[name]) {
+            newImages[name] = oldImages[name];
+          } else if (i < oldValues.length && oldImages[oldValues[i]]) {
+            newImages[name] = oldImages[oldValues[i]];
+          }
+        }
+      });
+      va.values = newValues;
+      va.images = newImages;
+    },
     // ===== 变种属性：勾选（关联SKU列表）=====
     isVariantValueChecked: function (attrIdx, value) {
       var vm = this;
@@ -1543,7 +1568,7 @@ Vue.component('detail-modal', {
                     </div>
                   </td>
                   <td>{{ sku.name || '-' }}</td>
-                  <td><i-input v-model="sku.customName" :placeholder="sku.name || '-'" style="width:200px" /></td>
+                  <td><i-input v-model="sku.customName" :placeholder="sku.name || '-'" style="width:200px" @on-change="syncVariantFromSku(i)" /></td>
                   <td><i-input v-model="sku.price" type="number" number style="width:100px" @on-change="calcSellPrice(sku)" /></td>
                   <td><i-input v-model="sku.sellPrice" type="number" number placeholder="售价" style="width:100px" /></td>
                   <td style="min-width:340px">

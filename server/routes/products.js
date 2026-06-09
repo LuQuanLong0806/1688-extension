@@ -532,14 +532,36 @@ router.put('/product/:id', (req, res) => {
       console.error('[关联纠错] 失败:', e.message);
     }
   }
-  // 更新云端商品分类
-  if (cloudDb.connected && (req.body.customCategory || req.body.dxmCategory || req.body.status !== undefined)) {
+  // 同步更新到云端（保持本地和云端数据一致）
+  if (cloudDb.connected) {
     if (uid) {
+      var cloudSyncFields = {
+        title: 'title',
+        skus: 'skus',
+        mainImages: 'main_images',
+        descImages: 'desc_images',
+        detailImages: 'detail_images',
+        customCategory: 'custom_category',
+        dxmCategory: 'dxm_category',
+        storeName: 'store_name',
+        variantAttrName: 'variant_attr_name',
+        variantAttrName2: 'variant_attr_name2',
+        variantAttrImages: 'variant_attr_images',
+        productNo: 'product_no',
+        status: 'status'
+      };
       var cloudUpdates = [];
       var cloudParams = [];
-      if (req.body.customCategory !== undefined) { cloudUpdates.push('custom_category = ?'); cloudParams.push(req.body.customCategory || ''); }
-      if (req.body.dxmCategory !== undefined) { cloudUpdates.push('dxm_category = ?'); cloudParams.push(typeof req.body.dxmCategory === 'object' ? JSON.stringify(req.body.dxmCategory) : req.body.dxmCategory); }
-      if (req.body.status !== undefined) { cloudUpdates.push('status = ?'); cloudParams.push(req.body.status); }
+      for (const [key, col] of Object.entries(cloudSyncFields)) {
+        if (req.body[key] !== undefined) {
+          let val = req.body[key];
+          if (['main_images', 'desc_images', 'detail_images', 'skus', 'variant_attr_images', 'dxm_category'].includes(col) || Array.isArray(val)) {
+            val = JSON.stringify(val);
+          }
+          cloudUpdates.push(col + ' = ?');
+          cloudParams.push(val);
+        }
+      }
       if (cloudUpdates.length) {
         cloudUpdates.push('updated_at = CURRENT_TIMESTAMP');
         cloudParams.push(uid);

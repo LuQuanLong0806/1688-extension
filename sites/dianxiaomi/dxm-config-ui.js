@@ -127,7 +127,7 @@
     '<div class="menu-item"><span class="menu-label">📍 省份选择</span><input type="text" class="menu-input" id="__dxm_bee_menu_province_input" value="' + province + '" maxlength="10" placeholder="广东省"><div class="menu-desc">工作流填写的省份，须以省/市/自治区结尾</div></div>' +
     '<div class="menu-item"><span class="menu-label">🔑 店铺ID</span><input type="text" class="menu-input" id="__dxm_bee_menu_shopid_input" value="' + shopId + '" maxlength="20" placeholder="输入店铺ID"><div class="menu-desc">同步类目所需的店铺ID</div></div>' +
     '<div class="menu-item clickable" id="__dxm_bee_menu_sync_cat"><span class="menu-label clickable">🌳 同步类目树</span><span class="menu-arrow">▸</span><div class="menu-desc">从店小秘递归采集全部分类，保存到独立数据库</div></div>' +
-    '<div class="menu-item"><span class="menu-label">🔗 服务器地址</span><input type="text" class="menu-input" id="__dxm_bee_menu_server_input" value="' + (Config.getServerUrl() || 'http://localhost:3000') + '" placeholder="http://localhost:3000"><div class="menu-desc">管理端服务器地址，局域网内可填写IP地址</div></div>' +
+    '<div class="menu-item"><span class="menu-label">🔗 服务器地址</span><div style="display:flex;align-items:center;gap:6px"><input type="text" class="menu-input" id="__dxm_bee_menu_server_input" style="width:140px" value="' + (Config.getServerUrl() || 'http://localhost:3000') + '" placeholder="http://localhost:3000"><button id="__dxm_bee_menu_server_save" style="padding:2px 8px;border:1px solid #FFA000;border-radius:5px;background:#fff;color:#E65100;font-size:11px;cursor:pointer;white-space:nowrap;transition:all .2s">保存</button><span id="__dxm_bee_menu_server_status" style="font-size:10px;color:#52c41a;display:none">✓</span></div><div class="menu-desc">管理端服务器地址，局域网内可填写IP地址</div></div>' +
     '<div class="menu-item clickable" id="__dxm_bee_menu_btn_vis"><span class="menu-label">🎛️ 按钮显示方案</span><span class="menu-arrow">▸</span><div class="menu-desc">配置工具栏中显示哪些按钮</div></div>';
   document.body.appendChild(menu);
 
@@ -266,29 +266,42 @@
     e.stopPropagation();
   });
 
-  // 服务器地址配置
+  // 服务器地址配置（保存按钮 + 反馈）
   var serverInput = document.getElementById('__dxm_bee_menu_server_input');
-  var serverTimer = null;
-  serverInput.addEventListener('input', function () {
-    var self = this;
-    clearTimeout(serverTimer);
-    serverTimer = setTimeout(function () {
-      var url = self.value.trim().replace(/\/+$/, '');
-      if (Config.setServerUrl) {
-        Config.setServerUrl(url);
-      } else {
-        localStorage.setItem('1688_server_url', url);
-      }
-    }, 500);
-  });
-  serverInput.addEventListener('blur', function () {
-    var url = this.value.trim().replace(/\/+$/, '');
+  var serverSaveBtn = document.getElementById('__dxm_bee_menu_server_save');
+  var serverStatus = document.getElementById('__dxm_bee_menu_server_status');
+
+  function doSaveServerUrl() {
+    var url = serverInput.value.trim().replace(/\/+$/, '');
+    if (!url) return;
+    serverInput.value = url;
     if (Config.setServerUrl) {
       Config.setServerUrl(url);
     } else {
       localStorage.setItem('1688_server_url', url);
     }
+    // 显示保存成功反馈
+    serverStatus.style.display = 'inline';
+    serverSaveBtn.textContent = '已保存';
+    serverSaveBtn.style.background = '#52c41a';
+    serverSaveBtn.style.color = '#fff';
+    serverSaveBtn.style.borderColor = '#52c41a';
+    setTimeout(function () {
+      serverStatus.style.display = 'none';
+      serverSaveBtn.textContent = '保存';
+      serverSaveBtn.style.background = '#fff';
+      serverSaveBtn.style.color = '#E65100';
+      serverSaveBtn.style.borderColor = '#FFA000';
+    }, 2000);
     console.log('%c[小蜜蜂] 服务器地址已保存: ' + url, 'color:#FFA000;font-weight:bold');
+  }
+
+  serverSaveBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    doSaveServerUrl();
+  });
+  serverInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); doSaveServerUrl(); }
   });
   serverInput.addEventListener('click', function (e) {
     e.stopPropagation();

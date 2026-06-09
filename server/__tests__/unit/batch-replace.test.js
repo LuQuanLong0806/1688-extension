@@ -7,7 +7,7 @@ const src = fs.readFileSync(path.join(__dirname, '../../public/js/components/det
 
 // 提取 doBatchReplace 方法体
 function extractMethod(name) {
-  var regex = new RegExp(name + ':\\s*function\\s*\\(\\)\\s*\\{');
+  var regex = new RegExp(name + ':\\s*function\\s*\\([^)]*\\)\\s*\\{');
   var match = src.match(regex);
   if (!match) return null;
   var start = src.indexOf('{', match.index) + 1;
@@ -113,6 +113,83 @@ describe('Batch Replace (SKU名称批量替换)', () => {
     var vm = createMockVm(null, 'A', 'B');
     vm.editable = null;
     expect(function () { runBatchReplace(vm); }).not.toThrow();
+  });
+
+  // ===== syncVariantFromSku 测试 =====
+  function createVariantVm(skus) {
+    var names = {};
+    skus.forEach(function (s) {
+      var n = (s.customName || s.name || '').trim();
+      if (n && !names[n]) names[n] = true;
+    });
+    return {
+      editable: { skus: skus },
+      variantAttrs: [
+        { name: '颜色', values: Object.keys(names), images: {} }
+      ]
+    };
+  }
+
+  function extractSyncMethod() {
+    return extractMethod('syncVariantFromSku');
+  }
+
+  function runSync(vm, idx) {
+    var body = extractSyncMethod();
+    expect(body).not.toBeNull();
+    var fn = new Function('return (function(skuIndex) {' + body + '});');
+    fn().call(vm, idx);
+  }
+
+  describe('syncVariantFromSku', () => {
+    test('改名后变种属性值同步更新', () => {
+      var skus = [
+        { name: '款式1', customName: '款式1', image: 'img1.jpg' },
+        { name: '款式2', customName: '款式2', image: 'img2.jpg' }
+      ];
+      var vm = createVariantVm(skus);
+      expect(vm.variantAttrs[0].values).toEqual(['款式1', '款式2']);
+
+      // 改名
+      skus[0].customName = '南瓜';
+      runSync(vm, 0);
+
+      expect(vm.variantAttrs[0].values).toEqual(['南瓜', '款式2']);
+    });
+
+    test('改名后图片映射转移', () => {
+      var skus = [
+        { name: '红色', customName: '红色' },
+        { name: '蓝色', customName: '蓝色' }
+      ];
+      var vm = createVariantVm(skus);
+      vm.variantAttrs[0].images['红色'] = 'red.jpg';
+
+      skus[0].customName = '黑色';
+      runSync(vm, 0);
+
+      expect(vm.variantAttrs[0].images['黑色']).toBe('red.jpg');
+      expect(vm.variantAttrs[0].images['红色']).toBeUndefined();
+    });
+
+    test('未改名时不变', () => {
+      var skus = [
+        { name: '红色', customName: '红色' },
+        { name: '蓝色', customName: '蓝色' }
+      ];
+      var vm = createVariantVm(skus);
+      vm.variantAttrs[0].images['红色'] = 'red.jpg';
+
+      runSync(vm, 0);
+
+      expect(vm.variantAttrs[0].values).toEqual(['红色', '蓝色']);
+      expect(vm.variantAttrs[0].images['红色']).toBe('red.jpg');
+    });
+
+    test('variantAttrs不存在时不崩溃', () => {
+      var vm = { editable: { skus: [] }, variantAttrs: null };
+      expect(function () { runSync(vm, 0); }).not.toThrow();
+    });
   });
 
   // ===== CSS 类存在性检查 =====
