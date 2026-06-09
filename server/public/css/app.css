@@ -1671,13 +1671,12 @@ body {
 }
 /* Variant value tag active state */
 .attr-tag-variant.attr-tag-active {
-  border-color: var(--accent, #409eff);
-  background: rgba(64,158,255,.08);
+  background: var(--accent-subtle, rgba(64,158,255,.08));
   color: var(--accent, #409eff);
   font-weight: 500;
 }
 .attr-tag-variant.attr-tag-active:hover {
-  border-color: var(--accent, #409eff);
+  background: var(--accent-subtle, rgba(64,158,255,.12));
   color: var(--accent, #409eff);
 }
 /* Variant attr row layout */
@@ -1753,15 +1752,15 @@ body {
 .attr-tag-variant {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px 6px 2px 6px;
-  border-radius: 4px;
-  font-size: 13px;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: var(--radius, 6px);
+  font-size: 14px;
   background: transparent;
-  border: 1px solid transparent;
+  border: none;
   color: var(--text-primary, #333);
   cursor: pointer;
-  transition: all .15s;
+  transition: background .15s;
 }
 .attr-tag-variant:hover {
   background: var(--bg-elevated, #f5f5f5);
@@ -1770,35 +1769,38 @@ body {
   flex-shrink: 0;
   display: flex;
   align-items: center;
+  margin-right: 2px;
 }
 .attr-tag-check input[type="checkbox"] {
-  width: 14px;
-  height: 14px;
+  width: 15px;
+  height: 15px;
   cursor: pointer;
   accent-color: var(--accent, #409eff);
   margin: 0;
 }
 .attr-tag-text {
- max-width: 200px;
+  max-width: 200px;
   overflow: visible;
   white-space: nowrap;
+  line-height: 1.5;
 }
 .attr-tag-edit-input {
- width: 60px;
-  height: 22px;
+  width: 60px;
+  height: 24px;
   border: 1px solid var(--accent, #409eff);
   border-radius: 4px;
   padding: 0 6px;
-  font-size: 12px;
+  font-size: 13px;
   outline: none;
 }
 .attr-tag-action {
- font-size: 16px;
+  font-size: 15px;
   cursor: pointer;
   opacity: 0;
   transition: opacity .15s, transform .15s;
   flex-shrink: 0;
-  padding: 0 2px;
+  padding: 0 3px;
+  margin-left: 2px;
   line-height: 1;
 }
 .attr-tag-variant:hover .attr-tag-action:hover {
