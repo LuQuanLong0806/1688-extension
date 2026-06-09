@@ -515,11 +515,11 @@ router.post('/suggest-category', async function (req, res) {
       }
     }
 
-    // 子串拆分匹配：把复合关键词拆成 2~3 字的子词再搜一轮
-    // 如"连体雨衣" → 拆出"雨衣"；"电动车雨衣" → 拆出"雨衣"、"电动"
+    // 子串拆分匹配：先清洗关键词（去英文/数字/标点），再对纯中文复合词拆成 2~3 字子词搜一轮
+    // 如"连体雨衣" → 拆出"雨衣"；"iPhone13手机壳" → 清洗为"手机壳"再拆
     var subKeywords = [];
     for (var k = 0; k < searchKeywords.length; k++) {
-      var kw = searchKeywords[k];
+      var kw = searchKeywords[k].replace(/[a-zA-Z0-9\s\p{P}]/gu, '');
       if (kw.length >= 4) {
         for (var sl = 2; sl <= Math.min(kw.length - 1, 4); sl++) {
           for (var si = 0; si <= kw.length - sl; si++) {

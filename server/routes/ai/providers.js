@@ -432,9 +432,11 @@ function dispatchByCategory(category, apiPath, body) {
       .then(function (r) { clearKeyCooldown(provider, keyIdx); return r; })
       .catch(function (err) {
         if (isRateLimitError(err)) {
+          console.log('[Key轮换]', provider, 'Key#' + keyIdx, '触发限流:', err.message);
           markKeyCooldown(provider, keyIdx);
           return tryKeysDispatch(provider, keys, keyIdx + 1, callFn);
         }
+        console.log('[Key轮换]', provider, 'Key#' + keyIdx, '非限流错误:', err.message);
         throw err;
       });
   }
