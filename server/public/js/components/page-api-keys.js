@@ -18,11 +18,17 @@ Vue.component('page-api-keys', {
       tursoEditing: false,
       comfyuiUrl: '',
       comfyuiStatus: { online: false, loading: false },
-      keyModal: { show: false, mode: 'add', provider: '', index: -1, key: '', label: '', sid: '', skey: '' }
+      keyModal: { show: false, mode: 'add', provider: '', index: -1, key: '', label: '', sid: '', skey: '' },
+      dispatch: { text: [], vision: [], image: [] },
+      dispatchTab: 'text',
+      dispatchVendorStatus: {},
+      dispatchAvailableModels: {},
+      dispatchDragIdx: -1
     };
   },
   mounted: function () {
     this.loadConfigs();
+    this.loadDispatch();
     this.loadImgbb();
     this.loadTurso();
     this.loadComfyui();
@@ -44,6 +50,72 @@ Vue.component('page-api-keys', {
           vm.loading = false;
         })
         .catch(function (e) { console.error('[AI配置] 加载失败:', e); vm.loading = false; });
+    },
+    // ===== 调度优先级 =====
+    loadDispatch: function () {
+      var vm = this;
+      fetch('/api/ai/dispatch-order').then(function (r) { return r.json(); }).then(function (d) {
+        vm.dispatch = d.dispatch || { text: [], vision: [], image: [] };
+        vm.dispatchVendorStatus = d.vendorStatus || {};
+        vm.dispatchAvailableModels = d.availableModels || {};
+      }).catch(function () {});
+    },
+    getVendorLabel: function (vendor) {
+      var m = { zhipu: '智谱AI', qwen: '通义千问', hunyuan: '腾讯混元', ollama: '本地模型' };
+      return m[vendor] || vendor;
+    },
+    getKeyInfo: function (entry) {
+      var s = this.dispatchVendorStatus[entry.vendor];
+      if (!s) return '';
+      if (entry.vendor === 'hunyuan') return s.hasKeys ? s.keyCount + '个账号' : '无账号';
+      if (entry.vendor === 'ollama') return s.configured ? s.model : '未配置';
+      return s.hasKeys ? s.keyCount + '个Key' : '无Key';
+    },
+    isNoKeys: function (entry) {
+      var s = this.dispatchVendorStatus[entry.vendor];
+      if (!s) return true;
+      if (entry.vendor === 'ollama') return !s.configured;
+      return !s.hasKeys;
+    },
+    getModelsForVendor: function (entry) {
+      var m = this.dispatchAvailableModels[entry.vendor];
+      if (!m) return [];
+      return m[this.dispatchTab] || [];
+    },
+    changeDispatchModel: function (entry, model) {
+      entry.model = model;
+      this.saveDispatch();
+    },
+    saveDispatch: function () {
+      var vm = this;
+      fetch('/api/ai/dispatch-order', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dispatch: vm.dispatch })
+      }).then(function (r) { return r.json(); }).then(function (d) {
+        if (!d.ok) vm.$Message.error('保存失败');
+      }).catch(function () { vm.$Message.error('保存失败'); });
+    },
+    onDragStart: function (e, idx) {
+      this.dispatchDragIdx = idx;
+      e.dataTransfer.effectAllowed = 'move';
+      e.target.classList.add('dragging');
+    },
+    onDragEnd: function (e) {
+      e.target.classList.remove('dragging');
+      this.dispatchDragIdx = -1;
+    },
+    onDragOver: function (e, idx) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    },
+    onDrop: function (e, idx) {
+      e.preventDefault();
+      var list = this.dispatch[this.dispatchTab];
+      var from = this.dispatchDragIdx;
+      if (from < 0 || from === idx) return;
+      var item = list.splice(from, 1)[0];
+      list.splice(idx, 0, item);
+      this.saveDispatch();
     },
     // ===== 弹窗 =====
     openAddModal: function (provider) {
@@ -274,6 +346,39 @@ Vue.component('page-api-keys', {
 
       <template v-else>
 
+        <!-- ====== 调度优先级 ====== -->
+        <div class="ai-dispatch-panel">
+          <div class="ai-dispatch-header">
+            <span class="ai-dispatch-title">调度优先级</span>
+            <div class="ai-dispatch-tab">
+              <span class="ai-dispatch-tab-item" :class="{ active: dispatchTab === 'text' }" @click="dispatchTab = 'text'">文本模型</span>
+              <span class="ai-dispatch-tab-item" :class="{ active: dispatchTab === 'vision' }" @click="dispatchTab = 'vision'">视觉模型</span>
+              <span class="ai-dispatch-tab-item" :class="{ active: dispatchTab === 'image' }" @click="dispatchTab = 'image'">图像生成</span>
+            </div>
+          </div>
+          <div class="ai-dispatch-body">
+            <div v-for="(entry, idx) in dispatch[dispatchTab]" :key="entry.vendor + entry.model"
+                 class="ai-dispatch-row" :class="{ 'no-keys': isNoKeys(entry) }"
+                 draggable="true"
+                 @dragstart="onDragStart($event, idx)"
+                 @dragend="onDragEnd($event)"
+                 @dragover="onDragOver($event, idx)"
+                 @drop="onDrop($event, idx)">
+              <i class="ivu-icon ivu-icon-ios-menu ai-drag-handle"></i>
+              <span class="ai-dispatch-rank">{{ idx + 1 }}</span>
+              <span class="ai-dispatch-vendor-name">{{ getVendorLabel(entry.vendor) }}</span>
+              <i-select :value="entry.model" size="small" style="width:160px" @on-change="changeDispatchModel(entry, $event)">
+                <i-option v-for="m in getModelsForVendor(entry)" :key="m" :value="m">{{ m }}</i-option>
+                <i-option v-if="!getModelsForVendor(entry).length" :value="entry.model">{{ entry.model }}</i-option>
+              </i-select>
+              <span class="ai-dispatch-key-info">{{ getKeyInfo(entry) }}</span>
+            </div>
+            <div v-if="!dispatch[dispatchTab] || !dispatch[dispatchTab].length" style="padding:16px;text-align:center;color:var(--text-muted);font-size:13px">
+              暂无调度配置
+            </div>
+          </div>
+        </div>
+
         <!-- ====== 智谱AI ====== -->
         <div class="ai-module">
           <div class="ai-module-header">
@@ -466,13 +571,6 @@ Vue.component('page-api-keys', {
           </div>
         </div>
 
-        <!-- 说明 -->
-        <div style="margin-top:12px;padding:10px 14px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius);font-size:12px;color:var(--text-muted);line-height:1.8">
-          <icon type="ios-information-circle" style="margin-right:4px"></icon>
-          智谱AI：<a href="https://open.bigmodel.cn" target="_blank" style="color:var(--accent)">open.bigmodel.cn</a> &nbsp;|&nbsp;
-          通义千问：<a href="https://dashscope.console.aliyun.com" target="_blank" style="color:var(--accent)">DashScope 控制台</a> &nbsp;|&nbsp;
-          腾讯混元：<a href="https://console.cloud.tencent.com/cam/capi" target="_blank" style="color:var(--accent)">API密钥管理</a>
-        </div>
       </template>
 
       <!-- ====== Key 弹窗 ====== -->

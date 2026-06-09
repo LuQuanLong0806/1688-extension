@@ -398,3 +398,34 @@ router.post('/vendor-model', function (req, res) {
   providers.saveVendorModels(vendor, modelType, modelId);
   res.json({ ok: true });
 });
+
+// ===== 调度优先级端点 =====
+
+router.get('/dispatch-order', function (req, res) {
+  providers.ensureDispatchMigration();
+  var order = providers.getDispatchOrder() || providers.buildDefaultDispatchOrder();
+  var zhipuKeys = providers.getZhipuKeys();
+  var qwenKeys = providers.getQwenKeys();
+  var hunyuanAccounts = providers.getHunyuanAccounts();
+  var provCfg = providers.getProviderConfig('ollama');
+  res.json({
+    dispatch: order.dispatch,
+    vendorStatus: {
+      zhipu:   { hasKeys: zhipuKeys.length > 0, keyCount: zhipuKeys.length },
+      qwen:    { hasKeys: qwenKeys.length > 0, keyCount: qwenKeys.length },
+      hunyuan: { hasKeys: hunyuanAccounts.length > 0, keyCount: hunyuanAccounts.length },
+      ollama:  { hasKeys: false, configured: !!(provCfg.model), model: provCfg.model || 'qwen3:8b' }
+    },
+    availableModels: providers.DISPATCH_AVAILABLE_MODELS
+  });
+});
+
+router.post('/dispatch-order', function (req, res) {
+  var dispatch = req.body.dispatch;
+  if (!dispatch) return res.status(400).json({ error: '缺少 dispatch 参数' });
+  var order = providers.getDispatchOrder() || providers.buildDefaultDispatchOrder();
+  order.dispatch = dispatch;
+  providers.saveDispatchOrder(order);
+  console.log('[调度] 调度顺序已更新');
+  res.json({ ok: true });
+});

@@ -285,16 +285,145 @@ var IMAGE_GEN_LLM_CHAIN = [
   { name: 'CogView-4', provider: 'zhipu', model: 'cogview-4' }
 ];
 
-function categoryLLMRequest(apiPath, body) { return runLLMChain(CATEGORY_LLM_CHAIN, apiPath, body); }
-function extractionLLMRequest(apiPath, body) { return runLLMChain(EXTRACTION_LLM_CHAIN, apiPath, body); }
-function visionLLMRequest(apiPath, body) {
-  // 统一走降级链，从智谱Key池轮换取Key
-  return runLLMChain(VISION_LLM_CHAIN, apiPath, body);
+// ===== 统一调度 =====
+
+var DISPATCH_AVAILABLE_MODELS = {
+  zhipu:  { text: ['glm-4.7-flash', 'glm-4-flash'], vision: ['glm-4.6v-flash', 'glm-4v-flash'], image: ['cogview-3-flash', 'cogview-4'] },
+  qwen:   { text: ['qwen-turbo'], vision: ['qwen3.6-flash', 'qwen3.7-plus', 'qwen-vl-plus'] },
+  hunyuan:{ text: ['hunyuan-lite'] },
+  ollama: { text: [] }
+};
+
+function buildDefaultDispatchOrder() {
+  return {
+    version: 3,
+    dispatch: {
+      text:   [{ vendor: 'zhipu', model: 'glm-4.7-flash' }, { vendor: 'hunyuan', model: 'hunyuan-lite' }, { vendor: 'qwen', model: 'qwen-turbo' }],
+      vision: [{ vendor: 'zhipu', model: 'glm-4.6v-flash' }, { vendor: 'qwen', model: 'qwen3.6-flash' }],
+      image:  [{ vendor: 'zhipu', model: 'cogview-3-flash' }]
+    }
+  };
 }
-function imageGenLLMRequest(apiPath, body) {
-  // 统一走降级链，从智谱Key池轮换取Key
-  return runLLMChain(IMAGE_GEN_LLM_CHAIN, apiPath, body);
+
+function getDispatchOrder() {
+  try {
+    var row = require('../../db').getOne("SELECT value FROM settings WHERE key = 'ai_dispatch_order'");
+    if (row && row.value) return JSON.parse(sec.decrypt(row.value));
+  } catch (e) {}
+  return null;
 }
+
+function saveDispatchOrder(order) {
+  require('../../db').run("INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_dispatch_order', ?)", [sec.encrypt(JSON.stringify(order))]);
+  require('../../db').scheduleSave();
+}
+
+function ensureDispatchMigration() {
+  try {
+    var migrated = require('../../db').getOne("SELECT value FROM settings WHERE key = 'ai_dispatch_migrated'");
+    if (!migrated) {
+      var order = buildDefaultDispatchOrder();
+      saveDispatchOrder(order);
+      require('../../db').run("INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_dispatch_migrated', '1')");
+      require('../../db').scheduleSave();
+      console.log('[调度] 首次初始化默认调度顺序');
+    }
+  } catch (e) {
+    console.log('[调度] 迁移检查异常:', e.message);
+  }
+}
+
+function dispatchByCategory(category, apiPath, body) {
+  ensureDispatchMigration();
+  var order = getDispatchOrder() || buildDefaultDispatchOrder();
+  var entries = (order.dispatch && order.dispatch[category]) || [];
+
+  function tryEntry(i) {
+    if (i >= entries.length) return Promise.reject(new Error('所有模型均不可用'));
+    var entry = entries[i];
+    var label = entry.vendor + '/' + entry.model;
+    if (isModelBlocked(label)) {
+      console.log('[调度]', label, '健康检查不通过，跳过');
+      return tryEntry(i + 1);
+    }
+    console.log('[调度] 尝试:', label);
+
+    if (entry.vendor === 'zhipu') {
+      var keys = getZhipuKeys();
+      if (!keys.length) return tryEntry(i + 1);
+      body.model = entry.model; body.enable_thinking = false;
+      return tryKeysDispatch('zhipu', keys, 0, function (k) {
+        return zhipuRequest(apiPath, body, { apiKey: k.key || k });
+      }).then(function (r) { markModelSuccess(label); return r; })
+        .catch(function (err) {
+          if (err && err.message === '__ALL_KEYS_EXHAUSTED__') {
+            markModelFail(label);
+            console.log('[调度]', label, '所有Key限流，跳下一厂商');
+            return tryEntry(i + 1);
+          }
+          markModelFail(label); throw err;
+        });
+    }
+    if (entry.vendor === 'qwen') {
+      var keys = getQwenKeys();
+      if (!keys.length) return tryEntry(i + 1);
+      return tryKeysDispatch('qwen', keys, 0, function (k) {
+        return qwenChatRequest(body.messages, body.temperature, body.max_tokens, k.key || k);
+      }).then(function (r) { markModelSuccess(label); return r; })
+        .catch(function (err) {
+          if (err && err.message === '__ALL_KEYS_EXHAUSTED__') {
+            markModelFail(label);
+            console.log('[调度]', label, '所有Key限流，跳下一厂商');
+            return tryEntry(i + 1);
+          }
+          markModelFail(label); throw err;
+        });
+    }
+    if (entry.vendor === 'hunyuan') {
+      var accounts = getHunyuanAccounts();
+      if (!accounts.length) return tryEntry(i + 1);
+      return tryKeysDispatch('hunyuan', accounts, 0, function (acc) {
+        return hunyuanChatRequest(body.messages, body.temperature, body.max_tokens, acc.secretId, acc.secretKey);
+      }).then(function (r) { markModelSuccess(label); return r; })
+        .catch(function (err) {
+          if (err && err.message === '__ALL_KEYS_EXHAUSTED__') {
+            markModelFail(label);
+            console.log('[调度]', label, '所有Key限流，跳下一厂商');
+            return tryEntry(i + 1);
+          }
+          markModelFail(label); throw err;
+        });
+    }
+    if (entry.vendor === 'ollama') {
+      return ollamaChatRequest(body.messages, body.temperature, body.max_tokens)
+        .then(function (r) { markModelSuccess(label); return r; })
+        .catch(function (err) { markModelFail(label); console.log('[调度]', label, '不可用:', err.message); return tryEntry(i + 1); });
+    }
+    return tryEntry(i + 1);
+  }
+
+  function tryKeysDispatch(provider, keys, keyIdx, callFn) {
+    if (keyIdx >= keys.length) return Promise.reject(new Error('__ALL_KEYS_EXHAUSTED__'));
+    if (isKeyCooling(provider, keyIdx)) return tryKeysDispatch(provider, keys, keyIdx + 1, callFn);
+    console.log('[Key轮换]', provider, '尝试Key#' + keyIdx);
+    return callFn(keys[keyIdx])
+      .then(function (r) { clearKeyCooldown(provider, keyIdx); return r; })
+      .catch(function (err) {
+        if (isRateLimitError(err)) {
+          markKeyCooldown(provider, keyIdx);
+          return tryKeysDispatch(provider, keys, keyIdx + 1, callFn);
+        }
+        throw err;
+      });
+  }
+
+  return tryEntry(0);
+}
+
+function categoryLLMRequest(apiPath, body) { return dispatchByCategory('text', apiPath, body); }
+function extractionLLMRequest(apiPath, body) { return dispatchByCategory('text', apiPath, body); }
+function visionLLMRequest(apiPath, body) { return dispatchByCategory('vision', apiPath, body); }
+function imageGenLLMRequest(apiPath, body) { return dispatchByCategory('image', apiPath, body); }
 
 var modelHealthCache = {};
 function isModelBlocked(name) {
@@ -563,5 +692,11 @@ module.exports = {
   getVendorConfigs: getVendorConfigs,
   buildVendorConfigsFromLegacy: buildVendorConfigsFromLegacy,
   saveVendorModels: saveVendorModels,
-  migrateDedicatedKeys: migrateDedicatedKeys
+  migrateDedicatedKeys: migrateDedicatedKeys,
+  getDispatchOrder: getDispatchOrder,
+  buildDefaultDispatchOrder: buildDefaultDispatchOrder,
+  saveDispatchOrder: saveDispatchOrder,
+  ensureDispatchMigration: ensureDispatchMigration,
+  dispatchByCategory: dispatchByCategory,
+  DISPATCH_AVAILABLE_MODELS: DISPATCH_AVAILABLE_MODELS
 };
