@@ -1166,13 +1166,6 @@ Vue.component('detail-modal', {
       vm.dragOverSkuImgIdx = -1;
       vm.dragOverSkuIdx = -1;
     },
-    openBatchReplace: function () {
-      var vm = this;
-      vm.showBatchReplace = true;
-      if (!vm.batchFind && vm.editable && vm.editable.skus && vm.editable.skus.length) {
-        vm.batchFind = vm.editable.skus[0].name || vm.editable.skus[0].customName || '';
-      }
-    },
     doBatchReplace: function () {
       var vm = this;
       if (!vm.batchFind) { vm.$Message.warning('请输入要查找的内容'); return; }
@@ -1189,13 +1182,6 @@ Vue.component('detail-modal', {
       vm.showBatchReplace = false;
       vm.batchFind = '';
       vm.batchReplace = '';
-    },
-    scheduleBatchHide: function () {
-      var vm = this;
-      vm._batchHideTimer = setTimeout(function () { vm.showBatchReplace = false; }, 300);
-    },
-    clearBatchHide: function () {
-      if (this._batchHideTimer) { clearTimeout(this._batchHideTimer); this._batchHideTimer = null; }
     },
     addFormulaRow: function () {
       this.priceFormulas.push({ min: 0, max: 9999, expr: 'price * 2' });
@@ -1518,25 +1504,25 @@ Vue.component('detail-modal', {
           <div class="detail-section-title" style="display:flex;align-items:center;gap:8px">SKU ({{ editable.skus ? editable.skus.length : 0 }})
               <i-button size="small" type="warning" icon="md-images" @click="openSkuBatchModal" style="font-size:12px">批量替换图片</i-button>
             </div>
-          <!-- 批量替换气泡（放在section层级避免被overflow裁剪） -->
-          <div class="batch-popover batch-popover-float" v-if="showBatchReplace"
-            @mouseenter="clearBatchHide" @mouseleave="scheduleBatchHide">
-            <div style="margin-bottom:6px">
-              <span style="font-size:12px;color:var(--text-secondary)">查找内容</span>
-              <i-input v-model="batchFind" size="small" placeholder="要替换的文本" style="margin-top:4px" />
-            </div>
-            <div style="margin-bottom:8px">
-              <span style="font-size:12px;color:var(--text-secondary)">替换为</span>
-              <i-input v-model="batchReplace" size="small" placeholder="替换后的文本" style="margin-top:4px" />
-            </div>
-            <i-button type="primary" size="small" long @click="doBatchReplace">执行替换</i-button>
-          </div>
           <div v-if="editable.skus && editable.skus.length" class="detail-sku-scroll">
             <table class="sku-table" :class="{ 'sku-dragging': dragImageUrl }">
               <thead><tr>
                 <th class="sku-check-col"><checkbox :value="allSkuSelected" @on-change="toggleSkuAll"></checkbox></th>
                 <th>图片</th><th>SKU名称</th>
-                <th>自定义名称 <span class="th-action" @click="openBatchReplace" @mouseenter="clearBatchHide" @mouseleave="scheduleBatchHide">批量替换</span></th><th>进价</th><th>售价 <span style="margin-left:6px;font-size:11px;font-weight:400"><a style="color:var(--success);cursor:pointer" @click="applyPriceFormula">自动计算</a><span style="color:var(--border);margin:0 4px">|</span><a style="color:var(--text-muted);cursor:pointer" @click="showPriceFormula=true">公式设置</a></span></th><th>尺寸(cm)</th><th>重量</th>
+                <th>自定义名称 <Poptip v-model="showBatchReplace" placement="top" width="280" trigger="click" transfer>
+                    <span class="th-action">批量替换</span>
+                    <div slot="content" class="batch-replace-panel">
+                      <div class="batch-replace-field">
+                        <span class="batch-replace-label">查找内容</span>
+                        <i-input v-model="batchFind" size="small" placeholder="要替换的文本" />
+                      </div>
+                      <div class="batch-replace-field">
+                        <span class="batch-replace-label">替换为</span>
+                        <i-input v-model="batchReplace" size="small" placeholder="替换后的文本" />
+                      </div>
+                      <i-button type="primary" size="small" long @click="doBatchReplace">执行替换</i-button>
+                    </div>
+                  </Poptip></th><th>进价</th><th>售价 <span style="margin-left:6px;font-size:11px;font-weight:400"><a style="color:var(--success);cursor:pointer" @click="applyPriceFormula">自动计算</a><span style="color:var(--border);margin:0 4px">|</span><a style="color:var(--text-muted);cursor:pointer" @click="showPriceFormula=true">公式设置</a></span></th><th>尺寸(cm)</th><th>重量</th>
               </tr></thead>
               <tbody>
                 <tr v-for="(sku, i) in editable.skus" :key="'s'+i" :class="{ 'sku-row-checked': isSkuChecked(i) }">
