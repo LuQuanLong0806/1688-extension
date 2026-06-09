@@ -338,104 +338,130 @@ async function processProduct(uid, db) {
 
     broadcast('pipeline-progress', { uid: uid, step: 0, total: totalSteps, stage: 'processing', message: '开始处理: ' + (product.title || uid).substring(0, 30) });
 
-    var mainImages = JSON.parse(product.main_images || '[]');
-    if (mainImages.length === 0) {
+    var mainImagesRaw = JSON.parse(product.main_images || '[]');
+    if (mainImagesRaw.length === 0) {
       throw new Error('No images');
     }
 
-    broadcast('pipeline-progress', { uid: uid, step: 0, total: totalSteps, stage: 'processing', message: '加载完成，共 ' + mainImages.length + ' 张图片' });
+    // 统一提取 URL（兼容字符串和 {url, _selected} 对象格式）
+    function extractUrl(img) { return typeof img === 'object' && img.url ? img.url : img; }
+    var allUrls = mainImagesRaw.map(extractUrl);
 
-    // ===== Step 1: 智能筛选（本地预筛 + AI 批量精选）=====
+    broadcast('pipeline-progress', { uid: uid, step: 0, total: totalSteps, stage: 'processing', message: '加载完成，共 ' + allUrls.length + ' 张图片' });
+
+    // ===== Step 1: 图片筛选 =====
     var qualityResult = {};
     var firstImgBuf = null;
-    var selectedImages = []; // 最终选中要处理的图片
+    var selectedImages = [];
 
-    try {
-      var t0 = Date.now();
+    // 检查主图是否有手动选中的图片（至少一张 _selected === true）
+    var hasManualSelection = mainImagesRaw.some(function (img) {
+      return typeof img === 'object' && img._selected === true;
+    });
+    var selectedUrls = hasManualSelection
+      ? mainImagesRaw.filter(function (img) { return typeof img === 'object' && img._selected === true; }).map(extractUrl)
+      : allUrls;
 
-      // 1a. 下载全部主图
-      var allImageBufs = await Promise.all(mainImages.map(function (url) {
-        return retryWrapper(function () { return downloadImage(url); }, { maxRetries: 1, stepName: 'download' })
-          .then(function (buf) { return { url: url, buffer: buf }; })
-          .catch(function () { return null; });
-      }));
-      allImageBufs = allImageBufs.filter(Boolean);
-      firstImgBuf = allImageBufs.length > 0 ? allImageBufs[0].buffer : null;
+    if (hasManualSelection) {
+      // 手动选过的图直接下载，跳过 AI 精选
+      broadcast('pipeline-progress', { uid: uid, step: 1, total: totalSteps, stage: 'processing', message: 'Step 1/7 使用手动选图: ' + selectedUrls.length + ' 张' });
+      try {
+        var t0 = Date.now();
+        selectedImages = await Promise.all(selectedUrls.map(function (url) {
+          return downloadImage(url).then(function (buf) { return { url: url, buffer: buf }; }).catch(function () { return null; });
+        }));
+        selectedImages = selectedImages.filter(Boolean);
+        if (selectedImages.length > 0) firstImgBuf = selectedImages[0].buffer;
+        qualityResult = { quality_score: 0, manual: true };
+        addStepResult(log, 'quality_check', 'ok', Date.now() - t0, { manual: true, count: selectedImages.length });
+      } catch (e) {
+        addStepResult(log, 'quality_check', 'error', 0, null, e.message);
+      }
+    } else {
+      // 无手动选择 → AI 精选流程
+      try {
+        var t0 = Date.now();
 
-      broadcast('pipeline-progress', { uid: uid, step: 1, total: totalSteps, stage: 'processing', message: 'Step 1/7 本地预筛中... 共 ' + allImageBufs.length + ' 张' });
+        // 1a. 下载全部主图
+        var allImageBufs = await Promise.all(allUrls.map(function (url) {
+          return retryWrapper(function () { return downloadImage(url); }, { maxRetries: 1, stepName: 'download' })
+            .then(function (buf) { return { url: url, buffer: buf }; })
+            .catch(function () { return null; });
+        }));
+        allImageBufs = allImageBufs.filter(Boolean);
+        firstImgBuf = allImageBufs.length > 0 ? allImageBufs[0].buffer : null;
 
-      // 1b. 本地预筛（去小图/横幅/重复）
-      var prefilter = require('../services/image-prefilter');
-      var filteredImages = await prefilter.prefilterImages(allImageBufs);
+        broadcast('pipeline-progress', { uid: uid, step: 1, total: totalSteps, stage: 'processing', message: 'Step 1/7 本地预筛中... 共 ' + allImageBufs.length + ' 张' });
 
-      broadcast('pipeline-progress', { uid: uid, step: 1, total: totalSteps, stage: 'processing', message: 'Step 1/7 预筛: ' + allImageBufs.length + ' → ' + filteredImages.length + ' 张' });
+        // 1b. 本地预筛（去小图/横幅/重复）
+        var prefilter = require('../services/image-prefilter');
+        var filteredImages = await prefilter.prefilterImages(allImageBufs);
 
-      // 1c. AI 批量精选（多图一次调用）
-      if (filteredImages.length > 0) {
-        var sharp = require('sharp');
-        var providers = require('../routes/ai/providers');
+        broadcast('pipeline-progress', { uid: uid, step: 1, total: totalSteps, stage: 'processing', message: 'Step 1/7 预筛: ' + allImageBufs.length + ' → ' + filteredImages.length + ' 张' });
 
-        // 缩小图片减少 payload，保留原始 buffer 给后续处理
-        var content = [];
-        for (var fi = 0; fi < filteredImages.length; fi++) {
-          try {
-            var small = await sharp(filteredImages[fi].buffer)
-              .resize(768, 768, { fit: 'inside', withoutEnlargement: true })
-              .jpeg({ quality: 80 }).toBuffer();
-            content.push({ type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + small.toString('base64') } });
-          } catch (e) {
-            content.push({ type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + filteredImages[fi].buffer.toString('base64') } });
+        // 1c. AI 批量精选（多图一次调用）
+        if (filteredImages.length > 0) {
+          var sharp = require('sharp');
+          var providers = require('../routes/ai/providers');
+
+          var content = [];
+          for (var fi = 0; fi < filteredImages.length; fi++) {
+            try {
+              var small = await sharp(filteredImages[fi].buffer)
+                .resize(768, 768, { fit: 'inside', withoutEnlargement: true })
+                .jpeg({ quality: 80 }).toBuffer();
+              content.push({ type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + small.toString('base64') } });
+            } catch (e) {
+              content.push({ type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + filteredImages[fi].buffer.toString('base64') } });
+            }
+          }
+          content.push({
+            type: 'text',
+            text: '分析这组商品图片(共' + filteredImages.length + '张)，按序号评估每张。返回严格JSON(不要markdown)：{"overall_quality":0到100,"has_watermark":true或false,"has_chinese_text":true或false,"background_complexity":"simple或medium或complex","has_size_info":true或false,"quality_summary":"一句话","visual_attrs":{"colors":[],"material":"","suggested_category":""},"images":[{"index":0,"score":85,"selected":true,"notes":"清晰主图"},{"index":1,"score":30,"selected":false,"notes":"重复角度"}]}。selected为true的保留(5-8张)，false的丢弃。按score降序排列。只返回JSON。'
+          });
+
+          var resp = await providers.visionLLMRequest('/chat/completions', { messages: [{ role: 'user', content: content }] });
+          var text = (resp && resp.choices && resp.choices[0] && resp.choices[0].message && resp.choices[0].message.content) || '';
+          var jsonMatch = text.match(/\{[\s\S]*\}/);
+          var curation = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
+
+          qualityResult = {
+            watermark: curation.has_watermark || false,
+            chinese_text: curation.has_chinese_text || false,
+            background_complexity: curation.background_complexity || 'medium',
+            has_size_info: curation.has_size_info || false,
+            quality_score: curation.overall_quality || 70,
+            quality_summary: curation.quality_summary || '',
+            visual_attrs: curation.visual_attrs || {}
+          };
+
+          if (curation.images && Array.isArray(curation.images)) {
+            var ranked = curation.images
+              .filter(function (img) { return img.selected !== false; })
+              .sort(function (a, b) { return (b.score || 0) - (a.score || 0); })
+              .slice(0, 8);
+            selectedImages = ranked.map(function (r) {
+              return filteredImages[r.index] || filteredImages[0];
+            }).filter(Boolean);
+          }
+
+          if (selectedImages.length === 0) {
+            selectedImages = filteredImages.slice(0, Math.min(5, filteredImages.length));
           }
         }
-        content.push({
-          type: 'text',
-          text: '分析这组商品图片(共' + filteredImages.length + '张)，按序号评估每张。返回严格JSON(不要markdown)：{"overall_quality":0到100,"has_watermark":true或false,"has_chinese_text":true或false,"background_complexity":"simple或medium或complex","has_size_info":true或false,"quality_summary":"一句话","visual_attrs":{"colors":[],"material":"","suggested_category":""},"images":[{"index":0,"score":85,"selected":true,"notes":"清晰主图"},{"index":1,"score":30,"selected":false,"notes":"重复角度"}]}。selected为true的保留(5-8张)，false的丢弃。按score降序排列。只返回JSON。'
-        });
 
-        var resp = await providers.visionLLMRequest('/chat/completions', { messages: [{ role: 'user', content: content }] });
-        var text = (resp && resp.choices && resp.choices[0] && resp.choices[0].message && resp.choices[0].message.content) || '';
-        var jsonMatch = text.match(/\{[\s\S]*\}/);
-        var curation = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
-
-        qualityResult = {
-          watermark: curation.has_watermark || false,
-          chinese_text: curation.has_chinese_text || false,
-          background_complexity: curation.background_complexity || 'medium',
-          has_size_info: curation.has_size_info || false,
-          quality_score: curation.overall_quality || 70,
-          quality_summary: curation.quality_summary || '',
-          visual_attrs: curation.visual_attrs || {}
-        };
-
-        // 从 AI 结果取选中图片
-        if (curation.images && Array.isArray(curation.images)) {
-          var ranked = curation.images
-            .filter(function (img) { return img.selected !== false; })
-            .sort(function (a, b) { return (b.score || 0) - (a.score || 0); })
-            .slice(0, 8);
-          selectedImages = ranked.map(function (r) {
-            return filteredImages[r.index] || filteredImages[0];
-          }).filter(Boolean);
-        }
-
-        // 如果 AI 没选中任何图，fallback 取前 5 张
-        if (selectedImages.length === 0) {
-          selectedImages = filteredImages.slice(0, Math.min(5, filteredImages.length));
-        }
+        addStepResult(log, 'quality_check', 'ok', Date.now() - t0, { prefiltered: allImageBufs.length - filteredImages.length, curated: selectedImages.length, quality: qualityResult });
+        broadcast('pipeline-progress', { uid: uid, step: 1, total: totalSteps, stage: 'processing', message: 'Step 1/7 筛选完成: ' + mainImages.length + ' → ' + selectedImages.length + ' 张, 质量' + (qualityResult.quality_score || '?') + '/100' });
+      } catch (e) {
+        addStepResult(log, 'quality_check', 'error', 0, null, e.message);
+        qualityResult = { watermark: true, chinese_text: true, background_complexity: 'complex' };
+        selectedImages = await Promise.all(mainImages.slice(0, 8).map(function (url) {
+          return downloadImage(url).then(function (buf) { return { url: url, buffer: buf }; }).catch(function () { return null; });
+        }));
+        selectedImages = selectedImages.filter(Boolean);
+        if (selectedImages.length > 0) firstImgBuf = selectedImages[0].buffer;
+        broadcast('pipeline-progress', { uid: uid, step: 1, total: totalSteps, stage: 'processing', message: 'Step 1/7 筛选失败，使用全部图片', error: e.message });
       }
-
-      addStepResult(log, 'quality_check', 'ok', Date.now() - t0, { prefiltered: allImageBufs.length - filteredImages.length, curated: selectedImages.length, quality: qualityResult });
-      broadcast('pipeline-progress', { uid: uid, step: 1, total: totalSteps, stage: 'processing', message: 'Step 1/7 筛选完成: ' + mainImages.length + ' → ' + selectedImages.length + ' 张, 质量' + (qualityResult.quality_score || '?') + '/100' });
-    } catch (e) {
-      addStepResult(log, 'quality_check', 'error', 0, null, e.message);
-      qualityResult = { watermark: true, chinese_text: true, background_complexity: 'complex' };
-      // fallback: 取所有图片
-      selectedImages = await Promise.all(mainImages.slice(0, 8).map(function (url) {
-        return downloadImage(url).then(function (buf) { return { url: url, buffer: buf }; }).catch(function () { return null; });
-      }));
-      selectedImages = selectedImages.filter(Boolean);
-      if (selectedImages.length > 0) firstImgBuf = selectedImages[0].buffer;
-      broadcast('pipeline-progress', { uid: uid, step: 1, total: totalSteps, stage: 'processing', message: 'Step 1/7 筛选失败，使用全部图片', error: e.message });
     }
 
     // 提取选中 SKU 图片
@@ -463,22 +489,22 @@ async function processProduct(uid, db) {
       skuImageBufs = skuImageBufs.filter(Boolean);
     }
 
-    // ===== Step 2: 图片处理（去水印 + 白底，含 SKU 图）=====
+    // ===== Step 2: 图片处理（去水印去中文）+ 生成白底图 =====
     var hasWatermark = qualityResult.watermark || qualityResult.chinese_text;
-    var bgComplex = qualityResult.background_complexity;
     var allProcessable = selectedImages.concat(skuImageBufs);
 
     broadcast('pipeline-progress', { uid: uid, step: 2, total: totalSteps, stage: 'processing', message: 'Step 2/7 处理图片中... 共' + allProcessable.length + '张' + (skuImageBufs.length ? '(含' + skuImageBufs.length + '张SKU图)' : '') });
 
     var processedImages = [];
+    var whiteBgImage = null; // 额外生成的白底图，追加到主图末尾
     try {
       var t1 = Date.now();
 
-      processedImages = await Promise.all(allProcessable.map(function (img, idx) {
+      // 2a. 所有图只做去水印/去中文，不做抠图白底
+      processedImages = await Promise.all(allProcessable.map(function (img) {
         return (async function () {
           var buf = img.buffer;
           var cleaned = false;
-          var generated = false;
 
           if (hasWatermark) {
             try {
@@ -494,52 +520,57 @@ async function processProduct(uid, db) {
             } catch (e) { /* keep original */ }
           }
 
-          if (bgComplex !== 'simple') {
-            try {
-              var removeBg = require('../services/remove-bg');
-              var bgResult = await retryWrapper(
-                function () { return removeBg.removeBackground(buf); },
-                {
-                  maxRetries: 1, stepName: 'remove_bg',
-                  fallback: function () {
-                    var comfyui = null;
-                    try { comfyui = require('./comfyui-inpaint'); } catch (e) {}
-                    if (comfyui && comfyui.isAvailable()) return comfyui.removeBackground(buf);
-                    return { ok: false };
-                  }
-                }
-              );
-              if (bgResult.ok && bgResult.imageBuffer) {
-                var sharpMod = require('sharp');
-                var meta = await sharpMod(bgResult.imageBuffer).metadata();
-                buf = await sharpMod({ create: { width: meta.width, height: meta.height, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 1 } } })
-                  .composite([{ input: bgResult.imageBuffer }]).png().toBuffer();
-                generated = true;
-              }
-            } catch (e) { /* keep as-is */ }
-          }
-
-          return { url: img.url, buffer: buf, cleaned: cleaned, generated: generated, isSku: !!img.isSku };
+          return { url: img.url, buffer: buf, cleaned: cleaned, generated: false, isSku: !!img.isSku };
         })();
       }));
 
       var totalCleaned = processedImages.filter(function (img) { return img.cleaned; }).length;
-      var totalGenerated = processedImages.filter(function (img) { return img.generated; }).length;
 
       if (!hasWatermark) {
         addStepResult(log, 'clean_watermark', 'skipped', 0, { reason: 'no_watermark' });
       } else {
         addStepResult(log, 'clean_watermark', 'ok', Date.now() - t1, { total: allProcessable.length, cleaned: totalCleaned });
       }
-      if (bgComplex === 'simple') {
-        addStepResult(log, 'white_bg', 'skipped', 0, { reason: 'bg_simple' });
+
+      // 2b. 从处理过的 SKU 图中选一张，抠图+白底，生成额外的白底产品图
+      var processedSkusForBg = processedImages.filter(function (img) { return img.isSku; });
+      if (processedSkusForBg.length > 0) {
+        try {
+          var t1b = Date.now();
+          var skuForBg = processedSkusForBg[0]; // 取第一张 SKU 图
+          var removeBg = require('../services/remove-bg');
+          var bgResult = await retryWrapper(
+            function () { return removeBg.removeBackground(skuForBg.buffer); },
+            {
+              maxRetries: 1, stepName: 'remove_bg',
+              fallback: function () {
+                var comfyui = null;
+                try { comfyui = require('./comfyui-inpaint'); } catch (e) {}
+                if (comfyui && comfyui.isAvailable()) return comfyui.removeBackground(skuForBg.buffer);
+                return { ok: false };
+              }
+            }
+          );
+          if (bgResult.ok && bgResult.imageBuffer) {
+            var sharpMod = require('sharp');
+            var meta = await sharpMod(bgResult.imageBuffer).metadata();
+            var whiteBuf = await sharpMod({ create: { width: meta.width, height: meta.height, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 1 } } })
+              .composite([{ input: bgResult.imageBuffer }]).png().toBuffer();
+            whiteBgImage = { url: skuForBg.url, buffer: whiteBuf, cleaned: false, generated: true, isSku: false, isWhiteBg: true };
+            addStepResult(log, 'white_bg', 'ok', Date.now() - t1b, { source: 'sku_image' });
+          } else {
+            addStepResult(log, 'white_bg', 'skipped', 0, { reason: 'remove_bg_failed' });
+          }
+        } catch (e) {
+          addStepResult(log, 'white_bg', 'error', 0, null, e.message);
+        }
       } else {
-        addStepResult(log, 'white_bg', 'ok', Date.now() - t1, { total: allProcessable.length, generated: totalGenerated });
+        addStepResult(log, 'white_bg', 'skipped', 0, { reason: 'no_sku_image' });
       }
-      broadcast('pipeline-progress', { uid: uid, step: 2, total: totalSteps, stage: 'processing', message: 'Step 2/7 完成: 去水印' + totalCleaned + '/' + allProcessable.length + ', 白底' + totalGenerated });
+
+      broadcast('pipeline-progress', { uid: uid, step: 2, total: totalSteps, stage: 'processing', message: 'Step 2/7 完成: 去水印' + totalCleaned + '/' + allProcessable.length + (whiteBgImage ? ', 白底图已生成' : '') });
     } catch (e) {
       addStepResult(log, 'clean_watermark', 'error', 0, null, e.message);
-      addStepResult(log, 'white_bg', 'error', 0, null, e.message);
       processedImages = allProcessable.map(function (img) {
         return { url: img.url, buffer: img.buffer, cleaned: false, generated: false, isSku: !!img.isSku };
       });
@@ -548,7 +579,12 @@ async function processProduct(uid, db) {
     var processedMain = processedImages.filter(function (img) { return !img.isSku; });
     var processedSkus = processedImages.filter(function (img) { return img.isSku; });
 
-    // ===== Step 3: 尺寸标注 =====
+    // 白底图追加到主图末尾
+    if (whiteBgImage) {
+      processedMain.push(whiteBgImage);
+    }
+
+    // ===== Step 3: 尺寸标注（检测原图 → 标注到白底图）=====
     var hasSizeInfo = qualityResult.has_size_info;
     broadcast('pipeline-progress', { uid: uid, step: 3, total: totalSteps, stage: 'processing', message: 'Step 3/7 尺寸标注' + (hasSizeInfo ? '中...' : ': 无尺寸信息，跳过') });
     try {
@@ -559,24 +595,19 @@ async function processProduct(uid, db) {
         addStepResult(log, 'size_annotate', 'skipped', Date.now() - t3, { reason: 'no_size_info' });
       } else {
         var sizeAnnotate = require('../services/size-annotate');
-        for (var k = 0; k < processedMain.length && sizeResult.annotated === 0; k++) {
+        // 从原始主图中 OCR 检测尺寸信息
+        var detectedSizes = null;
+        for (var k = 0; k < processedMain.length; k++) {
+          if (processedMain[k].isWhiteBg) continue; // 白底图跳过检测
           try {
             var detectResult = await retryWrapper(
               function () { return sizeAnnotate.detectSizes(processedMain[k].buffer); },
               { maxRetries: 1, stepName: 'ocr_detect' }
             );
             if (detectResult.ok && detectResult.sizes && detectResult.sizes.length > 0) {
-              var annoResult = await retryWrapper(
-                function () { return sizeAnnotate.annotateImage(processedMain[k].buffer, detectResult.sizes); },
-                { maxRetries: 1, stepName: 'ocr_annotate' }
-              );
-              if (annoResult.ok && annoResult.imageBuffer) {
-                processedMain[k].buffer = annoResult.imageBuffer;
-                processedMain[k].sizeAnnotated = true;
-                sizeResult.annotated++;
-              }
-            } else {
-              sizeResult.no_size++;
+              detectedSizes = detectResult.sizes;
+              sizeResult.detectedFrom = k;
+              break;
             }
             sizeResult.total++;
           } catch (e) {
@@ -584,100 +615,39 @@ async function processProduct(uid, db) {
             sizeResult.no_size++;
           }
         }
+
+        // 检测到尺寸 → 标注到白底图上（优先），没有白底图则标注到检测源图
+        if (detectedSizes) {
+          var annotateTarget = whiteBgImage || processedMain.find(function (img) { return !img.isWhiteBg; });
+          if (annotateTarget) {
+            try {
+              var annoResult = await retryWrapper(
+                function () { return sizeAnnotate.annotateImage(annotateTarget.buffer, detectedSizes); },
+                { maxRetries: 1, stepName: 'ocr_annotate' }
+              );
+              if (annoResult.ok && annoResult.imageBuffer) {
+                annotateTarget.buffer = annoResult.imageBuffer;
+                annotateTarget.sizeAnnotated = true;
+                sizeResult.annotated++;
+                sizeResult.annotatedOn = annotateTarget.isWhiteBg ? 'white_bg' : 'main';
+              }
+            } catch (e) {
+              sizeResult.no_size++;
+            }
+          }
+        } else {
+          sizeResult.no_size = sizeResult.total;
+        }
         addStepResult(log, 'size_annotate', 'ok', Date.now() - t3, sizeResult);
       }
     } catch (e) {
       addStepResult(log, 'size_annotate', 'error', 0, null, e.message);
     }
 
-    // ===== Step 4: 分类推荐 =====
-    var categoryResult = {};
-    var catResp = null;
-    broadcast('pipeline-progress', { uid: uid, step: 4, total: totalSteps, stage: 'processing', message: 'Step 4/7 分类推荐中...' });
-    try {
-      var t4 = Date.now();
-      var attrs = JSON.parse(product.attrs || '[]');
-      catResp = await new Promise(function (resolve, reject) {
-        var body = JSON.stringify({
-          title: product.title,
-          ali_category: product.category || '',
-          attrs: attrs
-        });
-        var options = {
-          hostname: '127.0.0.1',
-          port: 3000,
-          path: '/api/ai/suggest-category',
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }
-        };
-        var req = http.request(options, function (res) {
-          var data = '';
-          res.on('data', function (chunk) { data += chunk; });
-          res.on('end', function () {
-            try { resolve(JSON.parse(data)); } catch (e) { reject(e); }
-          });
-        });
-        req.on('error', reject);
-        req.write(body);
-        req.end();
-      });
-
-      if (catResp.ok) {
-        var customCategory = catResp.category || '';
-        var dxmCategory = catResp.path ? JSON.stringify({ path: catResp.path, leafName: customCategory }) : '';
-        db.run("UPDATE products SET custom_category = ?, dxm_category = ? WHERE uid = ?",
-          [customCategory, dxmCategory, uid]);
-        product.custom_category = customCategory;
-        categoryResult = { ok: true, category: customCategory, confidence: catResp.confidence || 0 };
-      }
-      addStepResult(log, 'category_recommend', 'ok', Date.now() - t4, categoryResult);
-    } catch (e) {
-      addStepResult(log, 'category_recommend', 'error', 0, null, e.message);
-    }
-
-    // 视觉分类验证（dual-channel）
-    var visionCategory = '';
-    var visionConfidence = 0;
-    try {
-      if (firstImgBuf) {
-        var providersVision = require('../routes/ai/providers');
-        var visionMsg = [{
-          role: 'user',
-          content: [
-            { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + firstImgBuf.toString('base64') } },
-            { type: 'text', text: '判断这张商品图片属于什么分类？返回严格JSON：{"category":"分类名","confidence":0到1的数字,"product_type":"商品类型"}。只返回JSON。' }
-          ]
-        }];
-        var visionResp = await providersVision.visionLLMRequest('/chat/completions', {
-          messages: visionMsg, temperature: 0.1, max_tokens: 256
-        });
-        var visionText = (visionResp && visionResp.choices && visionResp.choices[0] && visionResp.choices[0].message && visionResp.choices[0].message.content) || '';
-        var visionJsonMatch = visionText.match(/\{[\s\S]*\}/);
-        if (visionJsonMatch) {
-          var visionParsed = JSON.parse(visionJsonMatch[0]);
-          visionCategory = visionParsed.category || '';
-          visionConfidence = visionParsed.confidence || 0;
-        }
-      }
-    } catch (e) { /* optional */ }
-
-    var textCategory = categoryResult.category || '';
-    var textConfidence = categoryResult.confidence || 0;
-    var validationResult = crossValidateCategory(textCategory, textConfidence, visionCategory, visionConfidence);
-    if (validationResult.category && validationResult.confidence > textConfidence) {
-      var valCategory = validationResult.category;
-      var valDxmCategory = catResp && catResp.path ? JSON.stringify({ path: catResp.path, leafName: valCategory }) : '';
-      db.run("UPDATE products SET custom_category = ?, dxm_category = ? WHERE uid = ?", [valCategory, valDxmCategory, uid]);
-      product.custom_category = valCategory;
-      categoryResult = { ok: true, category: valCategory, confidence: validationResult.confidence, source: validationResult.source, validated: validationResult.validated };
-    }
-    if (validationResult.conflict) {
-      categoryResult.conflict = validationResult.conflict;
-    }
-    var catLogStep = log.steps.find(function (s) { return s.name === 'category_recommend'; });
-    if (catLogStep) catLogStep.result = categoryResult;
-
-    broadcast('pipeline-progress', { uid: uid, step: 4, total: totalSteps, stage: 'processing', message: 'Step 4/7 分类: ' + (categoryResult.category || '未确定') });
+    // ===== Step 4: 分类（使用采集时已有的分类，不再重复调用AI）=====
+    var categoryResult = { ok: true, category: product.custom_category || '', confidence: 0 };
+    broadcast('pipeline-progress', { uid: uid, step: 4, total: totalSteps, stage: 'processing', message: 'Step 4/7 分类: ' + (categoryResult.category || '使用采集分类') });
+    addStepResult(log, 'category_recommend', 'ok', 0, categoryResult);
 
     // ===== Step 5: 标题优化 =====
     broadcast('pipeline-progress', { uid: uid, step: 5, total: totalSteps, stage: 'processing', message: 'Step 5/7 标题优化中...' });
@@ -718,9 +688,14 @@ async function processProduct(uid, db) {
       var imgbb = require('../services/imgbb-upload');
       var uploadOk = 0, uploadFail = 0;
 
-      // 上传主图
+      // 上传主图（仅上传实际处理过的图片，未处理的保留原图URL）
       for (var m = 0; m < processedMain.length; m++) {
         var originalUrl = processedMain[m].url;
+        var wasProcessed = processedMain[m].cleaned || processedMain[m].generated || processedMain[m].sizeAnnotated;
+        if (!wasProcessed) {
+          uploadedMainUrls.push(originalUrl);
+          continue;
+        }
         try {
           var filename = uid + '_main_' + m + '.png';
           var uploadResult = await imgbb.uploadToImgBB(processedMain[m].buffer, filename);
@@ -738,8 +713,10 @@ async function processProduct(uid, db) {
         }
       }
 
-      // 上传 SKU 图
+      // 上传 SKU 图（仅上传实际处理过的）
       for (var s = 0; s < processedSkus.length; s++) {
+        var skuProcessed = processedSkus[s].cleaned || processedSkus[s].generated;
+        if (!skuProcessed) continue;
         try {
           var skuFilename = uid + '_sku_' + s + '.png';
           var skuUploadResult = await imgbb.uploadToImgBB(processedSkus[s].buffer, skuFilename);
@@ -781,7 +758,9 @@ async function processProduct(uid, db) {
         db.run("UPDATE products SET skus = ? WHERE uid = ?", [JSON.stringify(updatedSkus), uid]);
       }
 
-      addStepResult(log, 'upload_imgbb', 'ok', Date.now() - t7, { total: processedMain.length + processedSkus.length, ok: uploadOk, failed: uploadFail });
+      var totalImages = processedMain.length + processedSkus.length;
+      var skippedUploads = totalImages - uploadOk - uploadFail;
+      addStepResult(log, 'upload_imgbb', 'ok', Date.now() - t7, { total: totalImages, ok: uploadOk, failed: uploadFail, skipped: skippedUploads });
     } catch (e) {
       addStepResult(log, 'upload_imgbb', 'error', 0, null, e.message);
     }
