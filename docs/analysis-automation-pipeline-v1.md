@@ -2,24 +2,24 @@
 
 > 基于 `requirements-automation-pipeline-v1.md` 的可行性评估、优化建议与功能扩展
 > 创建时间：2026-06-08
-> 最近更新：2026-06-08（标记实现状态 + Agent/Qclaw 方案调整）
+> 最近更新：2026-06-09（端到端闭环验证 + 修复 sync 字段同步 + 测试全通过）
 
 ---
 
 ## 〇、实现状态速查
 
 > P0-P2 全部完成，P3 大部分完成，Agent 由 Qclaw 集成。
-> 最近更新：2026-06-08（Pipeline v2.0 增强版已实现 + 118 项单元测试全通过）
+> 最近更新：2026-06-09（端到端闭环验证全通过 + sync 字段修复 + 727 测试 0 失败）
 
 | 优先级 | 项目 | 状态 | 备注 |
 |--------|------|------|------|
 | **P0** | DB Schema 5 字段 | ✅ 已完成 | `server/db.js` |
 | **P0** | Pipeline 7步核心流程 | ✅ 已完成 | `server/services/automation-pipeline.js` |
 | **P0** | API 路由（5个接口） | ✅ 已完成 | `server/routes/products.js` |
-| **P0** | 草稿箱 / 待发布页面 | ✅ 已完成 | `page-drafts.js` / `page-publish-queue.js` |
+| **P0** | 草稿箱 / 待发布页面 | ✅ 已完成 | `page-drafts.js` / `page-publish-queue.js`（含问题标签渲染） |
 | **P0** | 侧边栏菜单 | ✅ 已完成 | `index.html` |
 | **P0** | SSE 实时进度 | ✅ 已完成 | `db.js` sseBroadcast |
-| **P0** | 云端同步 | ✅ 已完成 | `server/cloud/` |
+| **P0** | 云端同步 | ✅ 已完成 | `server/cloud/sync.js`（含 5 字段同步修复） |
 | **P1** | 3.2 智能步骤跳过 | ✅ 已完成 | Pipeline 内 qualityResult 驱动跳过 |
 | **P1** | 3.5 队列优雅恢复 | ✅ 已完成 | `recoverStaleJobs()` 10分钟阈值 |
 | **P1** | 3.3 视觉+文本双通道分类 | ✅ **已完成** | Step 5a 新增 visionLLMRequest 视觉分类 + crossValidateCategory 交叉验证 |
@@ -923,7 +923,7 @@ Agent 方案（自适应 Pipeline）:
 
 ## 九、总结
 
-### 当前状态（Pipeline v2.0 已上线）
+### 当前状态（Pipeline v2.0 已上线 + 端到端验证通过）
 
 - **P0 基础功能：100% 完成** — Pipeline 核心流程已跑通
 - **P1 核心优化：100% 完成** — 双通道分类、retryWrapper、智能跳过、队列恢复全部就绪
@@ -931,6 +931,29 @@ Agent 方案（自适应 Pipeline）:
 - **P3 扩展功能：75% 完成** — 管道合并、标题优化、模型筛选已实现，ComfyUI 场景图由 Qclaw 扩展
 - **创意功能：已完成** — 卖点提取、分类冲突标记、质量评分卡
 - **单元测试：118 项全部通过** — `server/__tests__/unit/automation-pipeline.test.js`
+- **全量测试：727 项全部通过** — 22 个测试套件，无功能回归
+
+### 端到端闭环验证（2026-06-09）
+
+| 验证维度 | 结果 | 说明 |
+|---------|------|------|
+| 阶段状态机 | ✅ 通过 | 6 阶段 × 19 种合法/非法转换全部测试覆盖 |
+| Pipeline 7 步流程 | ✅ 通过 | Step1→Step2+3并行→Step4→Step5→Step5a→Step5b+6并行→Step7 |
+| 错误重试+降级 | ✅ 通过 | retryWrapper 覆盖 download/clean/remove_bg/ocr，含降级备选 |
+| 队列管理 | ✅ 通过 | enqueue→sortByPriority→process→next→idle 完整闭环 |
+| API 路由 | ✅ 通过 | 5 个接口全部就绪（batch-automate/stage/batch-stage/automate-status/GET+筛选） |
+| 前端交互 | ✅ 通过 | 侧边栏/草稿箱/待发布/批量按钮/阶段列/SSE/CSS变量/问题标签 |
+| 云端同步 | ✅ 通过 | uploadProducts/downloadProducts/saveProductToLocalAndCloud 均含 5 个自动化字段 |
+| 语法检测 | ✅ 通过 | automation-pipeline.js / sync.js / test.js 均无语法错误 |
+| 全量测试 | ✅ 通过 | 727 tests, 22 suites, 0 failures |
+
+### 已修复问题
+
+| 问题 | 文件 | 修复内容 |
+|------|------|---------|
+| sync.test.js DDL 缺字段 | `sync.test.js` | products DDL 新增 5 个 automation 字段 |
+| uploadProducts 未同步自动化字段 | `sync.js` | SELECT/INSERT/VALUES 加入 automation_stage 等 5 字段 |
+| downloadProducts 未同步自动化字段 | `sync.js` | SELECT/INSERT/UPDATE 加入 automation_stage 等 5 字段 |
 
 ### 已实现的核心增强
 

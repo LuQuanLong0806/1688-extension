@@ -20,7 +20,11 @@ Vue.component('page-products', {
       batchCatPath: '',
       _pollTimer: null,
       recommending: {},
-      automating: false
+      automating: false,
+      pipelineProgress: {},
+      pipelineQueue: {},
+      pipelineDrawerVisible: false,
+      pipelineTotalCount: 0
     };
   },
   mounted: function () {
@@ -126,6 +130,52 @@ Vue.component('page-products', {
           })
         );
       } catch (e) {}
+    },
+    pipelineActive: function () {
+      var q = this.pipelineQueue;
+      return q && q.state === 'running' && q.currentUid;
+    },
+    pipelineCurrentMsg: function () {
+      if (!this.pipelineActive) return '';
+      var uid = this.pipelineQueue && this.pipelineQueue.currentUid;
+      var p = uid ? this.pipelineProgress[uid] : null;
+      return (p && typeof p.message === 'string') ? p.message : '处理中...';
+    },
+    pipelineCurrentStep: function () {
+      if (!this.pipelineActive) return '';
+      var uid = this.pipelineQueue && this.pipelineQueue.currentUid;
+      var p = uid ? this.pipelineProgress[uid] : null;
+      return (p && p.step) ? 'Step ' + p.step + '/' + (p.total || 7) : '';
+    },
+    pipelineQueueInfo: function () {
+      var q = this.pipelineQueue;
+      if (!q || !q.state) return '';
+      if (this.pipelineTotalCount <= 0) return '';
+      var done = this.pipelineTotalCount - (q.pending || 0) - 1;
+      if (done < 0) done = 0;
+      return done + '/' + this.pipelineTotalCount;
+    },
+    pipelineStepList: function () {
+      var names = ['智能筛选', '图片处理', '尺寸标注', '分类推荐', '标题优化', '数据诊断', '上传图床'];
+      var uid = this.pipelineQueue && this.pipelineQueue.currentUid;
+      var p = uid ? this.pipelineProgress[uid] : null;
+      var currentStep = p ? p.step : 0;
+      var total = p ? p.total : 7;
+      var list = [];
+      for (var i = 1; i <= total; i++) {
+        var status = 'pending';
+        var cls = '';
+        var msg = '';
+        if (p && i < currentStep) {
+          status = 'done'; cls = 'done';
+        } else if (p && i === currentStep) {
+          if (p.stage === 'processing') { status = 'active'; cls = 'active'; }
+          else { status = 'done'; cls = 'done'; }
+          msg = (typeof p.message === 'string') ? p.message : '';
+        }
+        list.push({ idx: i, name: names[i - 1] || ('步骤' + i), status: status, cls: cls, message: msg });
+      }
+      return list;
     },
     // -- 列辅助方法 --
     getSkuImage: function (row) {
@@ -241,6 +291,31 @@ Vue.component('page-products', {
             vm.$Message.warning('AI分类推荐无匹配结果');
           }
           vm.loadList(vm.page);
+        } catch (ex) {}
+      });
+      es.addEventListener('pipeline-progress', function (e) {
+        try {
+          var data = JSON.parse(e.data);
+          if (data.uid) {
+            vm.$set(vm.pipelineProgress, data.uid, data);
+          }
+          if (data.stage === 'draft' || data.stage === 'failed') {
+            vm.loadList(vm.page);
+          }
+        } catch (ex) {}
+      });
+      es.addEventListener('pipeline-queue', function (e) {
+        try {
+          var data = JSON.parse(e.data);
+          vm.pipelineQueue = data;
+          if (data.total && data.total > vm.pipelineTotalCount) {
+            vm.pipelineTotalCount = data.total;
+          }
+          if (data.state === 'idle') {
+            vm.pipelineProgress = {};
+            vm.automating = false;
+            vm.pipelineTotalCount = 0;
+          }
         } catch (ex) {}
       });
       es.onerror = function () {
@@ -526,8 +601,8 @@ Vue.component('page-products', {
           <i-button type="warning" icon="md-pricetag" :disabled="selectedIds.length === 0" @click="openBatchCategory">
             批量设置类目{{ selectedIds.length ? ' (' + selectedIds.length + ')' : '' }}
           </i-button>
-          <i-button v-if="selectedIds.length" type="warning" size="small" @click="batchAutomate" :loading="automating">
-            批量自动化
+          <i-button v-if="selectedIds.length" type="warning" icon="md-flash" @click="batchAutomate" :loading="automating">
+            批量自动化{{ selectedIds.length ? ' (' + selectedIds.length + ')' : '' }}
           </i-button>
           <i-button type="error" icon="ios-trash" :disabled="selectedIds.length === 0" @click="batchDelete">
             批量删除{{ selectedIds.length ? ' (' + selectedIds.length + ')' : '' }}
@@ -537,6 +612,29 @@ Vue.component('page-products', {
           </i-button>
           <tooltip content="刷新" placement="top"><i-button icon="md-refresh" shape="circle" @click="loadList()"></i-button></tooltip>
         </div>
+      </div>
+      <div v-if="pipelineActive" class="pipeline-bar" :class="{ 'pipeline-bar-expanded': pipelineDrawerVisible }" @click="pipelineDrawerVisible = !pipelineDrawerVisible">
+        <i class="ivu-icon ivu-icon-ios-loading pipeline-icon"></i>
+        <span class="pipeline-label">自动化处理<template v-if="pipelineQueueInfo"> {{ pipelineQueueInfo }}</template></span>
+        <span v-if="pipelineCurrentStep" class="pipeline-step">{{ pipelineCurrentStep }}</span>
+        <span v-if="pipelineCurrentMsg && pipelineCurrentMsg !== '处理中...'" class="pipeline-msg">{{ pipelineCurrentMsg }}</span>
+        <i class="ivu-icon pipeline-bar-arrow" :class="pipelineDrawerVisible ? 'ivu-icon-ios-arrow-up' : 'ivu-icon-ios-arrow-down'"></i>
+      </div>
+      <div v-if="pipelineActive && pipelineDrawerVisible" class="pipeline-detail">
+        <div class="pipeline-detail-queue">
+          <span v-if="pipelineQueueInfo">商品 {{ pipelineQueueInfo }}</span>
+          <span v-if="pipelineQueue.pending !== undefined" style="margin-left:12px;color:var(--text-muted)">剩余 {{ pipelineQueue.pending }} 个</span>
+        </div>
+        <ul class="pipeline-steps">
+          <li v-for="s in pipelineStepList" :key="s.idx" class="pipeline-step-item" :class="s.cls">
+            <i v-if="s.status === 'done'" class="ivu-icon ivu-icon-md-checkmark-circle"></i>
+            <i v-else-if="s.status === 'active'" class="ivu-icon ivu-icon-ios-loading pipeline-step-spinner"></i>
+            <i v-else-if="s.status === 'skipped'" class="ivu-icon ivu-icon-ios-remove-circle-outline"></i>
+            <span v-else class="pipeline-step-num">{{ s.idx }}</span>
+            <span class="pipeline-step-name">{{ s.name }}</span>
+            <span v-if="s.message" class="pipeline-step-msg">{{ s.message }}</span>
+          </li>
+        </ul>
       </div>
       <div class="table-wrap">
         <i-table :columns="columns" :data="list" :loading="loading" stripe @on-selection-change="onSelectionChange" style="margin-bottom:0;">

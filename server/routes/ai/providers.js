@@ -73,8 +73,8 @@ var AI_USE_CASES = {
     models: [{ id: 'glm-4.7-flash', name: 'GLM-4.7-Flash（免费）' }, { id: 'glm-4-flash', name: 'GLM-4-Flash（免费）' }]
   },
   vision: {
-    label: '智能检测', defaultModel: 'glm-4v-flash',
-    models: [{ id: 'glm-4v-flash', name: 'GLM-4V-Flash（免费）' }]
+    label: '智能检测', defaultModel: 'glm-4.6v-flash',
+    models: [{ id: 'glm-4.6v-flash', name: 'GLM-4.6V-Flash（免费）' }, { id: 'glm-4v-flash', name: 'GLM-4V-Flash（免费，旧版）' }]
   },
   image: {
     label: '图片生成', defaultModel: 'cogview-3-flash',
@@ -273,6 +273,7 @@ var EXTRACTION_LLM_CHAIN = [
   { name: 'GLM-4.7-Flash', provider: 'zhipu', model: 'glm-4.7-flash' }
 ];
 var VISION_LLM_CHAIN = [
+  { name: 'GLM-4.6V-Flash', provider: 'zhipu', model: 'glm-4.6v-flash' },
   { name: 'GLM-4V-Flash', provider: 'zhipu', model: 'glm-4v-flash' }
 ];
 var IMAGE_GEN_LLM_CHAIN = [
@@ -285,9 +286,16 @@ function extractionLLMRequest(apiPath, body) { return runLLMChain(EXTRACTION_LLM
 function visionLLMRequest(apiPath, body) {
   var config = getAIConfig('vision');
   if (config.apiKey) {
-    // 有专用 key 时直接用（不走轮换），因为 vision 通常是单个 key
-    body.model = config.model || 'glm-4v-flash';
-    return zhipuRequest(apiPath, body, { apiKey: config.apiKey });
+    body.model = config.model || 'glm-4.6v-flash';
+    return zhipuRequest(apiPath, body, { apiKey: config.apiKey })
+      .catch(function (err) {
+        if (isRateLimitError(err)) {
+          console.log('[vision] 专用Key限流，回退到Key轮换');
+          body.model = 'glm-4.6v-flash';
+          return runLLMChain(VISION_LLM_CHAIN, apiPath, body);
+        }
+        throw err;
+      });
   }
   return runLLMChain(VISION_LLM_CHAIN, apiPath, body);
 }

@@ -337,6 +337,7 @@ router.get('/product/check', (req, res) => {
 
 // 商品列表（分页 + 搜索 + 筛选）
 var pipeline = require('../services/automation-pipeline');
+pipeline.setSseBroadcast(sseBroadcast);
 
 var VALID_STAGES_IN_ROUTE = pipeline.VALID_STAGES;
 router.get('/product', (req, res) => {
