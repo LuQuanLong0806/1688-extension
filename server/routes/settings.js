@@ -139,6 +139,57 @@ router.post('/settings-import', (req, res) => {
     console.log('[导入迁移] 迁移异常:', e.message);
   }
 
+  // 厂商Key池迁移：旧专用Key合并到厂商Key池
+  try {
+    var aiCfg;
+    try { aiCfg = JSON.parse(data['ai_configs'] || '{}'); } catch(e2) { aiCfg = {}; }
+    // 智谱：vision/image 专用Key → zhipu_api_keys
+    var zhipuArr;
+    try { zhipuArr = JSON.parse(data['zhipu_api_keys'] || '[]'); } catch(e2) { zhipuArr = []; }
+    zhipuArr = zhipuArr.map(function(e) { return typeof e === 'string' ? {key: e, label: ''} : e; });
+    var zhipuChanged = false;
+    if (aiCfg.vision && aiCfg.vision.apiKey) {
+      var vk = aiCfg.vision.apiKey;
+      if (!zhipuArr.some(function(e) { return e.key === vk; })) {
+        zhipuArr.push({ key: vk, label: '旧智能检测Key' });
+      }
+      delete aiCfg.vision.apiKey;
+      zhipuChanged = true;
+    }
+    if (aiCfg.image && aiCfg.image.apiKey) {
+      var ik = aiCfg.image.apiKey;
+      if (!zhipuArr.some(function(e) { return e.key === ik; })) {
+        zhipuArr.push({ key: ik, label: '旧图片生成Key' });
+      }
+      delete aiCfg.image.apiKey;
+      zhipuChanged = true;
+    }
+    if (zhipuArr.length) {
+      run("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('zhipu_api_keys', ?, CURRENT_TIMESTAMP)", [sec.encrypt(JSON.stringify(zhipuArr))]);
+    }
+    // 通义千问：qwen_vl_api_key → ai_configs.providers.qwen.apiKeys
+    if (data['qwen_vl_api_key']) {
+      var vlKey = String(data['qwen_vl_api_key']).trim();
+      if (vlKey && vlKey !== 'sk-ad9a93ab29e34635a92b75fd2d751f81') {
+        if (!aiCfg.providers) aiCfg.providers = {};
+        if (!aiCfg.providers.qwen) aiCfg.providers.qwen = {};
+        if (!aiCfg.providers.qwen.apiKeys) aiCfg.providers.qwen.apiKeys = [];
+        if (!aiCfg.providers.qwen.apiKeys.some(function(e) { return (e.key||e) === vlKey; })) {
+          aiCfg.providers.qwen.apiKeys.push({ key: vlKey, label: '旧VL Key' });
+        }
+      }
+    }
+    if (zhipuChanged || data['qwen_vl_api_key']) {
+      var cfgVal = JSON.stringify(aiCfg);
+      if (sec.isSensitive('ai_configs')) cfgVal = sec.encrypt(cfgVal);
+      run("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('ai_configs', ?, CURRENT_TIMESTAMP)", [cfgVal]);
+    }
+    // 清除迁移标记，让下次启动重新检测
+    run("DELETE FROM settings WHERE key = 'ai_vendor_migrated'");
+  } catch(e3) {
+    console.log('[导入迁移] Key合并异常:', e3.message);
+  }
+
   res.json({ ok: true, imported: count });
 });
 

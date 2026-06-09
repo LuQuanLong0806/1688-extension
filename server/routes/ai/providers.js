@@ -55,11 +55,15 @@ function getHunyuanAccounts() {
 }
 
 function getQwenVlKey() {
+  // 1. 优先从通义千问Key池取
+  var qwenKeys = getQwenKeys();
+  if (qwenKeys.length) return qwenKeys[0].key;
+  // 2. 回退到旧VL专用Key（兼容旧数据）
   try {
     var row = require('../../db').getOne("SELECT value FROM settings WHERE key = 'qwen_vl_api_key'");
     if (row && row.value) return sec.decrypt(row.value).trim();
   } catch (e) {}
-  return 'sk-ad9a93ab29e34635a92b75fd2d751f81'; // 默认key
+  return 'sk-ad9a93ab29e34635a92b75fd2d751f81'; // 内置默认key
 }
 
 function saveQwenVlKey(key) {
@@ -284,27 +288,11 @@ var IMAGE_GEN_LLM_CHAIN = [
 function categoryLLMRequest(apiPath, body) { return runLLMChain(CATEGORY_LLM_CHAIN, apiPath, body); }
 function extractionLLMRequest(apiPath, body) { return runLLMChain(EXTRACTION_LLM_CHAIN, apiPath, body); }
 function visionLLMRequest(apiPath, body) {
-  var config = getAIConfig('vision');
-  if (config.apiKey) {
-    body.model = config.model || 'glm-4.6v-flash';
-    return zhipuRequest(apiPath, body, { apiKey: config.apiKey })
-      .catch(function (err) {
-        if (isRateLimitError(err)) {
-          console.log('[vision] 专用Key限流，回退到Key轮换');
-          body.model = 'glm-4.6v-flash';
-          return runLLMChain(VISION_LLM_CHAIN, apiPath, body);
-        }
-        throw err;
-      });
-  }
+  // 统一走降级链，从智谱Key池轮换取Key
   return runLLMChain(VISION_LLM_CHAIN, apiPath, body);
 }
 function imageGenLLMRequest(apiPath, body) {
-  var config = getAIConfig('image');
-  if (config.apiKey) {
-    body.model = config.model || 'cogview-3-flash';
-    return zhipuRequest(apiPath, body, { apiKey: config.apiKey });
-  }
+  // 统一走降级链，从智谱Key池轮换取Key
   return runLLMChain(IMAGE_GEN_LLM_CHAIN, apiPath, body);
 }
 
@@ -452,6 +440,115 @@ function zhipuRequest(apiPath, body, options) {
   });
 }
 
+// ===== 厂商分组配置 =====
+
+function getVendorConfigs() {
+  try {
+    var row = require('../../db').getOne("SELECT value FROM settings WHERE key = 'ai_vendor_configs'");
+    if (row && row.value) return JSON.parse(sec.decrypt(row.value));
+  } catch (e) {}
+  return null;
+}
+
+function buildVendorConfigsFromLegacy() {
+  var aiConfigs = getAIConfigs();
+  var provCfg = aiConfigs.providers || {};
+  return {
+    version: 2,
+    vendors: {
+      zhipu: {
+        models: {
+          text:   (aiConfigs.category && aiConfigs.category.model) || 'glm-4.7-flash',
+          vision: (aiConfigs.vision  && aiConfigs.vision.model)   || 'glm-4.6v-flash',
+          image:  (aiConfigs.image   && aiConfigs.image.model)    || 'cogview-3-flash'
+        }
+      },
+      qwen: {
+        models: {
+          text:      'qwen-turbo',
+          recognize: (aiConfigs.recognize && aiConfigs.recognize.model) || 'qwen3.6-flash'
+        }
+      },
+      hunyuan: {
+        models: { text: 'hunyuan-lite' }
+      },
+      ollama: {
+        model: (provCfg.ollama && provCfg.ollama.model) || 'qwen3:8b',
+        port:  (provCfg.ollama && provCfg.ollama.port)  || '11434'
+      }
+    }
+  };
+}
+
+function saveVendorModels(vendor, modelType, modelId) {
+  var vc = getVendorConfigs() || buildVendorConfigsFromLegacy();
+  if (!vc.vendors[vendor]) vc.vendors[vendor] = { models: {} };
+  if (!vc.vendors[vendor].models) vc.vendors[vendor].models = {};
+  vc.vendors[vendor].models[modelType] = modelId;
+  // 同步回写旧格式（降级链、运行时逻辑读取）
+  var aiConfigs = getAIConfigs();
+  var mapping = {
+    'zhipu.text': 'category', 'zhipu.vision': 'vision', 'zhipu.image': 'image',
+    'qwen.recognize': 'recognize'
+  };
+  var key = vendor + '.' + modelType;
+  if (mapping[key]) {
+    if (!aiConfigs[mapping[key]]) aiConfigs[mapping[key]] = {};
+    aiConfigs[mapping[key]].model = modelId;
+    saveAIConfigs(aiConfigs);
+  }
+  require('../../db').run("INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_vendor_configs', ?)", [sec.encrypt(JSON.stringify(vc))]);
+  require('../../db').scheduleSave();
+}
+
+// 旧专用Key自动并入厂商Key池（幂等）
+function migrateDedicatedKeys() {
+  var aiConfigs = getAIConfigs();
+  var zhipuKeys = getZhipuKeys();
+  var changed = false;
+  // vision 专用Key → 智谱Key池
+  if (aiConfigs.vision && aiConfigs.vision.apiKey) {
+    var vk = aiConfigs.vision.apiKey;
+    if (!zhipuKeys.some(function(e) { return e.key === vk; })) {
+      zhipuKeys.push({ key: vk, label: '旧智能检测Key' });
+    }
+    delete aiConfigs.vision.apiKey;
+    changed = true;
+  }
+  // image 专用Key → 智谱Key池
+  if (aiConfigs.image && aiConfigs.image.apiKey) {
+    var ik = aiConfigs.image.apiKey;
+    if (!zhipuKeys.some(function(e) { return e.key === ik; })) {
+      zhipuKeys.push({ key: ik, label: '旧图片生成Key' });
+    }
+    delete aiConfigs.image.apiKey;
+    changed = true;
+  }
+  // qwen_vl_api_key → 通义Key池
+  try {
+    var qwenKeys = getQwenKeys();
+    var row = require('../../db').getOne("SELECT value FROM settings WHERE key = 'qwen_vl_api_key'");
+    if (row && row.value) {
+      var vlKey = sec.decrypt(row.value).trim();
+      if (vlKey && vlKey !== 'sk-ad9a93ab29e34635a92b75fd2d751f81') {
+        if (!qwenKeys.some(function(e) { return e.key === vlKey; })) {
+          qwenKeys.push({ key: vlKey, label: '旧VL Key' });
+          var cfg = getAIConfigs();
+          if (!cfg.providers) cfg.providers = {};
+          if (!cfg.providers.qwen) cfg.providers.qwen = {};
+          cfg.providers.qwen.apiKeys = qwenKeys;
+          delete cfg.providers.qwen.apiKey;
+          saveAIConfigs(cfg);
+        }
+      }
+    }
+  } catch(e) {}
+  if (changed) {
+    saveZhipuKeys(zhipuKeys);
+    saveAIConfigs(aiConfigs);
+  }
+}
+
 module.exports = {
   API_BASE, AI_USE_CASES, normalizeKeyEntry,
   getApiKey, getZhipuKeys, saveZhipuKeys, getQwenKeys, getHunyuanAccounts,
@@ -462,5 +559,9 @@ module.exports = {
   visionLLMRequest: visionLLMRequest,
   imageGenLLMRequest: imageGenLLMRequest,
   VISION_LLM_CHAIN: VISION_LLM_CHAIN,
-  IMAGE_GEN_LLM_CHAIN: IMAGE_GEN_LLM_CHAIN
+  IMAGE_GEN_LLM_CHAIN: IMAGE_GEN_LLM_CHAIN,
+  getVendorConfigs: getVendorConfigs,
+  buildVendorConfigsFromLegacy: buildVendorConfigsFromLegacy,
+  saveVendorModels: saveVendorModels,
+  migrateDedicatedKeys: migrateDedicatedKeys
 };

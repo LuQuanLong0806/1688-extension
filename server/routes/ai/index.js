@@ -350,3 +350,51 @@ router.post('/qwen-vl-config/delete', function (req, res) {
 module.exports = router;
 module.exports.extractSearchKeywordsPublic = categoryRouter.extractSearchKeywordsPublic;
 module.exports.clearConfigCache = categoryRouter.clearConfigCache;
+
+// ===== 厂商分组配置端点 =====
+
+// 首次访问时迁移旧专用Key
+function ensureVendorMigration() {
+  try {
+    var migrated = require('../../db').getOne("SELECT value FROM settings WHERE key = 'ai_vendor_migrated'");
+    if (!migrated) {
+      providers.migrateDedicatedKeys();
+      require('../../db').run("INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_vendor_migrated', '1')");
+      require('../../db').scheduleSave();
+    }
+  } catch(e) {
+    console.log('[厂商配置] 迁移检查异常:', e.message);
+  }
+}
+
+// 获取厂商分组配置（Key脱敏）
+router.get('/vendor-configs', function (req, res) {
+  ensureVendorMigration();
+  var vc = providers.getVendorConfigs();
+  if (!vc) vc = providers.buildVendorConfigsFromLegacy();
+  // 注入Key状态（脱敏）
+  var zhipuKeys = providers.getZhipuKeys();
+  var qwenKeys = providers.getQwenKeys();
+  var hunyuanAccounts = providers.getHunyuanAccounts();
+  vc.vendors.zhipu.keys = zhipuKeys.map(function (e) {
+    return { key: providers.maskApiKey(e.key), label: e.label || '' };
+  });
+  vc.vendors.qwen.keys = qwenKeys.map(function (e) {
+    return { key: providers.maskApiKey(e.key), label: e.label || '' };
+  });
+  vc.vendors.hunyuan.accounts = hunyuanAccounts.map(function (a) {
+    return { secretId: providers.maskApiKey(a.secretId), secretKey: providers.maskApiKey(a.secretKey), label: a.label || '' };
+  });
+  vc.vendors.ollama.configured = !!(vc.vendors.ollama && vc.vendors.ollama.model);
+  res.json(vc);
+});
+
+// 更新厂商模型选择
+router.post('/vendor-model', function (req, res) {
+  var vendor = req.body.vendor;
+  var modelType = req.body.modelType;
+  var modelId = req.body.modelId;
+  if (!vendor || !modelType || !modelId) return res.status(400).json({ error: '参数不完整' });
+  providers.saveVendorModels(vendor, modelType, modelId);
+  res.json({ ok: true });
+});
