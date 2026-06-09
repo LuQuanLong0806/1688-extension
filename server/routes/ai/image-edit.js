@@ -132,7 +132,6 @@ router.post('/recognize-image', function (req, res) {
   }
 
   var apiKey = providers.getQwenVlKey();
-  if (!apiKey) return res.status(503).json({ error: '未配置通义千问VL API Key，请在API设置中配置' });
 
   // 构造图片内容：优先base64，其次URL
   var imageContent;
@@ -149,7 +148,7 @@ router.post('/recognize-image', function (req, res) {
   console.log('[AI识别] 开始, model:', model);
   var t0 = Date.now();
 
-  providers.qwenVlRequest(imageContent, prompt, model, apiKey).then(function (result) {
+  providers.recognizeLLMRequest(imageContent, prompt, model).then(function (result) {
     console.log('[AI识别] 完成, 耗时:', Date.now() - t0, 'ms, tokens:', result.totalTokens);
     res.json({ ok: true, text: result.text, tokens: result });
   }).catch(function (err) {

@@ -181,8 +181,8 @@ function qwenChatRequest(messages, temperature, maxTokens, apiKey) {
   });
 }
 
-// 通义千问 VL（视觉理解）— 用于图片识别/商品分析
-function qwenVlRequest(imageContent, prompt, model, apiKey) {
+// 通义千问 VL（视觉理解）— 内部调用，接收 apiKey 参数
+function qwenVlRequestRaw(imageContent, prompt, model, apiKey) {
   return new Promise(function (resolve, reject) {
     if (!apiKey) return reject(new Error('未配置通义千问VL API Key'));
     var body = {
@@ -220,6 +220,12 @@ function qwenVlRequest(imageContent, prompt, model, apiKey) {
     req.write(data);
     req.end();
   });
+}
+
+// 兼容旧调用：qwenVlRequest 仍从 Key 池取 Key
+function qwenVlRequest(imageContent, prompt, model, apiKey) {
+  var key = apiKey || getQwenVlKey();
+  return qwenVlRequestRaw(imageContent, prompt, model, key);
 }
 
 function hmacSha256(key, msg) { return crypto.createHmac('sha256', key).update(msg, 'utf8').digest(); }
@@ -367,6 +373,22 @@ function dispatchByCategory(category, apiPath, body) {
     if (entry.vendor === 'qwen') {
       var keys = getQwenKeys();
       if (!keys.length) return tryEntry(i + 1);
+      // 视觉识别：body._vlImageContent 存在时走 qwenVl 格式
+      if (body._vlImageContent) {
+        var imgContent = body._vlImageContent;
+        var vlPrompt = (body.messages && body.messages[0] && body.messages[0].content) || '';
+        return tryKeysDispatch('qwen', keys, 0, function (k) {
+          return qwenVlRequestRaw(imgContent, vlPrompt, entry.model, k.key || k);
+        }).then(function (r) { markModelSuccess(label); return r; })
+          .catch(function (err) {
+            if (err && err.message === '__ALL_KEYS_EXHAUSTED__') {
+              markModelFail(label);
+              console.log('[调度]', label, '所有Key限流，跳下一厂商');
+              return tryEntry(i + 1);
+            }
+            markModelFail(label); throw err;
+          });
+      }
       return tryKeysDispatch('qwen', keys, 0, function (k) {
         return qwenChatRequest(body.messages, body.temperature, body.max_tokens, k.key || k);
       }).then(function (r) { markModelSuccess(label); return r; })
@@ -424,6 +446,14 @@ function categoryLLMRequest(apiPath, body) { return dispatchByCategory('text', a
 function extractionLLMRequest(apiPath, body) { return dispatchByCategory('text', apiPath, body); }
 function visionLLMRequest(apiPath, body) { return dispatchByCategory('vision', apiPath, body); }
 function imageGenLLMRequest(apiPath, body) { return dispatchByCategory('image', apiPath, body); }
+function recognizeLLMRequest(imageContent, prompt, model) {
+  return dispatchByCategory('vision', '/chat/completions', {
+    _vlImageContent: imageContent,
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.3,
+    max_tokens: 1024
+  });
+}
 
 var modelHealthCache = {};
 function isModelBlocked(name) {
@@ -687,6 +717,7 @@ module.exports = {
   categoryLLMRequest, extractionLLMRequest, runLLMChain,
   visionLLMRequest: visionLLMRequest,
   imageGenLLMRequest: imageGenLLMRequest,
+  recognizeLLMRequest: recognizeLLMRequest,
   VISION_LLM_CHAIN: VISION_LLM_CHAIN,
   IMAGE_GEN_LLM_CHAIN: IMAGE_GEN_LLM_CHAIN,
   getVendorConfigs: getVendorConfigs,
