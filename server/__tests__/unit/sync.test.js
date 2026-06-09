@@ -9,12 +9,12 @@ let cloudDb; // 云端数据库（模拟 Turso）
 // 表结构 DDL
 const TABLE_DDLS = [
   `CREATE TABLE IF NOT EXISTS products (id INTEGER PRIMARY KEY AUTOINCREMENT, uid TEXT DEFAULT '', source_url TEXT NOT NULL, title TEXT, main_images TEXT DEFAULT '', desc_images TEXT DEFAULT '', detail_images TEXT DEFAULT '', attrs TEXT DEFAULT '', skus TEXT DEFAULT '', status INTEGER DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, category TEXT DEFAULT '', custom_category TEXT DEFAULT '', dxm_category TEXT DEFAULT '', manual_category TEXT DEFAULT '', deleted INTEGER DEFAULT 0, automation_stage TEXT DEFAULT 'none', automation_log TEXT DEFAULT '', automation_issues TEXT DEFAULT '', automation_started_at DATETIME, automation_finished_at DATETIME)`,
-  `CREATE TABLE IF NOT EXISTS category_mappings (id INTEGER PRIMARY KEY AUTOINCREMENT, category_name TEXT NOT NULL, custom_category TEXT NOT NULL, count INTEGER DEFAULT 1, source TEXT DEFAULT 'auto', UNIQUE(category_name, custom_category))`,
-  `CREATE TABLE IF NOT EXISTS keyword_category_rel (id INTEGER PRIMARY KEY AUTOINCREMENT, keyword TEXT NOT NULL, category_name TEXT NOT NULL, weight REAL DEFAULT 1.0, match_count INTEGER DEFAULT 1, valid INTEGER DEFAULT 1, source TEXT DEFAULT 'auto', created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, UNIQUE(keyword, category_name))`,
-  `CREATE TABLE IF NOT EXISTS keyword_synonyms (id INTEGER PRIMARY KEY AUTOINCREMENT, word_a TEXT NOT NULL, word_b TEXT NOT NULL, UNIQUE(word_a, word_b))`,
-  `CREATE TABLE IF NOT EXISTS keyword_blacklist (id INTEGER PRIMARY KEY AUTOINCREMENT, keyword TEXT NOT NULL, category_name TEXT NOT NULL, reason TEXT DEFAULT '', count INTEGER DEFAULT 1, updated_at TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE(keyword, category_name))`,
-  `CREATE TABLE IF NOT EXISTS category_config (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, value TEXT NOT NULL, group_name TEXT DEFAULT '', description TEXT DEFAULT '', sort_order INTEGER DEFAULT 0, deleted INTEGER DEFAULT 0, UNIQUE(type, value, group_name))`,
-  `CREATE TABLE IF NOT EXISTS dxm_category_tree (cat_id INTEGER PRIMARY KEY, cat_name TEXT NOT NULL, parent_cat_id INTEGER DEFAULT 0, cat_level INTEGER DEFAULT 1, is_leaf INTEGER DEFAULT 0, path TEXT DEFAULT '', sync_at DATETIME DEFAULT CURRENT_TIMESTAMP)`
+  `CREATE TABLE IF NOT EXISTS category_mappings (id INTEGER PRIMARY KEY AUTOINCREMENT, category_name TEXT NOT NULL, custom_category TEXT NOT NULL, count INTEGER DEFAULT 1, source TEXT DEFAULT 'auto', created_at TEXT DEFAULT '', updated_at TEXT DEFAULT '', UNIQUE(category_name, custom_category))`,
+  `CREATE TABLE IF NOT EXISTS keyword_category_rel (id INTEGER PRIMARY KEY AUTOINCREMENT, keyword TEXT NOT NULL, category_name TEXT NOT NULL, weight REAL DEFAULT 1.0, match_count INTEGER DEFAULT 1, valid INTEGER DEFAULT 1, source TEXT DEFAULT 'auto', created_at TEXT DEFAULT '', updated_at TEXT DEFAULT '', UNIQUE(keyword, category_name))`,
+  `CREATE TABLE IF NOT EXISTS keyword_synonyms (id INTEGER PRIMARY KEY AUTOINCREMENT, word_a TEXT NOT NULL, word_b TEXT NOT NULL, created_at TEXT DEFAULT '', updated_at TEXT DEFAULT '', UNIQUE(word_a, word_b))`,
+  `CREATE TABLE IF NOT EXISTS keyword_blacklist (id INTEGER PRIMARY KEY AUTOINCREMENT, keyword TEXT NOT NULL, category_name TEXT NOT NULL, reason TEXT DEFAULT '', count INTEGER DEFAULT 1, created_at TEXT DEFAULT '', updated_at TEXT DEFAULT '', UNIQUE(keyword, category_name))`,
+  `CREATE TABLE IF NOT EXISTS category_config (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, value TEXT NOT NULL, group_name TEXT DEFAULT '', description TEXT DEFAULT '', sort_order INTEGER DEFAULT 0, deleted INTEGER DEFAULT 0, created_at TEXT DEFAULT '', updated_at TEXT DEFAULT '', UNIQUE(type, value, group_name))`,
+  `CREATE TABLE IF NOT EXISTS dxm_category_tree (cat_id INTEGER PRIMARY KEY, cat_name TEXT NOT NULL, parent_cat_id INTEGER DEFAULT 0, cat_level INTEGER DEFAULT 1, is_leaf INTEGER DEFAULT 0, path TEXT DEFAULT '', sync_at TEXT DEFAULT '', created_at TEXT DEFAULT '', updated_at TEXT DEFAULT '')`
 ];
 
 // ===== 数据库操作封装 =====
@@ -794,5 +794,106 @@ describe('完整多电脑场景', () => {
     expect(localRow.count).toBe(8);
     const cloudRow = dbGetOne(cloudDb, "SELECT count FROM category_mappings WHERE category_name = '毛巾'");
     expect(cloudRow.count).toBe(8);
+  });
+});
+
+// ============================================================
+// 13. since 参数过滤测试
+// ============================================================
+describe('since 参数过滤', () => {
+  test('uploadProducts with since 只上传最近更新的商品', async () => {
+    dbRun(localDb, "INSERT INTO products (uid, source_url, title, updated_at) VALUES ('u1', 'https://offer1.html', '旧商品', '2025-01-01 00:00:00')");
+    dbRun(localDb, "INSERT INTO products (uid, source_url, title, updated_at) VALUES ('u2', 'https://offer2.html', '新商品', '2026-06-09 00:00:00')");
+    const result = await syncModule.uploadProducts({ since: '2026-06-01' });
+    expect(result.ok).toBe(true);
+    expect(result.total).toBe(1);
+    expect(cloudCount('products')).toBe(1);
+    const cloudRow = dbGetOne(cloudDb, "SELECT title FROM products WHERE uid = 'u2'");
+    expect(cloudRow.title).toBe('新商品');
+  });
+
+  test('uploadProducts without since 上传全部', async () => {
+    dbRun(localDb, "INSERT INTO products (uid, source_url, title, updated_at) VALUES ('u1', 'https://offer1.html', '旧商品', '2025-01-01 00:00:00')");
+    dbRun(localDb, "INSERT INTO products (uid, source_url, title, updated_at) VALUES ('u2', 'https://offer2.html', '新商品', '2026-06-09 00:00:00')");
+    const result = await syncModule.uploadProducts();
+    expect(result.ok).toBe(true);
+    expect(result.total).toBe(2);
+    expect(cloudCount('products')).toBe(2);
+  });
+
+  test('downloadProducts with since 只下载最近更新的商品', async () => {
+    dbRun(cloudDb, "INSERT INTO products (uid, source_url, title, updated_at) VALUES ('u1', 'https://offer1.html', '旧商品', '2025-01-01 00:00:00')");
+    dbRun(cloudDb, "INSERT INTO products (uid, source_url, title, updated_at) VALUES ('u2', 'https://offer2.html', '新商品', '2026-06-09 00:00:00')");
+    const result = await syncModule.downloadProducts({ since: '2026-06-01' });
+    expect(result.ok).toBe(true);
+    expect(result.cloudTotal).toBe(1);
+    expect(result.added).toBe(1);
+    const localRow = dbGetOne(localDb, "SELECT title FROM products WHERE uid = 'u2'");
+    expect(localRow.title).toBe('新商品');
+  });
+
+  test('downloadProducts without since 下载全部', async () => {
+    dbRun(cloudDb, "INSERT INTO products (uid, source_url, title, updated_at) VALUES ('u1', 'https://offer1.html', '旧商品', '2025-01-01 00:00:00')");
+    dbRun(cloudDb, "INSERT INTO products (uid, source_url, title, updated_at) VALUES ('u2', 'https://offer2.html', '新商品', '2026-06-09 00:00:00')");
+    const result = await syncModule.downloadProducts();
+    expect(result.ok).toBe(true);
+    expect(result.cloudTotal).toBe(2);
+    expect(result.added).toBe(2);
+  });
+
+  test('pushTable with since 只推送最近更新的行', async () => {
+    dbRun(localDb, "INSERT INTO category_mappings (category_name, custom_category, count, source, updated_at) VALUES ('旧类目', '旧分类', 1, 'auto', '2025-01-01 00:00:00')");
+    dbRun(localDb, "INSERT INTO category_mappings (category_name, custom_category, count, source, updated_at) VALUES ('新类目', '新分类', 2, 'auto', '2026-06-09 00:00:00')");
+    const result = await syncModule.pushTable('mappings', { since: '2026-06-01' });
+    expect(result.ok).toBe(true);
+    expect(result.pushed).toBe(1);
+    expect(cloudCount('category_mappings')).toBe(1);
+  });
+
+  test('pullTable with since 只拉取最近更新的行', async () => {
+    dbRun(cloudDb, "INSERT INTO category_mappings (category_name, custom_category, count, source, updated_at) VALUES ('旧类目', '旧分类', 1, 'auto', '2025-01-01 00:00:00')");
+    dbRun(cloudDb, "INSERT INTO category_mappings (category_name, custom_category, count, source, updated_at) VALUES ('新类目', '新分类', 2, 'auto', '2026-06-09 00:00:00')");
+    const result = await syncModule.pullTable('mappings', { since: '2026-06-01' });
+    expect(result.ok).toBe(true);
+    expect(result.added).toBe(1);
+    expect(localCount('category_mappings')).toBe(1);
+  });
+
+  test('pushTable without since 推送全部', async () => {
+    dbRun(localDb, "INSERT INTO category_mappings (category_name, custom_category, count, source, updated_at) VALUES ('旧类目', '旧分类', 1, 'auto', '2025-01-01 00:00:00')");
+    dbRun(localDb, "INSERT INTO category_mappings (category_name, custom_category, count, source, updated_at) VALUES ('新类目', '新分类', 2, 'auto', '2026-06-09 00:00:00')");
+    const result = await syncModule.pushTable('mappings');
+    expect(result.ok).toBe(true);
+    expect(result.pushed).toBe(2);
+  });
+});
+
+// ============================================================
+// 14. 时间戳字段测试
+// ============================================================
+describe('时间戳字段', () => {
+  test('uploadProducts 新行有 updated_at', async () => {
+    dbRun(localDb, "INSERT INTO products (uid, source_url, title, updated_at) VALUES ('u1', 'https://offer1.html', '商品', '2026-06-09 12:00:00')");
+    await syncModule.uploadProducts();
+    const cloudRow = dbGetOne(cloudDb, "SELECT updated_at FROM products WHERE uid = 'u1'");
+    expect(cloudRow.updated_at).toBe('2026-06-09 12:00:00');
+  });
+
+  test('pushTable mappings INSERT 包含时间戳字段', async () => {
+    dbRun(localDb, "INSERT INTO category_mappings (category_name, custom_category, count, source, created_at, updated_at) VALUES ('测试', '分类', 1, 'manual', '2026-06-09 10:00:00', '2026-06-09 12:00:00')");
+    await syncModule.pushTable('mappings');
+    const cloudRow = dbGetOne(cloudDb, "SELECT created_at, updated_at FROM category_mappings WHERE category_name = '测试'");
+    expect(cloudRow).toBeTruthy();
+    expect(cloudRow.created_at).toBeTruthy();
+    expect(cloudRow.updated_at).toBeTruthy();
+  });
+
+  test('pullTable category_config INSERT 包含时间戳字段', async () => {
+    dbRun(cloudDb, "INSERT INTO category_config (type, value, group_name, description, sort_order, deleted, created_at, updated_at) VALUES ('noise', '爆款', '', '噪词', 1, 0, '2026-06-09 10:00:00', '2026-06-09 12:00:00')");
+    await syncModule.pullTable('category-config');
+    const localRow = dbGetOne(localDb, "SELECT created_at, updated_at FROM category_config WHERE value = '爆款'");
+    expect(localRow).toBeTruthy();
+    expect(localRow.created_at).toBeTruthy();
+    expect(localRow.updated_at).toBeTruthy();
   });
 });

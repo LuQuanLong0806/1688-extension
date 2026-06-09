@@ -95,7 +95,7 @@ router.post('/table-push/:key', async (req, res) => {
     var connected = await cloudDb.connect();
     if (!connected) return res.status(400).json({ error: '未连接到 Turso' });
   }
-  var result = await cloudDb.pushTable(req.params.key);
+  var result = await cloudDb.pushTable(req.params.key, { since: req.body.since || null });
   res.json(result);
 });
 
@@ -104,7 +104,7 @@ router.post('/table-pull/:key', async (req, res) => {
     var connected = await cloudDb.connect();
     if (!connected) return res.status(400).json({ error: '未连接到 Turso' });
   }
-  var result = await cloudDb.pullTable(req.params.key);
+  var result = await cloudDb.pullTable(req.params.key, { since: req.body.since || null });
   res.json(result);
 });
 
@@ -113,8 +113,9 @@ router.post('/table-sync/:key', async (req, res) => {
     var connected = await cloudDb.connect();
     if (!connected) return res.status(400).json({ error: '未连接到 Turso' });
   }
-  var pull = await cloudDb.pullTable(req.params.key);
-  var push = await cloudDb.pushTable(req.params.key);
+  var opts = { since: req.body.since || null };
+  var pull = await cloudDb.pullTable(req.params.key, opts);
+  var push = await cloudDb.pushTable(req.params.key, opts);
   res.json({ ok: true, pull: pull, push: push });
 });
 
@@ -159,7 +160,7 @@ router.post('/product-push', async (req, res) => {
     var connected = await cloudDb.connect();
     if (!connected) return res.status(400).json({ error: '未连接到 Turso' });
   }
-  var result = await cloudDb.uploadProducts();
+  var result = await cloudDb.uploadProducts({ since: req.body.since || null });
   res.json(result);
 });
 
@@ -169,7 +170,7 @@ router.post('/product-pull', async (req, res) => {
     var connected = await cloudDb.connect();
     if (!connected) return res.status(400).json({ error: '未连接到 Turso' });
   }
-  var result = await cloudDb.downloadProducts();
+  var result = await cloudDb.downloadProducts({ since: req.body.since || null });
   res.json(result);
 });
 
@@ -179,8 +180,8 @@ router.post('/product-sync', async (req, res) => {
     var connected = await cloudDb.connect();
     if (!connected) return res.status(400).json({ error: '未连接到 Turso' });
   }
-  var pull = await cloudDb.downloadProducts();
-  var push = await cloudDb.uploadProducts();
+  var pull = await cloudDb.downloadProducts({ since: req.body.since || null });
+  var push = await cloudDb.uploadProducts({ since: req.body.since || null });
   res.json({ ok: true, pull: pull, push: push });
 });
 

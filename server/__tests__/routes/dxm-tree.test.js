@@ -191,4 +191,62 @@ describe('DXM Tree 路由', () => {
       expect(res.body.path).toBe('');
     });
   });
+
+  // ========== 时间戳验证测试 ==========
+
+  describe('时间戳字段验证', () => {
+    test('POST /api/dxm-category/collect 新增节点写入 created_at 和 updated_at', async () => {
+      await request(app).post('/api/dxm-category/collect').send({
+        path: '家居/厨房/锅具',
+        leafName: '锅具'
+      });
+      const row = setup.treeGetOne("SELECT created_at, updated_at FROM dxm_category_tree WHERE cat_name = '锅具'");
+      expect(row).toBeTruthy();
+      expect(row.created_at).toBeTruthy();
+      expect(row.updated_at).toBeTruthy();
+      expect(row.created_at.length).toBeGreaterThan(0);
+      expect(row.updated_at.length).toBeGreaterThan(0);
+    });
+
+    test('POST /api/dxm-category/collect 重复路径更新 updated_at', async () => {
+      await request(app).post('/api/dxm-category/collect').send({
+        path: '家居/厨房/砧板',
+        leafName: '砧板'
+      });
+      const before = setup.treeGetOne("SELECT created_at, updated_at FROM dxm_category_tree WHERE cat_name = '砧板'");
+      // 再次收集同一路径
+      await request(app).post('/api/dxm-category/collect').send({
+        path: '家居/厨房/砧板',
+        leafName: '砧板'
+      });
+      const after = setup.treeGetOne("SELECT created_at, updated_at FROM dxm_category_tree WHERE cat_name = '砧板'");
+      expect(after.created_at).toBe(before.created_at); // created_at 不变
+      expect(after.updated_at).toBeTruthy();
+    });
+
+    test('POST /api/dxm-tree/sync 新增节点写入 created_at 和 updated_at', async () => {
+      await request(app).post('/api/dxm-tree/sync').send({
+        categories: [{ catId: 3001, catName: '家居', parentCatId: 0, catLevel: 1, isLeaf: false, path: '家居' }]
+      });
+      const row = setup.treeGetOne('SELECT created_at, updated_at FROM dxm_category_tree WHERE cat_id = 3001');
+      expect(row).toBeTruthy();
+      expect(row.created_at).toBeTruthy();
+      expect(row.updated_at).toBeTruthy();
+    });
+
+    test('POST /api/dxm-tree/sync 更新已有节点时 updated_at 更新', async () => {
+      await request(app).post('/api/dxm-tree/sync').send({
+        categories: [{ catId: 4001, catName: '旧名', parentCatId: 0, catLevel: 1, isLeaf: false, path: '旧名' }]
+      });
+      const before = setup.treeGetOne('SELECT created_at, updated_at FROM dxm_category_tree WHERE cat_id = 4001');
+      // 更新
+      await request(app).post('/api/dxm-tree/sync').send({
+        categories: [{ catId: 4001, catName: '新名', parentCatId: 0, catLevel: 1, isLeaf: true, path: '新名' }]
+      });
+      const after = setup.treeGetOne('SELECT created_at, updated_at, cat_name FROM dxm_category_tree WHERE cat_id = 4001');
+      expect(after.cat_name).toBe('新名');
+      expect(after.created_at).toBe(before.created_at); // created_at 不变
+      expect(after.updated_at).toBeTruthy();
+    });
+  });
 });

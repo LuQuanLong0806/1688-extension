@@ -303,4 +303,54 @@ describe('Categories 路由', () => {
       expect(cloudDb.getCategoryConfig).toHaveBeenCalledWith('noise');
     });
   });
+
+  // ========== 时间戳验证测试 ==========
+
+  describe('时间戳字段验证', () => {
+    test('POST /api/category-mappings 写入 created_at 和 updated_at', async () => {
+      await request(app).post('/api/category-mappings').send({
+        categoryName: '时间戳测试类目', customCategory: '时间戳DXM类目'
+      });
+      const row = setup.getOne("SELECT created_at, updated_at FROM category_mappings WHERE category_name = '时间戳测试类目'");
+      expect(row).toBeTruthy();
+      expect(row.created_at).toBeTruthy();
+      expect(row.updated_at).toBeTruthy();
+      expect(row.created_at.length).toBeGreaterThan(0);
+      expect(row.updated_at.length).toBeGreaterThan(0);
+    });
+
+    test('DELETE /api/keyword-rels/:id 更新 updated_at', async () => {
+      const before = setup.getOne("SELECT updated_at FROM keyword_category_rel WHERE keyword = '搓澡'");
+      const row = setup.getOne("SELECT id FROM keyword_category_rel WHERE keyword = '搓澡'");
+      await request(app).delete('/api/keyword-rels/' + row.id);
+      const after = setup.getOne("SELECT updated_at FROM keyword_category_rel WHERE id = ?", [row.id]);
+      expect(after.updated_at).toBeTruthy();
+    });
+
+    test('POST /api/keyword-rels/batch-invalidate 更新 updated_at', async () => {
+      const rows = setup.getAll("SELECT id FROM keyword_category_rel");
+      const ids = rows.map(r => r.id);
+      await request(app).post('/api/keyword-rels/batch-invalidate').send({ ids });
+      const after = setup.getAll("SELECT updated_at FROM keyword_category_rel");
+      after.forEach(r => {
+        expect(r.updated_at).toBeTruthy();
+        expect(r.updated_at.length).toBeGreaterThan(0);
+      });
+    });
+
+    test('POST /api/keyword-synonyms 写入 created_at 和 updated_at', async () => {
+      await request(app).post('/api/keyword-synonyms').send({ wordA: '毛巾', wordB: '浴巾' });
+      const row = setup.getOne("SELECT created_at, updated_at FROM keyword_synonyms WHERE word_a = '毛巾'");
+      expect(row).toBeTruthy();
+      expect(row.created_at).toBeTruthy();
+      expect(row.updated_at).toBeTruthy();
+    });
+
+    test('POST /api/keyword-blacklist 写入 created_at', async () => {
+      await request(app).post('/api/keyword-blacklist').send({ keyword: '限时', categoryName: '厨房用品', reason: '营销词' });
+      const row = setup.getOne("SELECT created_at FROM keyword_blacklist WHERE keyword = '限时'");
+      expect(row).toBeTruthy();
+      expect(row.created_at).toBeTruthy();
+    });
+  });
 });

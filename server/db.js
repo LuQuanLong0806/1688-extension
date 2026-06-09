@@ -434,6 +434,32 @@ async function initDb() {
     }
   } catch (e) {}
 
+  // 补列：知识库表增加 created_at / updated_at
+  var alterTimestamps = [
+    'ALTER TABLE category_mappings ADD COLUMN created_at TEXT DEFAULT \'\'',
+    'ALTER TABLE category_mappings ADD COLUMN updated_at TEXT DEFAULT \'\'',
+    'ALTER TABLE keyword_synonyms ADD COLUMN created_at TEXT DEFAULT \'\'',
+    'ALTER TABLE keyword_synonyms ADD COLUMN updated_at TEXT DEFAULT \'\'',
+    'ALTER TABLE keyword_blacklist ADD COLUMN created_at TEXT DEFAULT \'\'',
+    'ALTER TABLE category_config ADD COLUMN created_at TEXT DEFAULT \'\'',
+    'ALTER TABLE category_config ADD COLUMN updated_at TEXT DEFAULT \'\''
+  ];
+  for (var ai = 0; ai < alterTimestamps.length; ai++) {
+    try { run(alterTimestamps[ai]); } catch (e) {}
+  }
+  // 回填：已有行的 updated_at 设为当前时间，确保日期过滤能覆盖
+  var backfillTables = ['category_mappings', 'keyword_synonyms', 'keyword_blacklist', 'category_config'];
+  var backfillKey = 'migration_timestamp_backfill';
+  try {
+    var backfillCheck = getOne("SELECT value FROM settings WHERE key = '" + backfillKey + "'");
+    if (!backfillCheck) {
+      for (var bi = 0; bi < backfillTables.length; bi++) {
+        try { run('UPDATE ' + backfillTables[bi] + " SET updated_at = datetime('now') WHERE updated_at = '' OR updated_at IS NULL"); } catch (e) {}
+      }
+      run("INSERT OR REPLACE INTO settings (key, value) VALUES ('" + backfillKey + "', '1')");
+    }
+  } catch (e) {}
+
   saveDb();
 }
 
@@ -469,6 +495,11 @@ async function initTreeDb() {
   for (var ti = 0; ti < treeIndexes.length; ti++) {
     try { treeDb.run(treeIndexes[ti]); } catch (e) {}
   }
+  // 补列：分类树增加 created_at / updated_at
+  try { treeDb.run('ALTER TABLE dxm_category_tree ADD COLUMN created_at TEXT DEFAULT \'\''); } catch (e) {}
+  try { treeDb.run('ALTER TABLE dxm_category_tree ADD COLUMN updated_at TEXT DEFAULT \'\''); } catch (e) {}
+  // 回填已有行
+  try { treeDb.run("UPDATE dxm_category_tree SET updated_at = datetime('now') WHERE updated_at = '' OR updated_at IS NULL"); } catch (e) {}
   scheduleTreeSave();
 }
 

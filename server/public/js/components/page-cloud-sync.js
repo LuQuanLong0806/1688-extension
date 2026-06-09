@@ -8,6 +8,7 @@ Vue.component('page-cloud-sync', {
       syncing: false,
       syncingType: '',
       syncResult: null,
+      productDateRange: [],
       sections: [
         {
           title: '大数据量',
@@ -157,7 +158,11 @@ Vue.component('page-cloud-sync', {
       var actionLabel = action === 'push' ? '上传' : action === 'pull' ? '拉取' : '双向同步';
       var run = function () {
         vm.setBusy(busyKey);
-        fetch(url, { method: 'POST' })
+        var body = {};
+        if (t.key === 'product' && vm.productDateRange && vm.productDateRange[0]) {
+          body.since = new Date(vm.productDateRange[0]).toISOString().substring(0, 10);
+        }
+        fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
           .then(function (r) { return r.json(); })
           .then(function (data) { data.ok ? vm.done(label + actionLabel + '完成', data) : vm.fail(data.error || '操作失败'); })
           .catch(function () { vm.fail(label + actionLabel + '失败'); });
@@ -218,6 +223,12 @@ Vue.component('page-cloud-sync', {
             <div class="sync-card-body">\
               <div class="sync-card-label">{{ t.label }}</div>\
               <div class="sync-card-desc">{{ t.desc }}</div>\
+              <div v-if="t.key === \'product\'" class="sync-card-filter">\
+                <span>同步范围</span>\
+                <DatePicker type="daterange" v-model="productDateRange" size="small"\
+                  placeholder="选择日期范围" style="width:220px" />\
+                <Button size="small" @click="productDateRange = []">全部</Button>\
+              </div>\
             </div>\
             <div class="sync-card-actions">\
               <Button :loading="isBusy(t.key + \'-push\')" @click="doAction(t, \'push\')">上传</Button>\

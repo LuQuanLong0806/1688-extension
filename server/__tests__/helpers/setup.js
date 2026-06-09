@@ -12,14 +12,14 @@ const LOCAL_TABLE_DEFS = [
   { name: 'settings', ddl: `CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)` },
   { name: 'categories', ddl: `CREATE TABLE IF NOT EXISTS categories (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, custom_name TEXT DEFAULT '', cat_id TEXT, leaf_category_id TEXT, top_category_id TEXT, post_category_id TEXT, count INTEGER DEFAULT 1, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)` },
   { name: 'dxm_categories', ddl: `CREATE TABLE IF NOT EXISTS dxm_categories (id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT NOT NULL UNIQUE, leaf_name TEXT NOT NULL, count INTEGER DEFAULT 1, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)` },
-  { name: 'category_mappings', ddl: `CREATE TABLE IF NOT EXISTS category_mappings (id INTEGER PRIMARY KEY AUTOINCREMENT, category_name TEXT NOT NULL, custom_category TEXT NOT NULL, count INTEGER DEFAULT 1, source TEXT DEFAULT 'auto', UNIQUE(category_name, custom_category))` },
+  { name: 'category_mappings', ddl: `CREATE TABLE IF NOT EXISTS category_mappings (id INTEGER PRIMARY KEY AUTOINCREMENT, category_name TEXT NOT NULL, custom_category TEXT NOT NULL, count INTEGER DEFAULT 1, source TEXT DEFAULT 'auto', created_at TEXT DEFAULT '', updated_at TEXT DEFAULT '', UNIQUE(category_name, custom_category))` },
   { name: 'keyword_category_rel', ddl: `CREATE TABLE IF NOT EXISTS keyword_category_rel (id INTEGER PRIMARY KEY AUTOINCREMENT, keyword TEXT NOT NULL, category_name TEXT NOT NULL, weight REAL DEFAULT 1.0, match_count INTEGER DEFAULT 1, valid INTEGER DEFAULT 1, source TEXT DEFAULT 'auto', created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, UNIQUE(keyword, category_name))` },
-  { name: 'keyword_synonyms', ddl: `CREATE TABLE IF NOT EXISTS keyword_synonyms (id INTEGER PRIMARY KEY AUTOINCREMENT, word_a TEXT NOT NULL, word_b TEXT NOT NULL, UNIQUE(word_a, word_b))` },
-  { name: 'keyword_blacklist', ddl: `CREATE TABLE IF NOT EXISTS keyword_blacklist (id INTEGER PRIMARY KEY AUTOINCREMENT, keyword TEXT NOT NULL, category_name TEXT NOT NULL, reason TEXT DEFAULT '', count INTEGER DEFAULT 1, updated_at TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE(keyword, category_name))` },
-  { name: 'category_config', ddl: `CREATE TABLE IF NOT EXISTS category_config (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, value TEXT NOT NULL, group_name TEXT DEFAULT '', description TEXT DEFAULT '', sort_order INTEGER DEFAULT 0, deleted INTEGER DEFAULT 0, UNIQUE(type, value, group_name))` }
+  { name: 'keyword_synonyms', ddl: `CREATE TABLE IF NOT EXISTS keyword_synonyms (id INTEGER PRIMARY KEY AUTOINCREMENT, word_a TEXT NOT NULL, word_b TEXT NOT NULL, created_at TEXT DEFAULT '', updated_at TEXT DEFAULT '', UNIQUE(word_a, word_b))` },
+  { name: 'keyword_blacklist', ddl: `CREATE TABLE IF NOT EXISTS keyword_blacklist (id INTEGER PRIMARY KEY AUTOINCREMENT, keyword TEXT NOT NULL, category_name TEXT NOT NULL, reason TEXT DEFAULT '', count INTEGER DEFAULT 1, created_at TEXT DEFAULT '', updated_at TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE(keyword, category_name))` },
+  { name: 'category_config', ddl: `CREATE TABLE IF NOT EXISTS category_config (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, value TEXT NOT NULL, group_name TEXT DEFAULT '', description TEXT DEFAULT '', sort_order INTEGER DEFAULT 0, deleted INTEGER DEFAULT 0, created_at TEXT DEFAULT '', updated_at TEXT DEFAULT '', UNIQUE(type, value, group_name))` }
 ];
 
-const TREE_DDL = `CREATE TABLE IF NOT EXISTS dxm_category_tree (cat_id INTEGER PRIMARY KEY, cat_name TEXT NOT NULL, parent_cat_id INTEGER DEFAULT 0, cat_level INTEGER DEFAULT 1, is_leaf INTEGER DEFAULT 0, path TEXT DEFAULT '', sync_at DATETIME DEFAULT CURRENT_TIMESTAMP)`;
+const TREE_DDL = `CREATE TABLE IF NOT EXISTS dxm_category_tree (cat_id INTEGER PRIMARY KEY, cat_name TEXT NOT NULL, parent_cat_id INTEGER DEFAULT 0, cat_level INTEGER DEFAULT 1, is_leaf INTEGER DEFAULT 0, path TEXT DEFAULT '', sync_at DATETIME DEFAULT CURRENT_TIMESTAMP, created_at TEXT DEFAULT '', updated_at TEXT DEFAULT '')`;
 
 // 创建 mock cloudDb
 function createMockCloudDb() {
@@ -307,7 +307,7 @@ function createCategoriesRouter(cloudDb) {
     if (!categoryName || !customCategory) return res.status(400).json({ error: '参数不完整' });
     const existing = getOne('SELECT id FROM category_mappings WHERE category_name = ? AND custom_category = ?', [categoryName, customCategory]);
     if (!existing) {
-      run('INSERT INTO category_mappings (category_name, custom_category, count, source) VALUES (?, ?, 1, \'manual\')', [categoryName, customCategory]);
+      run('INSERT INTO category_mappings (category_name, custom_category, count, source, created_at, updated_at) VALUES (?, ?, 1, \'manual\', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)', [categoryName, customCategory]);
     }
     res.json({ ok: true });
   });
@@ -327,14 +327,14 @@ function createCategoriesRouter(cloudDb) {
   });
 
   router.delete('/keyword-rels/:id', (req, res) => {
-    run('UPDATE keyword_category_rel SET valid = 0 WHERE id = ?', [parseInt(req.params.id)]);
+    run('UPDATE keyword_category_rel SET valid = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [parseInt(req.params.id)]);
     res.json({ ok: true });
   });
 
   router.post('/keyword-rels/batch-invalidate', (req, res) => {
     const ids = req.body.ids;
     if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ error: '请提供ids数组' });
-    ids.forEach(id => { run('UPDATE keyword_category_rel SET valid = 0 WHERE id = ?', [parseInt(id)]); });
+    ids.forEach(id => { run('UPDATE keyword_category_rel SET valid = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [parseInt(id)]); });
     res.json({ ok: true });
   });
 
@@ -352,7 +352,7 @@ function createCategoriesRouter(cloudDb) {
   router.post('/keyword-synonyms', (req, res) => {
     const { wordA, wordB } = req.body;
     if (!wordA || !wordB) return res.status(400).json({ error: '请提供wordA和wordB' });
-    run('INSERT OR IGNORE INTO keyword_synonyms (word_a, word_b) VALUES (?, ?)', [wordA, wordB]);
+    run('INSERT OR IGNORE INTO keyword_synonyms (word_a, word_b, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)', [wordA, wordB]);
     res.json({ ok: true });
   });
 
@@ -375,7 +375,7 @@ function createCategoriesRouter(cloudDb) {
   router.post('/keyword-blacklist', (req, res) => {
     const { keyword, categoryName, reason } = req.body;
     if (!keyword || !categoryName) return res.status(400).json({ error: '请提供keyword和categoryName' });
-    run('INSERT OR IGNORE INTO keyword_blacklist (keyword, category_name, reason) VALUES (?, ?, ?)', [keyword, categoryName, reason || '']);
+    run('INSERT OR IGNORE INTO keyword_blacklist (keyword, category_name, reason, created_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)', [keyword, categoryName, reason || '']);
     res.json({ ok: true });
   });
 
@@ -609,10 +609,10 @@ function createDxmTreeRouter() {
     if (!path || !leafName) return res.status(400).json({ error: 'Missing path or leafName' });
     const cleanPath = path.replace(/\s+/g, '');
     const existing = treeGetOne('SELECT cat_id FROM dxm_category_tree WHERE path = ?', [cleanPath]);
-    if (existing) { treeRun('UPDATE dxm_category_tree SET sync_at = CURRENT_TIMESTAMP WHERE cat_id = ?', [existing.cat_id]); }
+    if (existing) { treeRun('UPDATE dxm_category_tree SET sync_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE cat_id = ?', [existing.cat_id]); }
     else {
       const parts = cleanPath.split('/');
-      treeRun('INSERT INTO dxm_category_tree (cat_id, cat_name, parent_cat_id, cat_level, is_leaf, path) VALUES (?, ?, ?, ?, ?, ?)', [Date.now(), leafName, 0, parts.length, 1, cleanPath]);
+      treeRun('INSERT INTO dxm_category_tree (cat_id, cat_name, parent_cat_id, cat_level, is_leaf, path, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)', [Date.now(), leafName, 0, parts.length, 1, cleanPath]);
     }
     res.json({ ok: true });
   });
@@ -623,8 +623,8 @@ function createDxmTreeRouter() {
     let saved = 0;
     categories.forEach(c => {
       const existing = treeGetOne('SELECT cat_id FROM dxm_category_tree WHERE cat_id = ?', [c.catId]);
-      if (existing) { treeRun('UPDATE dxm_category_tree SET cat_name=?, parent_cat_id=?, cat_level=?, is_leaf=?, path=?, sync_at=CURRENT_TIMESTAMP WHERE cat_id=?', [c.catName, c.parentCatId, c.catLevel, c.isLeaf ? 1 : 0, c.path || '', c.catId]); }
-      else { treeRun('INSERT INTO dxm_category_tree (cat_id, cat_name, parent_cat_id, cat_level, is_leaf, path) VALUES (?, ?, ?, ?, ?, ?)', [c.catId, c.catName, c.parentCatId, c.catLevel, c.isLeaf ? 1 : 0, c.path || '']); }
+      if (existing) { treeRun('UPDATE dxm_category_tree SET cat_name=?, parent_cat_id=?, cat_level=?, is_leaf=?, path=?, sync_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP WHERE cat_id=?', [c.catName, c.parentCatId, c.catLevel, c.isLeaf ? 1 : 0, c.path || '', c.catId]); }
+      else { treeRun('INSERT INTO dxm_category_tree (cat_id, cat_name, parent_cat_id, cat_level, is_leaf, path, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)', [c.catId, c.catName, c.parentCatId, c.catLevel, c.isLeaf ? 1 : 0, c.path || '']); }
       saved++;
     });
     res.json({ ok: true, saved });

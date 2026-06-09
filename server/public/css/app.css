@@ -1144,6 +1144,7 @@ body {
 .sync-card-desc { font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sync-card-actions { display: flex; gap: 8px; flex-shrink: 0; }
 .sync-card-actions .ivu-btn { border-radius: var(--radius); font-size: 13px; padding: 5px 14px; }
+.sync-card-filter { display: flex; align-items: center; gap: 8px; padding: 6px 0 2px 0; font-size: 13px; color: var(--text-muted); }
 
 /* 操作结果 */
 .sync-result {

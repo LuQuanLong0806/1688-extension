@@ -49,9 +49,9 @@ function updateCategoryStats(category, customCategory) {
       [catName, category.catId || '', category.leafCategoryId || '', category.topCategoryId || '', category.postCategoryId || '']);
   }
   if (customCategory) {
-    run('INSERT OR IGNORE INTO category_mappings (category_name, custom_category) VALUES (?, ?)', [catName, customCategory]);
+    run('INSERT OR IGNORE INTO category_mappings (category_name, custom_category, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)', [catName, customCategory]);
     if (cloudDb.connected) {
-      cloudDb.cloudRun('INSERT OR IGNORE INTO category_mappings (category_name, custom_category, count, source) VALUES (?, ?, 1, ?)', [catName, customCategory, 'auto']).catch(function () {});
+      cloudDb.cloudRun('INSERT OR IGNORE INTO category_mappings (category_name, custom_category, count, source, created_at, updated_at) VALUES (?, ?, 1, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)', [catName, customCategory, 'auto']).catch(function () {});
     }
   }
 }
@@ -305,9 +305,9 @@ async function doRecommendAndSave(title, aliCat, attrs, productId) {
       if (aliCat && result.category && result.confidence >= 0.7) {
         var existingMap = getOne('SELECT id, count FROM category_mappings WHERE category_name = ? AND custom_category = ?', [aliCat, result.category]);
         if (existingMap) {
-          run('UPDATE category_mappings SET count = count + 1 WHERE id = ?', [existingMap.id]);
+          run('UPDATE category_mappings SET count = count + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [existingMap.id]);
         } else {
-          run('INSERT INTO category_mappings (category_name, custom_category, count, source) VALUES (?, ?, 1, \'auto\')', [aliCat, result.category]);
+          run('INSERT INTO category_mappings (category_name, custom_category, count, source, created_at, updated_at) VALUES (?, ?, 1, \'auto\', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)', [aliCat, result.category]);
         }
         console.log('[采集推荐] 产品#' + productId + ' 映射已固化: ' + aliCat + ' → ' + result.category + ' (置信度:' + result.confidence.toFixed(2) + ')');
       } else if (aliCat && result.category) {

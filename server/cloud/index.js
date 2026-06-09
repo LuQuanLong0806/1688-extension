@@ -44,12 +44,12 @@ var cloud = {
 
 // 云端表结构定义
 var CLOUD_TABLE_DEFS = [
-  { name: 'category_mappings', ddl: 'CREATE TABLE IF NOT EXISTS category_mappings (id INTEGER PRIMARY KEY AUTOINCREMENT, category_name TEXT NOT NULL, custom_category TEXT NOT NULL, count INTEGER DEFAULT 1, source TEXT DEFAULT \'auto\', UNIQUE(category_name, custom_category))' },
-  { name: 'keyword_category_rel', ddl: 'CREATE TABLE IF NOT EXISTS keyword_category_rel (id INTEGER PRIMARY KEY AUTOINCREMENT, keyword TEXT NOT NULL, category_name TEXT NOT NULL, weight REAL DEFAULT 1.0, match_count INTEGER DEFAULT 1, valid INTEGER DEFAULT 1, source TEXT DEFAULT \'auto\', created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE(keyword, category_name))' },
-  { name: 'keyword_synonyms', ddl: 'CREATE TABLE IF NOT EXISTS keyword_synonyms (id INTEGER PRIMARY KEY AUTOINCREMENT, word_a TEXT NOT NULL, word_b TEXT NOT NULL, UNIQUE(word_a, word_b))' },
-  { name: 'keyword_blacklist', ddl: 'CREATE TABLE IF NOT EXISTS keyword_blacklist (id INTEGER PRIMARY KEY AUTOINCREMENT, keyword TEXT NOT NULL, category_name TEXT NOT NULL, reason TEXT DEFAULT \'\', count INTEGER DEFAULT 1, updated_at TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE(keyword, category_name))' },
-  { name: 'category_config', ddl: 'CREATE TABLE IF NOT EXISTS category_config (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, value TEXT NOT NULL, group_name TEXT DEFAULT \'\', description TEXT DEFAULT \'\', sort_order INTEGER DEFAULT 0, deleted INTEGER DEFAULT 0, UNIQUE(type, value, group_name))' },
-  { name: 'dxm_category_tree', ddl: 'CREATE TABLE IF NOT EXISTS dxm_category_tree (cat_id INTEGER PRIMARY KEY, cat_name TEXT NOT NULL, parent_cat_id INTEGER DEFAULT 0, cat_level INTEGER DEFAULT 1, is_leaf INTEGER DEFAULT 0, path TEXT DEFAULT \'\', sync_at TEXT DEFAULT CURRENT_TIMESTAMP)' },
+  { name: 'category_mappings', ddl: 'CREATE TABLE IF NOT EXISTS category_mappings (id INTEGER PRIMARY KEY AUTOINCREMENT, category_name TEXT NOT NULL, custom_category TEXT NOT NULL, count INTEGER DEFAULT 1, source TEXT DEFAULT \'auto\', created_at TEXT DEFAULT \'\', updated_at TEXT DEFAULT \'\', UNIQUE(category_name, custom_category))' },
+  { name: 'keyword_category_rel', ddl: 'CREATE TABLE IF NOT EXISTS keyword_category_rel (id INTEGER PRIMARY KEY AUTOINCREMENT, keyword TEXT NOT NULL, category_name TEXT NOT NULL, weight REAL DEFAULT 1.0, match_count INTEGER DEFAULT 1, valid INTEGER DEFAULT 1, source TEXT DEFAULT \'auto\', created_at TEXT DEFAULT \'\', updated_at TEXT DEFAULT \'\', UNIQUE(keyword, category_name))' },
+  { name: 'keyword_synonyms', ddl: 'CREATE TABLE IF NOT EXISTS keyword_synonyms (id INTEGER PRIMARY KEY AUTOINCREMENT, word_a TEXT NOT NULL, word_b TEXT NOT NULL, created_at TEXT DEFAULT \'\', updated_at TEXT DEFAULT \'\', UNIQUE(word_a, word_b))' },
+  { name: 'keyword_blacklist', ddl: 'CREATE TABLE IF NOT EXISTS keyword_blacklist (id INTEGER PRIMARY KEY AUTOINCREMENT, keyword TEXT NOT NULL, category_name TEXT NOT NULL, reason TEXT DEFAULT \'\', count INTEGER DEFAULT 1, created_at TEXT DEFAULT \'\', updated_at TEXT DEFAULT \'\', UNIQUE(keyword, category_name))' },
+  { name: 'category_config', ddl: 'CREATE TABLE IF NOT EXISTS category_config (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, value TEXT NOT NULL, group_name TEXT DEFAULT \'\', description TEXT DEFAULT \'\', sort_order INTEGER DEFAULT 0, deleted INTEGER DEFAULT 0, created_at TEXT DEFAULT \'\', updated_at TEXT DEFAULT \'\', UNIQUE(type, value, group_name))' },
+  { name: 'dxm_category_tree', ddl: 'CREATE TABLE IF NOT EXISTS dxm_category_tree (cat_id INTEGER PRIMARY KEY, cat_name TEXT NOT NULL, parent_cat_id INTEGER DEFAULT 0, cat_level INTEGER DEFAULT 1, is_leaf INTEGER DEFAULT 0, path TEXT DEFAULT \'\', sync_at TEXT DEFAULT \'\', created_at TEXT DEFAULT \'\', updated_at TEXT DEFAULT \'\')' },
   { name: 'products', ddl: 'CREATE TABLE IF NOT EXISTS products (uid TEXT PRIMARY KEY, source_url TEXT DEFAULT \'\', title TEXT, main_images TEXT, desc_images TEXT, detail_images TEXT, attrs TEXT, skus TEXT, category TEXT, custom_category TEXT, dxm_category TEXT, manual_category TEXT, status INTEGER DEFAULT 0, deleted INTEGER DEFAULT 0, from_machine TEXT DEFAULT \'\', created_at TEXT, updated_at TEXT, automation_stage TEXT DEFAULT \'none\', automation_log TEXT DEFAULT \'\', automation_issues TEXT DEFAULT \'\', automation_started_at TEXT, automation_finished_at TEXT)' }
 ];
 
@@ -126,6 +126,17 @@ async function migrateCloudSchema() {
   }
 }
 
+// 回填云表已有行的 updated_at（一次性行为）
+async function backfillTimestamps() {
+  if (!cloud.client) return;
+  var tables = ['category_mappings', 'keyword_synonyms', 'keyword_blacklist', 'category_config', 'dxm_category_tree'];
+  for (var t = 0; t < tables.length; t++) {
+    try {
+      await cloud.client.execute("UPDATE " + tables[t] + " SET updated_at = datetime('now') WHERE updated_at = '' OR updated_at IS NULL");
+    } catch (e) {}
+  }
+}
+
 // 在云端建表
 async function createTables() {
   if (!cloud.client) return false;
@@ -139,6 +150,7 @@ async function createTables() {
   console.log('[云同步] 建表完成');
   await migrateCloudSchema();
   await migrateProductsUid();
+  await backfillTimestamps();
   return true;
 }
 

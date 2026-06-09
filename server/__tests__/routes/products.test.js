@@ -275,4 +275,44 @@ describe('Products 路由', () => {
       expect(Array.isArray(res.body)).toBe(true);
     });
   });
+
+  // ========== 时间戳验证测试 ==========
+
+  describe('时间戳字段验证', () => {
+    test('PUT /api/product/:id 更新商品时 updated_at 变化', async () => {
+      const row = insertTestProduct({});
+      const before = setup.getOne('SELECT updated_at FROM products WHERE id = ?', [row.id]);
+      // 等待一小段时间确保时间戳不同（SQLite CURRENT_TIMESTAMP）
+      await request(app).put('/api/product/' + row.id).send({ title: '更新后标题' });
+      const after = setup.getOne('SELECT updated_at, title FROM products WHERE id = ?', [row.id]);
+      expect(after.title).toBe('更新后标题');
+      expect(after.updated_at).toBeTruthy();
+    });
+
+    test('DELETE /api/product/:id 软删除时 updated_at 更新', async () => {
+      const row = insertTestProduct({});
+      await request(app).delete('/api/product/' + row.id);
+      const after = setup.getOne('SELECT deleted, updated_at FROM products WHERE id = ?', [row.id]);
+      expect(after.deleted).toBe(1);
+      expect(after.updated_at).toBeTruthy();
+    });
+
+    test('POST /api/product/batch-delete 批量删除时 updated_at 更新', async () => {
+      const row1 = insertTestProduct({});
+      const row2 = insertTestProduct({ source_url: 'https://detail.1688.com/offer/456.html' });
+      await request(app).post('/api/product/batch-delete').send({ ids: [row1.id, row2.id] });
+      const after = setup.getAll('SELECT updated_at FROM products WHERE id IN (?, ?)', [row1.id, row2.id]);
+      after.forEach(r => {
+        expect(r.updated_at).toBeTruthy();
+      });
+    });
+
+    test('POST /api/product/batch-status 批量状态更新时 updated_at 更新', async () => {
+      const row = insertTestProduct({});
+      await request(app).post('/api/product/batch-status').send({ ids: [row.id], status: 1 });
+      const after = setup.getOne('SELECT status, updated_at FROM products WHERE id = ?', [row.id]);
+      expect(after.status).toBe(1);
+      expect(after.updated_at).toBeTruthy();
+    });
+  });
 });

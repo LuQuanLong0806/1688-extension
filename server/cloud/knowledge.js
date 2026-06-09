@@ -17,18 +17,18 @@ module.exports = function (cloud, db) {
   async function saveMapping(aliCat, customCat, source) {
     var existing = db.getOne('SELECT id, count FROM category_mappings WHERE category_name = ? AND custom_category = ?', [aliCat, customCat]);
     if (existing) {
-      db.run('UPDATE category_mappings SET count = count + 1, source = ? WHERE id = ?', [source || 'auto', existing.id]);
+      db.run('UPDATE category_mappings SET count = count + 1, source = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [source || 'auto', existing.id]);
     } else {
-      db.run('INSERT INTO category_mappings (category_name, custom_category, count, source) VALUES (?, ?, 1, ?)', [aliCat, customCat, source || 'auto']);
+      db.run('INSERT INTO category_mappings (category_name, custom_category, count, source, created_at, updated_at) VALUES (?, ?, 1, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)', [aliCat, customCat, source || 'auto']);
     }
     db.scheduleSave();
     if (cloud.connected) {
       cloud.run('SELECT id, count FROM category_mappings WHERE category_name = ? AND custom_category = ?', [aliCat, customCat]).then(function (existing) {
         if (existing && existing.rows && existing.rows.length > 0) {
           var row = existing.rows[0];
-          cloud.run('UPDATE category_mappings SET count = count + 1, source = ? WHERE id = ?', [source || 'auto', row.id]);
+          cloud.run('UPDATE category_mappings SET count = count + 1, source = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [source || 'auto', row.id]);
         } else {
-          cloud.run('INSERT OR IGNORE INTO category_mappings (category_name, custom_category, count, source) VALUES (?, ?, 1, ?)', [aliCat, customCat, source || 'auto']);
+          cloud.run('INSERT OR IGNORE INTO category_mappings (category_name, custom_category, count, source, created_at, updated_at) VALUES (?, ?, 1, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)', [aliCat, customCat, source || 'auto']);
         }
       }).catch(function () {});
     }
@@ -60,7 +60,7 @@ module.exports = function (cloud, db) {
       var newWeight = Math.max(existing.weight, weight);
       db.run('UPDATE keyword_category_rel SET match_count = match_count + 1, weight = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [newWeight, existing.id]);
     } else {
-      db.run('INSERT INTO keyword_category_rel (keyword, category_name, weight, match_count, source) VALUES (?, ?, ?, 1, ?)', [keyword, categoryName, weight, source || 'auto']);
+      db.run('INSERT INTO keyword_category_rel (keyword, category_name, weight, match_count, source, created_at, updated_at) VALUES (?, ?, ?, 1, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)', [keyword, categoryName, weight, source || 'auto']);
     }
     db.scheduleSave();
     if (cloud.connected) {
@@ -70,7 +70,7 @@ module.exports = function (cloud, db) {
           var newW = Math.max(row.weight, weight);
           cloud.run('UPDATE keyword_category_rel SET match_count = match_count + 1, weight = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [newW, row.id]);
         } else {
-          cloud.run('INSERT OR IGNORE INTO keyword_category_rel (keyword, category_name, weight, match_count, source) VALUES (?, ?, ?, 1, ?)', [keyword, categoryName, weight, source || 'auto']);
+          cloud.run('INSERT OR IGNORE INTO keyword_category_rel (keyword, category_name, weight, match_count, source, created_at, updated_at) VALUES (?, ?, ?, 1, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)', [keyword, categoryName, weight, source || 'auto']);
         }
       }).catch(function () {});
     }
@@ -81,14 +81,14 @@ module.exports = function (cloud, db) {
     var placeholders = keywords.map(function () { return '?' }).join(',');
     // 本地：将自动积累的 keyword→错误类目 关联标记为无效
     db.run(
-      'UPDATE keyword_category_rel SET valid = 0 WHERE category_name = ? AND source = \'auto\' AND keyword IN (' + placeholders + ')',
+      'UPDATE keyword_category_rel SET valid = 0, updated_at = CURRENT_TIMESTAMP WHERE category_name = ? AND source = \'auto\' AND keyword IN (' + placeholders + ')',
       [categoryName].concat(keywords)
     );
     db.scheduleSave();
     // 云端同步
     if (cloud.connected) {
       cloud.run(
-        'UPDATE keyword_category_rel SET valid = 0 WHERE category_name = ? AND source = \'auto\' AND keyword IN (' + placeholders + ')',
+        'UPDATE keyword_category_rel SET valid = 0, updated_at = CURRENT_TIMESTAMP WHERE category_name = ? AND source = \'auto\' AND keyword IN (' + placeholders + ')',
         [categoryName].concat(keywords)
       ).catch(function () {});
     }
@@ -130,7 +130,7 @@ module.exports = function (cloud, db) {
     if (existing) {
       db.run('UPDATE keyword_blacklist SET count = count + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [existing.id]);
     } else {
-      db.run("INSERT INTO keyword_blacklist (keyword, category_name, reason, count) VALUES (?, ?, 'auto', 1)", [keyword, categoryName]);
+      db.run("INSERT INTO keyword_blacklist (keyword, category_name, reason, count, created_at, updated_at) VALUES (?, ?, 'auto', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)", [keyword, categoryName]);
     }
     db.scheduleSave();
     if (cloud.connected) {
@@ -138,7 +138,7 @@ module.exports = function (cloud, db) {
         if (cloudRow && cloudRow.id) {
           cloud.run('UPDATE keyword_blacklist SET count = count + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [cloudRow.id]).catch(function () {});
         } else {
-          cloud.run("INSERT OR IGNORE INTO keyword_blacklist (keyword, category_name, reason, count) VALUES (?, ?, 'auto', 1)", [keyword, categoryName]).catch(function () {});
+          cloud.run("INSERT OR IGNORE INTO keyword_blacklist (keyword, category_name, reason, count, created_at, updated_at) VALUES (?, ?, 'auto', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)", [keyword, categoryName]).catch(function () {});
         }
       }).catch(function () {});
     }
@@ -202,10 +202,10 @@ module.exports = function (cloud, db) {
     // 检查是否有软删行可复活
     var softDeleted = db.getOne('SELECT id FROM category_config WHERE type = ? AND value = ? AND group_name = ? AND deleted = 1', [type, value, groupName || '']);
     if (softDeleted) {
-      db.run('UPDATE category_config SET description = ?, sort_order = ?, deleted = 0 WHERE id = ?',
+      db.run('UPDATE category_config SET description = ?, sort_order = ?, deleted = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
         [description || '', sortOrder || 0, softDeleted.id]);
     } else {
-      db.run('INSERT OR REPLACE INTO category_config (type, value, group_name, description, sort_order, deleted) VALUES (?, ?, ?, ?, ?, 0)',
+      db.run('INSERT OR REPLACE INTO category_config (type, value, group_name, description, sort_order, deleted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
         [type, value, groupName || '', description || '', sortOrder || 0]);
     }
     db.scheduleSave();
@@ -213,10 +213,10 @@ module.exports = function (cloud, db) {
       // 云端同样先尝试复活
       cloud.getOne('SELECT id FROM category_config WHERE type = ? AND value = ? AND group_name = ? AND deleted = 1', [type, value, groupName || '']).then(function (cloudSoft) {
         if (cloudSoft) {
-          cloud.run('UPDATE category_config SET description = ?, sort_order = ?, deleted = 0 WHERE id = ?',
+          cloud.run('UPDATE category_config SET description = ?, sort_order = ?, deleted = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
             [description || '', sortOrder || 0, cloudSoft.id]).catch(function () {});
         } else {
-          cloud.run('INSERT OR REPLACE INTO category_config (type, value, group_name, description, sort_order, deleted) VALUES (?, ?, ?, ?, ?, 0)',
+          cloud.run('INSERT OR REPLACE INTO category_config (type, value, group_name, description, sort_order, deleted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
             [type, value, groupName || '', description || '', sortOrder || 0]).catch(function () {});
         }
       }).catch(function () {});
@@ -225,10 +225,10 @@ module.exports = function (cloud, db) {
 
   function deleteCategoryConfig(id) {
     var row = db.getOne('SELECT type, value, group_name FROM category_config WHERE id = ?', [id]);
-    db.run('UPDATE category_config SET deleted = 1 WHERE id = ?', [id]);
+    db.run('UPDATE category_config SET deleted = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [id]);
     db.scheduleSave();
     if (cloud.connected && row) {
-      cloud.run('UPDATE category_config SET deleted = 1 WHERE type = ? AND value = ? AND group_name = ?', [row.type, row.value, row.group_name]).catch(function () {});
+      cloud.run('UPDATE category_config SET deleted = 1, updated_at = CURRENT_TIMESTAMP WHERE type = ? AND value = ? AND group_name = ?', [row.type, row.value, row.group_name]).catch(function () {});
     }
   }
 
@@ -281,7 +281,7 @@ module.exports = function (cloud, db) {
     });
 
     seeds.forEach(function (s) {
-      db.run('INSERT OR IGNORE INTO category_config (type, value, group_name, description, sort_order) VALUES (?, ?, ?, ?, ?)',
+      db.run('INSERT OR IGNORE INTO category_config (type, value, group_name, description, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
         [s.type, s.value, s.group_name || '', s.description || '', s.sort_order || 0]);
     });
     db.scheduleSave();
