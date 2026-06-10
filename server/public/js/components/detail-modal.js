@@ -66,6 +66,7 @@ Vue.component('detail-modal', {
       addingImage: false,
       autoCleanChinese: true,
       compressBeforeUpload: true,
+      mainImgDragOver: false,
       _addImgPasteHandler: null,
       _addImgEscHandler: null,
       _addImgTimer: null,
@@ -1038,6 +1039,61 @@ Vue.component('detail-modal', {
       var idx = imgs.length - 1;
       if (this.selectedMainIndexes.indexOf(idx) < 0) this.selectedMainIndexes.push(idx);
     },
+    // 拖拽上传主图
+    onMainImageDrop: function (e) {
+      this.mainImgDragOver = false;
+      var files = e.dataTransfer.files;
+      if (!files || !files.length) return;
+      var vm = this;
+      for (var f = 0; f < files.length; f++) {
+        (function (file) {
+          if (file.type.indexOf('image/') !== 0) return;
+          var reader = new FileReader();
+          reader.onload = function () {
+            var raw = reader.result;
+            var afterClean = function (base64) {
+              if (vm.compressBeforeUpload) {
+                vm.compressImage(base64, 800).then(function (compressed) { vm.doImageUpload(compressed); });
+              } else {
+                vm.doImageUpload(base64);
+              }
+            };
+            if (vm.autoCleanChinese) {
+              vm.$Message.loading({ content: '正在去中文...', duration: 0 });
+              fetch('/api/ai/auto-clean-chinese', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image_base64: raw, chinese_only: true })
+              }).then(function (r) { return r.json(); }).then(function (d) {
+                vm.$Message.destroy();
+                if (d.ok && d.cleaned && d.url) {
+                  var ci = new Image();
+                  ci.onload = function () {
+                    var c = document.createElement('canvas'); c.width = ci.width; c.height = ci.height;
+                    c.getContext('2d').drawImage(ci, 0, 0);
+                    afterClean(c.toDataURL('image/png'));
+                  };
+                  ci.onerror = function () { afterClean(raw); };
+                  ci.src = d.url;
+                } else { afterClean(raw); }
+              }).catch(function () { vm.$Message.destroy(); afterClean(raw); });
+            } else { afterClean(raw); }
+          };
+          reader.readAsDataURL(file);
+        })(files[f]);
+      }
+    },
+    doImageUpload: function (base64) {
+      var vm = this;
+      vm.$Message.loading({ content: '正在上传图片...', duration: 0 });
+      fetch('/api/ai/image-upload', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_base64: base64 })
+      }).then(function (r) { return r.json(); }).then(function (d) {
+        vm.$Message.destroy();
+        if (d.url) { vm.addMainImage(d.url); vm.$Message.success('图片已添加'); }
+        else { vm.$Message.error('上传失败'); }
+      }).catch(function () { vm.$Message.destroy(); vm.$Message.error('上传失败'); });
+    },
     // 前端压缩图片: 等比缩放到 maxSize 以内
     compressImage: function (base64, maxSize) {
       return new Promise(function (resolve) {
@@ -1581,7 +1637,8 @@ Vue.component('detail-modal', {
           <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;padding-left:2px">
             比例1:1，不小于800×800，最多选用10张
           </div>
-          <div class="img-grid">
+          <div class="img-grid" :class="{ 'img-grid-drop-active': mainImgDragOver }" @dragover.prevent="mainImgDragOver = true" @dragleave="mainImgDragOver = false" @drop.prevent="onMainImageDrop">
+            <div v-if="mainImgDragOver" class="img-drop-overlay"><span>松手上传图片</span></div>
             <div class="img-item sku-img-checkable" v-for="(url, i) in editable.main_images" :key="'m'+i"
               :class="{ 'sku-img-unchecked': !isMainImageChecked(i), 'img-drag-source': isDragSource('main', i) }"
               draggable="true"

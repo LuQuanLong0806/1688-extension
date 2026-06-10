@@ -589,4 +589,72 @@
     setTimeout(C.hideBubble, 2000);
     C.finishWorkflow(true);
   }
+
+  // ========== 全局拖拽上传：拖图片到页面任意位置 ==========
+  var _dropHint = null;
+  document.addEventListener('dragenter', function (e) {
+    if (e.dataTransfer && e.dataTransfer.types && e.dataTransfer.types.indexOf('Files') >= 0) {
+      e.preventDefault();
+      if (!_dropHint) showDropHint();
+    }
+  });
+  document.addEventListener('dragover', function (e) { e.preventDefault(); });
+  document.addEventListener('dragleave', function (e) {
+    if (_dropHint && e.target === document.documentElement) hideDropHint();
+  });
+  document.addEventListener('drop', function (e) {
+    if (!_dropHint) return;
+    e.preventDefault();
+    hideDropHint();
+    var files = e.dataTransfer.files;
+    if (!files || !files.length) return;
+    var imageFiles = [];
+    for (var i = 0; i < files.length; i++) {
+      if (files[i].type.indexOf('image/') === 0) imageFiles.push(files[i]);
+    }
+    if (!imageFiles.length) return;
+    if (!C.startWorkflow('__dxm_bee_paste')) return;
+    try { fetch(_serverUrl() + '/api/clear-signal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientId: _clientId() }) }).catch(function () {}); } catch (e) {}
+    pasteStep = 0;
+    pasteTotal = 7;
+    C.showBubble('1/7 拖拽图片，去中文+压缩+上传...', 'loading');
+    var uploaded = 0;
+    imageFiles.forEach(function (file) {
+      var reader = new FileReader();
+      reader.onload = function () {
+        var base64 = 'data:image/png;base64,' + reader.result.split(',')[1];
+        cleanCompressAndUpload(base64, function (url) {
+          uploaded++;
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(url);
+          }
+          if (uploaded === imageFiles.length) {
+            pasteLog('图床URL已就绪');
+            doPasteImg();
+          }
+        }, function (err) {
+          uploaded++;
+          C.showBubble('❌ ' + err, 'err');
+          setTimeout(C.hideBubble, 2000);
+          C.finishWorkflow(false);
+        });
+      };
+      reader.readAsDataURL(file);
+    });
+  });
+
+  function showDropHint() {
+    var h = document.createElement('div');
+    h.id = '__dxm_bee_drop_hint';
+    h.style.cssText = 'position:fixed;inset:0;z-index:2147483645;display:flex;align-items:center;justify-content:center;' +
+      'background:rgba(171,71,188,.12);pointer-events:none;';
+    h.innerHTML = '<div style="background:linear-gradient(135deg,#AB47BC,#8E24AA);color:#fff;padding:16px 32px;border-radius:12px;' +
+      'font:bold 14px/1 "Microsoft YaHei",Arial,sans-serif;box-shadow:0 4px 16px rgba(142,36,170,.4)">松手上传图片</div>';
+    document.body.appendChild(h);
+    _dropHint = h;
+  }
+
+  function hideDropHint() {
+    if (_dropHint) { _dropHint.remove(); _dropHint = null; }
+  }
 })();
