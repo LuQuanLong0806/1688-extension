@@ -349,14 +349,19 @@ Vue.component('detail-modal', {
       var newVal = ev.tempName.trim();
       if (!newVal) { this.editingVariantValue = null; return; }
       if (newVal === oldVal) { this.editingVariantValue = null; return; }
-      // 同步修改 SKU customName 中对应位置的值
+      // 同步修改 SKU name + customName 中对应位置的值
       var vm = this;
       (vm.editable.skus || []).forEach(function (s) {
-        var fullName = (s.customName || s.name || '').trim();
-        var parts = fullName.split(/\s*\/\s*|\s+/);
-        if (parts[ev.attrIdx] === oldVal) {
-          parts[ev.attrIdx] = newVal;
-          s.customName = parts.join(' / ');
+        var origName = (s.name || '').trim();
+        var nameParts = origName.split(/\s+/);
+        if (nameParts[ev.attrIdx] === oldVal) {
+          nameParts[ev.attrIdx] = newVal;
+          s.name = nameParts.join(' ');
+          var cnParts = (s.customName || '').split(/\s+/);
+          if (cnParts[ev.attrIdx] !== undefined) {
+            cnParts[ev.attrIdx] = newVal;
+            s.customName = cnParts.join(' ');
+          }
         }
       });
       // 更新变种属性值
@@ -440,11 +445,10 @@ Vue.component('detail-modal', {
       var dimDefault = ['', '', ''];
       if (oldSkus.length > 0 && oldSkus[0].dimensions) dimDefault = oldSkus[0].dimensions.slice();
       var getOldMatch = function (combo) {
-        // 构建查找key：按属性位置匹配
         for (var oi = 0; oi < oldSkus.length; oi++) {
           var s = oldSkus[oi];
-          var full = (s.customName || s.name || '').trim();
-          var parts = full.split(/\s*\/\s*|\s+/);
+          var full = (s.name || '').trim();
+          var parts = full.split(/\s+/);
           var match = true;
           for (var ci = 0; ci < combo.length; ci++) {
             if (parts[ci] !== combo[ci]) { match = false; break; }
@@ -457,8 +461,8 @@ Vue.component('detail-modal', {
       var newSkus = combos.map(function (combo) {
         var old = getOldMatch(combo);
         return {
-          name: combo.join(' / '),
-          customName: combo.join(' / '),
+          name: combo.join(' '),
+          customName: (old && old.customName) ? old.customName : combo.join(' '),
           image: old ? old.image : '',
           price: old ? old.price : 0,
           sellPrice: old ? old.sellPrice : 0,
@@ -1617,6 +1621,7 @@ Vue.component('detail-modal', {
         <div class="detail-section">
           <div class="detail-section-title">变种属性
             <i-button size="small" type="dashed" icon="md-add" @click="addVariantAttr" style="margin-left:8px;font-size:12px">添加变种属性</i-button>
+            <i-button size="small" type="primary" icon="md-swap" @click="rebuildSkusFromVariants" style="margin-left:8px;font-size:12px">生成SKU</i-button>
           </div>
           <div class="variant-attr-row" v-for="(va, vi) in variantAttrs" :key="vi">
             <div class="variant-attr-header">
@@ -1630,10 +1635,7 @@ Vue.component('detail-modal', {
             </div>
             <div class="variant-attr-values" v-if="va.values.length">
               <span class="attr-tag attr-tag-variant"
-                v-for="(val, vj) in va.values" :key="vi+'-'+vj"
-                :class="{ 'attr-tag-active': isVariantValueChecked(vi, val) }"
-                @click="toggleVariantValue(vi, val, !isVariantValueChecked(vi, val))">
-                <span class="attr-tag-check"><input type="checkbox" :checked="isVariantValueChecked(vi, val)" @click.stop @change="toggleVariantValue(vi, val, $event.target.checked)" /></span>
+                v-for="(val, vj) in va.values" :key="vi+'-'+vj">
                 <span class="attr-tag-text" v-if="editingVariantValue && editingVariantValue.attrIdx === vi && editingVariantValue.valueIdx === vj">
                   <input class="attr-tag-edit-input" v-model="editingVariantValue.tempName"
                     @keyup.enter="confirmEditVariantValue"
@@ -1785,7 +1787,7 @@ Vue.component('detail-modal', {
                     </div>
                   </td>
                   <td>{{ sku.name || '-' }}</td>
-                  <td><i-input v-model="sku.customName" :placeholder="sku.name || '-'" style="width:200px" @on-change="syncVariantFromSku(i)" /></td>
+                  <td><i-input v-model="sku.customName" :placeholder="sku.name || '-'" style="width:200px" /></td>
                   <td><i-input v-model="sku.price" type="number" number style="width:100px" @on-change="calcSellPrice(sku)" /></td>
                   <td><i-input v-model="sku.sellPrice" type="number" number placeholder="售价" style="width:100px" /></td>
                   <td style="min-width:340px">
