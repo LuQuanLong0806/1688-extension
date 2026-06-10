@@ -24,12 +24,15 @@ async function replaceBackground(productBuf, backgroundBuf, options) {
   var padding = Math.max(0, Math.min(0.3, options.padding !== undefined ? options.padding : 0.05));
   var addShadow = options.shadow !== false;
 
-  console.log('[replace-bg] 开始, scale=' + scale + ', position=' + position + ', shadow=' + addShadow);
+  console.log('[replace-bg] 开始, scale=' + scale + ', position=' + position + ', shadow=' + addShadow + ', skipCutout=' + !!options.skipCutout);
   var t0 = Date.now();
 
-  // Step 1: 抠出前景
+  // Step 1: 抠出前景（或跳过）
   var foregroundBuf;
-  if (comfyuiInpaint && comfyuiInpaint.isAvailable()) {
+  if (options.skipCutout) {
+    console.log('[replace-bg] 跳过抠图，直接使用输入图作为前景');
+    foregroundBuf = productBuf;
+  } else if (comfyuiInpaint && comfyuiInpaint.isAvailable()) {
     console.log('[replace-bg] 使用 ComfyUI Rembg 抠图');
     foregroundBuf = await comfyuiInpaint.removeBackground(productBuf);
   } else {
@@ -103,7 +106,7 @@ async function replaceBackground(productBuf, backgroundBuf, options) {
       }
     })
     .composite([
-      { input: await sharp(shadowBuf).resize(newW + 16, newH + 16).toBuffer(), blend: 'alpha', left: 0, top: 0 }
+      { input: await sharp(shadowBuf).resize(newW + 16, newH + 16).toBuffer(), blend: 'over', left: 0, top: 0 }
     ])
     .png()
     .toBuffer();

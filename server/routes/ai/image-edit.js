@@ -258,7 +258,8 @@ router.post('/replace-bg', function (req, res) {
     scale: parseFloat(req.body.scale) || 0.7,
     position: req.body.position || 'center',
     padding: parseFloat(req.body.padding) || 0.05,
-    shadow: req.body.shadow !== 'false'
+    shadow: req.body.shadow !== 'false',
+    skipCutout: req.body.skip_cutout === true
   };
 
   replaceBgService.replaceBackground(productBuf, bgBuf, opts).then(function (resultBuf) {
@@ -681,5 +682,96 @@ router.get('/ocr-status', function (req, res) {
     });
   });
 });
+
+// ===== ComfyUI 状态 =====
+router.get('/comfyui-status', function (req, res) {
+  if (!comfyuiInpaint) return res.json({ configured: false, available: false });
+  var base = comfyuiInpaint.getComfyuiBase();
+  if (!base) return res.json({ configured: false, available: false });
+  comfyuiInpaint.checkHealth().then(function (health) {
+    res.json({ configured: true, url: base, health: health });
+  });
+});
+
+// ===== 图生图（生成场景图）— ComfyUI 优先，智谱 CogView 降级 =====
+router.post('/img2img', function (req, res) {
+  var imageBase64 = req.body.image_base64;
+  if (!imageBase64) return res.status(400).json({ error: '请提供 image_base64' });
+  var prompt = req.body.prompt || '';
+
+  var t0 = Date.now();
+  var useComfyui = comfyuiInpaint && comfyuiInpaint.isAvailable();
+
+  if (useComfyui) {
+    // ComfyUI GPU 本地生图
+    console.log('[图生图] 使用 ComfyUI, prompt:', prompt.substring(0, 50));
+    var buf = Buffer.from(imageBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+
+    comfyuiInpaint.img2img(buf, {
+      prompt: prompt,
+      negativePrompt: req.body.negative_prompt || '',
+      denoise: parseFloat(req.body.denoise) || 0.5,
+      model: req.body.model || ''
+    }).then(function (resultBuf) {
+      var filename = 'scene_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8) + '.png';
+      fs.writeFile(path.join(UPLOADS_DIR, filename), resultBuf, function (err) {
+        if (err) return res.status(500).json({ error: '保存失败' });
+        console.log('[图生图] ComfyUI 完成, 耗时:', Date.now() - t0, 'ms');
+        res.json({ ok: true, url: '/uploads/' + filename, backend: 'comfyui' });
+      });
+    }).catch(function (err) {
+      console.warn('[图生图] ComfyUI 失败，降级到智谱:', err.message);
+      doCogViewFallback(imageBase64, prompt, t0, res);
+    });
+  } else {
+    // 降级：智谱 CogView-3-Flash（免费）
+    console.log('[图生图] ComfyUI 不可用，使用智谱 CogView 降级');
+    doCogViewFallback(imageBase64, prompt, t0, res);
+  }
+});
+
+function doCogViewFallback(imageBase64, prompt, t0, res) {
+  if (!prompt.trim()) {
+    prompt = 'A high quality product photo in a modern lifestyle setting, professional lighting, clean composition, e-commerce style';
+  }
+
+  providers.imageGenLLMRequest('/images/generations', {
+    model: 'cogview-3-flash',
+    prompt: prompt.trim(),
+    image: imageBase64,
+    size: '1024x1024'
+  }).then(function (result) {
+    var url = result.data && result.data[0] && result.data[0].url;
+    if (!url) return res.status(502).json({ error: '智谱未返回图片' });
+    // 下载到本地
+    var proto = url.startsWith('https') ? require('https') : require('http');
+    var filename = 'scene_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8) + '.png';
+    var filepath = path.join(UPLOADS_DIR, filename);
+    proto.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, function (dlRes) {
+      if (dlRes.statusCode >= 300 && dlRes.statusCode < 400 && dlRes.headers.location) {
+        proto.get(dlRes.headers.location, function (r2) {
+          var ws = require('fs').createWriteStream(filepath);
+          r2.pipe(ws);
+          ws.on('finish', function () {
+            console.log('[图生图] CogView 降级完成, 耗时:', Date.now() - t0, 'ms');
+            res.json({ ok: true, url: '/uploads/' + filename, backend: 'cogview' });
+          });
+        });
+        return;
+      }
+      var ws = require('fs').createWriteStream(filepath);
+      dlRes.pipe(ws);
+      ws.on('finish', function () {
+        console.log('[图生图] CogView 降级完成, 耗时:', Date.now() - t0, 'ms');
+        res.json({ ok: true, url: '/uploads/' + filename, backend: 'cogview' });
+      });
+    }).on('error', function (e) {
+      if (!res.headersSent) res.status(502).json({ error: '下载图片失败: ' + e.message });
+    });
+  }).catch(function (err) {
+    console.error('[图生图] CogView 降级也失败:', err.message);
+    if (!res.headersSent) res.status(502).json({ error: '图生图失败: ' + err.message });
+  });
+}
 
 module.exports = router;

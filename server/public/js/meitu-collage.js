@@ -2243,14 +2243,167 @@ function initMeituCollage() {
   // ===== AI cutout (抠图) — server-side =====
   document.getElementById('edAiCutout').addEventListener('click', function () {
     if (!editorSrc) return;
-    var oldSrc = editorSrc;
+    // 先保存当前编辑状态
+    editorImages[editorCurrentIdx].src = editorSrc;
     showEditorLoading('AI 抠图中，请耐心等待...');
+    var sourceSrc = editorSrc;
     urlToBase64(editorSrc).then(function (base64) {
       return fetch(getServerBase() + '/api/ai/remove-bg-local', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image_base64: base64 })
       });
+    }).then(function (res) { return res.json(); }).then(function (data) {
+      hideEditorLoading();
+      if (data.error) { showToast(data.error, 'err'); return; }
+      var newUrl = data.url;
+      if (newUrl && !newUrl.startsWith('data:')) newUrl = getServerBase() + newUrl;
+      urlToBase64(newUrl).then(function (base64) {
+        // 加入编辑器图片列表，不替换原图
+        editorImages.push({
+          id: 'cutout_' + Date.now(),
+          src: base64,
+          originalSrc: sourceSrc,
+          type: 'cutout',
+          label: '抠图结果'
+        });
+        // 自动切换到抠图结果
+        switchEditorImage(editorImages.length - 1);
+        showToast('AI抠图完成', 'ok');
+      });
+    }).catch(function (err) {
+      hideEditorLoading();
+      showToast('AI抠图失败: ' + err.message, 'err');
+    });
+  });
+
+  // ===== AI 换背景 =====
+  var _edBgBase64 = '';    // 用户选择的背景图 base64
+  var _edBgScale = 0.7;
+  var _edBgPosition = 'center';
+
+  // 缩放滑条
+  document.getElementById('edBgScale').addEventListener('input', function () {
+    _edBgScale = parseInt(this.value) / 100;
+    document.getElementById('edBgScaleVal').textContent = this.value + '%';
+  });
+
+  // 位置按钮组
+  ['Top', 'Center', 'Bottom'].forEach(function (pos) {
+    document.getElementById('edBgPos' + pos).addEventListener('click', function () {
+      _edBgPosition = pos.toLowerCase();
+      ['Top', 'Center', 'Bottom'].forEach(function (p) {
+        document.getElementById('edBgPos' + p).classList.remove('active');
+      });
+      this.classList.add('active');
+    });
+  });
+
+  // 选择背景
+  document.getElementById('edAiSelectBg').addEventListener('click', function () {
+    if (!editorSrc) { showToast('请先打开图片', 'err'); return; }
+    var input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = function () {
+      var file = input.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function () {
+        _edBgBase64 = reader.result;
+        document.getElementById('edBgParams').style.display = 'block';
+        doEditorComposite();
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  });
+
+  // 重新合成
+  document.getElementById('edAiReComposite').addEventListener('click', function () {
+    if (!_edBgBase64 || !editorSrc) { showToast('请先选择背景图', 'err'); return; }
+    doEditorComposite();
+  });
+
+  // ===== 生成场景图（ComfyUI img2img）=====
+  document.getElementById('edAiScene').addEventListener('click', function () {
+    var panel = document.getElementById('edSceneParams');
+    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  });
+
+  document.getElementById('edSceneDenoise').addEventListener('input', function () {
+    document.getElementById('edSceneDenoiseVal').textContent = this.value + '%';
+  });
+
+  document.getElementById('edAiSceneGen').addEventListener('click', function () {
+    if (!editorSrc) { showToast('请先打开图片', 'err'); return; }
+    var prompt = document.getElementById('edScenePrompt').value.trim();
+    if (!prompt) { showToast('请输入场景描述', 'err'); return; }
+    var denoise = parseInt(document.getElementById('edSceneDenoise').value) / 100;
+    var oldSrc = editorSrc;
+    showEditorLoading('AI 生成场景图中，请耐心等待（约10-30秒）...');
+
+    var b64 = editorSrc.indexOf('data:') === 0 ? editorSrc : '';
+    var ready = b64 ? Promise.resolve(b64) : urlToBase64(editorSrc);
+
+    ready.then(function (base64) {
+      return fetch(getServerBase() + '/api/ai/img2img', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image_base64: base64,
+          prompt: prompt,
+          denoise: denoise
+        })
+      });
+    }).then(function (res) { return res.json(); }).then(function (data) {
+      hideEditorLoading();
+      if (data.error) { showToast(data.error, 'err'); return; }
+      var newUrl = data.url;
+      if (newUrl && !newUrl.startsWith('data:')) newUrl = getServerBase() + newUrl;
+      urlToBase64(newUrl).then(function (base64) {
+        // 加入编辑器图片列表
+        editorImages.push({
+          id: 'scene_' + Date.now(),
+          src: base64,
+          originalSrc: oldSrc,
+          type: 'scene',
+          label: '场景图'
+        });
+        switchEditorImage(editorImages.length - 1);
+        saveEditorHistory(oldSrc);
+        showToast('场景图生成完成', 'ok');
+      });
+    }).catch(function (err) {
+      hideEditorLoading();
+      showToast('生成失败: ' + err.message, 'err');
+    });
+  });
+
+  function doEditorComposite() {
+    if (!editorSrc || !_edBgBase64) return;
+    var oldSrc = editorSrc;
+    showEditorLoading('AI 合成背景中...');
+    var productBase64 = editorSrc.indexOf('data:') === 0 ? editorSrc : '';
+    if (!productBase64) {
+      urlToBase64(editorSrc).then(function (b64) { sendComposite(b64, oldSrc); });
+    } else {
+      sendComposite(productBase64, oldSrc);
+    }
+  }
+
+  function sendComposite(productBase64, oldSrc) {
+    fetch(getServerBase() + '/api/ai/replace-bg', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        product_base64: productBase64,
+        bg_base64: _edBgBase64,
+        scale: _edBgScale,
+        position: _edBgPosition,
+        shadow: true,
+        skip_cutout: true
+      })
     }).then(function (res) { return res.json(); }).then(function (data) {
       hideEditorLoading();
       if (data.error) { showToast(data.error, 'err'); return; }
@@ -2267,16 +2420,45 @@ function initMeituCollage() {
           editorMaskCtx.clearRect(0, 0, editorMaskCanvas.width, editorMaskCanvas.height);
         };
         img.src = base64;
-        showToast('AI抠图完成', 'ok');
+        showToast('换背景完成', 'ok');
         saveEditorHistory(oldSrc);
       });
     }).catch(function (err) {
       hideEditorLoading();
-      showToast('AI抠图失败: ' + err.message, 'err');
+      showToast('合成失败: ' + err.message, 'err');
     });
+  }
+
+  // 添加到主图
+  document.getElementById('edAddToProduct').addEventListener('click', function () {
+    if (!editorSrc) { showToast('没有可添加的图片', 'err'); return; }
+    var src = editorSrc;
+    showToast('正在上传到图床...', 'loading');
+    var b64 = src.indexOf('data:') === 0 ? src : '';
+    if (!b64) {
+      urlToBase64(src).then(function (base64) { uploadAndAdd(base64); });
+    } else {
+      uploadAndAdd(b64);
+    }
   });
 
-  // ========== ImgBB API Key 管理（已迁移到配置页面） ==========
+  function uploadAndAdd(base64) {
+    fetch(getServerBase() + '/api/ai/image-upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image_base64: base64 })
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      if (!d.ok || !d.url) { showToast('上传失败', 'err'); return; }
+      // 找到 page-meitu 组件调用 appendImagesToProduct
+      var meituComp = document.querySelector('.meitu-page');
+      if (meituComp && meituComp.__vue__) {
+        meituComp.__vue__.appendImagesToProduct('main_images', [d.url]);
+      }
+      showToast('已添加到主图', 'ok');
+    }).catch(function (err) {
+      showToast('上传失败: ' + err.message, 'err');
+    });
+  }
   function loadSmmsStatus() {
     // noop — managed in page-api-keys now
   }

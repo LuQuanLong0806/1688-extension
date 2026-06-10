@@ -229,8 +229,29 @@
           <div class="acc-header">AI工具 <span class="acc-icon">✨</span></div>
           <div class="acc-body"><div class="acc-inner">
             <button class="acc-btn" id="edAiCutout">AI 抠图</button>
+            <button class="acc-btn" id="edAiSelectBg">选择背景</button>
+            <div id="edBgParams" style="display:none;margin-top:6px">
+              <div class="acc-slider"><div class="slider-header"><span>商品缩放</span><span class="slider-val" id="edBgScaleVal">70%</span></div><input type="range" id="edBgScale" min="30" max="100" value="70"></div>
+              <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">商品位置</div>
+              <div class="acc-btn-row">
+                <button class="acc-btn" id="edBgPosTop">顶部</button>
+                <button class="acc-btn active" id="edBgPosCenter">居中</button>
+                <button class="acc-btn" id="edBgPosBottom">底部</button>
+              </div>
+              <button class="acc-btn primary" id="edAiReComposite" style="margin-top:6px">重新合成</button>
+            </div>
             <button class="acc-btn" id="edAiWhiteBg">AI 白底图</button>
             <button class="acc-btn" id="edAiEnhance">AI 画质增强</button>
+            <button class="acc-btn" id="edAiScene">生成场景图</button>
+            <div id="edSceneParams" style="display:none;margin-top:6px">
+              <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">场景描述（英文效果更佳）</div>
+              <textarea id="edScenePrompt" rows="2" style="width:100%;resize:vertical;font-size:12px;padding:4px 6px;border:1px solid var(--border-subtle);border-radius:4px;background:var(--bg-primary);color:var(--text-primary)" placeholder="e.g. modern living room table, soft lighting"></textarea>
+              <div class="acc-slider" style="margin-top:4px"><div class="slider-header"><span>创意强度</span><span class="slider-val" id="edSceneDenoiseVal">50%</span></div><input type="range" id="edSceneDenoise" min="20" max="90" value="50"></div>
+              <button class="acc-btn primary" id="edAiSceneGen" style="margin-top:6px;width:100%">开始生成</button>
+            </div>
+            <div style="margin-top:8px;padding-top:6px;border-top:1px solid var(--border-subtle)">
+              <button class="acc-btn" id="edAddToProduct" style="background:#6a1b9a;color:#fff;border-color:#6a1b9a;width:100%">添加到主图</button>
+            </div>
           </div></div>
         </div>
         <div class="acc-section" data-mode="editor-clean">

@@ -47,7 +47,7 @@ function comfyuiRequest(apiPath, method, body) {
       headers: {}
     };
 
-    options.headers['Authorization'] = 'Basic YWRtaW46Y29tZnlpdTIwMjQ=';
+    options.headers['Authorization'] = 'Basic YWRtaW46Y29tZnl1aTIwMjQ=';
 
     if (body) {
       var data = JSON.stringify(body);
@@ -111,7 +111,7 @@ function uploadImage(imageBuffer, filename, subfolder) {
       path: '/upload/image',
       method: 'POST',
       headers: {
-        'Authorization': 'Basic YWRtaW46Y29tZnlpdTIwMjQ=',
+        'Authorization': 'Basic YWRtaW46Y29tZnl1aTIwMjQ=',
         'Content-Type': 'multipart/form-data; boundary=' + boundary,
         'Content-Length': payload.length
       }
@@ -352,7 +352,7 @@ function downloadFromComfyui(filename) {
       hostname: url.hostname,
       port: url.port || (url.protocol === 'https:' ? 443 : 80),
       path: '/view?' + new URLSearchParams({ filename: filename, type: 'output' }),
-      headers: { 'Accept': 'image/*', 'Authorization': 'Basic YWRtaW46Y29tZnlpdTIwMjQ=' }
+      headers: { 'Accept': 'image/*', 'Authorization': 'Basic YWRtaW46Y29tZnl1aTIwMjQ=' }
     }, function (res) {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         return downloadFromComfyui(res.headers.location).then(resolve).catch(reject);
@@ -425,7 +425,7 @@ function buildRembgWorkflow(imageName) {
       "inputs": { "image": imageName }
     },
     "11": {
-      "class_type": "RemoveImageBG",
+      "class_type": "BriaRemoveImageBackground",
       "inputs": { "image": ["10", 0] }
     },
     "12": {
@@ -520,6 +520,159 @@ async function removeBackground(imageBuffer, options) {
   }
 }
 
+// ========== ComfyUI 图生图（生成场景图）==========
+
+function buildImg2ImgWorkflow(imageName, modelName, prompt, negativePrompt, denoise) {
+  return {
+    "1": {
+      "class_type": "CheckpointLoaderSimple",
+      "inputs": { "ckpt_name": modelName || "dreamshaper_v8.safetensors" }
+    },
+    "2": {
+      "class_type": "LoadImage",
+      "inputs": { "image": imageName }
+    },
+    "3": {
+      "class_type": "CLIPTextEncode",
+      "inputs": { "text": prompt || "product photo in a modern room, professional lighting, high quality, 4k", "clip": ["1", 1] }
+    },
+    "4": {
+      "class_type": "CLIPTextEncode",
+      "inputs": { "text": negativePrompt || "text, watermark, logo, blurry, low quality, distorted, ugly, deformed", "clip": ["1", 1] }
+    },
+    "5": {
+      "class_type": "VAEEncode",
+      "inputs": { "pixels": ["2", 0], "vae": ["1", 2] }
+    },
+    "6": {
+      "class_type": "KSampler",
+      "inputs": {
+        "seed": Math.floor(Math.random() * 10000000000),
+        "steps": 25,
+        "cfg": 7.0,
+        "sampler_name": "euler_ancestral",
+        "scheduler": "normal",
+        "denoise": Math.max(0.1, Math.min(1.0, denoise || 0.5)),
+        "model": ["1", 0],
+        "positive": ["3", 0],
+        "negative": ["4", 0],
+        "latent_image": ["5", 0]
+      }
+    },
+    "7": {
+      "class_type": "VAEDecode",
+      "inputs": { "samples": ["6", 0], "vae": ["1", 2] }
+    },
+    "8": {
+      "class_type": "SaveImage",
+      "inputs": { "filename_prefix": "scene_" + Date.now(), "images": ["7", 0] }
+    }
+  };
+}
+
+async function img2img(imageBuffer, options) {
+  options = options || {};
+  var base = getComfyuiBase();
+  if (!base) throw new Error('未配置 ComfyUI 地址');
+
+  var t0 = Date.now();
+  console.log('[ComfyUI-Img2Img] 开始图生图, denoise=' + (options.denoise || 0.5));
+
+  var sharp = require('sharp');
+
+  // 缩放到 SD 1.5 最佳分辨率（512 或 768）
+  var meta = await sharp(imageBuffer).metadata();
+  var maxDim = Math.max(meta.width || 512, meta.height || 512);
+  var targetSize = maxDim > 768 ? 768 : (maxDim > 512 ? 512 : maxDim);
+  // 取 64 的倍数
+  targetSize = Math.round(targetSize / 64) * 64;
+
+  var processImage = imageBuffer;
+  if (meta.width > 768 || meta.height > 768) {
+    console.log('[ComfyUI-Img2Img] 缩放到', targetSize);
+    processImage = await sharp(imageBuffer)
+      .resize(targetSize, targetSize, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 1 } })
+      .png().toBuffer();
+  }
+
+  var timestamp = Date.now();
+  var imgName;
+  try {
+    imgName = await uploadImage(processImage, 'scene_' + timestamp + '.png', 'input');
+    console.log('[ComfyUI-Img2Img] 上传完成:', imgName);
+  } catch (uploadErr) {
+    throw new Error('上传图片失败: ' + uploadErr.message);
+  }
+
+  var model = options.model || getWorkflowModel() || 'dreamshaper_v8.safetensors';
+  var workflow = buildImg2ImgWorkflow(imgName, model, options.prompt, options.negativePrompt, options.denoise);
+  var client_id = 'img2img_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+
+  var promptResult;
+  try {
+    promptResult = await comfyuiRequest('/prompt', 'POST', {
+      prompt: workflow,
+      client_id: client_id
+    });
+  } catch (submitErr) {
+    throw new Error('提交任务失败: ' + submitErr.message);
+  }
+
+  var promptId = promptResult.prompt_id;
+  console.log('[ComfyUI-Img2Img] 任务已提交, prompt_id:', promptId);
+
+  // 轮询等待
+  var outputFilename = null;
+  var startTime = Date.now();
+  while (Date.now() - startTime < POLL_TIMEOUT) {
+    await new Promise(function (r) { setTimeout(r, POLL_INTERVAL); });
+    try {
+      var history = await comfyuiRequest('/history/' + promptId);
+      var item = history[promptId];
+      if (!item) continue;
+      var status = item.status || {};
+      if (status.completed || status.status_str === 'success') {
+        var outputs = item.outputs;
+        if (outputs) {
+          for (var nodeId in outputs) {
+            var nodeOutput = outputs[nodeId];
+            if (nodeOutput.images && nodeOutput.images.length) {
+              outputFilename = nodeOutput.images[0].filename;
+              var sf = nodeOutput.images[0].subfolder || '';
+              if (sf) outputFilename = sf + '/' + outputFilename;
+              break;
+            }
+          }
+        }
+        break;
+      }
+      if (status.status_str === 'error') {
+        var errMsg = (item.status && item.status.messages && JSON.stringify(item.status.messages)) || '未知错误';
+        throw new Error('执行失败: ' + errMsg);
+      }
+    } catch (pollErr) {
+      if (pollErr.message && pollErr.message.indexOf('执行失败') >= 0) throw pollErr;
+    }
+  }
+
+  if (!outputFilename) throw new Error('等待超时');
+
+  try {
+    var resultBuffer = await downloadFromComfyui(outputFilename);
+    // 放大回原始尺寸
+    if (meta.width > 768 || meta.height > 768) {
+      resultBuffer = await sharp(resultBuffer)
+        .resize(meta.width, meta.height, { fit: 'fill' })
+        .png().toBuffer();
+      console.log('[ComfyUI-Img2Img] 放大回', meta.width + 'x' + meta.height);
+    }
+    console.log('[ComfyUI-Img2Img] 完成, 耗时:', Date.now() - t0, 'ms');
+    return resultBuffer;
+  } catch (downloadErr) {
+    throw new Error('下载结果失败: ' + downloadErr.message);
+  }
+}
+
 // ========== 导出 ==========
 
 module.exports = {
@@ -532,5 +685,6 @@ module.exports = {
   setComfyuiBase: setComfyuiBase,
   getModelList: getModelList,
   updateWorkflowModel: updateWorkflowModel,
-  getWorkflowModel: getWorkflowModel
+  getWorkflowModel: getWorkflowModel,
+  img2img: img2img
 };
