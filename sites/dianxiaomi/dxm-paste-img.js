@@ -92,17 +92,9 @@
         });
       };
 
-      if (d.ok && d.cleaned && d.url) {
-        // 清理成功，加载清理后的图片
-        var cleanImg = new Image();
-        cleanImg.onload = function () {
-          var canvas = document.createElement('canvas');
-          canvas.width = cleanImg.width; canvas.height = cleanImg.height;
-          canvas.getContext('2d').drawImage(cleanImg, 0, 0);
-          afterClean(canvas.toDataURL('image/png'));
-        };
-        cleanImg.onerror = function () { afterClean(base64); };
-        cleanImg.src = _serverUrl() + d.url;
+      if (d.ok && d.cleaned && d.image_base64) {
+        // 清理成功，直接用base64，避免跨域canvas污染
+        afterClean('data:image/png;base64,' + d.image_base64);
       } else {
         // 没检测到中文，直接用原图
         afterClean(base64);
@@ -169,7 +161,7 @@
               navigator.clipboard.writeText(url).then(function () {
                 pasteLog('图床URL已就绪');
                 doPasteImg();
-              });
+              }).catch(function () { doPasteImg(); });
             } else {
               doPasteImg();
             }
@@ -251,12 +243,7 @@
     var initialImgCount = document.querySelectorAll('#productProductInfo .mainImage .img-list .img-item').length;
 
     pasteLog('读取剪贴板...');
-    navigator.clipboard.readText().then(function (clipText) {
-      if (!clipText || !clipText.trim()) {
-        pasteDone('❌ 剪贴板为空', 'err');
-        return;
-      }
-
+    function openUrlModal(urlText) {
       pasteLog('打开网络图片弹窗');
       var labels = document.querySelectorAll('#productProductInfo .ant-form-item-label label');
       var mainImageLabel = null;
@@ -299,7 +286,7 @@
         (function checkModal() {
           var modal = C.findVisibleModal('从网络地址');
           if (modal) {
-            fillAndAdd(modal, clipText, function () {
+            fillAndAdd(modal, urlText, function () {
               if (C.loadAutoResize()) {
                 waitForImagesUploaded(initialImgCount);
               } else {
@@ -316,10 +303,28 @@
           requestAnimationFrame(checkModal);
         })();
       });
+    }
+    function tryReadClipboard() {
+      navigator.clipboard.readText().then(function (clipText) {
+        if (!clipText || !clipText.trim()) {
+          pasteDone('❌ 剪贴板为空', 'err');
+          return;
+        }
+
+        openUrlModal(clipText);
     }).catch(function (err) {
-      console.log('%c[小蜜蜂-粘] ❌ 剪贴板读取失败: ' + err, 'color:#ff4444;font-weight:bold');
-      pasteDone('❌ 无法读取剪贴板', 'err');
-    });
+        console.log('%c[小蜜蜂-粘] ❌ 剪贴板读取失败: ' + err, 'color:#ff4444;font-weight:bold');
+        // 有备用URL（拖拽上传场景），直接用
+        if (err && err.name === 'NotAllowedError') {
+          C.showBubble('❌ 页面失焦，请重试', 'err');
+          setTimeout(C.hideBubble, 2000);
+          C.finishWorkflow(false);
+        } else {
+          pasteDone('❌ 无法读取剪贴板', 'err');
+        }
+      });
+    }
+    tryReadClipboard();
   }
 
   // ========== Fill textarea + click add ==========
@@ -632,7 +637,7 @@
         cleanCompressAndUpload(base64, function (url) {
           uploaded++;
           if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(url);
+            navigator.clipboard.writeText(url).catch(function () {});
           }
           if (uploaded === imageFiles.length) {
             pasteLog('图床URL已就绪');

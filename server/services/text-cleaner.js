@@ -512,13 +512,63 @@ async function cleanImage(imageBuffer, options) {
   // Step 2: OCR 检测
   var detectResult = await callOcrService(base64Data, chineseOnly, minConfidence);
 
+  // Step 2.5: OCR 未检出时，用对比度增强图重试（针对淡色水印）
+  var enhancedBuf = null;
+  var imgArea = 0;
   if (!detectResult.ok || !detectResult.regions || detectResult.regions.length === 0) {
-    // OCR 未检出 → 视觉模型兜底检测淡色水印
-    if (useVision) {
+    try {
       var meta = await sharp(imageBuffer).metadata();
-      var faintResult = await detectFaintWatermarkWithVision(base64Data, meta.width, meta.height);
+      imgArea = meta.width * meta.height;
+      // 多级增强：从轻到重，任何一级检出即停止
+      var enhanceLevels = [
+        { label: '轻度', linear: 1.8, offset: 0.8, sigma: 1.5, conf: 0.4 },
+        { label: '中度', linear: 3.0, offset: 1.0, sigma: 2.0, conf: 0.3 },
+        { label: '重度', linear: 5.0, offset: 1.2, sigma: 3.0, conf: 0.2 }
+      ];
+      for (var ei = 0; ei < enhanceLevels.length; ei++) {
+        var lv = enhanceLevels[ei];
+        enhancedBuf = await sharp(imageBuffer)
+          .normalize()
+          .linear(lv.linear, -(128 * lv.offset))
+          .sharpen({ sigma: lv.sigma, m1: 2.0, m2: 0.5 })
+          .toBuffer();
+        var enhancedBase64 = enhancedBuf.toString('base64');
+        var retryResult = await callOcrService(enhancedBase64, chineseOnly, Math.max(minConfidence - (0.5 - lv.conf), 0.15));
+        if (retryResult.ok && retryResult.regions && retryResult.regions.length > 0) {
+          var safeRegions = retryResult.regions.filter(function (r) {
+            var bw = Math.abs((r[2] || r.x2 || 0) - (r[0] || r.x1 || 0));
+            var bh = Math.abs((r[3] || r.y2 || 0) - (r[1] || r.y1 || 0));
+            if (!bw || !bh) { bw = r.width || 1; bh = r.height || 1; }
+            return (bw * bh) / imgArea < 0.05;
+          });
+          if (safeRegions.length > 0) {
+            console.log('[文字清理] ' + lv.label + '增强检出 ' + retryResult.regions.length + ' 个区域，保留 ' + safeRegions.length + ' 个（面积<5%）');
+            retryResult.regions = safeRegions;
+            detectResult = retryResult;
+            break;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[文字清理] 增强预处理失败:', e.message);
+    }
+  }
+
+  if (!detectResult.ok || !detectResult.regions || detectResult.regions.length === 0) {
+    // OCR + 增强OCR 都未检出 → 视觉模型兜底检测淡色水印
+    try {
+      var meta = await sharp(imageBuffer).metadata();
+      // 局部差异放大：原图减去模糊背景，水印叠加纹理会暴露
+      var blurred = await sharp(imageBuffer).blur(15).toBuffer();
+      var diffBuf = await sharp(imageBuffer)
+        .composite([{ input: blurred, blend: 'difference' }])
+        .linear(8, 0)
+        .normalize()
+        .toBuffer();
+      var visionBase64 = diffBuf.toString('base64');
+      var faintResult = await detectFaintWatermarkWithVision(visionBase64, meta.width, meta.height);
       if (faintResult && faintResult.length > 0) {
-        console.log('[文字清理] OCR未检出，视觉模型检测到 ' + faintResult.length + ' 个淡色水印');
+        console.log('[文字清理] 局部差异图+视觉模型检测到 ' + faintResult.length + ' 个淡色水印');
         var faintMask = await generateMask(meta.width, meta.height, faintResult, { dilatePx: 5 });
         var lamaOk = false;
         try { lamaOk = lamaService.isModelAvailable(); } catch (e) {}
@@ -537,6 +587,8 @@ async function cleanImage(imageBuffer, options) {
           message: 'Inpaint model not available, vision detection only'
         };
       }
+    } catch (e) {
+      console.warn('[文字清理] 视觉模型检测失败:', e.message);
     }
     return {
       ok: true,

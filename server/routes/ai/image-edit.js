@@ -364,6 +364,7 @@ router.post('/auto-clean-chinese', function (req, res) {
         ok: true,
         cleaned: true,
         url: url,
+        image_base64: result.imageBuffer.toString('base64'),
         regions: result.regions,
         ocrCount: (result.ocrRegions || []).length,
         visionCount: (result.visionRegions || []).length,
