@@ -1935,12 +1935,7 @@ Vue.component('detail-modal', {
           <i-button type="success" icon="md-paper-plane" @click="saveAndPublish">保存并发布</i-button>
           <i-button type="warning" icon="md-images" @click="goToMeitu">小秘美图</i-button>
           <i-button icon="md-grid" @click="goToMeituCollage">拼图</i-button>
-          <i-button type="error" icon="md-brush" @click="goToMeituCleaner">一键去中文</i-button>
-          <i-button type="info" icon="md-pricetags" @click="goToMeituAnnotate">📏 尺寸标注</i-button>
           <i-button icon="md-color-palette" @click="replaceBackground" :loading="replacingBg">🖼️ 换背景</i-button>
-          <i-button :type="editable.status === 0 ? 'success' : 'error'" @click="toggleStatus">
-            {{ editable.status === 0 ? '标记已发布' : '标记未发布' }}
-          </i-button>
           <i-button icon="md-close" @click="close">关闭</i-button>
         </div>
 
