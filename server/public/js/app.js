@@ -2,7 +2,7 @@
 new Vue({
   el: '#app',
   data: {
-    currentView: 'page-products',
+    currentView: localStorage.getItem('__current_view') || 'page-products',
     sidebarCollapsed: false,
     theme: '1688',
     stats: { total: 0, unused: 0, used: 0, totalCategories: 0 },
@@ -47,6 +47,7 @@ new Vue({
         return;
       }
       this.currentView = view;
+      localStorage.setItem('__current_view', view);
       if (view === 'page-dashboard') {
         this.loadStats();
       }
