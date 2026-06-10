@@ -691,6 +691,47 @@ body {
 }
 .add-image-hint-close:hover { opacity: 1; }
 
+/* 粘贴模式选项条 */
+.paste-options-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+.paste-option-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-size: 11px;
+  cursor: pointer;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  transition: all var(--transition);
+  user-select: none;
+}
+.paste-option-chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.paste-option-chip.active {
+  background: rgba(var(--accent-rgb, 64,158,255), .08);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.paste-option-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: background var(--transition);
+}
+.paste-option-chip.active .paste-option-dot {
+  background: var(--accent);
+}
+
 .attr-tags { display: flex; flex-wrap: wrap; gap: 8px; }
 .attr-tags .attr-tag {
   padding: 4px 14px;

@@ -322,8 +322,31 @@ router.post('/auto-clean-chinese', function (req, res) {
       minConfidence: req.body.min_confidence || 0.5,
       dilatePx: req.body.dilate_px || 20,
       enableVision: req.body.enable_vision === true
+    }).then(function (result) {
+      return { imgBuf: imgBuf, result: result };
     });
-  }).then(function (result) {
+  }).then(function (data) {
+    var result = data.result;
+    var imgBuf = data.imgBuf;
+    var elapsed = Date.now() - t0;
+
+    // upload=true: 清理后/原图直接上传到图床
+    if (req.body.upload === true) {
+      var uploadBuf = result.cleaned ? result.imageBuffer : imgBuf;
+      return textCleaner.uploadToSmms(uploadBuf).then(function (uploadResult) {
+        console.log('[自动去中文+上传] 完成, cleaned:', result.cleaned, ', regions:', result.regionCount || 0, ', 耗时:', elapsed + 'ms');
+        res.json({
+          ok: true,
+          cleaned: !!result.cleaned,
+          url: uploadResult.url,
+          regions: result.regions || [],
+          regionCount: result.regionCount || 0,
+          elapsed_ms: elapsed
+        });
+      });
+    }
+
+    // 原有逻辑: 保存到本地
     if (!result.cleaned) {
       res.json({
         ok: true,
@@ -336,7 +359,6 @@ router.post('/auto-clean-chinese', function (req, res) {
     }
 
     return textCleaner.saveCleanedImage(result.imageBuffer).then(function (url) {
-      var elapsed = Date.now() - t0;
       console.log('[自动去中文] 完成, 消除 ' + result.regionCount + ' 个区域, 耗时: ' + elapsed + 'ms');
       res.json({
         ok: true,

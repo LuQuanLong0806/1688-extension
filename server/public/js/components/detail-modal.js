@@ -64,6 +64,8 @@ Vue.component('detail-modal', {
       _imgSizeTimer: null,
       // 添加图片粘贴模式
       addingImage: false,
+      autoCleanChinese: true,
+      compressBeforeUpload: true,
       _addImgPasteHandler: null,
       _addImgEscHandler: null,
       _addImgTimer: null,
@@ -1036,6 +1038,24 @@ Vue.component('detail-modal', {
       var idx = imgs.length - 1;
       if (this.selectedMainIndexes.indexOf(idx) < 0) this.selectedMainIndexes.push(idx);
     },
+    // 前端压缩图片: 等比缩放到 maxSize 以内
+    compressImage: function (base64, maxSize) {
+      return new Promise(function (resolve) {
+        var img = new Image();
+        img.onload = function () {
+          var w = img.width, h = img.height;
+          if (w <= maxSize && h <= maxSize) { resolve(base64); return; }
+          var scale = maxSize / Math.max(w, h);
+          var nw = Math.round(w * scale), nh = Math.round(h * scale);
+          var canvas = document.createElement('canvas');
+          canvas.width = nw; canvas.height = nh;
+          canvas.getContext('2d').drawImage(img, 0, 0, nw, nh);
+          resolve(canvas.toDataURL('image/png'));
+        };
+        img.onerror = function () { resolve(base64); };
+        img.src = base64;
+      });
+    },
     startAddImagePaste: function () {
       var vm = this;
       if (vm.addingImage) return;
@@ -1051,24 +1071,65 @@ Vue.component('detail-modal', {
             var file = cd.items[i].getAsFile();
             var reader = new FileReader();
             reader.onload = function () {
-              var base64 = reader.result;
-              vm.$Message.loading({ content: '正在上传图片...', duration: 0 });
-              fetch('/api/ai/smms-upload', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ image_base64: base64 })
-              }).then(function (r) { return r.json(); }).then(function (d) {
-                vm.$Message.destroy();
-                if (d.url) {
-                  vm.addMainImage(d.url);
-                  vm.$Message.success('图片已添加');
-                } else {
+              var raw = reader.result;
+              var doUpload = function (base64) {
+                vm.$Message.loading({ content: '正在上传图片...', duration: 0 });
+                fetch('/api/ai/smms-upload', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ image_base64: base64 })
+                }).then(function (r) { return r.json(); }).then(function (d) {
+                  vm.$Message.destroy();
+                  if (d.url) {
+                    vm.addMainImage(d.url);
+                    vm.$Message.success('图片已添加');
+                  } else {
+                    vm.$Message.error('上传失败');
+                  }
+                }).catch(function () {
+                  vm.$Message.destroy();
                   vm.$Message.error('上传失败');
+                });
+              };
+
+              var afterClean = function (base64) {
+                if (vm.compressBeforeUpload) {
+                  vm.compressImage(base64, 800).then(doUpload);
+                } else {
+                  doUpload(base64);
                 }
-              }).catch(function () {
-                vm.$Message.destroy();
-                vm.$Message.error('上传失败');
-              });
+              };
+
+              if (vm.autoCleanChinese) {
+                vm.$Message.loading({ content: '正在去中文...', duration: 0 });
+                fetch('/api/ai/auto-clean-chinese', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ image_base64: raw, chinese_only: true })
+                }).then(function (r) { return r.json(); }).then(function (d) {
+                  vm.$Message.destroy();
+                  if (d.ok && d.cleaned && d.url) {
+                    // 清理成功，拿到本地路径 → 转为可上传的 base64
+                    var cleanImg = new Image();
+                    cleanImg.onload = function () {
+                      var canvas = document.createElement('canvas');
+                      canvas.width = cleanImg.width; canvas.height = cleanImg.height;
+                      canvas.getContext('2d').drawImage(cleanImg, 0, 0);
+                      afterClean(canvas.toDataURL('image/png'));
+                    };
+                    cleanImg.onerror = function () { afterClean(raw); };
+                    cleanImg.src = d.url;
+                  } else {
+                    // 没检测到中文，直接用原图
+                    afterClean(raw);
+                  }
+                }).catch(function () {
+                  vm.$Message.destroy();
+                  afterClean(raw);
+                });
+              } else {
+                afterClean(raw);
+              }
             };
             reader.readAsDataURL(file);
             return;
@@ -1542,6 +1603,14 @@ Vue.component('detail-modal', {
             <div class="img-add-btn" @click="startAddImagePaste" :class="{ active: addingImage }">
               <span class="img-add-icon">+</span>
               <span class="img-add-text">添加图片</span>
+            </div>
+            <div v-if="addingImage" class="paste-options-bar">
+              <span class="paste-option-chip" :class="{ active: autoCleanChinese }" @click="autoCleanChinese = !autoCleanChinese">
+                <span class="paste-option-dot"></span>去中文
+              </span>
+              <span class="paste-option-chip" :class="{ active: compressBeforeUpload }" @click="compressBeforeUpload = !compressBeforeUpload">
+                <span class="paste-option-dot"></span>压缩800px
+              </span>
             </div>
           </div>
           <div class="add-image-hint" v-if="addingImage">

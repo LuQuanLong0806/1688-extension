@@ -213,4 +213,73 @@ router.post('/smms-token-delete', function (req, res) {
   }
 });
 
+// ===== 阿里云 OSS 配置 =====
+router.get('/oss-config', function (req, res) {
+  var oss = require('../../services/oss-upload');
+  var config = oss.getOssConfig();
+  if (!config) return res.json({ configured: false, masked: '', label: '' });
+  var masked = config.accessKeyId.substring(0, 4) + '****' + config.accessKeyId.substring(config.accessKeyId.length - 4);
+  res.json({
+    configured: true,
+    masked: masked,
+    bucket: config.bucket,
+    region: config.region,
+    endpoint: config.endpoint || '',
+    label: config.label || ''
+  });
+});
+
+router.post('/oss-config', function (req, res) {
+  var db = require('../../db');
+  var label = (req.body.label || '').trim();
+  var labelOnly = req.body.labelOnly === true;
+
+  if (labelOnly) {
+    db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('oss_config_label', ?)", [label]);
+    db.scheduleSave();
+    return res.json({ ok: true });
+  }
+
+  var ak = (req.body.accessKeyId || '').trim();
+  var sk = (req.body.accessKeySecret || '').trim();
+  var bucket = (req.body.bucket || '').trim();
+  var region = (req.body.region || '').trim();
+  var endpoint = (req.body.endpoint || '').trim();
+
+  if (!ak || !sk || !bucket || !region) {
+    return res.status(400).json({ error: '请填写完整的 OSS 配置' });
+  }
+
+  try {
+    db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('oss_access_key_id', ?)", [sec.encrypt(ak)]);
+    db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('oss_access_key_secret', ?)", [sec.encrypt(sk)]);
+    db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('oss_bucket', ?)", [sec.encrypt(bucket)]);
+    db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('oss_region', ?)", [sec.encrypt(region)]);
+    if (endpoint) {
+      db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('oss_endpoint', ?)", [sec.encrypt(endpoint)]);
+    } else {
+      db.run("DELETE FROM settings WHERE key = 'oss_endpoint'");
+    }
+    db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('oss_config_label', ?)", [label]);
+    db.scheduleSave();
+    console.log('[OSS] Config saved, bucket:', bucket, 'region:', region);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: '保存失败' });
+  }
+});
+
+router.post('/oss-config-delete', function (req, res) {
+  try {
+    var db = require('../../db');
+    ['oss_access_key_id', 'oss_access_key_secret', 'oss_bucket', 'oss_region', 'oss_endpoint', 'oss_config_label'].forEach(function (k) {
+      db.run("DELETE FROM settings WHERE key = ?", [k]);
+    });
+    db.scheduleSave();
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: '删除失败' });
+  }
+});
+
 module.exports = router;

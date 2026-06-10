@@ -4,5 +4,8 @@
   "private": true,
   "scripts": {
     "build": "node sites/build.js"
+  },
+  "dependencies": {
+    "ali-oss": "^6.23.0"
   }
 }

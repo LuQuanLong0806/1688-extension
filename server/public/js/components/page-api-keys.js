@@ -11,6 +11,8 @@ Vue.component('page-api-keys', {
       ollamaPort: '11434',
       ollamaConfigured: false,
       imgbbStatus: { configured: false, masked: '', label: '' },
+      ossStatus: { configured: false, masked: '', bucket: '', region: '', endpoint: '', label: '' },
+      ossModal: { show: false, accessKeyId: '', accessKeySecret: '', bucket: '', region: '', endpoint: '', label: '' },
       tursoUrl: '',
       tursoToken: '',
       tursoStatus: { connected: false, config: false },
@@ -30,6 +32,7 @@ Vue.component('page-api-keys', {
     this.loadConfigs();
     this.loadDispatch();
     this.loadImgbb();
+    this.loadOss();
     this.loadTurso();
     this.loadComfyui();
   },
@@ -261,6 +264,43 @@ Vue.component('page-api-keys', {
       fetch('/api/ai/smms-token').then(function (r) { return r.json(); }).then(function (d) {
         vm.imgbbStatus = { configured: !!d.configured, masked: d.masked || '', label: d.label || '' };
       }).catch(function () {});
+    },
+    // ===== 阿里云 OSS =====
+    loadOss: function () {
+      var vm = this;
+      fetch('/api/ai/oss-config').then(function (r) { return r.json(); }).then(function (d) {
+        vm.ossStatus = { configured: !!d.configured, masked: d.masked || '', bucket: d.bucket || '', region: d.region || '', endpoint: d.endpoint || '', label: d.label || '' };
+      }).catch(function () {});
+    },
+    openOssModal: function () {
+      var s = this.ossStatus;
+      this.ossModal = { show: true, accessKeyId: '', accessKeySecret: '', bucket: s.bucket || '', region: s.region || '', endpoint: s.endpoint || '', label: s.label || '' };
+    },
+    saveOss: function () {
+      var vm = this;
+      var m = vm.ossModal;
+      if (!m.accessKeyId || !m.accessKeySecret || !m.bucket || !m.region) {
+        vm.$Message.warning('请填写 AccessKey ID、Secret、Bucket 和 Region');
+        return;
+      }
+      fetch('/api/ai/oss-config', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accessKeyId: m.accessKeyId, accessKeySecret: m.accessKeySecret, bucket: m.bucket, region: m.region, endpoint: m.endpoint, label: m.label })
+      }).then(function (r) { return r.json(); }).then(function (d) {
+        if (d.ok) { vm.$Message.success('OSS 配置已保存'); vm.loadOss(); vm.ossModal.show = false; }
+        else vm.$Message.error(d.error || '保存失败');
+      }).catch(function () { vm.$Message.error('保存失败'); });
+    },
+    deleteOss: function () {
+      var vm = this;
+      vm.$Modal.confirm({ title: '确认删除', content: '确定要删除阿里云 OSS 配置吗？', okText: '删除', cancelText: '取消',
+        onOk: function () {
+          fetch('/api/ai/oss-config-delete', { method: 'POST' })
+            .then(function (r) { return r.json(); }).then(function (d) {
+              if (d.ok) { vm.$Message.success('已删除'); vm.loadOss(); }
+            }).catch(function () { vm.$Message.error('删除失败'); });
+        }
+      });
     },
     // ===== ComfyUI =====
     loadComfyui: function () {
@@ -516,7 +556,26 @@ Vue.component('page-api-keys', {
           <div class="ai-provider-row" style="flex-wrap:wrap">
             <div class="ai-provider-info">
               <span class="ai-pname">图床</span>
-              <span class="ai-pmodel">ImgBB</span>
+              <span class="ai-pmodel">{{ ossStatus.configured ? '阿里云 OSS' : 'ImgBB' }}</span>
+            </div>
+            <!-- OSS 配置 -->
+            <div style="flex:1;min-width:0">
+              <div class="ai-key-list">
+                <span v-if="ossStatus.configured" class="ai-key-tag">
+                  {{ ossStatus.masked }}
+                  <span class="ai-key-label-text">{{ ossStatus.bucket }} ({{ ossStatus.region }})</span>
+                  <i class="ivu-icon ivu-icon-ios-create ai-key-edit-icon" @click="openOssModal()"></i>
+                  <i class="ivu-icon ivu-icon-ios-close ai-key-del-icon" @click="deleteOss()"></i>
+                </span>
+                <i-button type="primary" size="small" @click="openOssModal()"><icon type="md-add" style="margin-right:2px"></icon>{{ ossStatus.configured ? '修改' : '配置' }} OSS</i-button>
+              </div>
+            </div>
+          </div>
+          <!-- ImgBB 兜底 -->
+          <div class="ai-provider-row" style="flex-wrap:wrap">
+            <div class="ai-provider-info">
+              <span class="ai-pname" style="opacity:0.7">兜底图床</span>
+              <span class="ai-pmodel" style="opacity:0.7">ImgBB</span>
               <a href="https://api.imgbb.com/" target="_blank" style="font-size:11px;color:var(--accent)">免费申请</a>
             </div>
             <div style="flex:1;min-width:0">
@@ -573,6 +632,46 @@ Vue.component('page-api-keys', {
         </div>
 
       </template>
+
+      <!-- ====== OSS 弹窗 ====== -->
+      <div v-if="ossModal.show" class="ai-modal-mask" @click.self="ossModal.show = false">
+        <div class="ai-modal">
+          <div class="ai-modal-header">
+            <span style="font-size:15px;font-weight:600;color:var(--text-primary)">{{ ossStatus.configured ? '修改' : '配置' }}阿里云 OSS</span>
+            <i class="ivu-icon ivu-icon-ios-close" style="cursor:pointer;font-size:20px;color:var(--text-muted)" @click="ossModal.show = false"></i>
+          </div>
+          <div class="ai-modal-body">
+            <div style="margin-bottom:12px">
+              <span style="display:block;font-size:13px;color:var(--text-secondary);margin-bottom:6px">AccessKey ID</span>
+              <i-input v-model="ossModal.accessKeyId" size="small" placeholder="LTAI5t..." style="width:100%"></i-input>
+            </div>
+            <div style="margin-bottom:12px">
+              <span style="display:block;font-size:13px;color:var(--text-secondary);margin-bottom:6px">AccessKey Secret</span>
+              <i-input v-model="ossModal.accessKeySecret" type="password" password size="small" placeholder="请输入 Secret" style="width:100%"></i-input>
+            </div>
+            <div style="margin-bottom:12px">
+              <span style="display:block;font-size:13px;color:var(--text-secondary);margin-bottom:6px">Bucket 名称</span>
+              <i-input v-model="ossModal.bucket" size="small" placeholder="my-bucket" style="width:100%"></i-input>
+            </div>
+            <div style="margin-bottom:12px">
+              <span style="display:block;font-size:13px;color:var(--text-secondary);margin-bottom:6px">Region 地域</span>
+              <i-input v-model="ossModal.region" size="small" placeholder="oss-cn-hangzhou" style="width:100%"></i-input>
+            </div>
+            <div style="margin-bottom:12px">
+              <span style="display:block;font-size:13px;color:var(--text-secondary);margin-bottom:6px">自定义域名（可选）</span>
+              <i-input v-model="ossModal.endpoint" size="small" placeholder="留空使用默认 aliyuncs.com 域名" style="width:100%"></i-input>
+            </div>
+            <div>
+              <span style="display:block;font-size:13px;color:var(--text-secondary);margin-bottom:6px">备注</span>
+              <i-input v-model="ossModal.label" size="small" placeholder="给配置加个备注" style="width:100%"></i-input>
+            </div>
+          </div>
+          <div class="ai-modal-footer">
+            <i-button size="small" @click="ossModal.show = false">取消</i-button>
+            <i-button type="primary" size="small" @click="saveOss()">保存</i-button>
+          </div>
+        </div>
+      </div>
 
       <!-- ====== Key 弹窗 ====== -->
       <div v-if="keyModal.show" class="ai-modal-mask" @click.self="closeModal">
