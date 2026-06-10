@@ -50,38 +50,87 @@
     C.finishWorkflow(type === 'ok');
   }
 
+  // ========== 去中文 → 压缩800px → 上传 ==========
+  function compressImage(base64, maxSize) {
+    return new Promise(function (resolve) {
+      var img = new Image();
+      img.onload = function () {
+        var w = img.width, h = img.height;
+        if (w <= maxSize && h <= maxSize) { resolve(base64); return; }
+        var scale = maxSize / Math.max(w, h);
+        var nw = Math.round(w * scale), nh = Math.round(h * scale);
+        var canvas = document.createElement('canvas');
+        canvas.width = nw; canvas.height = nh;
+        canvas.getContext('2d').drawImage(img, 0, 0, nw, nh);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.onerror = function () { resolve(base64); };
+      img.src = base64;
+    });
+  }
+
+  function cleanCompressAndUpload(base64, onSuccess, onError) {
+    fetch(_serverUrl() + '/api/ai/auto-clean-chinese', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image_base64: base64, chinese_only: true })
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      var afterClean = function (imgBase64) {
+        compressImage(imgBase64, 800).then(function (compressed) {
+          fetch(_serverUrl() + '/api/ai/image-upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image_base64: compressed })
+          }).then(function (r2) { return r2.json(); }).then(function (up) {
+            if (up.ok && up.url) {
+              console.log('%c[小蜜蜂-粘] 上传成功: ' + up.url, 'color:#AB47BC;font-weight:bold');
+              onSuccess(up.url);
+            } else {
+              onError('图床上传失败');
+            }
+          }).catch(function () { onError('图床上传失败'); });
+        });
+      };
+
+      if (d.ok && d.cleaned && d.url) {
+        // 清理成功，加载清理后的图片
+        var cleanImg = new Image();
+        cleanImg.onload = function () {
+          var canvas = document.createElement('canvas');
+          canvas.width = cleanImg.width; canvas.height = cleanImg.height;
+          canvas.getContext('2d').drawImage(cleanImg, 0, 0);
+          afterClean(canvas.toDataURL('image/png'));
+        };
+        cleanImg.onerror = function () { afterClean(base64); };
+        cleanImg.src = _serverUrl() + d.url;
+      } else {
+        // 没检测到中文，直接用原图
+        afterClean(base64);
+      }
+    }).catch(function () { onError('去中文处理失败'); });
+  }
+
   // ========== 前置：检测剪贴板图片，有则上传并写回URL ==========
   function checkClipboardImage(onDone) {
     pasteLog('读取剪贴板...');
     readClipboardType(function (result) {
       if (result && result.type === 'image' && result.base64) {
-        // 剪贴板是图片：上传到 ImgBB，把 URL 写回剪贴板
-        pasteLog('上传图片到图床...');
-        fetch(_serverUrl() + '/api/ai/image-upload', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image_base64: result.base64 })
-        }).then(function (r) { return r.json(); }).then(function (data) {
-          if (data.ok && data.url) {
-            // 把图床 URL 写回剪贴板
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-              navigator.clipboard.writeText(data.url).then(function () {
-                console.log('%c[小蜜蜂-粘] 图片已上传，URL已写入剪贴板: ' + data.url, 'color:#AB47BC;font-weight:bold');
-                pasteLog('图床URL已就绪');
-                onDone();
-              }).catch(function () { onDone(); });
-            } else {
+        var base64 = 'data:image/png;base64,' + result.base64;
+        pasteLog('去中文+压缩+上传...');
+        cleanCompressAndUpload(base64, function (url) {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(url).then(function () {
+              console.log('%c[小蜜蜂-粘] 图片已上传，URL已写入剪贴板: ' + url, 'color:#AB47BC;font-weight:bold');
+              pasteLog('图床URL已就绪');
               onDone();
-            }
+            }).catch(function () { onDone(); });
           } else {
-            console.error('[小蜜蜂-粘] ImgBB 上传失败:', data.error);
-            pasteDone('❌ 图床上传失败', 'err');
+            onDone();
           }
-        }).catch(function () {
-          pasteDone('❌ 图床上传失败', 'err');
+        }, function (err) {
+          pasteDone('❌ ' + err, 'err');
         });
       } else {
-        // 不是图片（是文本URL或空），直接走正常流程
         onDone();
       }
     });
@@ -113,26 +162,19 @@
           if (!C.startWorkflow('__dxm_bee_paste')) return;
           pasteStep = 0;
           pasteTotal = 7;
-          pasteLog('上传图片到图床...');
-          fetch(_serverUrl() + '/api/ai/image-upload', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ image_base64: result.base64 })
-          }).then(function (r) { return r.json(); }).then(function (data) {
-            if (data.ok && data.url) {
-              if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(data.url).then(function () {
-                  pasteLog('图床URL已就绪');
-                  doPasteImg();
-                });
-              } else {
+          var base64 = 'data:image/png;base64,' + result.base64;
+          pasteLog('去中文+压缩+上传...');
+          cleanCompressAndUpload(base64, function (url) {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(url).then(function () {
+                pasteLog('图床URL已就绪');
                 doPasteImg();
-              }
+              });
             } else {
-              pasteDone('❌ 图床上传失败', 'err');
+              doPasteImg();
             }
-          }).catch(function () {
-            pasteDone('❌ 图床上传失败', 'err');
+          }, function (err) {
+            pasteDone('❌ ' + err, 'err');
           });
         } else {
           // 用户取消或超时，隐藏气泡
