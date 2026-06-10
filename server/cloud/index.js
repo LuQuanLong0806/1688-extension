@@ -132,7 +132,7 @@ async function backfillTimestamps() {
   var tables = ['category_mappings', 'keyword_synonyms', 'keyword_blacklist', 'category_config', 'dxm_category_tree'];
   for (var t = 0; t < tables.length; t++) {
     try {
-      await cloud.client.execute("UPDATE " + tables[t] + " SET updated_at = datetime('now') WHERE updated_at = '' OR updated_at IS NULL");
+      await cloud.client.execute("UPDATE " + tables[t] + " SET updated_at = datetime('now', '+8 hours') WHERE updated_at = '' OR updated_at IS NULL");
     } catch (e) {}
   }
 }

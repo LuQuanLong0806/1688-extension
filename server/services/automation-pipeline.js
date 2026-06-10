@@ -85,7 +85,7 @@ function createEmptyLog(uid) {
   return {
     steps: [],
     totalDuration: 0,
-    startedAt: new Date().toISOString(),
+    startedAt: new Date(Date.now() + 8 * 3600000).toISOString().replace('T', ' ').substring(0, 19),
     finishedAt: null
   };
 }
@@ -104,7 +104,7 @@ function addStepResult(log, name, status, duration, result, note) {
  * 计算处理总耗时
  */
 function finalizeLog(log) {
-  log.finishedAt = new Date().toISOString();
+  log.finishedAt = new Date(Date.now() + 8 * 3600000).toISOString().replace('T', ' ').substring(0, 19);
   var total = 0;
   log.steps.forEach(function (s) { total += (s.duration || 0); });
   log.totalDuration = total;
@@ -334,8 +334,7 @@ async function processProduct(uid, db) {
 
     // 0.5 更新 stage = 'processing'
     db.run("UPDATE products SET automation_stage = 'processing', automation_started_at = ?, automation_log = ?, automation_issues = '' WHERE uid = ?",
-      [new Date().toISOString(), JSON.stringify(log), uid]);
-
+      [new Date(Date.now() + 8 * 3600000).toISOString().replace('T', ' ').substring(0, 19), JSON.stringify(log), uid]);
     broadcast('pipeline-progress', { uid: uid, step: 0, total: totalSteps, stage: 'processing', message: '开始处理: ' + (product.title || uid).substring(0, 30) });
 
     var mainImagesRaw = JSON.parse(product.main_images || '[]');
@@ -768,7 +767,7 @@ async function processProduct(uid, db) {
     // ===== 完成 → 草稿箱 =====
     var issueJson = issues.length > 0 ? JSON.stringify(issues) : '';
     db.run("UPDATE products SET automation_stage = 'draft', automation_log = ?, automation_issues = ?, automation_finished_at = ?, title = ? WHERE uid = ?",
-      [JSON.stringify(log), issueJson, new Date().toISOString(), product.title || '', uid]);
+      [JSON.stringify(log), issueJson, new Date(Date.now() + 8 * 3600000).toISOString().replace('T', ' ').substring(0, 19), product.title || '', uid]);
 
     broadcast('pipeline-progress', { uid: uid, step: 7, total: totalSteps, stage: 'draft', message: '处理完成 → 草稿箱' + (issues.length ? ' (' + issues.length + '个问题)' : ''), issues: issues.length, duration: Date.now() - startTime });
     return { ok: true, uid: uid, stage: 'draft', issues: issues, log: log };
@@ -780,7 +779,7 @@ async function processProduct(uid, db) {
     var fatalIssues = [{ code: 'pipeline_error', level: 'error', message: e.message }];
 
     db.run("UPDATE products SET automation_stage = 'none', automation_log = ?, automation_issues = ?, automation_finished_at = ? WHERE uid = ?",
-      [JSON.stringify(log), JSON.stringify(fatalIssues), new Date().toISOString(), uid]);
+      [JSON.stringify(log), JSON.stringify(fatalIssues), new Date(Date.now() + 8 * 3600000).toISOString().replace('T', ' ').substring(0, 19), uid]);
 
     broadcast('pipeline-progress', { uid: uid, step: 0, total: totalSteps, stage: 'none', message: '处理失败(可重试): ' + e.message, error: e.message });
     return { ok: false, uid: uid, stage: 'none', error: e.message };

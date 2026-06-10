@@ -17,7 +17,7 @@ module.exports = function (cloud, db) {
           await cloud.run('UPDATE category_mappings SET count = ? WHERE id = ?', [maxCount, existing.id]);
         }
       } else {
-        await cloud.run('INSERT INTO category_mappings (category_name, custom_category, count, source, created_at, updated_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+        await cloud.run(`INSERT INTO category_mappings (category_name, custom_category, count, source, created_at, updated_at) VALUES (?, ?, ?, ?, datetime('now', '+8 hours'), datetime('now', '+8 hours'))`,
           [m.category_name, m.custom_category, m.count, m.source]);
       }
     }
@@ -34,7 +34,7 @@ module.exports = function (cloud, db) {
           await cloud.run('UPDATE keyword_category_rel SET weight = ?, match_count = ? WHERE id = ?', [maxW, maxM, existing.id]);
         }
       } else {
-        await cloud.run('INSERT INTO keyword_category_rel (keyword, category_name, weight, match_count, valid, source, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+        await cloud.run(`INSERT INTO keyword_category_rel (keyword, category_name, weight, match_count, valid, source, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now', '+8 hours'), datetime('now', '+8 hours'))`,
           [r.keyword, r.category_name, r.weight, r.match_count, r.valid, r.source]);
       }
     }
@@ -46,13 +46,13 @@ module.exports = function (cloud, db) {
       for (var si = 0; si < syns.length; si += batchSize) {
         var chunk = syns.slice(si, si + batchSize);
         var stmts = chunk.map(function (s) {
-          return { sql: 'INSERT OR IGNORE INTO keyword_synonyms (word_a, word_b, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)', args: [s.word_a, s.word_b] };
+          return { sql: `INSERT OR IGNORE INTO keyword_synonyms (word_a, word_b, created_at, updated_at) VALUES (?, ?, datetime('now', '+8 hours'), datetime('now', '+8 hours'))`, args: [s.word_a, s.word_b] };
         });
         try { await cloud.client.batch(stmts); } catch (e) { console.error('[云同步] synonyms batch fail:', e.message); }
       }
     } else {
       for (var i = 0; i < syns.length; i++) {
-        await cloud.run('INSERT OR IGNORE INTO keyword_synonyms (word_a, word_b, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)', [syns[i].word_a, syns[i].word_b]);
+        await cloud.run(`INSERT OR IGNORE INTO keyword_synonyms (word_a, word_b, created_at, updated_at) VALUES (?, ?, datetime('now', '+8 hours'), datetime('now', '+8 hours'))`, [syns[i].word_a, syns[i].word_b]);
       }
     }
     counts.keyword_synonyms = syns.length;
@@ -63,7 +63,7 @@ module.exports = function (cloud, db) {
       for (var bi = 0; bi < bl.length; bi += batchSize) {
         var chunk = bl.slice(bi, bi + batchSize);
         var stmts = chunk.map(function (b) {
-          return { sql: 'INSERT OR IGNORE INTO keyword_blacklist (keyword, category_name, reason, count, created_at, updated_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)', args: [b.keyword, b.category_name, b.reason, b.count || 1] };
+          return { sql: `INSERT OR IGNORE INTO keyword_blacklist (keyword, category_name, reason, count, created_at, updated_at) VALUES (?, ?, ?, ?, datetime('now', '+8 hours'), datetime('now', '+8 hours'))`, args: [b.keyword, b.category_name, b.reason, b.count || 1] };
         });
         try { await cloud.client.batch(stmts); } catch (e) { console.error('[云同步] blacklist batch fail:', e.message); }
       }
@@ -76,7 +76,7 @@ module.exports = function (cloud, db) {
             await cloud.run('UPDATE keyword_blacklist SET count = ? WHERE id = ?', [blMaxCount, blExisting.id]);
           }
         } else {
-          await cloud.run('INSERT INTO keyword_blacklist (keyword, category_name, reason, count, created_at, updated_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)', [bl[i].keyword, bl[i].category_name, bl[i].reason, bl[i].count || 1]);
+          await cloud.run(`INSERT INTO keyword_blacklist (keyword, category_name, reason, count, created_at, updated_at) VALUES (?, ?, ?, ?, datetime('now', '+8 hours'), datetime('now', '+8 hours'))`, [bl[i].keyword, bl[i].category_name, bl[i].reason, bl[i].count || 1]);
         }
       }
     }
@@ -88,13 +88,13 @@ module.exports = function (cloud, db) {
       for (var ci = 0; ci < configs.length; ci += batchSize) {
         var chunk = configs.slice(ci, ci + batchSize);
         var stmts = chunk.map(function (c) {
-          return { sql: 'INSERT OR REPLACE INTO category_config (type, value, group_name, description, sort_order, deleted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)', args: [c.type, c.value, c.group_name, c.description, c.sort_order, c.deleted || 0] };
+          return { sql: `INSERT OR REPLACE INTO category_config (type, value, group_name, description, sort_order, deleted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now', '+8 hours'), datetime('now', '+8 hours'))`, args: [c.type, c.value, c.group_name, c.description, c.sort_order, c.deleted || 0] };
         });
         try { await cloud.client.batch(stmts); } catch (e) { console.error('[云同步] category_config batch fail:', e.message); }
       }
     } else {
       for (var i = 0; i < configs.length; i++) {
-        await cloud.run('INSERT OR REPLACE INTO category_config (type, value, group_name, description, sort_order, deleted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+        await cloud.run(`INSERT OR REPLACE INTO category_config (type, value, group_name, description, sort_order, deleted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now', '+8 hours'), datetime('now', '+8 hours'))`,
           [configs[i].type, configs[i].value, configs[i].group_name, configs[i].description, configs[i].sort_order, configs[i].deleted || 0]);
       }
     }
@@ -120,7 +120,7 @@ module.exports = function (cloud, db) {
           db.run('UPDATE category_mappings SET count = ? WHERE id = ?', [maxCount, local.id]);
         }
       } else {
-        db.run('INSERT INTO category_mappings (category_name, custom_category, count, source, created_at, updated_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+        db.run(`INSERT INTO category_mappings (category_name, custom_category, count, source, created_at, updated_at) VALUES (?, ?, ?, ?, datetime('now', '+8 hours'), datetime('now', '+8 hours'))`,
           [m.category_name, m.custom_category, m.count, m.source]);
       }
     }
@@ -137,7 +137,7 @@ module.exports = function (cloud, db) {
           db.run('UPDATE keyword_category_rel SET weight = ?, match_count = ? WHERE id = ?', [maxW, maxM, local.id]);
         }
       } else {
-        db.run('INSERT INTO keyword_category_rel (keyword, category_name, weight, match_count, valid, source, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+        db.run(`INSERT INTO keyword_category_rel (keyword, category_name, weight, match_count, valid, source, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now', '+8 hours'), datetime('now', '+8 hours'))`,
           [r.keyword, r.category_name, r.weight, r.match_count, r.valid, r.source]);
       }
     }
@@ -145,7 +145,7 @@ module.exports = function (cloud, db) {
 
     var cloudSyns = await cloud.getAll('SELECT word_a, word_b FROM keyword_synonyms');
     for (var i = 0; i < cloudSyns.length; i++) {
-      db.run('INSERT OR IGNORE INTO keyword_synonyms (word_a, word_b, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)', [cloudSyns[i].word_a, cloudSyns[i].word_b]);
+      db.run(`INSERT OR IGNORE INTO keyword_synonyms (word_a, word_b, created_at, updated_at) VALUES (?, ?, datetime('now', '+8 hours'), datetime('now', '+8 hours'))`, [cloudSyns[i].word_a, cloudSyns[i].word_b]);
     }
     counts.keyword_synonyms = cloudSyns.length;
 
@@ -158,7 +158,7 @@ module.exports = function (cloud, db) {
           db.run('UPDATE keyword_blacklist SET count = ? WHERE id = ?', [dlMaxCount, localBl.id]);
         }
       } else {
-        db.run('INSERT OR IGNORE INTO keyword_blacklist (keyword, category_name, reason, count, created_at, updated_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+        db.run(`INSERT OR IGNORE INTO keyword_blacklist (keyword, category_name, reason, count, created_at, updated_at) VALUES (?, ?, ?, ?, datetime('now', '+8 hours'), datetime('now', '+8 hours'))`,
           [cloudBl[i].keyword, cloudBl[i].category_name, cloudBl[i].reason, cloudBl[i].count || 1]);
       }
     }
@@ -166,7 +166,7 @@ module.exports = function (cloud, db) {
 
     var cloudConfigs = await cloud.getAll('SELECT type, value, group_name, description, sort_order, deleted FROM category_config');
     for (var i = 0; i < cloudConfigs.length; i++) {
-      db.run('INSERT OR REPLACE INTO category_config (type, value, group_name, description, sort_order, deleted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+      db.run(`INSERT OR REPLACE INTO category_config (type, value, group_name, description, sort_order, deleted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now', '+8 hours'), datetime('now', '+8 hours'))`,
         [cloudConfigs[i].type, cloudConfigs[i].value, cloudConfigs[i].group_name, cloudConfigs[i].description, cloudConfigs[i].sort_order, cloudConfigs[i].deleted || 0]);
     }
     counts.category_config = cloudConfigs.length;
@@ -197,7 +197,7 @@ module.exports = function (cloud, db) {
       var chunk = trees.slice(batch, batch + batchSize);
       var stmts = chunk.map(function (t) {
         return {
-          sql: 'INSERT OR IGNORE INTO dxm_category_tree (cat_id, cat_name, parent_cat_id, cat_level, is_leaf, path, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+          sql: `INSERT OR IGNORE INTO dxm_category_tree (cat_id, cat_name, parent_cat_id, cat_level, is_leaf, path, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now', '+8 hours'), datetime('now', '+8 hours'))`,
           args: [t.cat_id, t.cat_name, t.parent_cat_id, t.cat_level, t.is_leaf, t.path]
         };
       });
@@ -229,7 +229,7 @@ module.exports = function (cloud, db) {
       var t = cloudTree[i];
       var local = db.treeGetOne('SELECT cat_id FROM dxm_category_tree WHERE cat_id = ?', [t.cat_id]);
       if (!local) {
-        db.treeRun('INSERT OR IGNORE INTO dxm_category_tree (cat_id, cat_name, parent_cat_id, cat_level, is_leaf, path, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+        db.treeRun(`INSERT OR IGNORE INTO dxm_category_tree (cat_id, cat_name, parent_cat_id, cat_level, is_leaf, path, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now', '+8 hours'), datetime('now', '+8 hours'))`,
           [t.cat_id, t.cat_name, t.parent_cat_id, t.cat_level, t.is_leaf, t.path]);
         added++;
       }
@@ -386,13 +386,13 @@ module.exports = function (cloud, db) {
       cloudKey: ['category_name', 'custom_category'],
       localKeyMatch: function (r) { return 'SELECT id, count FROM category_mappings WHERE category_name = ? AND custom_category = ?'; },
       localKeyParams: function (r) { return [r.category_name, r.custom_category]; },
-      localInsert: 'INSERT INTO category_mappings (category_name, custom_category, count, source, created_at, updated_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+      localInsert: `INSERT INTO category_mappings (category_name, custom_category, count, source, created_at, updated_at) VALUES (?, ?, ?, ?, datetime('now', '+8 hours'), datetime('now', '+8 hours'))`,
       localInsertParams: function (r) { return [r.category_name, r.custom_category, r.count, r.source]; },
-      localUpdate: 'UPDATE category_mappings SET count = ?, source = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      localUpdate: `UPDATE category_mappings SET count = ?, source = ?, updated_at = datetime('now', '+8 hours') WHERE id = ?`,
       cloudTable: 'category_mappings',
-      cloudInsert: 'INSERT INTO category_mappings (category_name, custom_category, count, source, created_at, updated_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+      cloudInsert: `INSERT INTO category_mappings (category_name, custom_category, count, source, created_at, updated_at) VALUES (?, ?, ?, ?, datetime('now', '+8 hours'), datetime('now', '+8 hours'))`,
       cloudInsertParams: function (r) { return [r.category_name, r.custom_category, r.count, r.source]; },
-      cloudUpdate: 'UPDATE category_mappings SET count = ?, source = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      cloudUpdate: `UPDATE category_mappings SET count = ?, source = ?, updated_at = datetime('now', '+8 hours') WHERE id = ?`,
       label: '类目映射'
     },
     'keyword-rels': {
@@ -401,13 +401,13 @@ module.exports = function (cloud, db) {
       cloudKey: ['keyword', 'category_name'],
       localKeyMatch: function (r) { return 'SELECT id, weight, match_count FROM keyword_category_rel WHERE keyword = ? AND category_name = ?'; },
       localKeyParams: function (r) { return [r.keyword, r.category_name]; },
-      localInsert: 'INSERT INTO keyword_category_rel (keyword, category_name, weight, match_count, valid, source, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+      localInsert: `INSERT INTO keyword_category_rel (keyword, category_name, weight, match_count, valid, source, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now', '+8 hours'), datetime('now', '+8 hours'))`,
       localInsertParams: function (r) { return [r.keyword, r.category_name, r.weight, r.match_count, r.valid, r.source]; },
-      localUpdate: 'UPDATE keyword_category_rel SET weight = MAX(weight, ?), match_count = MAX(match_count, ?), valid = ?, source = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      localUpdate: `UPDATE keyword_category_rel SET weight = MAX(weight, ?), match_count = MAX(match_count, ?), valid = ?, source = ?, updated_at = datetime('now', '+8 hours') WHERE id = ?`,
       cloudTable: 'keyword_category_rel',
-      cloudInsert: 'INSERT INTO keyword_category_rel (keyword, category_name, weight, match_count, valid, source, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+      cloudInsert: `INSERT INTO keyword_category_rel (keyword, category_name, weight, match_count, valid, source, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now', '+8 hours'), datetime('now', '+8 hours'))`,
       cloudInsertParams: function (r) { return [r.keyword, r.category_name, r.weight, r.match_count, r.valid, r.source]; },
-      cloudUpdate: 'UPDATE keyword_category_rel SET weight = ?, match_count = ?, valid = ?, source = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      cloudUpdate: `UPDATE keyword_category_rel SET weight = ?, match_count = ?, valid = ?, source = ?, updated_at = datetime('now', '+8 hours') WHERE id = ?`,
       label: '关键词关联'
     },
     synonyms: {
@@ -416,11 +416,11 @@ module.exports = function (cloud, db) {
       cloudKey: ['word_a', 'word_b'],
       localKeyMatch: function (r) { return 'SELECT id FROM keyword_synonyms WHERE word_a = ? AND word_b = ?'; },
       localKeyParams: function (r) { return [r.word_a, r.word_b]; },
-      localInsert: 'INSERT OR IGNORE INTO keyword_synonyms (word_a, word_b, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+      localInsert: `INSERT OR IGNORE INTO keyword_synonyms (word_a, word_b, created_at, updated_at) VALUES (?, ?, datetime('now', '+8 hours'), datetime('now', '+8 hours'))`,
       localInsertParams: function (r) { return [r.word_a, r.word_b]; },
       localUpdate: null,
       cloudTable: 'keyword_synonyms',
-      cloudInsert: 'INSERT OR IGNORE INTO keyword_synonyms (word_a, word_b, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+      cloudInsert: `INSERT OR IGNORE INTO keyword_synonyms (word_a, word_b, created_at, updated_at) VALUES (?, ?, datetime('now', '+8 hours'), datetime('now', '+8 hours'))`,
       cloudInsertParams: function (r) { return [r.word_a, r.word_b]; },
       cloudUpdate: null,
       label: '同义词'
@@ -431,14 +431,14 @@ module.exports = function (cloud, db) {
       cloudKey: ['keyword', 'category_name'],
       localKeyMatch: function (r) { return 'SELECT id, count FROM keyword_blacklist WHERE keyword = ? AND category_name = ?'; },
       localKeyParams: function (r) { return [r.keyword, r.category_name]; },
-      localInsert: 'INSERT OR IGNORE INTO keyword_blacklist (keyword, category_name, reason, count, created_at, updated_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+      localInsert: `INSERT OR IGNORE INTO keyword_blacklist (keyword, category_name, reason, count, created_at, updated_at) VALUES (?, ?, ?, ?, datetime('now', '+8 hours'), datetime('now', '+8 hours'))`,
       localInsertParams: function (r) { return [r.keyword, r.category_name, r.reason, r.count || 1]; },
-      localUpdate: 'UPDATE keyword_blacklist SET count = MAX(count, ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      localUpdate: `UPDATE keyword_blacklist SET count = MAX(count, ?), updated_at = datetime('now', '+8 hours') WHERE id = ?`,
       localUpdateParams: function (r, localRow) { return [r.count || 1, localRow.id]; },
       cloudTable: 'keyword_blacklist',
-      cloudInsert: 'INSERT OR IGNORE INTO keyword_blacklist (keyword, category_name, reason, count, created_at, updated_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+      cloudInsert: `INSERT OR IGNORE INTO keyword_blacklist (keyword, category_name, reason, count, created_at, updated_at) VALUES (?, ?, ?, ?, datetime('now', '+8 hours'), datetime('now', '+8 hours'))`,
       cloudInsertParams: function (r) { return [r.keyword, r.category_name, r.reason, r.count || 1]; },
-      cloudUpdate: 'UPDATE keyword_blacklist SET count = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      cloudUpdate: `UPDATE keyword_blacklist SET count = ?, updated_at = datetime('now', '+8 hours') WHERE id = ?`,
       cloudUpdateParams: function (r, cloudRow) { return [r.count || 1, cloudRow.id]; },
       label: '黑名单'
     },
@@ -448,11 +448,11 @@ module.exports = function (cloud, db) {
       cloudKey: ['type', 'value', 'group_name'],
       localKeyMatch: function (r) { return 'SELECT id FROM category_config WHERE type = ? AND value = ? AND group_name = ?'; },
       localKeyParams: function (r) { return [r.type, r.value, r.group_name]; },
-      localInsert: 'INSERT OR REPLACE INTO category_config (type, value, group_name, description, sort_order, deleted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+      localInsert: `INSERT OR REPLACE INTO category_config (type, value, group_name, description, sort_order, deleted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now', '+8 hours'), datetime('now', '+8 hours'))`,
       localInsertParams: function (r) { return [r.type, r.value, r.group_name, r.description, r.sort_order, r.deleted || 0]; },
       localUpdate: null,
       cloudTable: 'category_config',
-      cloudInsert: 'INSERT OR REPLACE INTO category_config (type, value, group_name, description, sort_order, deleted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+      cloudInsert: `INSERT OR REPLACE INTO category_config (type, value, group_name, description, sort_order, deleted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now', '+8 hours'), datetime('now', '+8 hours'))`,
       cloudInsertParams: function (r) { return [r.type, r.value, r.group_name, r.description, r.sort_order, r.deleted || 0]; },
       cloudUpdate: null,
       label: '分类配置'

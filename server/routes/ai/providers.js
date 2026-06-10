@@ -149,6 +149,7 @@ function ollamaChatRequest(messages, temperature, maxTokens) {
       });
     });
     req.on('error', function (e) { reject(new Error('Ollama连接失败(未启动?)')); });
+    req.setTimeout(120000, function () { req.destroy(new Error('Ollama请求超时')); });
     req.write(data);
     req.end();
   });
@@ -176,6 +177,7 @@ function qwenChatRequest(messages, temperature, maxTokens, apiKey) {
       });
     });
     req.on('error', function (e) { reject(e); });
+    req.setTimeout(120000, function () { req.destroy(new Error('Qwen请求超时')); });
     req.write(data);
     req.end();
   });
@@ -217,6 +219,7 @@ function qwenVlRequestRaw(imageContent, prompt, model, apiKey) {
       });
     });
     req.on('error', reject);
+    req.setTimeout(120000, function () { req.destroy(new Error('Qwen VL请求超时')); });
     req.write(data);
     req.end();
   });
@@ -263,6 +266,7 @@ function hunyuanChatRequest(messages, temperature, maxTokens, secretId, secretKe
       });
     });
     req.on('error', function (e) { reject(e); });
+    req.setTimeout(120000, function () { req.destroy(new Error('混元请求超时')); });
     req.write(reqBody);
     req.end();
   });
@@ -362,12 +366,9 @@ function dispatchByCategory(category, apiPath, body) {
         return zhipuRequest(apiPath, body, { apiKey: k.key || k });
       }).then(function (r) { markModelSuccess(label); return r; })
         .catch(function (err) {
-          if (err && err.message === '__ALL_KEYS_EXHAUSTED__') {
-            markModelFail(label);
-            console.log('[调度]', label, '所有Key限流，跳下一厂商');
-            return tryEntry(i + 1);
-          }
-          throw err;
+          markModelFail(label);
+          console.log('[调度]', label, '失败:', err.message, '→ 跳下一厂商');
+          return tryEntry(i + 1);
         });
     }
     if (entry.vendor === 'qwen') {
@@ -381,24 +382,18 @@ function dispatchByCategory(category, apiPath, body) {
           return qwenVlRequestRaw(imgContent, vlPrompt, entry.model, k.key || k);
         }).then(function (r) { markModelSuccess(label); return r; })
           .catch(function (err) {
-            if (err && err.message === '__ALL_KEYS_EXHAUSTED__') {
-              markModelFail(label);
-              console.log('[调度]', label, '所有Key限流，跳下一厂商');
-              return tryEntry(i + 1);
-            }
-            throw err;
+            markModelFail(label);
+            console.log('[调度]', label, '失败:', err.message, '→ 跳下一厂商');
+            return tryEntry(i + 1);
           });
       }
       return tryKeysDispatch('qwen', keys, 0, function (k) {
         return qwenChatRequest(body.messages, body.temperature, body.max_tokens, k.key || k);
       }).then(function (r) { markModelSuccess(label); return r; })
         .catch(function (err) {
-          if (err && err.message === '__ALL_KEYS_EXHAUSTED__') {
-            markModelFail(label);
-            console.log('[调度]', label, '所有Key限流，跳下一厂商');
-            return tryEntry(i + 1);
-          }
-          throw err;
+          markModelFail(label);
+          console.log('[调度]', label, '失败:', err.message, '→ 跳下一厂商');
+          return tryEntry(i + 1);
         });
     }
     if (entry.vendor === 'hunyuan') {
@@ -408,12 +403,9 @@ function dispatchByCategory(category, apiPath, body) {
         return hunyuanChatRequest(body.messages, body.temperature, body.max_tokens, acc.secretId, acc.secretKey);
       }).then(function (r) { markModelSuccess(label); return r; })
         .catch(function (err) {
-          if (err && err.message === '__ALL_KEYS_EXHAUSTED__') {
-            markModelFail(label);
-            console.log('[调度]', label, '所有Key限流，跳下一厂商');
-            return tryEntry(i + 1);
-          }
-          throw err;
+          markModelFail(label);
+          console.log('[调度]', label, '失败:', err.message, '→ 跳下一厂商');
+          return tryEntry(i + 1);
         });
     }
     if (entry.vendor === 'ollama') {
@@ -488,12 +480,9 @@ function runLLMChain(chain, apiPath, body) {
         return zhipuRequest(apiPath, body, { apiKey: entry.key || entry });
       }).then(function (r) { markModelSuccess(step.name); return r; })
         .catch(function (err) {
-          if (err && err.message === '__ALL_KEYS_EXHAUSTED__') {
-            markModelFail(step.name);
-            console.log('[模型链]', stepLabel, '所有Key限流，切换下一个供应商');
-            return tryModel(i + 1);
-          }
-          markModelFail(step.name); throw err;
+          markModelFail(step.name);
+          console.log('[模型链]', stepLabel, '失败:', err.message, '→ 切换下一个供应商');
+          return tryModel(i + 1);
         });
     }
     if (step.provider === 'qwen') {
@@ -503,12 +492,9 @@ function runLLMChain(chain, apiPath, body) {
         return qwenChatRequest(body.messages, body.temperature, body.max_tokens, entry.key || entry);
       }).then(function (r) { markModelSuccess(step.name); return r; })
         .catch(function (err) {
-          if (err && err.message === '__ALL_KEYS_EXHAUSTED__') {
-            markModelFail(step.name);
-            console.log('[模型链]', stepLabel, '所有Key限流，切换下一个供应商');
-            return tryModel(i + 1);
-          }
-          markModelFail(step.name); throw err;
+          markModelFail(step.name);
+          console.log('[模型链]', stepLabel, '失败:', err.message, '→ 切换下一个供应商');
+          return tryModel(i + 1);
         });
     }
     if (step.provider === 'hunyuan') {
@@ -518,12 +504,9 @@ function runLLMChain(chain, apiPath, body) {
         return hunyuanChatRequest(body.messages, body.temperature, body.max_tokens, acc.secretId, acc.secretKey);
       }).then(function (r) { markModelSuccess(step.name); return r; })
         .catch(function (err) {
-          if (err && err.message === '__ALL_KEYS_EXHAUSTED__') {
-            markModelFail(step.name);
-            console.log('[模型链]', stepLabel, '所有Key限流，切换下一个供应商');
-            return tryModel(i + 1);
-          }
-          markModelFail(step.name); throw err;
+          markModelFail(step.name);
+          console.log('[模型链]', stepLabel, '失败:', err.message, '→ 切换下一个供应商');
+          return tryModel(i + 1);
         });
     }
     if (step.provider === 'ollama') {
@@ -596,6 +579,7 @@ function zhipuRequest(apiPath, body, options) {
       });
     });
     req.on('error', reject);
+    req.setTimeout(120000, function () { req.destroy(new Error('智谱请求超时')); });
     req.write(data);
     req.end();
   });

@@ -49,9 +49,9 @@ function updateCategoryStats(category, customCategory) {
       [catName, category.catId || '', category.leafCategoryId || '', category.topCategoryId || '', category.postCategoryId || '']);
   }
   if (customCategory) {
-    run('INSERT OR IGNORE INTO category_mappings (category_name, custom_category, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)', [catName, customCategory]);
+    run('INSERT OR IGNORE INTO category_mappings (category_name, custom_category, created_at, updated_at) VALUES (?, ?, datetime("now", "+8 hours"), datetime("now", "+8 hours"))', [catName, customCategory]);
     if (cloudDb.connected) {
-      cloudDb.cloudRun('INSERT OR IGNORE INTO category_mappings (category_name, custom_category, count, source, created_at, updated_at) VALUES (?, ?, 1, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)', [catName, customCategory, 'auto']).catch(function () {});
+      cloudDb.cloudRun('INSERT OR IGNORE INTO category_mappings (category_name, custom_category, count, source, created_at, updated_at) VALUES (?, ?, 1, ?, datetime("now", "+8 hours"), datetime("now", "+8 hours"))', [catName, customCategory, 'auto']).catch(function () {});
     }
   }
 }
@@ -305,9 +305,9 @@ async function doRecommendAndSave(title, aliCat, attrs, productId) {
       if (aliCat && result.category && result.confidence >= 0.7) {
         var existingMap = getOne('SELECT id, count FROM category_mappings WHERE category_name = ? AND custom_category = ?', [aliCat, result.category]);
         if (existingMap) {
-          run('UPDATE category_mappings SET count = count + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [existingMap.id]);
+          run('UPDATE category_mappings SET count = count + 1, updated_at = datetime("now", "+8 hours") WHERE id = ?', [existingMap.id]);
         } else {
-          run('INSERT INTO category_mappings (category_name, custom_category, count, source, created_at, updated_at) VALUES (?, ?, 1, \'auto\', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)', [aliCat, result.category]);
+          run('INSERT INTO category_mappings (category_name, custom_category, count, source, created_at, updated_at) VALUES (?, ?, 1, \'auto\', datetime("now", "+8 hours"), datetime("now", "+8 hours"))', [aliCat, result.category]);
         }
         console.log('[采集推荐] 产品#' + productId + ' 映射已固化: ' + aliCat + ' → ' + result.category + ' (置信度:' + result.confidence.toFixed(2) + ')');
       } else if (aliCat && result.category) {
@@ -480,7 +480,7 @@ router.put('/product/:id', (req, res) => {
   // 在更新前记录旧分类，用于关联纠错和黑名单
   var previousCategory = getOne('SELECT custom_category FROM products WHERE uid = ?', [uid]);
 
-  fields.push('updated_at = CURRENT_TIMESTAMP');
+  fields.push('updated_at = datetime("now", "+8 hours")');
   params.push(uid);
   run(`UPDATE products SET ${fields.join(', ')} WHERE uid = ?`, params);
 
@@ -563,7 +563,7 @@ router.put('/product/:id', (req, res) => {
         }
       }
       if (cloudUpdates.length) {
-        cloudUpdates.push('updated_at = CURRENT_TIMESTAMP');
+        cloudUpdates.push('updated_at = datetime("now", "+8 hours")');
         cloudParams.push(uid);
         cloudDb.cloudRun('UPDATE products SET ' + cloudUpdates.join(', ') + ' WHERE uid = ?', cloudParams).catch(function () {});
       }
@@ -576,7 +576,7 @@ router.put('/product/:id', (req, res) => {
 // 删除商品
 router.delete('/product/:id', (req, res) => {
   var uid = req.params.id || '';
-  run('UPDATE products SET deleted = 1, updated_at = CURRENT_TIMESTAMP WHERE uid = ?', [uid]);
+  run('UPDATE products SET deleted = 1, updated_at = datetime("now", "+8 hours") WHERE uid = ?', [uid]);
   if (cloudDb.connected && uid) {
     cloudDb.cloudRun('UPDATE products SET deleted = 1 WHERE uid = ?', [uid]).catch(function () {});
   }
@@ -700,7 +700,7 @@ router.post('/product/batch-delete', (req, res) => {
   if (!validUids.length) return res.json({ ok: true, deleted: 0 });
   const placeholders = validUids.map(() => '?').join(',');
   const before = getOne(`SELECT COUNT(*) as count FROM products WHERE uid IN (${placeholders})`, validUids);
-  run(`UPDATE products SET deleted = 1, updated_at = CURRENT_TIMESTAMP WHERE uid IN (${placeholders})`, validUids);
+  run(`UPDATE products SET deleted = 1, updated_at = datetime("now", "+8 hours") WHERE uid IN (${placeholders})`, validUids);
   saveNow();
   if (cloudDb.connected) {
     validUids.forEach(function (uid) {
@@ -718,10 +718,10 @@ router.post('/product/batch-status', (req, res) => {
   if (!validUids.length) return res.json({ ok: true, updated: 0 });
   if (status === -1) {
     const placeholders = validUids.map(() => '?').join(',');
-    run(`UPDATE products SET status = CASE WHEN status = 1 THEN 0 ELSE 1 END, updated_at = CURRENT_TIMESTAMP WHERE uid IN (${placeholders})`, validUids);
+    run(`UPDATE products SET status = CASE WHEN status = 1 THEN 0 ELSE 1 END, updated_at = datetime("now", "+8 hours") WHERE uid IN (${placeholders})`, validUids);
   } else {
     const placeholders = validUids.map(() => '?').join(',');
-    run(`UPDATE products SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE uid IN (${placeholders})`, [status, ...validUids]);
+    run(`UPDATE products SET status = ?, updated_at = datetime("now", "+8 hours") WHERE uid IN (${placeholders})`, [status, ...validUids]);
   }
   res.json({ ok: true, updated: ids.length });
 });
@@ -742,7 +742,7 @@ router.patch('/products/backfill-path', (req, res) => {
       var dxm = JSON.parse(p.dxm_category);
 
       if (dxm && dxm.path) {
-        run('UPDATE products SET manual_category = ?, updated_at = CURRENT_TIMESTAMP WHERE uid = ?', [dxm.path, p.uid]);
+        run('UPDATE products SET manual_category = ?, updated_at = datetime("now", "+8 hours") WHERE uid = ?', [dxm.path, p.uid]);
         updated++;
       }
     } catch (e) {}
@@ -757,7 +757,7 @@ router.patch('/products/backfill-path', (req, res) => {
     );
     if (remaining && remaining.cnt > 0) {
       run(
-        `UPDATE products SET manual_category = ?, dxm_category = ?, updated_at = CURRENT_TIMESTAMP
+        `UPDATE products SET manual_category = ?, dxm_category = ?, updated_at = datetime("now", "+8 hours")
          WHERE custom_category = ? AND (manual_category IS NULL OR manual_category = '')
            AND deleted = 0`,
         [treeRow.path, JSON.stringify({ path: treeRow.path, leafName: customCategory }), customCategory]
@@ -827,7 +827,7 @@ router.post('/product/batch-stage', (req, res) => {
       skipped.push({ uid: uid, reason: '不允许从 ' + product.automation_stage + ' 转换到 ' + stage });
       return;
     }
-    var now = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    var now = new Date(Date.now() + 8 * 3600000).toISOString().replace('T', ' ').substring(0, 19);
     var updates = { automation_stage: stage, updated_at: now };
     if (stage === 'published') {
       updates.status = 1;
@@ -863,7 +863,7 @@ router.post('/product/:uid/stage', (req, res) => {
     return res.json({ ok: false, error: '不允许从 ' + product.automation_stage + ' 转换到 ' + stage });
   }
 
-  var now = new Date().toISOString().replace('T', ' ').substring(0, 19);
+  var now = new Date(Date.now() + 8 * 3600000).toISOString().replace('T', ' ').substring(0, 19);
   var updates = { automation_stage: stage, updated_at: now };
   if (stage === 'published') {
     updates.status = 1;

@@ -8,7 +8,7 @@ Vue.component('page-cloud-sync', {
       syncing: false,
       syncingType: '',
       syncResult: null,
-      productDateRange: [],
+      syncDateRange: (function () { var end = new Date(); var start = new Date(); start.setDate(start.getDate() - 3); return [start, end]; })(),
       sections: [
         {
           title: '大数据量',
@@ -159,8 +159,9 @@ Vue.component('page-cloud-sync', {
       var run = function () {
         vm.setBusy(busyKey);
         var body = {};
-        if (t.key === 'product' && vm.productDateRange && vm.productDateRange[0]) {
-          body.since = new Date(vm.productDateRange[0]).toISOString().substring(0, 10);
+        if (vm.syncDateRange && vm.syncDateRange[0]) {
+          var d = new Date(vm.syncDateRange[0]);
+          body.since = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
         }
         fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
           .then(function (r) { return r.json(); })
@@ -211,6 +212,14 @@ Vue.component('page-cloud-sync', {
         </div>\
       </div>\
 \
+      <!-- 全局日期范围 -->\
+      <div class="sync-date-bar">\
+        <span class="sync-date-label">同步范围</span>\
+        <DatePicker type="daterange" v-model="syncDateRange" size="small"\
+          placeholder="选择日期范围，留空同步全部" style="width:240px" />\
+        <Button v-if="syncDateRange && syncDateRange.length" size="small" @click="syncDateRange = []">全部</Button>\
+      </div>\
+\
       <!-- 大数据量 -->\
       <div class="sync-group">\
         <div class="sync-group-head">\
@@ -223,12 +232,6 @@ Vue.component('page-cloud-sync', {
             <div class="sync-card-body">\
               <div class="sync-card-label">{{ t.label }}</div>\
               <div class="sync-card-desc">{{ t.desc }}</div>\
-              <div v-if="t.key === \'product\'" class="sync-card-filter">\
-                <span>同步范围</span>\
-                <DatePicker type="daterange" v-model="productDateRange" size="small"\
-                  placeholder="选择日期范围" style="width:220px" />\
-                <Button size="small" @click="productDateRange = []">全部</Button>\
-              </div>\
             </div>\
             <div class="sync-card-actions">\
               <Button :loading="isBusy(t.key + \'-push\')" @click="doAction(t, \'push\')">上传</Button>\

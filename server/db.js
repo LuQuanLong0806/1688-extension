@@ -164,8 +164,8 @@ var LOCAL_TABLE_DEFS = [
       attrs TEXT,
       skus TEXT,
       status INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at DATETIME DEFAULT (datetime('now', '+8 hours')),
+      updated_at DATETIME DEFAULT (datetime('now', '+8 hours')),
       category TEXT,
       detail_images TEXT,
       custom_category TEXT,
@@ -191,7 +191,7 @@ var LOCAL_TABLE_DEFS = [
     ddl: `CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      updated_at DATETIME DEFAULT (datetime('now', '+8 hours'))
     )`
   },
   {
@@ -205,7 +205,7 @@ var LOCAL_TABLE_DEFS = [
       top_category_id TEXT,
       post_category_id TEXT,
       count INTEGER DEFAULT 1,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at DATETIME DEFAULT (datetime('now', '+8 hours'))
     )`
   },
   {
@@ -215,7 +215,7 @@ var LOCAL_TABLE_DEFS = [
       path TEXT NOT NULL UNIQUE,
       leaf_name TEXT NOT NULL,
       count INTEGER DEFAULT 1,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at DATETIME DEFAULT (datetime('now', '+8 hours'))
     )`
   },
   {
@@ -239,8 +239,8 @@ var LOCAL_TABLE_DEFS = [
       match_count INTEGER DEFAULT 1,
       valid INTEGER DEFAULT 1,
       source TEXT DEFAULT 'auto',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at DATETIME DEFAULT (datetime('now', '+8 hours')),
+      updated_at DATETIME DEFAULT (datetime('now', '+8 hours')),
       UNIQUE(keyword, category_name)
     )`
   },
@@ -261,7 +261,7 @@ var LOCAL_TABLE_DEFS = [
       category_name TEXT NOT NULL,
       reason TEXT DEFAULT '',
       count INTEGER DEFAULT 1,
-      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT (datetime('now', '+8 hours')),
       UNIQUE(keyword, category_name)
     )`
   },
@@ -454,7 +454,7 @@ async function initDb() {
     var backfillCheck = getOne("SELECT value FROM settings WHERE key = '" + backfillKey + "'");
     if (!backfillCheck) {
       for (var bi = 0; bi < backfillTables.length; bi++) {
-        try { run('UPDATE ' + backfillTables[bi] + " SET updated_at = datetime('now') WHERE updated_at = '' OR updated_at IS NULL"); } catch (e) {}
+        try { run('UPDATE ' + backfillTables[bi] + " SET updated_at = datetime('now', '+8 hours') WHERE updated_at = '' OR updated_at IS NULL"); } catch (e) {}
       }
       run("INSERT OR REPLACE INTO settings (key, value) VALUES ('" + backfillKey + "', '1')");
     }
@@ -483,7 +483,7 @@ async function initTreeDb() {
     cat_level INTEGER DEFAULT 1,
     is_leaf INTEGER DEFAULT 0,
     path TEXT DEFAULT '',
-    sync_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    sync_at DATETIME DEFAULT (datetime('now', '+8 hours'))
   )`);
   // 分类树索引
   var treeIndexes = [
@@ -499,7 +499,7 @@ async function initTreeDb() {
   try { treeDb.run('ALTER TABLE dxm_category_tree ADD COLUMN created_at TEXT DEFAULT \'\''); } catch (e) {}
   try { treeDb.run('ALTER TABLE dxm_category_tree ADD COLUMN updated_at TEXT DEFAULT \'\''); } catch (e) {}
   // 回填已有行
-  try { treeDb.run("UPDATE dxm_category_tree SET updated_at = datetime('now') WHERE updated_at = '' OR updated_at IS NULL"); } catch (e) {}
+  try { treeDb.run("UPDATE dxm_category_tree SET updated_at = datetime('now', '+8 hours') WHERE updated_at = '' OR updated_at IS NULL"); } catch (e) {}
   scheduleTreeSave();
 }
 

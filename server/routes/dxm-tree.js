@@ -10,10 +10,10 @@ router.post('/dxm-category/collect', (req, res) => {
   const cleanPath = path.replace(/\s+/g, '');
   const existing = treeGetOne('SELECT cat_id FROM dxm_category_tree WHERE path = ?', [cleanPath]);
   if (existing) {
-    treeRun('UPDATE dxm_category_tree SET sync_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE cat_id = ?', [existing.cat_id]);
+    treeRun('UPDATE dxm_category_tree SET sync_at = datetime("now", "+8 hours"), updated_at = datetime("now", "+8 hours") WHERE cat_id = ?', [existing.cat_id]);
   } else {
     const parts = cleanPath.split('/');
-    treeRun('INSERT INTO dxm_category_tree (cat_id, cat_name, parent_cat_id, cat_level, is_leaf, path, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+    treeRun('INSERT INTO dxm_category_tree (cat_id, cat_name, parent_cat_id, cat_level, is_leaf, path, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, datetime("now", "+8 hours"), datetime("now", "+8 hours"))',
       [Date.now(), leafName, 0, parts.length, 1, cleanPath]);
   }
   res.json({ ok: true });
@@ -27,10 +27,10 @@ router.post('/dxm-tree/sync', (req, res) => {
   categories.forEach(c => {
     const existing = treeGetOne('SELECT cat_id FROM dxm_category_tree WHERE cat_id = ?', [c.catId]);
     if (existing) {
-      treeRun('UPDATE dxm_category_tree SET cat_name=?, parent_cat_id=?, cat_level=?, is_leaf=?, path=?, sync_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP WHERE cat_id=?',
+      treeRun('UPDATE dxm_category_tree SET cat_name=?, parent_cat_id=?, cat_level=?, is_leaf=?, path=?, sync_at=datetime("now", "+8 hours"), updated_at=datetime("now", "+8 hours") WHERE cat_id=?',
         [c.catName, c.parentCatId, c.catLevel, c.isLeaf ? 1 : 0, c.path || '', c.catId]);
     } else {
-      treeRun('INSERT INTO dxm_category_tree (cat_id, cat_name, parent_cat_id, cat_level, is_leaf, path, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+      treeRun('INSERT INTO dxm_category_tree (cat_id, cat_name, parent_cat_id, cat_level, is_leaf, path, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, datetime("now", "+8 hours"), datetime("now", "+8 hours"))',
         [c.catId, c.catName, c.parentCatId, c.catLevel, c.isLeaf ? 1 : 0, c.path || '']);
     }
     saved++;

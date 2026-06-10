@@ -26,6 +26,21 @@ Vue.component('detail-modal', {
       batchFind: '',
       batchReplace: '',
       showBatchReplace: false,
+      batchMode: 'find',
+      batchRangeFrom: 1,
+      batchRangeTo: 5,
+      batchRangeAction: 'keep',
+      batchPrefixAction: 'add',
+      batchAddPrefix: '',
+      batchAddSuffix: '',
+      batchRemovePrefixN: 0,
+      batchRemoveSuffixN: 0,
+      batchKeepFirstN: 0,
+      batchKeepLastN: 0,
+      batchSplitSep: '/',
+      batchSplitCustomSep: '',
+      batchSplitIndex: 1,
+      batchSplitAction: 'keep',
       showPriceFormula: false,
       priceFormulas: [],
       saving: false,
@@ -1193,6 +1208,13 @@ Vue.component('detail-modal', {
     },
     doBatchReplace: function () {
       var vm = this;
+      if (vm.batchMode === 'find') return vm.doBatchFindReplace();
+      if (vm.batchMode === 'range') return vm.doBatchRange();
+      if (vm.batchMode === 'prefix') return vm.doBatchPrefix();
+      if (vm.batchMode === 'split') return vm.doBatchSplit();
+    },
+    doBatchFindReplace: function () {
+      var vm = this;
       if (!vm.batchFind) { vm.$Message.warning('请输入要查找的内容'); return; }
       if (!vm.editable || !vm.editable.skus) return;
       var count = 0;
@@ -1207,6 +1229,122 @@ Vue.component('detail-modal', {
       vm.showBatchReplace = false;
       vm.batchFind = '';
       vm.batchReplace = '';
+    },
+    doBatchRange: function () {
+      var vm = this;
+      if (!vm.editable || !vm.editable.skus) return;
+      var from = parseInt(vm.batchRangeFrom) || 1;
+      var to = parseInt(vm.batchRangeTo) || 0;
+      if (from < 1) from = 1;
+      if (to < from) { vm.$Message.warning('结束位置不能小于开始位置'); return; }
+      var count = 0;
+      vm.editable.skus.forEach(function (s) {
+        var name = s.customName || s.name || '';
+        if (!name) return;
+        if (vm.batchRangeAction === 'keep') {
+          s.customName = name.substring(from - 1, to);
+        } else {
+          s.customName = name.substring(0, from - 1) + name.substring(to);
+        }
+        count++;
+      });
+      vm.$Message.success((vm.batchRangeAction === 'keep' ? '截取' : '删除') + '完成，共 ' + count + ' 条');
+      vm.showBatchReplace = false;
+    },
+    doBatchPrefix: function () {
+      var vm = this;
+      if (!vm.editable || !vm.editable.skus) return;
+      var count = 0;
+      vm.editable.skus.forEach(function (s) {
+        var name = s.customName || s.name || '';
+        if (!name && vm.batchPrefixAction !== 'add') return;
+        if (vm.batchPrefixAction === 'add') {
+          var pre = vm.batchAddPrefix || '';
+          var suf = vm.batchAddSuffix || '';
+          if (!pre && !suf) return;
+          s.customName = pre + name + suf;
+        } else if (vm.batchPrefixAction === 'removePrefix') {
+          var n = parseInt(vm.batchRemovePrefixN) || 0;
+          if (n <= 0) return;
+          s.customName = name.substring(n);
+        } else if (vm.batchPrefixAction === 'removeSuffix') {
+          var n = parseInt(vm.batchRemoveSuffixN) || 0;
+          if (n <= 0) return;
+          s.customName = name.substring(0, name.length - n);
+        } else if (vm.batchPrefixAction === 'keepFirst') {
+          var n = parseInt(vm.batchKeepFirstN) || 0;
+          if (n <= 0) return;
+          s.customName = name.substring(0, n);
+        } else if (vm.batchPrefixAction === 'keepLast') {
+          var n = parseInt(vm.batchKeepLastN) || 0;
+          if (n <= 0) return;
+          s.customName = name.substring(name.length - n);
+        } else {
+          return;
+        }
+        count++;
+      });
+      if (count === 0) { vm.$Message.warning('请设置有效参数'); return; }
+      vm.$Message.success('操作完成，共 ' + count + ' 条');
+      vm.showBatchReplace = false;
+    },
+    doBatchSplit: function () {
+      var vm = this;
+      if (!vm.editable || !vm.editable.skus) return;
+      var sep = vm.batchSplitSep === '__custom__' ? vm.batchSplitCustomSep : vm.batchSplitSep;
+      if (!sep) { vm.$Message.warning('请选择或输入分隔符'); return; }
+      var idx = (parseInt(vm.batchSplitIndex) || 1) - 1;
+      if (idx < 0) idx = 0;
+      var count = 0;
+      vm.editable.skus.forEach(function (s) {
+        var name = s.customName || s.name || '';
+        if (!name || name.indexOf(sep) < 0) return;
+        var parts = name.split(sep);
+        if (idx >= parts.length) return;
+        if (vm.batchSplitAction === 'keep') {
+          s.customName = parts[idx];
+        } else {
+          parts.splice(idx, 1);
+          s.customName = parts.join(sep);
+        }
+        count++;
+      });
+      vm.$Message.success('操作完成，共 ' + count + ' 条');
+      vm.showBatchReplace = false;
+    },
+    batchPreview: function () {
+      var vm = this;
+      if (!vm.editable || !vm.editable.skus || !vm.editable.skus.length) return '';
+      var name = vm.editable.skus[0].customName || vm.editable.skus[0].name || '';
+      if (!name) return '';
+      try {
+        if (vm.batchMode === 'find') {
+          if (!vm.batchFind) return '';
+          return name + ' → ' + name.split(vm.batchFind).join(vm.batchReplace);
+        }
+        if (vm.batchMode === 'range') {
+          var from = parseInt(vm.batchRangeFrom) || 1;
+          var to = parseInt(vm.batchRangeTo) || 0;
+          if (to < from) return '';
+          return name + ' → ' + (vm.batchRangeAction === 'keep' ? name.substring(from - 1, to) : name.substring(0, from - 1) + name.substring(to));
+        }
+        if (vm.batchMode === 'prefix') {
+          if (vm.batchPrefixAction === 'add') return name + ' → ' + (vm.batchAddPrefix || '') + name + (vm.batchAddSuffix || '');
+          if (vm.batchPrefixAction === 'removePrefix') return name + ' → ' + name.substring(parseInt(vm.batchRemovePrefixN) || 0);
+          if (vm.batchPrefixAction === 'removeSuffix') { var n = parseInt(vm.batchRemoveSuffixN) || 0; return name + ' → ' + name.substring(0, name.length - n); }
+          if (vm.batchPrefixAction === 'keepFirst') return name + ' → ' + name.substring(0, parseInt(vm.batchKeepFirstN) || 0);
+          if (vm.batchPrefixAction === 'keepLast') { var n = parseInt(vm.batchKeepLastN) || 0; return name + ' → ' + name.substring(name.length - n); }
+        }
+        if (vm.batchMode === 'split') {
+          var sep = vm.batchSplitSep === '__custom__' ? vm.batchSplitCustomSep : vm.batchSplitSep;
+          if (!sep || name.indexOf(sep) < 0) return '';
+          var parts = name.split(sep);
+          var idx = (parseInt(vm.batchSplitIndex) || 1) - 1;
+          if (idx >= parts.length) return '';
+          return name + ' → ' + (vm.batchSplitAction === 'keep' ? parts[idx] : (parts.slice(0, idx).concat(parts.slice(idx + 1))).join(sep));
+        }
+      } catch (e) {}
+      return '';
     },
     addFormulaRow: function () {
       this.priceFormulas.push({ min: 0, max: 9999, expr: 'price * 2' });
@@ -1534,18 +1672,97 @@ Vue.component('detail-modal', {
               <thead><tr>
                 <th class="sku-check-col"><checkbox :value="allSkuSelected" @on-change="toggleSkuAll"></checkbox></th>
                 <th>图片</th><th>SKU名称</th>
-                <th>自定义名称 <Poptip v-model="showBatchReplace" placement="top" width="280" trigger="click" transfer>
+                <th>自定义名称 <Poptip v-model="showBatchReplace" placement="bottom" width="360" trigger="click" transfer>
                     <span class="th-action">批量替换</span>
                     <div slot="content" class="batch-replace-panel">
-                      <div class="batch-replace-field">
-                        <span class="batch-replace-label">查找内容</span>
-                        <i-input v-model="batchFind" size="small" placeholder="要替换的文本" />
+                      <div class="batch-mode-tabs">
+                        <span :class="{ active: batchMode==='find' }" @click="batchMode='find'">查找替换</span>
+                        <span :class="{ active: batchMode==='range' }" @click="batchMode='range'">范围截取</span>
+                        <span :class="{ active: batchMode==='prefix' }" @click="batchMode='prefix'">前缀后缀</span>
+                        <span :class="{ active: batchMode==='split' }" @click="batchMode='split'">分隔拆分</span>
                       </div>
-                      <div class="batch-replace-field">
-                        <span class="batch-replace-label">替换为</span>
-                        <i-input v-model="batchReplace" size="small" placeholder="替换后的文本" />
+                      <div v-show="batchMode==='find'" class="batch-mode-form">
+                        <div class="batch-replace-field">
+                          <span class="batch-replace-label">查找内容</span>
+                          <i-input v-model="batchFind" size="small" placeholder="要替换的文本" />
+                        </div>
+                        <div class="batch-replace-field">
+                          <span class="batch-replace-label">替换为</span>
+                          <i-input v-model="batchReplace" size="small" placeholder="替换后的文本" />
+                        </div>
                       </div>
-                      <i-button type="primary" size="small" long @click="doBatchReplace">执行替换</i-button>
+                      <div v-show="batchMode==='range'" class="batch-mode-form">
+                        <div class="batch-mode-row">
+                          <label>从第</label>
+                          <i-input v-model="batchRangeFrom" type="number" number size="small" style="width:60px" />
+                          <label>个字符 到第</label>
+                          <i-input v-model="batchRangeTo" type="number" number size="small" style="width:60px" />
+                          <label>个字符</label>
+                        </div>
+                        <div class="batch-mode-radio">
+                          <label><input type="radio" value="keep" v-model="batchRangeAction" /> 保留范围</label>
+                          <label><input type="radio" value="remove" v-model="batchRangeAction" /> 删除范围</label>
+                        </div>
+                      </div>
+                      <div v-show="batchMode==='prefix'" class="batch-mode-form">
+                        <div class="batch-mode-radio" style="margin-bottom:6px">
+                          <label><input type="radio" value="add" v-model="batchPrefixAction" /> 添加</label>
+                          <label><input type="radio" value="removePrefix" v-model="batchPrefixAction" /> 删前N字</label>
+                          <label><input type="radio" value="removeSuffix" v-model="batchPrefixAction" /> 删后N字</label>
+                          <label><input type="radio" value="keepFirst" v-model="batchPrefixAction" /> 保留前N</label>
+                          <label><input type="radio" value="keepLast" v-model="batchPrefixAction" /> 保留后N</label>
+                        </div>
+                        <div v-show="batchPrefixAction==='add'" class="batch-mode-row">
+                          <label>前缀</label>
+                          <i-input v-model="batchAddPrefix" size="small" placeholder="添加到开头" style="flex:1" />
+                        </div>
+                        <div v-show="batchPrefixAction==='add'" class="batch-mode-row">
+                          <label>后缀</label>
+                          <i-input v-model="batchAddSuffix" size="small" placeholder="添加到末尾" style="flex:1" />
+                        </div>
+                        <div v-show="batchPrefixAction==='removePrefix'" class="batch-mode-row">
+                          <label>删除前</label>
+                          <i-input v-model="batchRemovePrefixN" type="number" number size="small" style="width:60px" />
+                          <label>个字符</label>
+                        </div>
+                        <div v-show="batchPrefixAction==='removeSuffix'" class="batch-mode-row">
+                          <label>删除后</label>
+                          <i-input v-model="batchRemoveSuffixN" type="number" number size="small" style="width:60px" />
+                          <label>个字符</label>
+                        </div>
+                        <div v-show="batchPrefixAction==='keepFirst'" class="batch-mode-row">
+                          <label>只保留前</label>
+                          <i-input v-model="batchKeepFirstN" type="number" number size="small" style="width:60px" />
+                          <label>个字符</label>
+                        </div>
+                        <div v-show="batchPrefixAction==='keepLast'" class="batch-mode-row">
+                          <label>只保留后</label>
+                          <i-input v-model="batchKeepLastN" type="number" number size="small" style="width:60px" />
+                          <label>个字符</label>
+                        </div>
+                      </div>
+                      <div v-show="batchMode==='split'" class="batch-mode-form">
+                        <div class="batch-mode-row">
+                          <label>分隔符</label>
+                          <i-select v-model="batchSplitSep" size="small" style="width:100px">
+                            <i-option value="/">/</i-option>
+                            <i-option value="-">-</i-option>
+                            <i-option value=" ">空格</i-option>
+                            <i-option value="__custom__">自定义</i-option>
+                          </i-select>
+                          <i-input v-if="batchSplitSep==='__custom__'" v-model="batchSplitCustomSep" size="small" style="width:60px" />
+                        </div>
+                        <div class="batch-mode-row">
+                          <label>第几段</label>
+                          <i-input v-model="batchSplitIndex" type="number" number size="small" style="width:60px" />
+                        </div>
+                        <div class="batch-mode-radio">
+                          <label><input type="radio" value="keep" v-model="batchSplitAction" /> 保留该段</label>
+                          <label><input type="radio" value="remove" v-model="batchSplitAction" /> 删除该段</label>
+                        </div>
+                      </div>
+                      <div v-if="batchPreview()" class="batch-preview">{{ batchPreview() }}</div>
+                      <i-button type="primary" size="small" long @click="doBatchReplace" style="margin-top:6px">执行</i-button>
                     </div>
                   </Poptip></th><th>进价</th><th>售价 <span style="margin-left:6px;font-size:11px;font-weight:400"><a style="color:var(--success);cursor:pointer" @click="applyPriceFormula">自动计算</a><span style="color:var(--border);margin:0 4px">|</span><a style="color:var(--text-muted);cursor:pointer" @click="showPriceFormula=true">公式设置</a></span></th><th>尺寸(cm)</th><th>重量</th>
               </tr></thead>

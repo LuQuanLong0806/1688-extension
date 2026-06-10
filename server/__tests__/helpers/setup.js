@@ -8,18 +8,18 @@ let treeDb;
 
 // 本地表结构（与 db.js 保持一致）
 const LOCAL_TABLE_DEFS = [
-  { name: 'products', ddl: `CREATE TABLE IF NOT EXISTS products (id INTEGER PRIMARY KEY AUTOINCREMENT, source_url TEXT NOT NULL, title TEXT, main_images TEXT, desc_images TEXT, attrs TEXT, skus TEXT, status INTEGER DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, category TEXT, detail_images TEXT, custom_category TEXT, dxm_category TEXT DEFAULT '', manual_category TEXT, deleted INTEGER DEFAULT 0, uid TEXT, automation_stage TEXT DEFAULT 'none', automation_log TEXT DEFAULT '', automation_issues TEXT DEFAULT '', automation_started_at DATETIME, automation_finished_at DATETIME)` },
-  { name: 'settings', ddl: `CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)` },
-  { name: 'categories', ddl: `CREATE TABLE IF NOT EXISTS categories (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, custom_name TEXT DEFAULT '', cat_id TEXT, leaf_category_id TEXT, top_category_id TEXT, post_category_id TEXT, count INTEGER DEFAULT 1, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)` },
-  { name: 'dxm_categories', ddl: `CREATE TABLE IF NOT EXISTS dxm_categories (id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT NOT NULL UNIQUE, leaf_name TEXT NOT NULL, count INTEGER DEFAULT 1, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)` },
+  { name: 'products', ddl: `CREATE TABLE IF NOT EXISTS products (id INTEGER PRIMARY KEY AUTOINCREMENT, source_url TEXT NOT NULL, title TEXT, main_images TEXT, desc_images TEXT, attrs TEXT, skus TEXT, status INTEGER DEFAULT 0, created_at DATETIME DEFAULT (datetime("now", "+8 hours")), updated_at DATETIME DEFAULT (datetime("now", "+8 hours")), category TEXT, detail_images TEXT, custom_category TEXT, dxm_category TEXT DEFAULT '', manual_category TEXT, deleted INTEGER DEFAULT 0, uid TEXT, automation_stage TEXT DEFAULT 'none', automation_log TEXT DEFAULT '', automation_issues TEXT DEFAULT '', automation_started_at DATETIME, automation_finished_at DATETIME)` },
+  { name: 'settings', ddl: `CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at DATETIME DEFAULT (datetime("now", "+8 hours")))` },
+  { name: 'categories', ddl: `CREATE TABLE IF NOT EXISTS categories (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, custom_name TEXT DEFAULT '', cat_id TEXT, leaf_category_id TEXT, top_category_id TEXT, post_category_id TEXT, count INTEGER DEFAULT 1, created_at DATETIME DEFAULT (datetime("now", "+8 hours")))` },
+  { name: 'dxm_categories', ddl: `CREATE TABLE IF NOT EXISTS dxm_categories (id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT NOT NULL UNIQUE, leaf_name TEXT NOT NULL, count INTEGER DEFAULT 1, created_at DATETIME DEFAULT (datetime("now", "+8 hours")))` },
   { name: 'category_mappings', ddl: `CREATE TABLE IF NOT EXISTS category_mappings (id INTEGER PRIMARY KEY AUTOINCREMENT, category_name TEXT NOT NULL, custom_category TEXT NOT NULL, count INTEGER DEFAULT 1, source TEXT DEFAULT 'auto', created_at TEXT DEFAULT '', updated_at TEXT DEFAULT '', UNIQUE(category_name, custom_category))` },
-  { name: 'keyword_category_rel', ddl: `CREATE TABLE IF NOT EXISTS keyword_category_rel (id INTEGER PRIMARY KEY AUTOINCREMENT, keyword TEXT NOT NULL, category_name TEXT NOT NULL, weight REAL DEFAULT 1.0, match_count INTEGER DEFAULT 1, valid INTEGER DEFAULT 1, source TEXT DEFAULT 'auto', created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, UNIQUE(keyword, category_name))` },
+  { name: 'keyword_category_rel', ddl: `CREATE TABLE IF NOT EXISTS keyword_category_rel (id INTEGER PRIMARY KEY AUTOINCREMENT, keyword TEXT NOT NULL, category_name TEXT NOT NULL, weight REAL DEFAULT 1.0, match_count INTEGER DEFAULT 1, valid INTEGER DEFAULT 1, source TEXT DEFAULT 'auto', created_at DATETIME DEFAULT (datetime("now", "+8 hours")), updated_at DATETIME DEFAULT (datetime("now", "+8 hours")), UNIQUE(keyword, category_name))` },
   { name: 'keyword_synonyms', ddl: `CREATE TABLE IF NOT EXISTS keyword_synonyms (id INTEGER PRIMARY KEY AUTOINCREMENT, word_a TEXT NOT NULL, word_b TEXT NOT NULL, created_at TEXT DEFAULT '', updated_at TEXT DEFAULT '', UNIQUE(word_a, word_b))` },
-  { name: 'keyword_blacklist', ddl: `CREATE TABLE IF NOT EXISTS keyword_blacklist (id INTEGER PRIMARY KEY AUTOINCREMENT, keyword TEXT NOT NULL, category_name TEXT NOT NULL, reason TEXT DEFAULT '', count INTEGER DEFAULT 1, created_at TEXT DEFAULT '', updated_at TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE(keyword, category_name))` },
+  { name: 'keyword_blacklist', ddl: `CREATE TABLE IF NOT EXISTS keyword_blacklist (id INTEGER PRIMARY KEY AUTOINCREMENT, keyword TEXT NOT NULL, category_name TEXT NOT NULL, reason TEXT DEFAULT '', count INTEGER DEFAULT 1, created_at TEXT DEFAULT '', updated_at TEXT DEFAULT (datetime("now", "+8 hours")), UNIQUE(keyword, category_name))` },
   { name: 'category_config', ddl: `CREATE TABLE IF NOT EXISTS category_config (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, value TEXT NOT NULL, group_name TEXT DEFAULT '', description TEXT DEFAULT '', sort_order INTEGER DEFAULT 0, deleted INTEGER DEFAULT 0, created_at TEXT DEFAULT '', updated_at TEXT DEFAULT '', UNIQUE(type, value, group_name))` }
 ];
 
-const TREE_DDL = `CREATE TABLE IF NOT EXISTS dxm_category_tree (cat_id INTEGER PRIMARY KEY, cat_name TEXT NOT NULL, parent_cat_id INTEGER DEFAULT 0, cat_level INTEGER DEFAULT 1, is_leaf INTEGER DEFAULT 0, path TEXT DEFAULT '', sync_at DATETIME DEFAULT CURRENT_TIMESTAMP, created_at TEXT DEFAULT '', updated_at TEXT DEFAULT '')`;
+const TREE_DDL = `CREATE TABLE IF NOT EXISTS dxm_category_tree (cat_id INTEGER PRIMARY KEY, cat_name TEXT NOT NULL, parent_cat_id INTEGER DEFAULT 0, cat_level INTEGER DEFAULT 1, is_leaf INTEGER DEFAULT 0, path TEXT DEFAULT '', sync_at DATETIME DEFAULT (datetime("now", "+8 hours")), created_at TEXT DEFAULT '', updated_at TEXT DEFAULT '')`;
 
 // 创建 mock cloudDb
 function createMockCloudDb() {
@@ -186,7 +186,7 @@ function createSettingsRouter() {
     const { items } = req.body;
     if (!Array.isArray(items) || !items.length) return res.json({ ok: true });
     for (const item of items) {
-      run('INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)', [item.key, item.value]);
+      run('INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, datetime("now", "+8 hours"))', [item.key, item.value]);
     }
     res.json({ ok: true });
   });
@@ -196,7 +196,7 @@ function createSettingsRouter() {
   });
   router.post('/settings/:key', (req, res) => {
     const { value } = req.body;
-    run('INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)', [req.params.key, value || '']);
+    run('INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, datetime("now", "+8 hours"))', [req.params.key, value || '']);
     res.json({ ok: true });
   });
   router.get('/settings-export', (req, res) => {
@@ -210,7 +210,7 @@ function createSettingsRouter() {
     if (!data || typeof data !== 'object') return res.status(400).json({ error: '无效数据' });
     let count = 0;
     for (const [key, value] of Object.entries(data)) {
-      run('INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)', [key, String(value)]);
+      run('INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, datetime("now", "+8 hours"))', [key, String(value)]);
       count++;
     }
     res.json({ ok: true, imported: count });
@@ -307,7 +307,7 @@ function createCategoriesRouter(cloudDb) {
     if (!categoryName || !customCategory) return res.status(400).json({ error: '参数不完整' });
     const existing = getOne('SELECT id FROM category_mappings WHERE category_name = ? AND custom_category = ?', [categoryName, customCategory]);
     if (!existing) {
-      run('INSERT INTO category_mappings (category_name, custom_category, count, source, created_at, updated_at) VALUES (?, ?, 1, \'manual\', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)', [categoryName, customCategory]);
+      run('INSERT INTO category_mappings (category_name, custom_category, count, source, created_at, updated_at) VALUES (?, ?, 1, \'manual\', datetime("now", "+8 hours"), datetime("now", "+8 hours"))', [categoryName, customCategory]);
     }
     res.json({ ok: true });
   });
@@ -327,14 +327,14 @@ function createCategoriesRouter(cloudDb) {
   });
 
   router.delete('/keyword-rels/:id', (req, res) => {
-    run('UPDATE keyword_category_rel SET valid = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [parseInt(req.params.id)]);
+    run('UPDATE keyword_category_rel SET valid = 0, updated_at = datetime("now", "+8 hours") WHERE id = ?', [parseInt(req.params.id)]);
     res.json({ ok: true });
   });
 
   router.post('/keyword-rels/batch-invalidate', (req, res) => {
     const ids = req.body.ids;
     if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ error: '请提供ids数组' });
-    ids.forEach(id => { run('UPDATE keyword_category_rel SET valid = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [parseInt(id)]); });
+    ids.forEach(id => { run('UPDATE keyword_category_rel SET valid = 0, updated_at = datetime("now", "+8 hours") WHERE id = ?', [parseInt(id)]); });
     res.json({ ok: true });
   });
 
@@ -352,7 +352,7 @@ function createCategoriesRouter(cloudDb) {
   router.post('/keyword-synonyms', (req, res) => {
     const { wordA, wordB } = req.body;
     if (!wordA || !wordB) return res.status(400).json({ error: '请提供wordA和wordB' });
-    run('INSERT OR IGNORE INTO keyword_synonyms (word_a, word_b, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)', [wordA, wordB]);
+    run('INSERT OR IGNORE INTO keyword_synonyms (word_a, word_b, created_at, updated_at) VALUES (?, ?, datetime("now", "+8 hours"), datetime("now", "+8 hours"))', [wordA, wordB]);
     res.json({ ok: true });
   });
 
@@ -375,7 +375,7 @@ function createCategoriesRouter(cloudDb) {
   router.post('/keyword-blacklist', (req, res) => {
     const { keyword, categoryName, reason } = req.body;
     if (!keyword || !categoryName) return res.status(400).json({ error: '请提供keyword和categoryName' });
-    run('INSERT OR IGNORE INTO keyword_blacklist (keyword, category_name, reason, created_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)', [keyword, categoryName, reason || '']);
+    run('INSERT OR IGNORE INTO keyword_blacklist (keyword, category_name, reason, created_at) VALUES (?, ?, ?, datetime("now", "+8 hours"))', [keyword, categoryName, reason || '']);
     res.json({ ok: true });
   });
 
@@ -521,14 +521,14 @@ function createProductsRouter(cloudDb) {
       }
     }
     if (fields.length === 0) return res.json({ ok: true });
-    fields.push('updated_at = CURRENT_TIMESTAMP');
+    fields.push('updated_at = datetime("now", "+8 hours")');
     params.push(parseInt(req.params.id));
     run('UPDATE products SET ' + fields.join(', ') + ' WHERE id = ?', params);
     res.json({ ok: true });
   });
 
   router.delete('/product/:id', (req, res) => {
-    run('UPDATE products SET deleted = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [parseInt(req.params.id)]);
+    run('UPDATE products SET deleted = 1, updated_at = datetime("now", "+8 hours") WHERE id = ?', [parseInt(req.params.id)]);
     res.json({ ok: true });
   });
 
@@ -538,7 +538,7 @@ function createProductsRouter(cloudDb) {
     if (ids.length > 500) return res.status(400).json({ error: '单次最多操作 500 条' });
     const placeholders = ids.map(() => '?').join(',');
     const before = getOne('SELECT COUNT(*) as count FROM products WHERE id IN (' + placeholders + ')', ids);
-    run('UPDATE products SET deleted = 1, updated_at = CURRENT_TIMESTAMP WHERE id IN (' + placeholders + ')', ids);
+    run('UPDATE products SET deleted = 1, updated_at = datetime("now", "+8 hours") WHERE id IN (' + placeholders + ')', ids);
     res.json({ ok: true, deleted: before ? before.count : 0 });
   });
 
@@ -548,9 +548,9 @@ function createProductsRouter(cloudDb) {
     if (ids.length > 500) return res.status(400).json({ error: '单次最多操作 500 条' });
     const placeholders = ids.map(() => '?').join(',');
     if (status === -1) {
-      run('UPDATE products SET status = CASE WHEN status = 1 THEN 0 ELSE 1 END, updated_at = CURRENT_TIMESTAMP WHERE id IN (' + placeholders + ')', ids);
+      run('UPDATE products SET status = CASE WHEN status = 1 THEN 0 ELSE 1 END, updated_at = datetime("now", "+8 hours") WHERE id IN (' + placeholders + ')', ids);
     } else {
-      run('UPDATE products SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id IN (' + placeholders + ')', [status, ...ids]);
+      run('UPDATE products SET status = ?, updated_at = datetime("now", "+8 hours") WHERE id IN (' + placeholders + ')', [status, ...ids]);
     }
     res.json({ ok: true, updated: ids.length });
   });
@@ -570,7 +570,7 @@ function createProductsRouter(cloudDb) {
       try {
         var dxm = JSON.parse(p.dxm_category);
         if (dxm && dxm.path) {
-          run('UPDATE products SET manual_category = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [dxm.path, p.id]);
+          run('UPDATE products SET manual_category = ?, updated_at = datetime("now", "+8 hours") WHERE id = ?', [dxm.path, p.id]);
           updated++;
         }
       } catch (e) {}
@@ -585,7 +585,7 @@ function createProductsRouter(cloudDb) {
       );
       if (remaining && remaining.cnt > 0) {
         run(
-          `UPDATE products SET manual_category = ?, dxm_category = ?, updated_at = CURRENT_TIMESTAMP
+          `UPDATE products SET manual_category = ?, dxm_category = ?, updated_at = datetime("now", "+8 hours")
            WHERE custom_category = ? AND (manual_category IS NULL OR manual_category = '')
              AND deleted = 0`,
           [treeRow.path, JSON.stringify({ path: treeRow.path, leafName: customCategory }), customCategory]
@@ -609,10 +609,10 @@ function createDxmTreeRouter() {
     if (!path || !leafName) return res.status(400).json({ error: 'Missing path or leafName' });
     const cleanPath = path.replace(/\s+/g, '');
     const existing = treeGetOne('SELECT cat_id FROM dxm_category_tree WHERE path = ?', [cleanPath]);
-    if (existing) { treeRun('UPDATE dxm_category_tree SET sync_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE cat_id = ?', [existing.cat_id]); }
+    if (existing) { treeRun('UPDATE dxm_category_tree SET sync_at = datetime("now", "+8 hours"), updated_at = datetime("now", "+8 hours") WHERE cat_id = ?', [existing.cat_id]); }
     else {
       const parts = cleanPath.split('/');
-      treeRun('INSERT INTO dxm_category_tree (cat_id, cat_name, parent_cat_id, cat_level, is_leaf, path, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)', [Date.now(), leafName, 0, parts.length, 1, cleanPath]);
+      treeRun('INSERT INTO dxm_category_tree (cat_id, cat_name, parent_cat_id, cat_level, is_leaf, path, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, datetime("now", "+8 hours"), datetime("now", "+8 hours"))', [Date.now(), leafName, 0, parts.length, 1, cleanPath]);
     }
     res.json({ ok: true });
   });
@@ -623,8 +623,8 @@ function createDxmTreeRouter() {
     let saved = 0;
     categories.forEach(c => {
       const existing = treeGetOne('SELECT cat_id FROM dxm_category_tree WHERE cat_id = ?', [c.catId]);
-      if (existing) { treeRun('UPDATE dxm_category_tree SET cat_name=?, parent_cat_id=?, cat_level=?, is_leaf=?, path=?, sync_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP WHERE cat_id=?', [c.catName, c.parentCatId, c.catLevel, c.isLeaf ? 1 : 0, c.path || '', c.catId]); }
-      else { treeRun('INSERT INTO dxm_category_tree (cat_id, cat_name, parent_cat_id, cat_level, is_leaf, path, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)', [c.catId, c.catName, c.parentCatId, c.catLevel, c.isLeaf ? 1 : 0, c.path || '']); }
+      if (existing) { treeRun('UPDATE dxm_category_tree SET cat_name=?, parent_cat_id=?, cat_level=?, is_leaf=?, path=?, sync_at=datetime("now", "+8 hours"), updated_at=datetime("now", "+8 hours") WHERE cat_id=?', [c.catName, c.parentCatId, c.catLevel, c.isLeaf ? 1 : 0, c.path || '', c.catId]); }
+      else { treeRun('INSERT INTO dxm_category_tree (cat_id, cat_name, parent_cat_id, cat_level, is_leaf, path, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, datetime("now", "+8 hours"), datetime("now", "+8 hours"))', [c.catId, c.catName, c.parentCatId, c.catLevel, c.isLeaf ? 1 : 0, c.path || '']); }
       saved++;
     });
     res.json({ ok: true, saved });
@@ -700,7 +700,7 @@ function createAiRouter(cloudDb) {
     Object.keys(updates).forEach(function (uc) {
       if (uc === 'providers') return;
       if (updates[uc].label !== undefined) {
-        run("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)", ['ai_label_' + uc, updates[uc].label]);
+        run(`INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, datetime('now', '+8 hours'))`, ['ai_label_' + uc, updates[uc].label]);
       }
     });
     res.json({ ok: true });
@@ -726,10 +726,10 @@ function createAiRouter(cloudDb) {
     var labelOnly = req.body.labelOnly === true;
     if (!key && !labelOnly) return res.status(400).json({ error: 'API Key 不能为空' });
     if (key && !labelOnly) {
-      run("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('imgbb_api_key', ?, CURRENT_TIMESTAMP)", [key]);
+      run(`INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('imgbb_api_key', ?, datetime('now', '+8 hours'))`, [key]);
     }
     if (label !== undefined) {
-      run("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('imgbb_api_key_label', ?, CURRENT_TIMESTAMP)", [label]);
+      run(`INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('imgbb_api_key_label', ?, datetime('now', '+8 hours'))`, [label]);
     }
     res.json({ ok: true });
   });

@@ -41,7 +41,7 @@ router.put('/settings', (req, res) => {
   const { items } = req.body;
   if (!Array.isArray(items) || !items.length) return res.json({ ok: true });
   for (const item of items) {
-    run('INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)', [item.key, item.value]);
+    run('INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, datetime("now", "+8 hours"))', [item.key, item.value]);
   }
   res.json({ ok: true });
 });
@@ -54,7 +54,7 @@ router.get('/settings/:key', (req, res) => {
 
 router.post('/settings/:key', (req, res) => {
   const { value } = req.body;
-  run('INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)', [req.params.key, value || '']);
+  run('INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, datetime("now", "+8 hours"))', [req.params.key, value || '']);
   res.json({ ok: true });
 });
 
@@ -81,7 +81,7 @@ router.post('/settings-import', (req, res) => {
     if (skipKeys.includes(key)) continue;
     var val = String(value);
     if (sec.isSensitive(key) && val.indexOf('ENC:') !== 0) val = sec.encrypt(val);
-    run('INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)', [key, val]);
+    run('INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, datetime("now", "+8 hours"))', [key, val]);
     count++;
   }
   // 迁移：旧单 key 格式 → 新多 key 数组格式
@@ -90,7 +90,7 @@ router.post('/settings-import', (req, res) => {
     if (data['zhipu_api_key'] && !data['zhipu_api_keys']) {
       var oldKey = String(data['zhipu_api_key']).trim();
       if (oldKey) {
-        run("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('zhipu_api_keys', ?, CURRENT_TIMESTAMP)", [sec.encrypt(JSON.stringify([{key: oldKey, label: ''}]))]);
+        run(`INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('zhipu_api_keys', ?, datetime('now', '+8 hours'))`, [sec.encrypt(JSON.stringify([{key: oldKey, label: ''}]))]);
       }
       run("DELETE FROM settings WHERE key = 'zhipu_api_key'");
     }
@@ -99,7 +99,7 @@ router.post('/settings-import', (req, res) => {
       var arr;
       try { arr = JSON.parse(data['zhipu_api_keys']); } catch (e) { arr = null; }
       if (Array.isArray(arr) && arr.length && typeof arr[0] === 'string') {
-        run("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('zhipu_api_keys', ?, CURRENT_TIMESTAMP)", [sec.encrypt(JSON.stringify(arr.map(function (k) { return {key: k, label: ''}; })))]);
+        run(`INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('zhipu_api_keys', ?, datetime('now', '+8 hours'))`, [sec.encrypt(JSON.stringify(arr.map(function (k) { return {key: k, label: ''}; })))]);
       }
     }
     // ai_configs 内 provider 旧格式迁移
@@ -131,7 +131,7 @@ router.post('/settings-import', (req, res) => {
           changed = true;
         }
         if (changed) {
-          run("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('ai_configs', ?, CURRENT_TIMESTAMP)", [sec.encrypt(JSON.stringify(cfg))]);
+          run(`INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('ai_configs', ?, datetime('now', '+8 hours'))`, [sec.encrypt(JSON.stringify(cfg))]);
         }
       }
     }
@@ -165,7 +165,7 @@ router.post('/settings-import', (req, res) => {
       zhipuChanged = true;
     }
     if (zhipuArr.length) {
-      run("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('zhipu_api_keys', ?, CURRENT_TIMESTAMP)", [sec.encrypt(JSON.stringify(zhipuArr))]);
+      run(`INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('zhipu_api_keys', ?, datetime('now', '+8 hours'))`, [sec.encrypt(JSON.stringify(zhipuArr))]);
     }
     // 通义千问：qwen_vl_api_key → ai_configs.providers.qwen.apiKeys
     if (data['qwen_vl_api_key']) {
@@ -182,7 +182,7 @@ router.post('/settings-import', (req, res) => {
     if (zhipuChanged || data['qwen_vl_api_key']) {
       var cfgVal = JSON.stringify(aiCfg);
       if (sec.isSensitive('ai_configs')) cfgVal = sec.encrypt(cfgVal);
-      run("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('ai_configs', ?, CURRENT_TIMESTAMP)", [cfgVal]);
+      run(`INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('ai_configs', ?, datetime('now', '+8 hours'))`, [cfgVal]);
     }
     // 清除迁移标记，让下次启动重新检测
     run("DELETE FROM settings WHERE key = 'ai_vendor_migrated'");
