@@ -130,20 +130,27 @@ function uploadToImgBB(imageData, opts) {
           var raw = Buffer.concat(chunks).toString();
           try {
             var json = JSON.parse(raw);
-            if (json.success && json.data && json.data.url) {
+            if (json.success && json.data) {
+              var imgUrl = json.data.url || '';
+              var dispUrl = json.data.display_url || '';
+              var imgUrlObj = (json.data.image && json.data.image.url) || '';
+              var thumbUrl = (json.data.thumb && json.data.thumb.url) || '';
+              var medUrl = (json.data.medium && json.data.medium.url) || '';
               console.log('[ImgBB] Response URLs:', JSON.stringify({
-                url: json.data.url,
-                display_url: json.data.display_url || '',
-                thumb_url: (json.data.thumb && json.data.thumb.url) || '',
-                medium_url: (json.data.medium && json.data.medium.url) || '',
-                image_url: (json.data.image && json.data.image.url) || ''
+                url: imgUrl, display_url: dispUrl, image_url: imgUrlObj,
+                thumb_url: thumbUrl, medium_url: medUrl,
+                width: json.data.width, height: json.data.height, size: json.data.size
               }));
+              if (!imgUrl && !dispUrl && !imgUrlObj) {
+                reject(new Error('ImgBB response has no image URL'));
+                return;
+              }
               // 本地备份
               var buf = Buffer.from(base64Str, 'base64');
               var localName = 'imgbb_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8) + '.png';
               fs.writeFile(path.join(UPLOADS_DIR, localName), buf, function () {});
-              // 优先用原图直链，回退到 data.url
-              var originalUrl = (json.data.image && json.data.image.url) || json.data.url;
+              // 优先级: image.url(原图) > data.url(原图) > display_url(中图)
+              var originalUrl = imgUrlObj || imgUrl || dispUrl;
               console.log('[ImgBB] Upload success:', originalUrl, 'album:', albumId || 'none', 'date:', dateStr);
               resolve({ ok: true, url: originalUrl, delete: json.data.delete_url, album: dateStr });
             } else {
