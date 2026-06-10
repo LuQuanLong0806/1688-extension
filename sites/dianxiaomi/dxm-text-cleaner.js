@@ -262,7 +262,8 @@
         image_base64: currentImageBuf,
         chinese_only: chineseOnly,
         min_confidence: minConfidence,
-        dilate_px: dilatePx
+        dilate_px: dilatePx,
+        enable_vision: false
       })
     }).then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -399,7 +400,7 @@
     fetch(base + '/api/ai/batch-clean-chinese', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ images: images })
+      body: JSON.stringify({ images: images, enable_vision: false })
     }).then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.json();

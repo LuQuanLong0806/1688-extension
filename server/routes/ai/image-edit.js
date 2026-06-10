@@ -320,7 +320,8 @@ router.post('/auto-clean-chinese', function (req, res) {
     return textCleaner.cleanImage(imgBuf, {
       chineseOnly: req.body.chinese_only !== false,
       minConfidence: req.body.min_confidence || 0.5,
-      dilatePx: req.body.dilate_px || 20
+      dilatePx: req.body.dilate_px || 20,
+      enableVision: req.body.enable_vision === true
     });
   }).then(function (result) {
     if (!result.cleaned) {
@@ -342,6 +343,8 @@ router.post('/auto-clean-chinese', function (req, res) {
         cleaned: true,
         url: url,
         regions: result.regions,
+        ocrCount: (result.ocrRegions || []).length,
+        visionCount: (result.visionRegions || []).length,
         regionCount: result.regionCount,
         elapsed_ms: elapsed
       });
@@ -373,7 +376,10 @@ router.post('/batch-clean-chinese', function (req, res) {
     }
 
     return imagePromise.then(function (buf) {
-      return textCleaner.cleanImage(buf, { chineseOnly: true });
+      return textCleaner.cleanImage(buf, {
+        chineseOnly: true,
+        enableVision: req.body.enable_vision === true
+      });
     }).then(function (result) {
       if (!result.cleaned) {
         return { ok: true, cleaned: false, regions: result.regions || [] };
@@ -411,7 +417,7 @@ router.post('/batch-clean', function (req, res) {
   };
 
   var uploadToSmms = req.body.upload_to_smms === true;  // 上传到图床而非保存本地
-  var concurrency = Math.min(req.body.concurrency || 2, 4); // LaMa是CPU推理，默认2并发
+  var concurrency = Math.min(req.body.concurrency || 4, 6); // 视觉模型+OCR 网络等待期间可并行更多
 
   console.log('[批量清理] 处理 ' + images.length + ' 张图片, OCR:' + options.enableOCR + ', Vision:' + options.enableVision + ', 并发:' + concurrency);
   var t0 = Date.now();
@@ -606,7 +612,20 @@ router.post('/annotate-image', function (req, res) {
   }
 
   imagePromise.then(function (buf) {
-    return sizeAnnotate.annotateImage(buf, widthCm, heightCm, { unit: unit });
+    // 视觉模型定位产品边界（默认开启）
+    var boundsPromise;
+    if (req.body.enable_vision !== false) {
+      var b64 = buf.toString('base64');
+      boundsPromise = sizeAnnotate.detectProductBounds(b64);
+    } else {
+      boundsPromise = Promise.resolve(null);
+    }
+    return boundsPromise.then(function (productBounds) {
+      return sizeAnnotate.annotateImage(buf, widthCm, heightCm, {
+        unit: unit,
+        productBounds: productBounds
+      });
+    });
   }).then(function (result) {
     return sizeAnnotate.saveAnnotatedImage(result.imageBuffer).then(function (url) {
       console.log('[标注图] 完成, 耗时:', Date.now() - t0, 'ms');

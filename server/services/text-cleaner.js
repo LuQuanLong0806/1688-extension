@@ -1,7 +1,7 @@
 /**
  * 文字清理服务 — 检测图片中的中文文字并自动消除
- * 
- * 流水线: PaddleOCR检测中文区域 → sharp生成mask → LaMa inpaint修复
+ *
+ * 流水线: PaddleOCR检测 → 视觉模型精确定位(可选) → sharp生成mask → LaMa inpaint修复
  * 依赖: ocr_service.py (端口3001), lama.onnx
  */
 
@@ -321,12 +321,190 @@ async function generateMask(imageWidth, imageHeight, regions, options) {
   return maskPng;
 }
 
+// ========== 视觉模型精确定位（替代简单膨胀） ==========
+// 视觉区域比例外扩：确保完全覆盖徽章/标签边缘
+function expandVisionRegions(regions, imgW, imgH, ratio) {
+  if (!regions || !regions.length) return regions;
+  var r = ratio || 0.15;
+  return regions.map(function (reg) {
+    var padX = Math.round(Math.max(reg.width * r, 5));
+    var padY = Math.round(Math.max(reg.height * r, 5));
+    return {
+      x: Math.max(0, reg.x - padX),
+      y: Math.max(0, reg.y - padY),
+      width: Math.min(imgW - Math.max(0, reg.x - padX), reg.width + padX * 2),
+      height: Math.min(imgH - Math.max(0, reg.y - padY), reg.height + padY * 2)
+    };
+  });
+}
+
+// ========== 视觉模型兜底检测淡色水印（OCR 未检出时调用） ==========
+async function detectFaintWatermarkWithVision(base64Data, imgW, imgH) {
+  var providers;
+  try { providers = require('../routes/ai/providers'); } catch (e) { return null; }
+
+  var prompt = '任务：在这张电商商品主图（尺寸' + imgW + 'x' + imgH + '）中，找出所有非商品本身自带的后期叠加元素并框选。' +
+    'OCR未检测到明显文字，请仔细观察图片中是否有低对比度的叠加元素。' +
+    '\n\n定义规则：' +
+    '\n1. 商品本身自带的部分绝对不能框选。' +
+    '\n2. 所有后期添加的营销元素，无论有没有文字，都必须框选：' +
+    '\n   - 淡淡的半透明水印、浅色叠加文字。' +
+    '\n   - 纯色/半透明色块：圆角矩形、方块、条带，即使上面没有文字。' +
+    '\n   - 徽章/图标类元素：只剩纯色底/轮廓的营销徽章也必须框选。' +
+    '\n   - 小icon图标、logo、低对比度品牌标识。' +
+    '\n\n判断标准（满足任一即框选）：' +
+    '\n- 元素边缘清晰、和商品结构无连接，像是贴上去的。' +
+    '\n- 颜色均匀、和商品的纹理/材质明显不同。' +
+    '\n- 带有明显的品牌、营销特征，和商品本身的功能无关。' +
+    '\n\n输出要求：' +
+    '\n- 用矩形框完整覆盖整个元素，包括色块边缘、圆角和所有延伸部分。' +
+    '\n- 如果图片确实干净，返回空数组[]。' +
+    '\n只输出JSON数组，不要输出其他文字说明: [{"x":左上角x,"y":左上角y,"width":宽,"height":高}]';
+
+  // 压缩图片减少传输和推理时间
+  var fullBase64 = base64Data;
+  if (!fullBase64.startsWith('data:')) fullBase64 = 'data:image/png;base64,' + fullBase64;
+  try {
+    var rawBuf = Buffer.from(fullBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+    var fMeta = await sharp(rawBuf).metadata();
+    var maxDim = 800;
+    if (fMeta.width > maxDim || fMeta.height > maxDim) {
+      var resized = await sharp(rawBuf).resize(maxDim, maxDim, { fit: 'inside' }).jpeg({ quality: 85 }).toBuffer();
+      fullBase64 = 'data:image/jpeg;base64,' + resized.toString('base64');
+    }
+  } catch (e) { /* 保持原图 */ }
+
+  try {
+    var result = await providers.visionLLMRequest('/chat/completions', {
+      _vlImageContent: fullBase64,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.1,
+      max_tokens: 1024
+    });
+
+    var text = result.choices && result.choices[0] && result.choices[0].message && result.choices[0].message.content;
+    if (!text) return null;
+    console.log('[淡色水印检测] 模型返回 ' + text.length + ' 字符, tokens: ' + (result.totalTokens || '?'));
+
+    var jsonStr = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+    var regions = JSON.parse(jsonStr);
+    if (!Array.isArray(regions) || regions.length === 0) return null;
+
+    var valid = regions.filter(function (r) {
+      return typeof r.x === 'number' && typeof r.y === 'number' &&
+             typeof r.width === 'number' && typeof r.height === 'number' &&
+             r.width > 0 && r.height > 0;
+    }).map(function (r) {
+      return {
+        x: Math.max(0, Math.round(r.x)),
+        y: Math.max(0, Math.round(r.y)),
+        width: Math.round(r.width),
+        height: Math.round(r.height)
+      };
+    });
+
+    if (valid.length === 0) return null;
+    console.log('[淡色水印检测] 视觉模型检测到 ' + valid.length + ' 个区域（OCR未检出）');
+    return valid;
+  } catch (e) {
+    console.warn('[淡色水印检测] 失败:', e.message);
+    return null;
+  }
+}
+
+// ========== 视觉模型精确定位（替代简单膨胀） ==========
+async function detectRegionsWithVision(base64Data, imgW, imgH, ocrRegions) {
+  var providers;
+  try { providers = require('../routes/ai/providers'); } catch (e) {
+    console.warn('[视觉定位] providers 加载失败:', e.message);
+    return null;
+  }
+
+  var ocrDesc = ocrRegions.map(function (r, i) {
+    var bbox = getRegionBBox(r);
+    return '#' + (i + 1) + '(' + bbox.x + ',' + bbox.y + ',' + bbox.w + 'x' + bbox.h + ')';
+  }).join(' ');
+
+  var prompt = '任务：在这张电商商品主图（尺寸' + imgW + 'x' + imgH + '）中，找出所有非商品本身自带的后期叠加元素并框选。' +
+    'OCR已检测到文字区域: ' + ocrDesc + '，这些文字位置可作为参考。' +
+    '\n\n定义规则：' +
+    '\n1. 商品本身自带的部分（如包装上的文字、结构件、纹理、材质）是商品的一部分，绝对不能框选。' +
+    '\n2. 所有后期添加的营销元素，无论有没有文字，都必须框选：' +
+    '\n   - 纯色/半透明色块：圆角矩形、方块、条带，即使上面没有文字，只要是后期叠加的营销/品牌标识底色，就属于目标。' +
+    '\n   - 徽章/图标类元素：带有品牌logo、装饰性图形、营销标签的独立图形，即使文字被去除只剩纯色底/轮廓，也必须框选。' +
+    '\n   - icon图标：卡车、火焰、皇冠、星星等装饰性小图标。' +
+    '\n   - 水印、店铺logo、低对比度叠加文字、品牌标识。' +
+    '\n\n判断标准（满足任一即框选）：' +
+    '\n- 元素边缘清晰、和商品结构无连接，像是贴上去的。' +
+    '\n- 颜色均匀、和商品的纹理/材质明显不同。' +
+    '\n- 带有明显的品牌、营销特征，和商品本身的功能无关。' +
+    '\n\n输出要求：' +
+    '\n- 用矩形框完整覆盖整个元素，包括色块边缘、圆角和所有延伸部分，不要只框文字或中心图标。' +
+    '\n- 文字+背景色块必须作为一个整体框选。' +
+    '\n- 相邻的多个元素如果在同一个背景块上，合并为一个区域。' +
+    '\n- 如果图片已经是干净的，返回空数组[]。' +
+    '\n只输出JSON数组，不要输出其他文字说明: [{"x":左上角x,"y":左上角y,"width":宽,"height":高}]';
+
+  // 压缩图片减少传输和推理时间
+  var fullBase64 = base64Data;
+  if (!fullBase64.startsWith('data:')) fullBase64 = 'data:image/png;base64,' + fullBase64;
+  try {
+    var rawBuf = Buffer.from(fullBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+    var vMeta = await sharp(rawBuf).metadata();
+    var maxDim = 800;
+    if (vMeta.width > maxDim || vMeta.height > maxDim) {
+      var resized = await sharp(rawBuf).resize(maxDim, maxDim, { fit: 'inside' }).jpeg({ quality: 85 }).toBuffer();
+      fullBase64 = 'data:image/jpeg;base64,' + resized.toString('base64');
+      console.log('[视觉定位] 图片压缩: ' + vMeta.width + 'x' + vMeta.height + ' → ' + maxDim + 'px以内');
+    }
+  } catch (e) { /* 保持原图 */ }
+
+  try {
+    var result = await providers.visionLLMRequest('/chat/completions', {
+      _vlImageContent: fullBase64,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.1,
+      max_tokens: 1024
+    });
+
+    var text = result.choices && result.choices[0] && result.choices[0].message && result.choices[0].message.content;
+    if (!text) return null;
+    console.log('[视觉定位] 模型返回 ' + text.length + ' 字符, tokens: ' + (result.totalTokens || '?'));
+
+    var jsonStr = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+    var regions = JSON.parse(jsonStr);
+    if (!Array.isArray(regions) || regions.length === 0) return null;
+
+    // 验证并规范化区域
+    var valid = regions.filter(function (r) {
+      return typeof r.x === 'number' && typeof r.y === 'number' &&
+             typeof r.width === 'number' && typeof r.height === 'number' &&
+             r.width > 0 && r.height > 0;
+    }).map(function (r) {
+      return {
+        x: Math.max(0, Math.round(r.x)),
+        y: Math.max(0, Math.round(r.y)),
+        width: Math.round(r.width),
+        height: Math.round(r.height)
+      };
+    });
+
+    if (valid.length === 0) return null;
+    console.log('[视觉定位] 检测到 ' + valid.length + ' 个精确区域 (OCR: ' + ocrRegions.length + ')');
+    return valid;
+  } catch (e) {
+    console.warn('[视觉定位] 失败，使用OCR区域:', e.message);
+    return null;
+  }
+}
+
 // ========== 完整清理流水线 ==========
 async function cleanImage(imageBuffer, options) {
   options = options || {};
   var chineseOnly = options.chineseOnly !== false;
   var minConfidence = options.minConfidence || 0.5;
   var dilatePx = options.dilatePx || 40;
+  var useVision = options.enableVision === true;
 
   // Step 1: 转base64
   var base64Data = imageBuffer.toString('base64');
@@ -335,26 +513,91 @@ async function cleanImage(imageBuffer, options) {
   var detectResult = await callOcrService(base64Data, chineseOnly, minConfidence);
 
   if (!detectResult.ok || !detectResult.regions || detectResult.regions.length === 0) {
+    // OCR 未检出 → 视觉模型兜底检测淡色水印
+    if (useVision) {
+      var meta = await sharp(imageBuffer).metadata();
+      var faintResult = await detectFaintWatermarkWithVision(base64Data, meta.width, meta.height);
+      if (faintResult && faintResult.length > 0) {
+        console.log('[文字清理] OCR未检出，视觉模型检测到 ' + faintResult.length + ' 个淡色水印');
+        var faintMask = await generateMask(meta.width, meta.height, faintResult, { dilatePx: 5 });
+        var lamaOk = false;
+        try { lamaOk = lamaService.isModelAvailable(); } catch (e) {}
+        if (lamaOk) {
+          var faintInpainted = await doInpaint(imageBuffer, faintMask);
+          return {
+            ok: true, cleaned: true,
+            regions: faintResult, ocrRegions: [], visionRegions: faintResult,
+            regionCount: faintResult.length,
+            imageBuffer: faintInpainted, imageWidth: meta.width, imageHeight: meta.height
+          };
+        }
+        return {
+          ok: true, cleaned: false,
+          regions: faintResult, ocrRegions: [], visionRegions: faintResult,
+          message: 'Inpaint model not available, vision detection only'
+        };
+      }
+    }
     return {
       ok: true,
       cleaned: false,
       regions: [],
+      ocrRegions: [],
+      visionRegions: [],
       message: detectResult.regions && detectResult.regions.length === 0
         ? 'No text detected'
         : 'Detection completed'
     };
   }
 
+  var ocrRegions = detectResult.regions.slice();
   var regions = detectResult.regions;
   var imgW = detectResult.image_width;
   var imgH = detectResult.image_height;
+  var visionRegions = [];
 
-  // Step 2.5: 徽章扩展（检测文字在纯色背景块上的场景）
-  if (options.detectBadges !== false) {
+  // Step 2.5: OCR 为基础 + 视觉补充
+  // 徽章扩展默认关闭（detectBadges 需显式开启，避免误伤商品图）
+  if (options.detectBadges === true) {
     try {
       regions = await expandRegionsForBadges(imageBuffer, regions);
     } catch (e) {
       console.warn('[Badge] 扩展失败，使用原始区域:', e.message);
+    }
+  }
+
+  // 2. 视觉模型补充：找 OCR 没检出的非文字叠加元素（纯色块、icon、淡水印）
+  if (useVision) {
+    var visionResult = await detectRegionsWithVision(base64Data, imgW, imgH, ocrRegions);
+    if (visionResult && visionResult.length > 0) {
+      // 合并：只添加 OCR+徽章扩展 没覆盖到的视觉区域
+      var added = 0;
+      for (var vi = 0; vi < visionResult.length; vi++) {
+        var vr = visionResult[vi];
+        var vBox = { x: vr.x, y: vr.y, w: vr.width, h: vr.height };
+        // 检查是否已被现有区域覆盖（中心点落在已有区域内则跳过）
+        var covered = false;
+        for (var ri = 0; ri < regions.length; ri++) {
+          var rr = getRegionBBox(regions[ri]);
+          var cx = vBox.x + vBox.w / 2, cy = vBox.y + vBox.h / 2;
+          if (cx >= rr.x && cx <= rr.x + rr.w && cy >= rr.y && cy <= rr.y + rr.h) {
+            // 视觉区域中心在已有区域内 → 用更大的那个
+            if (vBox.w * vBox.h > rr.w * rr.h) {
+              regions[ri] = { x: vBox.x, y: vBox.y, width: vBox.w, height: vBox.h, _visionExpanded: true };
+            }
+            covered = true;
+            break;
+          }
+        }
+        if (!covered) {
+          regions.push(vr);
+          added++;
+        }
+      }
+      visionRegions = visionResult;
+      console.log('[文字清理] OCR:' + ocrRegions.length + ' + 徽章扩展 → 视觉补充新增 ' + added + ' 个区域, 总计 ' + regions.length);
+    } else {
+      console.log('[文字清理] 视觉模型无额外结果，使用 OCR + 徽章扩展');
     }
   }
 
@@ -367,31 +610,32 @@ async function cleanImage(imageBuffer, options) {
   }
 
   if (!lamaAvailable) {
-    // LaMa 模型不可用，返回检测结果和mask（不修复）
-    var maskBuf = await generateMask(imgW, imgH, regions);
+    var maskBuf = await generateMask(imgW, imgH, regions, { dilatePx: dilatePx });
     return {
       ok: true,
       cleaned: false,
       detected: true,
       regions: regions,
+      ocrRegions: ocrRegions,
+      visionRegions: visionRegions,
       regionCount: regions.length,
       maskBase64: maskBuf.toString('base64'),
       message: 'Inpaint model not available, detection only'
     };
   }
 
-  // Step 4: 生成 mask（优化版：polygon精确绘制 + 膨胀 + 边缘模糊）
-  var maskBuffer = await generateMask(imgW, imgH, regions, {
-    dilatePx: dilatePx
-  });
+  // Step 4: 生成 mask
+  var maskBuffer = await generateMask(imgW, imgH, regions, { dilatePx: dilatePx });
 
-  // Step 5: Inpaint（LaMa 优先，ComfyUI 备用）
+  // Step 5: Inpaint
   var resultBuffer = await doInpaint(imageBuffer, maskBuffer);
 
   return {
     ok: true,
     cleaned: true,
     regions: regions,
+    ocrRegions: ocrRegions,
+    visionRegions: visionRegions,
     regionCount: regions.length,
     imageBuffer: resultBuffer,
     imageWidth: imgW,
@@ -433,6 +677,7 @@ module.exports = {
   _sampleBadgeEdgePixels: _sampleBadgeEdgePixels,
   _badgeColorDiffersFromSurrounding: _badgeColorDiffersFromSurrounding,
   expandRegionsForBadges: expandRegionsForBadges,
+  detectRegionsWithVision: detectRegionsWithVision,
   generateMask: generateMask,
   cleanImage: cleanImage,
   saveCleanedImage: saveCleanedImage,

@@ -461,6 +461,7 @@ function initMeituTextCleaner() {
     var chineseOnly = document.getElementById('chkChineseOnly').checked;
     var minConfidence = parseFloat(document.getElementById('confSlider').value);
     var dilatePx = parseInt(document.getElementById('expandSlider').value) || 20;
+    var enableVision = document.getElementById('chkVisionDetect').checked;
 
     fetch(base + '/api/ai/auto-clean-chinese', {
       method: 'POST',
@@ -469,7 +470,8 @@ function initMeituTextCleaner() {
         image_base64: currentImageBuf,
         chinese_only: chineseOnly,
         min_confidence: minConfidence,
-        dilate_px: dilatePx
+        dilate_px: dilatePx,
+        enable_vision: enableVision
       })
     }).then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -638,7 +640,10 @@ function initMeituTextCleaner() {
     fetch(base + '/api/ai/batch-clean-chinese', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ images: images })
+      body: JSON.stringify({
+        images: images,
+        enable_vision: document.getElementById('chkVisionDetect').checked
+      })
     }).then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.json();

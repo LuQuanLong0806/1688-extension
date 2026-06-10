@@ -214,12 +214,20 @@ function qwenVlRequestRaw(imageContent, prompt, model, apiKey) {
           if (!result.choices || !result.choices.length) return reject(new Error('Qwen VL返回空结果'));
           var text = result.choices[0].message.content || '';
           var usage = result.usage || {};
-          resolve({ text: text, inputTokens: usage.prompt_tokens || 0, outputTokens: usage.completion_tokens || 0, totalTokens: usage.total_tokens || 0 });
+          resolve({
+            // OpenAI 兼容格式（供 visionLLMRequest 调用方使用）
+            choices: result.choices,
+            // 旧格式字段（供 recognizeLLMRequest 调用方使用）
+            text: text,
+            inputTokens: usage.prompt_tokens || 0,
+            outputTokens: usage.completion_tokens || 0,
+            totalTokens: usage.total_tokens || 0
+          });
         } catch (e) { reject(new Error('Qwen VL解析失败: ' + raw.substring(0, 200))); }
       });
     });
     req.on('error', reject);
-    req.setTimeout(120000, function () { req.destroy(new Error('Qwen VL请求超时')); });
+    req.setTimeout(30000, function () { req.destroy(new Error('Qwen VL请求超时')); });
     req.write(data);
     req.end();
   });
@@ -362,6 +370,16 @@ function dispatchByCategory(category, apiPath, body) {
       var keys = getZhipuKeys();
       if (!keys.length) return tryEntry(i + 1);
       body.model = entry.model; body.enable_thinking = false;
+      // 视觉识别：_vlImageContent → 转为 zhipu 多模态消息格式
+      if (body._vlImageContent) {
+        var _imgContent = body._vlImageContent;
+        var _textPrompt = (body.messages && body.messages[0] && body.messages[0].content) || '';
+        body.messages = [{ role: 'user', content: [
+          { type: 'text', text: _textPrompt },
+          { type: 'image_url', image_url: { url: _imgContent } }
+        ]}];
+        delete body._vlImageContent;
+      }
       return tryKeysDispatch('zhipu', keys, 0, function (k) {
         return zhipuRequest(apiPath, body, { apiKey: k.key || k });
       }).then(function (r) { markModelSuccess(label); return r; })

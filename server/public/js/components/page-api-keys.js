@@ -456,6 +456,7 @@ Vue.component('page-api-keys', {
             <span class="ai-model-type-tag tag-vision">视觉模型</span>
             <span class="ai-model-name">Qwen3.6-Flash<span style="font-size:10px;padding:1px 6px;border-radius:3px;background:var(--warning-bg);color:var(--warning);margin-left:4px">0.5元/百万token</span></span>
             <span class="ai-model-name">Qwen3.7-Plus<span style="font-size:10px;padding:1px 6px;border-radius:3px;background:var(--warning-bg);color:var(--warning);margin-left:4px">4元/百万token</span></span>
+            <span class="ai-model-name">Qwen-VL-Plus<span style="font-size:10px;padding:1px 6px;border-radius:3px;background:var(--info-bg);color:var(--info);margin-left:4px">旧版</span></span>
           </div>
         </div>
 

@@ -45,7 +45,7 @@
     return fetch(getServerUrl() + '/api/ai/auto-clean-chinese', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image_url: imageUrl })
+      body: JSON.stringify({ image_url: imageUrl, enable_vision: false })
     }).then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.json();
@@ -61,7 +61,7 @@
     return fetch(getServerUrl() + '/api/ai/batch-clean-chinese', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ images: images })
+      body: JSON.stringify({ images: images, enable_vision: false })
     }).then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.json();

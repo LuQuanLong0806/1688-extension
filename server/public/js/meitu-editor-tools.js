@@ -81,7 +81,7 @@ function initMeituEditorTools() {
       var cleanRes = await fetch(getServerBase() + '/api/ai/batch-clean', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(Object.assign({ enable_vision: false }, payload))
       });
       var cleanData = await cleanRes.json();
 
@@ -145,7 +145,7 @@ function initMeituEditorTools() {
       var cleanRes = await fetch(getServerBase() + '/api/ai/batch-clean', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ images: images, skip_upload: true })
+        body: JSON.stringify({ images: images, skip_upload: true, enable_vision: false, concurrency: 4 })
       });
       var cleanData = await cleanRes.json();
 

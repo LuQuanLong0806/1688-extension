@@ -161,20 +161,29 @@ async function annotateImage(imageBuffer, widthCm, heightCm, options) {
   // 自动判断标注方向：大尺寸放长边
   var longDim = widthCm;
   var shortDim = heightCm;
-  var imgIsLandscape = W >= H;
 
   // 标注参数自适应
   var fSize = Math.round(Math.min(W, H) / 25);
-  var gap = Math.round(fSize * 1.2);
   var tick = Math.round(fSize * 0.6);
   var lineW = Math.max(2, Math.round(Math.min(W, H) / 400));
 
-  // 标注区域：商品占图片中心区域
-  var margin = Math.round(Math.min(W, H) * 0.08);
-  var x1 = margin;
-  var y1 = margin;
-  var x2 = W - margin;
-  var y2 = H - margin;
+  // 标注区域：视觉模型定位的产品边界 或 降级到图片 margin
+  var bounds = options.productBounds;
+  var x1, y1, x2, y2, gap;
+  if (bounds && bounds.width > 20 && bounds.height > 20) {
+    x1 = Math.max(0, Math.round(bounds.x));
+    y1 = Math.max(0, Math.round(bounds.y));
+    x2 = Math.min(W, Math.round(bounds.x + bounds.width));
+    y2 = Math.min(H, Math.round(bounds.y + bounds.height));
+    gap = Math.round(fSize * 0.8); // 精确边界，间距小一点
+  } else {
+    var margin = Math.round(Math.min(W, H) * 0.08);
+    x1 = margin; y1 = margin; x2 = W - margin; y2 = H - margin;
+    gap = Math.round(fSize * 1.2);
+  }
+
+  // 标注方向：基于产品区域而非图片
+  var productIsLandscape = (x2 - x1) >= (y2 - y1);
 
   var dimColor = '#E53935';
   var font = 'bold ' + fSize + 'px Arial, Helvetica, sans-serif';
@@ -183,18 +192,16 @@ async function annotateImage(imageBuffer, widthCm, heightCm, options) {
   var svgParts = [];
 
   // --- 长边标注 ---
-  if (imgIsLandscape) {
-    // 横图：长边标底部
+  if (productIsLandscape) {
+    // 产品横向：长边标底部，短边标右侧
     svgParts.push(buildHorizontalAnnotation(x1, y2, x2, y2, gap, tick, lineW, fSize, dimColor, longDim, unit, W));
     if (shortDim != null) {
-      // 短边标右侧
       svgParts.push(buildVerticalAnnotation(x2, y1, x2, y2, gap, tick, lineW, fSize, dimColor, shortDim, unit, H));
     }
   } else {
-    // 竖图：长边标右侧
+    // 产品纵向：长边标右侧，短边标底部
     svgParts.push(buildVerticalAnnotation(x2, y1, x2, y2, gap, tick, lineW, fSize, dimColor, longDim, unit, H));
     if (shortDim != null) {
-      // 短边标底部
       svgParts.push(buildHorizontalAnnotation(x1, y2, x2, y2, gap, tick, lineW, fSize, dimColor, shortDim, unit, W));
     }
   }
@@ -253,6 +260,77 @@ function buildVerticalAnnotation(baseX, y1, x2, y2, gap, tick, lineW, fSize, dim
     '\n    <text x="' + x + '" y="' + (midY + fSize * 0.4) + '" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="' + fSize + '" font-weight="bold" fill="' + dimColor + '" transform="rotate(90,' + x + ',' + midY + ')">' + text + '</text>';
 }
 
+// ========== 视觉模型定位产品边界 ==========
+async function detectProductBounds(base64Data) {
+  var providers;
+  try { providers = require('../routes/ai/providers'); } catch (e) { return null; }
+
+  // 读取原图尺寸并压缩
+  var rawBase64 = base64Data.replace(/^data:image\/\w+;base64,/, '');
+  var origBuf = Buffer.from(rawBase64, 'base64');
+  var origMeta;
+  try { origMeta = await sharp(origBuf).metadata(); } catch (e) { return null; }
+  var origW = origMeta.width, origH = origMeta.height;
+
+  var sendW = origW, sendH = origH;
+  var fullBase64 = base64Data;
+  if (!fullBase64.startsWith('data:')) fullBase64 = 'data:image/png;base64,' + fullBase64;
+
+  var maxDim = 800;
+  if (origW > maxDim || origH > maxDim) {
+    try {
+      var resized = await sharp(origBuf).resize(maxDim, maxDim, { fit: 'inside' }).jpeg({ quality: 85 }).toBuffer();
+      fullBase64 = 'data:image/jpeg;base64,' + resized.toString('base64');
+      var compMeta = await sharp(resized).metadata();
+      sendW = compMeta.width;
+      sendH = compMeta.height;
+    } catch (e) { /* 保持原图 */ }
+  }
+
+  var prompt = '这是一张电商商品图（尺寸' + sendW + 'x' + sendH + '），请找出商品主体的边界矩形。' +
+    '排除纯色背景、阴影、装饰元素，只返回商品本身占据的区域。' +
+    '返回JSON: {"x":左上角x,"y":左上角y,"width":宽,"height":高}。' +
+    '如果无法判断，返回null。只返回JSON。';
+
+  try {
+    var result = await providers.visionLLMRequest('/chat/completions', {
+      _vlImageContent: fullBase64,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.1,
+      max_tokens: 256
+    });
+
+    var text = result.choices && result.choices[0] && result.choices[0].message && result.choices[0].message.content;
+    if (!text) return null;
+
+    var jsonStr = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+    if (jsonStr === 'null') return null;
+    var parsed = JSON.parse(jsonStr);
+    if (!parsed || typeof parsed.x !== 'number' || typeof parsed.y !== 'number' ||
+        typeof parsed.width !== 'number' || typeof parsed.height !== 'number') return null;
+
+    // 将发送图坐标还原到原图坐标
+    var scaleX = origW / sendW;
+    var scaleY = origH / sendH;
+    var bounds = {
+      x: Math.max(0, Math.round(parsed.x * scaleX)),
+      y: Math.max(0, Math.round(parsed.y * scaleY)),
+      width: Math.round(parsed.width * scaleX),
+      height: Math.round(parsed.height * scaleY)
+    };
+    // 裁剪到图片范围
+    bounds.width = Math.min(bounds.width, origW - bounds.x);
+    bounds.height = Math.min(bounds.height, origH - bounds.y);
+    if (bounds.width < 20 || bounds.height < 20) return null;
+
+    console.log('[标注] 视觉模型定位产品边界:', JSON.stringify(bounds), 'tokens:', result.totalTokens || '?');
+    return bounds;
+  } catch (e) {
+    console.warn('[标注] 视觉定位失败:', e.message);
+    return null;
+  }
+}
+
 // ========== 保存标注图 ==========
 function saveAnnotatedImage(imageBuffer) {
   var UPLOADS_DIR = path.join(__dirname, '..', 'public', 'uploads');
@@ -272,6 +350,7 @@ function saveAnnotatedImage(imageBuffer) {
 module.exports = {
   detectSizes: detectSizes,
   extractSizes: extractSizes,
+  detectProductBounds: detectProductBounds,
   annotateImage: annotateImage,
   saveAnnotatedImage: saveAnnotatedImage
 };
