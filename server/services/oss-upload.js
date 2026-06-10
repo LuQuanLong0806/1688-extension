@@ -58,7 +58,11 @@ function uploadToOSS(imageData, opts) {
     var rand = Math.random().toString(36).substring(2, 8);
     nameParam = Date.now() + '_' + rand + '.png';
   }
-  var ossPath = 'products/' + nameParam;
+  var now = new Date();
+  var dateDir = now.getFullYear() + '-' +
+    String(now.getMonth() + 1).padStart(2, '0') + '-' +
+    String(now.getDate()).padStart(2, '0');
+  var ossPath = 'products/' + dateDir + '/' + nameParam;
 
   var clientOpts = {
     accessKeyId: config.accessKeyId,
