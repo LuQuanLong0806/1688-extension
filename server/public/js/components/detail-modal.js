@@ -1100,7 +1100,7 @@ Vue.component('detail-modal', {
         var img = new Image();
         img.onload = function () {
           var w = img.width, h = img.height;
-          if (w <= maxSize && h <= maxSize) { resolve(base64); return; }
+          if (Math.max(w, h) === maxSize) { resolve(base64); return; }
           var scale = maxSize / Math.max(w, h);
           var nw = Math.round(w * scale), nh = Math.round(h * scale);
           var canvas = document.createElement('canvas');

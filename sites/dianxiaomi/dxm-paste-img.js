@@ -56,7 +56,7 @@
       var img = new Image();
       img.onload = function () {
         var w = img.width, h = img.height;
-        if (w <= maxSize && h <= maxSize) { resolve(base64); return; }
+        if (Math.max(w, h) === maxSize) { resolve(base64); return; }
         var scale = maxSize / Math.max(w, h);
         var nw = Math.round(w * scale), nh = Math.round(h * scale);
         var canvas = document.createElement('canvas');
@@ -592,19 +592,23 @@
 
   // ========== 全局拖拽上传：拖图片到页面任意位置 ==========
   var _dropHint = null;
+  var _dragDepth = 0;
   document.addEventListener('dragenter', function (e) {
     if (e.dataTransfer && e.dataTransfer.types && e.dataTransfer.types.indexOf('Files') >= 0) {
       e.preventDefault();
+      _dragDepth++;
       if (!_dropHint) showDropHint();
     }
   });
   document.addEventListener('dragover', function (e) { e.preventDefault(); });
   document.addEventListener('dragleave', function (e) {
-    if (_dropHint && e.target === document.documentElement) hideDropHint();
+    _dragDepth--;
+    if (_dragDepth <= 0) { _dragDepth = 0; hideDropHint(); }
   });
   document.addEventListener('drop', function (e) {
     if (!_dropHint) return;
     e.preventDefault();
+    _dragDepth = 0;
     hideDropHint();
     var files = e.dataTransfer.files;
     if (!files || !files.length) return;
@@ -618,6 +622,8 @@
     pasteStep = 0;
     pasteTotal = 7;
     C.showBubble('1/7 拖拽图片，去中文+压缩+上传...', 'loading');
+    var mainImg = document.querySelector('#productProductInfo .mainImage');
+    if (mainImg) mainImg.scrollIntoView({ behavior: 'smooth', block: 'center' });
     var uploaded = 0;
     imageFiles.forEach(function (file) {
       var reader = new FileReader();
@@ -643,13 +649,20 @@
     });
   });
 
+  function cancelDrop() { _dragDepth = 0; hideDropHint(); }
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && _dropHint) cancelDrop();
+  });
+
   function showDropHint() {
     var h = document.createElement('div');
     h.id = '__dxm_bee_drop_hint';
     h.style.cssText = 'position:fixed;inset:0;z-index:2147483645;display:flex;align-items:center;justify-content:center;' +
-      'background:rgba(171,71,188,.12);pointer-events:none;';
+      'background:rgba(171,71,188,.12);';
     h.innerHTML = '<div style="background:linear-gradient(135deg,#AB47BC,#8E24AA);color:#fff;padding:16px 32px;border-radius:12px;' +
-      'font:bold 14px/1 "Microsoft YaHei",Arial,sans-serif;box-shadow:0 4px 16px rgba(142,36,170,.4)">松手上传图片</div>';
+      'font:bold 14px/1 "Microsoft YaHei",Arial,sans-serif;box-shadow:0 4px 16px rgba(142,36,170,.4)">松手上传图片（ESC 或点击取消）</div>';
+    h.addEventListener('click', cancelDrop);
     document.body.appendChild(h);
     _dropHint = h;
   }
