@@ -757,6 +757,10 @@ function createAiRouter(cloudDb) {
     if (!req.body.image_base64) return res.status(400).json({ error: '请先加载图片' });
     res.status(502).json({ error: '未配置API' });
   });
+  router.post('/image-upload', function (req, res) {
+    if (!req.body.image_base64) return res.status(400).json({ error: '请先加载图片' });
+    res.status(400).json({ error: '未配置图片上传服务' });
+  });
   router.post('/smms-upload', function (req, res) {
     if (!req.body.image_base64) return res.status(400).json({ error: '请先加载图片' });
     res.status(400).json({ error: '未配置 ImgBB API Key' });

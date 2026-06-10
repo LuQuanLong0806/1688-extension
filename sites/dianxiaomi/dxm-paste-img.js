@@ -57,7 +57,7 @@
       if (result && result.type === 'image' && result.base64) {
         // 剪贴板是图片：上传到 ImgBB，把 URL 写回剪贴板
         pasteLog('上传图片到图床...');
-        fetch(_serverUrl() + '/api/ai/smms-upload', {
+        fetch(_serverUrl() + '/api/ai/image-upload', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ image_base64: result.base64 })
@@ -114,7 +114,7 @@
           pasteStep = 0;
           pasteTotal = 7;
           pasteLog('上传图片到图床...');
-          fetch(_serverUrl() + '/api/ai/smms-upload', {
+          fetch(_serverUrl() + '/api/ai/image-upload', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ image_base64: result.base64 })

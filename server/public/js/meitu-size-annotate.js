@@ -380,7 +380,7 @@ function initMeituSizeAnnotate() {
     if (!annotatedImageBuf) { showToast('请先生成标注图', 'err'); return; }
     showToast('上传中...', 'loading');
     try {
-      var res = await fetch('/api/ai/smms-upload', {
+      var res = await fetch('/api/ai/image-upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image_base64: 'data:image/png;base64,' + annotatedImageBuf })
@@ -430,7 +430,7 @@ function initMeituSizeAnnotate() {
     var slot = currentQueueItem._slot;
     // 先上传到图床
     showToast('上传中...', 'loading');
-    fetch('/api/ai/smms-upload', {
+    fetch('/api/ai/image-upload', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ image_base64: annotatedImageSrc })
@@ -659,7 +659,7 @@ function initMeituSizeAnnotate() {
     var uploadedUrls = [];
 
     images.forEach(function (src) {
-      fetch('/api/ai/smms-upload', {
+      fetch('/api/ai/image-upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image_base64: src })

@@ -1424,7 +1424,7 @@ function initMeituCollage() {
             var reader = new FileReader();
             b64 = await new Promise(function (resolve) { reader.onload = function () { resolve(reader.result); }; reader.readAsDataURL(blob); });
           }
-          var upRes = await fetch(getServerBase() + '/api/ai/smms-upload', {
+          var upRes = await fetch(getServerBase() + '/api/ai/image-upload', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ image_base64: b64 })
@@ -1526,7 +1526,7 @@ function initMeituCollage() {
 
   // ===== 复制图片地址 =====
   function uploadToSmms(base64) {
-    return fetch(getServerBase() + '/api/ai/smms-upload', {
+    return fetch(getServerBase() + '/api/ai/image-upload', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ image_base64: base64 })

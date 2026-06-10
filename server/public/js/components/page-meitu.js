@@ -121,7 +121,7 @@ Vue.component('page-meitu', {
           return;
         }
         var base64 = src.indexOf('data:') === 0 ? src.replace(/^data:image\/\w+;base64,/, '') : src;
-        fetch('/api/ai/smms-upload', {
+        fetch('/api/ai/image-upload', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ image_base64: src })
@@ -221,7 +221,7 @@ Vue.component('page-meitu', {
           return;
         }
         var b64 = item.base64 ? ('data:image/png;base64,' + item.base64) : item.src;
-        fetch('/api/ai/smms-upload', {
+        fetch('/api/ai/image-upload', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ image_base64: b64 })

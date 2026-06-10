@@ -147,7 +147,7 @@ router.post('/enhance', function (req, res) {
   });
 });
 
-// ===== ImgBB 图床（免费） + 按日期相册 =====
+// ===== 图片上传（统一入口: OSS 优先 > ImgBB 兜底）=====
 var sec = require('../../crypto');
 var imgbbUpload = require('../../services/imgbb-upload');
 
@@ -155,12 +155,10 @@ function getImgbbKey() {
   return imgbbUpload.getImgbbKey();
 }
 
-router.post('/smms-upload', function (req, res) {
+// 统一上传接口
+router.post('/image-upload', function (req, res) {
   var imageBase64 = req.body.image_base64;
   if (!imageBase64) return res.status(400).json({ error: '请先加载图片' });
-
-  var apiKey = getImgbbKey();
-  if (!apiKey) return res.status(400).json({ error: '未配置 ImgBB API Key，请在管理端设置' });
 
   imgbbUpload.uploadToImgBB(imageBase64, {
     name: req.body.name || ''
@@ -169,6 +167,15 @@ router.post('/smms-upload', function (req, res) {
   }).catch(function (err) {
     res.status(502).json({ error: err.message });
   });
+});
+
+// 旧接口兼容: 直接复用上传逻辑
+router.post('/smms-upload', function (req, res) {
+  var imageBase64 = req.body.image_base64;
+  if (!imageBase64) return res.status(400).json({ error: '请先加载图片' });
+  imgbbUpload.uploadToImgBB(imageBase64, { name: req.body.name || '' })
+    .then(function (result) { res.json(result); })
+    .catch(function (err) { res.status(502).json({ error: err.message }); });
 });
 
 router.get('/smms-token', function (req, res) {

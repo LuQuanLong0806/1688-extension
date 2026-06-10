@@ -1074,7 +1074,7 @@ Vue.component('detail-modal', {
               var raw = reader.result;
               var doUpload = function (base64) {
                 vm.$Message.loading({ content: '正在上传图片...', duration: 0 });
-                fetch('/api/ai/smms-upload', {
+                fetch('/api/ai/image-upload', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ image_base64: base64 })
@@ -1605,12 +1605,8 @@ Vue.component('detail-modal', {
               <span class="img-add-text">添加图片</span>
             </div>
             <div v-if="addingImage" class="paste-options-bar">
-              <span class="paste-option-chip" :class="{ active: autoCleanChinese }" @click="autoCleanChinese = !autoCleanChinese">
-                <span class="paste-option-dot"></span>去中文
-              </span>
-              <span class="paste-option-chip" :class="{ active: compressBeforeUpload }" @click="compressBeforeUpload = !compressBeforeUpload">
-                <span class="paste-option-dot"></span>压缩800px
-              </span>
+              <label class="paste-opt"><i-switch v-model="autoCleanChinese" size="small" /><span class="paste-opt-label">去中文</span></label>
+              <label class="paste-opt"><i-switch v-model="compressBeforeUpload" size="small" /><span class="paste-opt-label">压缩800px</span></label>
             </div>
           </div>
           <div class="add-image-hint" v-if="addingImage">
