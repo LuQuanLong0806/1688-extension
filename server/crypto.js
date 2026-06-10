@@ -5,7 +5,7 @@ const path = require('path');
 
 const KEY_FILE = path.join(__dirname, '.crypto_key');
 const ALGORITHM = 'aes-256-gcm';
-const SENSITIVE_KEYS = ['zhipu_api_key', 'zhipu_api_keys', 'ai_configs', 'ai_vendor_configs', 'ai_dispatch_order', 'imgbb_api_key'];
+const SENSITIVE_KEYS = ['zhipu_api_key', 'zhipu_api_keys', 'ai_configs', 'ai_vendor_configs', 'ai_dispatch_order', 'imgbb_api_key', 'comfyui_creds'];
 
 var _key = null;
 

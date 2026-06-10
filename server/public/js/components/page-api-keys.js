@@ -19,7 +19,11 @@ Vue.component('page-api-keys', {
       tursoSaving: false,
       tursoEditing: false,
       comfyuiUrl: '',
-      comfyuiStatus: { online: false, loading: false },
+      comfyuiUsername: '',
+      comfyuiPassword: '',
+      comfyuiStatus: { online: false, config: false },
+      comfyuiSaving: false,
+      comfyuiEditing: false,
       keyModal: { show: false, mode: 'add', provider: '', index: -1, key: '', label: '', sid: '', skey: '' },
       dispatch: { text: [], vision: [], image: [] },
       dispatchTab: 'text',
@@ -307,20 +311,33 @@ Vue.component('page-api-keys', {
       var vm = this;
       fetch('/api/ai/comfyui-config').then(function (r) { return r.json(); }).then(function (d) {
         vm.comfyuiUrl = d.url || '';
-        vm.comfyuiStatus = { online: d.online || false, loading: false };
-      }).catch(function () { vm.comfyuiStatus = { online: false, loading: false }; });
+        vm.comfyuiUsername = d.username || '';
+        vm.comfyuiPassword = d.creds_configured ? '********' : '';
+        vm.comfyuiStatus = { online: d.online || false, config: !!(d.url && d.creds_configured) };
+        vm.comfyuiEditing = false;
+      }).catch(function () {});
     },
     saveComfyui: function () {
       var vm = this;
-      vm.comfyuiStatus.loading = true;
+      var url = (vm.comfyuiUrl || '').trim();
+      if (!url) { vm.$Message.warning('请填写 ComfyUI 地址'); return; }
+      vm.comfyuiSaving = true;
+      var payload = { url: url };
+      if (vm.comfyuiUsername && vm.comfyuiPassword && vm.comfyuiPassword !== '********') {
+        payload.username = vm.comfyuiUsername.trim();
+        payload.password = vm.comfyuiPassword;
+      }
       fetch('/api/ai/comfyui-config', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: (vm.comfyuiUrl || '').trim() })
+        body: JSON.stringify(payload)
       }).then(function (r) { return r.json(); }).then(function (d) {
-        vm.comfyuiStatus.loading = false;
-        if (d.ok) { vm.$Message.success('ComfyUI 配置已保存'); vm.loadComfyui(); }
-        else { vm.$Message.error(d.error || '保存失败'); }
-      }).catch(function () { vm.comfyuiStatus.loading = false; vm.$Message.error('保存失败'); });
+        vm.comfyuiSaving = false;
+        vm.comfyuiPassword = '';
+        if (d.ok) {
+          vm.$Message.success('ComfyUI 配置已保存' + (d.warning ? '（' + d.warning + '）' : ''));
+          vm.loadComfyui();
+        } else { vm.$Message.error(d.error || '保存失败'); }
+      }).catch(function () { vm.comfyuiSaving = false; vm.$Message.error('保存失败'); });
     },
     // ===== Turso =====
     loadTurso: function () {
@@ -595,14 +612,26 @@ Vue.component('page-api-keys', {
             <div style="display:flex;gap:10px;align-items:center;width:100%">
               <div class="ai-provider-info" style="min-width:auto">
                 <span class="ai-pname">ComfyUI</span>
-                <span style="font-size:12px;color:var(--text-muted)">AI消除修复</span>
+                <span style="font-size:12px;color:var(--text-muted)">AI消除/抠图/场景图</span>
               </div>
               <span v-if="comfyuiStatus.online" style="font-size:12px;color:var(--success);font-weight:600">● 在线</span>
               <span v-else-if="comfyuiUrl" style="font-size:12px;color:var(--warning);font-weight:600">● 离线</span>
             </div>
             <div style="display:flex;gap:10px;align-items:center;width:100%">
-              <i-input v-model="comfyuiUrl" size="small" placeholder="https://comfyui.example.com" style="flex:1"></i-input>
-              <i-button type="primary" size="small" :loading="comfyuiStatus.loading" @click="saveComfyui()">保存</i-button>
+              <i-input v-model="comfyuiUrl" size="small" :disabled="comfyuiStatus.config && !comfyuiEditing" placeholder="https://comfyui.example.com" style="flex:1"></i-input>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;width:100%">
+              <i-input v-model="comfyuiUsername" size="small" :disabled="comfyuiStatus.config && !comfyuiEditing" placeholder="用户名" style="width:120px"></i-input>
+              <i-input v-model="comfyuiPassword" type="password" password size="small" :disabled="comfyuiStatus.config && !comfyuiEditing" placeholder="密码" style="flex:1"></i-input>
+            </div>
+            <div style="display:flex;gap:8px">
+              <template v-if="comfyuiStatus.config && !comfyuiEditing">
+                <i-button size="small" @click="comfyuiEditing = true">修改</i-button>
+              </template>
+              <template v-else>
+                <i-button type="primary" size="small" :loading="comfyuiSaving" @click="saveComfyui()">保存</i-button>
+                <i-button v-if="comfyuiStatus.config" size="small" @click="loadComfyui()">取消</i-button>
+              </template>
             </div>
           </div>
           <!-- Turso -->

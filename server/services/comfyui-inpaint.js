@@ -1,13 +1,17 @@
 // ComfyUI Inpaint 服务 — 替代 LaMa ONNX，通过 ComfyUI API 进行高质量修复
 // ComfyUI API: POST /prompt → GET /history/{id} → GET /view?filename=xxx
+// 鉴权：Token 模式（账号密码换 Token，24h 有效，401 自动刷新）
 
 const http = require('http');
 const https = require('https');
+const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 
-// ComfyUI 服务地址（从 settings 表读取，支持动态切换）
+// ========== 配置管理 ==========
+
 var COMFYUI_BASE = '';
+var COMFYUI_CREDS = null; // { username, password_hash }
 
 function getComfyuiBase() {
   if (COMFYUI_BASE) return COMFYUI_BASE;
@@ -27,116 +31,210 @@ function setComfyuiBase(url) {
     require('../db').run("INSERT OR REPLACE INTO settings (key, value) VALUES ('comfyui_url', ?)", [COMFYUI_BASE]);
     require('../db').scheduleSave();
   } catch (e) {}
+  _cachedToken = null; // 地址变了，清空 token
 }
 
-// ========== 通用 ComfyUI API 请求 ==========
+function getComfyuiCreds() {
+  if (COMFYUI_CREDS) return COMFYUI_CREDS;
+  try {
+    var row = require('../db').getOne("SELECT value FROM settings WHERE key = 'comfyui_creds'");
+    if (row && row.value) {
+      COMFYUI_CREDS = JSON.parse(row.value);
+      return COMFYUI_CREDS;
+    }
+  } catch (e) {}
+  return null;
+}
 
-function comfyuiRequest(apiPath, method, body) {
+function setComfyuiCreds(username, password) {
+  if (!username || !password) return;
+  COMFYUI_CREDS = {
+    username: username,
+    password_hash: crypto.createHash('sha256').update(password).digest('hex')
+  };
+  try {
+    require('../db').run("INSERT OR REPLACE INTO settings (key, value) VALUES ('comfyui_creds', ?)", [JSON.stringify(COMFYUI_CREDS)]);
+    require('../db').scheduleSave();
+  } catch (e) {}
+  _cachedToken = null; // 凭据变了，清空 token
+}
+
+// ========== Token 管理 ==========
+
+var _cachedToken = null;
+var _tokenExpires = 0;
+
+function getComfyuiToken(forceRefresh) {
+  if (!forceRefresh && _cachedToken && Date.now() < _tokenExpires) {
+    return Promise.resolve(_cachedToken);
+  }
+  var creds = getComfyuiCreds();
+  if (!creds) return Promise.reject(new Error('未配置 ComfyUI 账号密码'));
+  var base = getComfyuiBase();
+  if (!base) return Promise.reject(new Error('未配置 ComfyUI 地址'));
+
   return new Promise(function (resolve, reject) {
-    var base = getComfyuiBase();
-    if (!base) return reject(new Error('未配置 ComfyUI 地址'));
-
-    var url = new URL(base + apiPath);
+    var url = new URL(base + '/auth/token');
     var proto = url.protocol === 'https:' ? https : http;
-
+    var body = JSON.stringify({ username: creds.username, password: creds.password_hash });
     var options = {
       hostname: url.hostname,
       port: url.port || (url.protocol === 'https:' ? 443 : 80),
-      path: url.pathname + url.search,
-      method: method || 'GET',
-      headers: {}
+      path: url.pathname,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }
     };
-
-    options.headers['Authorization'] = 'Basic YWRtaW46Y29tZnl1aTIwMjQ=';
-
-    if (body) {
-      var data = JSON.stringify(body);
-      options.headers['Content-Type'] = 'application/json';
-      options.headers['Content-Length'] = Buffer.byteLength(data);
-    }
-
     var req = proto.request(options, function (res) {
       var chunks = [];
       res.on('data', function (c) { chunks.push(c); });
       res.on('end', function () {
         try {
           var json = JSON.parse(Buffer.concat(chunks).toString());
-          if (res.statusCode >= 400) {
-            reject(new Error('ComfyUI API ' + res.statusCode + ': ' + (json.error || JSON.stringify(json))));
+          if (json.token) {
+            _cachedToken = json.token;
+            _tokenExpires = Date.now() + ((json.expires_in || 86400) - 300) * 1000; // 提前5分钟过期
+            console.log('[ComfyUI] Token 获取成功, 有效至:', new Date(_tokenExpires).toLocaleTimeString());
+            resolve(_cachedToken);
           } else {
-            resolve(json);
+            reject(new Error(json.error || 'Token 获取失败'));
           }
         } catch (e) {
-          reject(new Error('ComfyUI 响应解析失败: ' + Buffer.concat(chunks).toString().substring(0, 200)));
+          reject(new Error('Token 响应解析失败'));
         }
       });
     });
-    req.on('error', function (e) { reject(new Error('ComfyUI 连接失败: ' + e.message)); });
-    req.setTimeout(300000, function () { req.destroy(); reject(new Error('ComfyUI 请求超时')); });
-    if (body) req.write(data);
+    req.on('error', function (e) { reject(new Error('Token 请求失败: ' + e.message)); });
+    req.write(body);
     req.end();
+  });
+}
+
+function clearToken() {
+  _cachedToken = null;
+  _tokenExpires = 0;
+}
+
+// ========== 通用 ComfyUI API 请求（自动 Token 鉴权 + 401 重试）==========
+
+function comfyuiRequest(apiPath, method, body, _retrying) {
+  return getComfyuiToken().then(function (token) {
+    return new Promise(function (resolve, reject) {
+      var base = getComfyuiBase();
+      if (!base) return reject(new Error('未配置 ComfyUI 地址'));
+
+      var url = new URL(base + apiPath);
+      var proto = url.protocol === 'https:' ? https : http;
+
+      var options = {
+        hostname: url.hostname,
+        port: url.port || (url.protocol === 'https:' ? 443 : 80),
+        path: url.pathname + url.search,
+        method: method || 'GET',
+        headers: { 'Authorization': 'Bearer ' + token }
+      };
+
+      if (body) {
+        var data = JSON.stringify(body);
+        options.headers['Content-Type'] = 'application/json';
+        options.headers['Content-Length'] = Buffer.byteLength(data);
+      }
+
+      var req = proto.request(options, function (res) {
+        // 401 → 刷新 Token 重试一次
+        if (res.statusCode === 401 && !_retrying) {
+          console.log('[ComfyUI] Token 过期，刷新重试');
+          clearToken();
+          res.resume();
+          return comfyuiRequest(apiPath, method, body, true).then(resolve).catch(reject);
+        }
+        var chunks = [];
+        res.on('data', function (c) { chunks.push(c); });
+        res.on('end', function () {
+          try {
+            var json = JSON.parse(Buffer.concat(chunks).toString());
+            if (res.statusCode >= 400) {
+              var errMsg = typeof json.error === 'string' ? json.error : (json.message || JSON.stringify(json));
+              reject(new Error('ComfyUI API ' + res.statusCode + ': ' + errMsg));
+            } else {
+              resolve(json);
+            }
+          } catch (e) {
+            reject(new Error('ComfyUI 响应解析失败: ' + Buffer.concat(chunks).toString().substring(0, 200)));
+          }
+        });
+      });
+      req.on('error', function (e) { reject(new Error('ComfyUI 连接失败: ' + e.message)); });
+      req.setTimeout(300000, function () { req.destroy(); reject(new Error('ComfyUI 请求超时')); });
+      if (body) req.write(data);
+      req.end();
+    });
   });
 }
 
 // ========== 上传图片到 ComfyUI ==========
 
-function uploadImage(imageBuffer, filename, subfolder) {
+function uploadImage(imageBuffer, filename, subfolder, _retrying) {
   var base = getComfyuiBase();
-  return new Promise(function (resolve, reject) {
-    var boundary = '----FormBoundary' + Date.now();
-    var filename = filename || ('inpaint_' + Date.now() + '.png');
-    var subfolder = subfolder || 'input';
+  return getComfyuiToken().then(function (token) {
+    return new Promise(function (resolve, reject) {
+      var boundary = '----FormBoundary' + Date.now();
+      filename = filename || ('inpaint_' + Date.now() + '.png');
+      subfolder = subfolder || 'input';
 
-    // multipart form
-    var header = '--' + boundary + '\r\n' +
-      'Content-Disposition: form-data; name="image"; filename="' + filename + '"\r\n' +
-      'Content-Type: image/png\r\n\r\n';
-    var footer = '\r\n--' + boundary + '\r\n' +
-      'Content-Disposition: form-data; name="subfolder"\r\n\r\n' +
-      subfolder + '\r\n' +
-      '--' + boundary + '--\r\n';
+      var header = '--' + boundary + '\r\n' +
+        'Content-Disposition: form-data; name="image"; filename="' + filename + '"\r\n' +
+        'Content-Type: image/png\r\n\r\n';
+      var footer = '\r\n--' + boundary + '\r\n' +
+        'Content-Disposition: form-data; name="subfolder"\r\n\r\n' +
+        subfolder + '\r\n' +
+        '--' + boundary + '--\r\n';
 
-    var payload = Buffer.concat([
-      Buffer.from(header),
-      imageBuffer,
-      Buffer.from(footer)
-    ]);
+      var payload = Buffer.concat([
+        Buffer.from(header),
+        imageBuffer,
+        Buffer.from(footer)
+      ]);
 
-    var url = new URL(base + '/upload/image');
-    var proto = url.protocol === 'https:' ? https : http;
+      var url = new URL(base + '/upload/image');
+      var proto = url.protocol === 'https:' ? https : http;
 
-    var options = {
-      hostname: url.hostname,
-      port: url.port || (url.protocol === 'https:' ? 443 : 80),
-      path: '/upload/image',
-      method: 'POST',
-      headers: {
-        'Authorization': 'Basic YWRtaW46Y29tZnl1aTIwMjQ=',
-        'Content-Type': 'multipart/form-data; boundary=' + boundary,
-        'Content-Length': payload.length
-      }
-    };
-
-    var req = proto.request(options, function (res) {
-      var chunks = [];
-      res.on('data', function (c) { chunks.push(c); });
-      res.on('end', function () {
-        try {
-          var json = JSON.parse(Buffer.concat(chunks).toString());
-          if (json.name) {
-            var name = subfolder ? (subfolder + '/' + json.name) : json.name;
-            resolve(name);
-          } else {
-            reject(new Error('ComfyUI upload 失败: ' + JSON.stringify(json)));
-          }
-        } catch (e) {
-          reject(new Error('ComfyUI upload 响应解析失败'));
+      var options = {
+        hostname: url.hostname,
+        port: url.port || (url.protocol === 'https:' ? 443 : 80),
+        path: '/upload/image',
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Content-Type': 'multipart/form-data; boundary=' + boundary,
+          'Content-Length': payload.length
         }
+      };
+
+      var req = proto.request(options, function (res) {
+        if (res.statusCode === 401 && !_retrying) {
+          clearToken();
+          res.resume();
+          return uploadImage(imageBuffer, filename, subfolder, true).then(resolve).catch(reject);
+        }
+        var chunks = [];
+        res.on('data', function (c) { chunks.push(c); });
+        res.on('end', function () {
+          try {
+            var json = JSON.parse(Buffer.concat(chunks).toString());
+            if (json.name) {
+              resolve(subfolder ? (subfolder + '/' + json.name) : json.name);
+            } else {
+              reject(new Error('ComfyUI upload 失败: ' + JSON.stringify(json)));
+            }
+          } catch (e) {
+            reject(new Error('ComfyUI upload 响应解析失败'));
+          }
+        });
       });
+      req.on('error', reject);
+      req.write(payload);
+      req.end();
     });
-    req.on('error', reject);
-    req.write(payload);
-    req.end();
   });
 }
 
@@ -340,30 +438,38 @@ async function inpaint(imageBuffer, maskBuffer, options) {
 
 // ========== 下载 ComfyUI 输出图片 ==========
 
-function downloadFromComfyui(filename) {
-  return new Promise(function (resolve, reject) {
-    var base = getComfyuiBase();
-    if (!base) return reject(new Error('未配置 ComfyUI 地址'));
+function downloadFromComfyui(filename, _retrying) {
+  return getComfyuiToken().then(function (token) {
+    return new Promise(function (resolve, reject) {
+      var base = getComfyuiBase();
+      if (!base) return reject(new Error('未配置 ComfyUI 地址'));
 
-    var url = new URL(base + '/view?' + new URLSearchParams({ filename: filename, type: 'output', subfolder: '' }));
-    var proto = url.protocol === 'https:' ? https : http;
+      var qs = new URLSearchParams({ filename: filename, type: 'output' });
+      var url = new URL(base + '/view?' + qs);
+      var proto = url.protocol === 'https:' ? https : http;
 
-    proto.get({
-      hostname: url.hostname,
-      port: url.port || (url.protocol === 'https:' ? 443 : 80),
-      path: '/view?' + new URLSearchParams({ filename: filename, type: 'output' }),
-      headers: { 'Accept': 'image/*', 'Authorization': 'Basic YWRtaW46Y29tZnl1aTIwMjQ=' }
-    }, function (res) {
-      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-        return downloadFromComfyui(res.headers.location).then(resolve).catch(reject);
-      }
-      if (res.statusCode >= 400) {
-        return reject(new Error('ComfyUI view ' + res.statusCode));
-      }
-      var chunks = [];
-      res.on('data', function (c) { chunks.push(c); });
-      res.on('end', function () { resolve(Buffer.concat(chunks)); });
-    }).on('error', reject);
+      proto.get({
+        hostname: url.hostname,
+        port: url.port || (url.protocol === 'https:' ? 443 : 80),
+        path: '/view?' + qs.toString(),
+        headers: { 'Accept': 'image/*', 'Authorization': 'Bearer ' + token }
+      }, function (res) {
+        if (res.statusCode === 401 && !_retrying) {
+          clearToken();
+          res.resume();
+          return downloadFromComfyui(filename, true).then(resolve).catch(reject);
+        }
+        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          return downloadFromComfyui(res.headers.location).then(resolve).catch(reject);
+        }
+        if (res.statusCode >= 400) {
+          return reject(new Error('ComfyUI view ' + res.statusCode));
+        }
+        var chunks = [];
+        res.on('data', function (c) { chunks.push(c); });
+        res.on('end', function () { resolve(Buffer.concat(chunks)); });
+      }).on('error', reject);
+    });
   });
 }
 
@@ -375,8 +481,32 @@ function isAvailable() {
 
 async function checkHealth() {
   try {
-    var stats = await comfyuiRequest('/system_stats');
-    return { available: true, stats: stats };
+    // /auth/health 免认证，仅检查服务是否在线
+    var base = getComfyuiBase();
+    if (!base) return { available: false, error: '未配置地址' };
+    var result = await new Promise(function (resolve, reject) {
+      var url = new URL(base + '/auth/health');
+      var proto = url.protocol === 'https:' ? https : http;
+      proto.get({
+        hostname: url.hostname,
+        port: url.port || (url.protocol === 'https:' ? 443 : 80),
+        path: '/auth/health'
+      }, function (res) {
+        var chunks = [];
+        res.on('data', function (c) { chunks.push(c); });
+        res.on('end', function () {
+          try {
+            resolve(JSON.parse(Buffer.concat(chunks).toString()));
+          } catch (e) {
+            resolve({ status: 'unknown' });
+          }
+        });
+      }).on('error', reject);
+    });
+    if (result.status === 'ok') {
+      return { available: true, stats: result };
+    }
+    return { available: false, error: '服务异常' };
   } catch (e) {
     return { available: false, error: e.message };
   }
@@ -425,18 +555,27 @@ function buildRembgWorkflow(imageName) {
       "inputs": { "image": imageName }
     },
     "11": {
-      "class_type": "BriaRemoveImageBackground",
-      "inputs": { "image": ["10", 0] }
+      "class_type": "RemBGSession+",
+      "inputs": { "model": "isnet-general-use: general purpose", "providers": "CUDA" }
     },
     "12": {
+      "class_type": "ImageRemoveBackground+",
+      "inputs": { "rembg_session": ["11", 0], "image": ["10", 0] }
+    },
+    "13": {
       "class_type": "SaveImage",
-      "inputs": { "filename_prefix": "rembg_" + Date.now(), "images": ["11", 0] }
+      "inputs": { "filename_prefix": "rembg_" + Date.now(), "images": ["12", 0] }
     }
   };
 }
 
 async function removeBackground(imageBuffer, options) {
   options = options || {};
+  // 抠图优先本地 ISNet（同模型，CPU 1.5s 快于 ComfyUI 网络往返 4.5s）
+  if (!options.forceComfyui) {
+    return require('./remove-bg').removeBackground(imageBuffer);
+  }
+
   var base = getComfyuiBase();
   if (!base) {
     console.log('[ComfyUI-Rembg] 未配置 ComfyUI，降级到本地 ISNet');
@@ -683,6 +822,9 @@ module.exports = {
   checkHealth: checkHealth,
   getComfyuiBase: getComfyuiBase,
   setComfyuiBase: setComfyuiBase,
+  getComfyuiCreds: getComfyuiCreds,
+  setComfyuiCreds: setComfyuiCreds,
+  getComfyuiToken: getComfyuiToken,
   getModelList: getModelList,
   updateWorkflowModel: updateWorkflowModel,
   getWorkflowModel: getWorkflowModel,

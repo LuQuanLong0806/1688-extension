@@ -27,32 +27,60 @@ var buildImg2ImgFnCode = extractFunction(source, 'buildImg2ImgWorkflow');
 if (buildImg2ImgFnCode) eval(buildImg2ImgFnCode);
 
 // ========== 1. 静态值验证 ==========
-describe('ComfyUI 认证凭据', function () {
-  test('Basic Auth base64 是 admin:comfyui2024', function () {
-    var correct = Buffer.from('admin:comfyui2024').toString('base64');
-    expect(source).toContain(correct);
+describe('ComfyUI 认证安全', function () {
+  test('源码中不含硬编码的凭据', function () {
+    expect(source).not.toMatch(/YWRtaW4[A-Za-z0-9+/=]+/);
+    expect(source).not.toContain('comfyui2024');
+    expect(source).not.toContain('comfyiu2024');
+    expect(source).not.toContain('comfyui2026');
+    expect(source).not.toContain('admin:');
   });
 
-  test('不包含旧的错误密码 comfyiu2024（少 u）', function () {
-    var wrong = Buffer.from('admin:comfyiu2024').toString('base64');
-    expect(source).not.toContain(wrong);
+  test('使用 Bearer Token 鉴权（非 Basic Auth）', function () {
+    // 3 处 Bearer token 使用
+    var matches = source.split("'Bearer ' + token").length - 1;
+    expect(matches).toBeGreaterThanOrEqual(3);
   });
 
-  test('认证头共 3 处（comfyuiRequest + uploadImage + downloadFromComfyui）', function () {
-    var correct = Buffer.from('admin:comfyui2024').toString('base64');
-    var matches = source.split(correct).length - 1;
-    expect(matches).toBe(3);
+  test('不含 Basic Auth 残留', function () {
+    expect(source).not.toContain('Basic ');
+  });
+
+  test('密码用 SHA-256 哈希存储', function () {
+    expect(source).toContain("createHash('sha256')");
+  });
+
+  test('支持从 settings 表读取凭据', function () {
+    expect(source).toContain("key = 'comfyui_creds'");
+  });
+
+  test('Token 24h 过期 + 提前5分钟刷新', function () {
+    expect(source).toContain('86400');
+    expect(source).toContain('300');
+  });
+
+  test('401 自动刷新 Token 重试', function () {
+    var retryCount = source.split('clearToken()').length - 1;
+    expect(retryCount).toBeGreaterThanOrEqual(3);
+  });
+
+  test('健康检查使用 /auth/health 免认证端点', function () {
+    expect(source).toContain('/auth/health');
   });
 });
 
 describe('ComfyUI 抠图节点', function () {
-  test('使用 BriaRemoveImageBackground 而非 RemoveImageBG', function () {
-    expect(source).toContain('BriaRemoveImageBackground');
-    expect(source).not.toContain('"class_type": "RemoveImageBG"');
+  test('使用 RemBGSession+ + ImageRemoveBackground+ 本地节点', function () {
+    expect(source).toContain('RemBGSession+');
+    expect(source).toContain('ImageRemoveBackground+');
   });
 
-  test('BRIA 节点在 buildRembgWorkflow 中引用', function () {
-    expect(source).toMatch(/class_type.*BriaRemoveImageBackground/);
+  test('不含 BRIA 云端节点', function () {
+    expect(source).not.toContain('BriaRemoveImageBackground');
+  });
+
+  test('不含旧版 RemoveImageBG', function () {
+    expect(source).not.toContain('"class_type": "RemoveImageBG"');
   });
 });
 

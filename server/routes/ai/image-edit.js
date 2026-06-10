@@ -683,7 +683,7 @@ router.get('/ocr-status', function (req, res) {
   });
 });
 
-// ===== ComfyUI 状态 =====
+// ===== ComfyUI 配置 =====
 router.get('/comfyui-status', function (req, res) {
   if (!comfyuiInpaint) return res.json({ configured: false, available: false });
   var base = comfyuiInpaint.getComfyuiBase();

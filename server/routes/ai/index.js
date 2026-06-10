@@ -275,36 +275,45 @@ router.get('/comfyui-config', function (req, res) {
   try {
     var comfyuiInpaint = require('../../services/comfyui-inpaint');
     var url = comfyuiInpaint.getComfyuiBase();
+    var creds = comfyuiInpaint.getComfyuiCreds();
     comfyuiInpaint.checkHealth().then(function (health) {
-      res.json({ url: url, online: !!health.available });
+      res.json({
+      url: url,
+      online: !!health.available,
+      creds_configured: !!creds,
+      username: creds ? creds.username : ''
+    });
     }).catch(function () {
-      res.json({ url: url, online: false });
+      res.json({ url: url, online: false, creds_configured: !!creds, username: creds ? creds.username : '' });
     });
   } catch (e) {
-    res.json({ url: '', online: false });
+    res.json({ url: '', online: false, creds_configured: false, username: '' });
   }
 });
 
 router.post('/comfyui-config', function (req, res) {
   try {
     var comfyuiInpaint = require('../../services/comfyui-inpaint');
-    var url = (req.body.url || '').trim().replace(/\/+$/, '');
-    if (!url) {
-      // 清空配置，降级到LaMa
-      comfyuiInpaint.setComfyuiBase('');
-      res.json({ ok: true, url: '' });
-      return;
+    if (req.body.url !== undefined) {
+      var url = (req.body.url || '').trim().replace(/\/+$/, '');
+      comfyuiInpaint.setComfyuiBase(url);
+      if (!url) {
+        res.json({ ok: true, url: '' });
+        return;
+      }
     }
-    comfyuiInpaint.setComfyuiBase(url);
+    if (req.body.username && req.body.password) {
+      comfyuiInpaint.setComfyuiCreds(req.body.username.trim(), req.body.password);
+    }
     // 验证连通性
     comfyuiInpaint.checkHealth().then(function (health) {
       if (health.available) {
-        res.json({ ok: true, url: url, health: health });
+        res.json({ ok: true, url: comfyuiInpaint.getComfyuiBase(), health: health });
       } else {
-        res.json({ ok: true, url: url, warning: '配置已保存但连接检测失败', health: health });
+        res.json({ ok: true, url: comfyuiInpaint.getComfyuiBase(), warning: '配置已保存但连接检测失败', health: health });
       }
     }).catch(function (err) {
-      res.json({ ok: true, url: url, warning: '配置已保存但连接失败: ' + err.message });
+      res.json({ ok: true, url: comfyuiInpaint.getComfyuiBase(), warning: '配置已保存但连接失败: ' + err.message });
     });
   } catch (e) {
     res.status(500).json({ error: 'ComfyUI服务模块不可用: ' + e.message });
