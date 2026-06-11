@@ -27,9 +27,9 @@ router.get('/category-mappings', (req, res) => {
   const keyword = (req.query.keyword || '').trim();
   let rows;
   if (keyword) {
-    rows = getAll('SELECT id, category_name, custom_category FROM category_mappings WHERE category_name LIKE ? OR custom_category LIKE ? ORDER BY category_name', ['%' + keyword + '%', '%' + keyword + '%']);
+    rows = getAll('SELECT id, category_name, custom_category FROM category_mappings WHERE deleted = 0 AND (category_name LIKE ? OR custom_category LIKE ?) ORDER BY category_name', ['%' + keyword + '%', '%' + keyword + '%']);
   } else {
-    rows = getAll('SELECT id, category_name, custom_category FROM category_mappings ORDER BY category_name');
+    rows = getAll('SELECT id, category_name, custom_category FROM category_mappings WHERE deleted = 0 ORDER BY category_name');
   }
   // 批量聚合：一次查询获取所有映射的商品数量（兼容 leafCategoryName 和 categoryPath）
   const countRows = getAll("SELECT COALESCE(JSON_EXTRACT(category, '$.leafCategoryName'), JSON_EXTRACT(category, '$.categoryPath')) as cat_name, custom_category, COUNT(*) as cnt FROM products WHERE deleted = 0 AND custom_category IS NOT NULL AND custom_category != '' GROUP BY cat_name, custom_category");
@@ -50,7 +50,7 @@ router.get('/category-mappings', (req, res) => {
 router.get('/category-mappings/by-name', (req, res) => {
   const categoryName = (req.query.name || '').trim();
   if (!categoryName) return res.json([]);
-  const rows = getAll('SELECT id, custom_category FROM category_mappings WHERE category_name = ? ORDER BY id', [categoryName]);
+  const rows = getAll('SELECT id, custom_category FROM category_mappings WHERE category_name = ? AND deleted = 0 ORDER BY id', [categoryName]);
   res.json(rows.map(r => ({ id: r.id, customCategory: r.custom_category })));
 });
 
@@ -58,7 +58,7 @@ router.get('/category-mappings/by-name', (req, res) => {
 router.get('/category-mappings/by-dxm', (req, res) => {
   const dxmName = (req.query.name || '').trim();
   if (!dxmName) return res.json([]);
-  const rows = getAll('SELECT id, category_name FROM category_mappings WHERE custom_category = ? ORDER BY id', [dxmName]);
+  const rows = getAll('SELECT id, category_name FROM category_mappings WHERE custom_category = ? AND deleted = 0 ORDER BY id', [dxmName]);
   // 批量聚合该 DXM 类目下的商品数量
   const countRows = getAll("SELECT JSON_EXTRACT(category, '$.leafCategoryName') as cat_name, COUNT(*) as cnt FROM products WHERE deleted = 0 AND custom_category = ? GROUP BY cat_name", [dxmName]);
   const countMap = {};
@@ -77,9 +77,9 @@ router.get('/category-mappings/grouped', (req, res) => {
   const offset = (page - 1) * pageSize;
   let rows;
   if (keyword) {
-    rows = getAll('SELECT id, category_name, custom_category FROM category_mappings WHERE custom_category LIKE ? ORDER BY custom_category, category_name', ['%' + keyword + '%']);
+    rows = getAll('SELECT id, category_name, custom_category FROM category_mappings WHERE deleted = 0 AND custom_category LIKE ? ORDER BY custom_category, category_name', ['%' + keyword + '%']);
   } else {
-    rows = getAll('SELECT id, category_name, custom_category FROM category_mappings ORDER BY custom_category, category_name');
+    rows = getAll('SELECT id, category_name, custom_category FROM category_mappings WHERE deleted = 0 ORDER BY custom_category, category_name');
   }
   // 批量聚合：避免 N+1 查询（兼容 leafCategoryName 和 categoryPath）
   const countRows = getAll("SELECT COALESCE(JSON_EXTRACT(category, '$.leafCategoryName'), JSON_EXTRACT(category, '$.categoryPath')) as cat_name, custom_category, COUNT(*) as cnt FROM products WHERE deleted = 0 AND custom_category IS NOT NULL AND custom_category != '' GROUP BY cat_name, custom_category");
@@ -130,16 +130,14 @@ function clearProductsByMapping(categoryName, customCategory) {
 // 删除整个DXM类目映射（必须在 :id 之前）
 router.delete('/category-mappings/dxm/:name', (req, res) => {
   const dxmName = decodeURIComponent(req.params.name);
-  const bound = getAll("SELECT category_name FROM category_mappings WHERE custom_category = ?", [dxmName]);
-  run("DELETE FROM category_mappings WHERE custom_category = ?", [dxmName]);
+  const bound = getAll("SELECT category_name FROM category_mappings WHERE custom_category = ? AND deleted = 0", [dxmName]);
+  run("UPDATE category_mappings SET deleted = 1, updated_at = datetime('now', '+8 hours') WHERE custom_category = ?", [dxmName]);
   var cleared = 0;
   bound.forEach(r => {
     cleared += clearProductsByMapping(r.category_name, dxmName);
   });
   if (cloudDb.connected) {
-    bound.forEach(r => {
-      cloudDb.cloudRun("DELETE FROM category_mappings WHERE category_name = ? AND custom_category = ?", [r.category_name, dxmName]).catch(function () {});
-    });
+    cloudDb.cloudRun("UPDATE category_mappings SET deleted = 1, updated_at = datetime('now', '+8 hours') WHERE custom_category = ?", [dxmName]).catch(function () {});
   }
   res.json({ ok: true, cleared: cleared });
 });
@@ -147,14 +145,16 @@ router.delete('/category-mappings/dxm/:name', (req, res) => {
 // 删除单条映射
 router.delete('/category-mappings/:id', (req, res) => {
   const id = parseInt(req.params.id);
-  const mapping = getOne('SELECT category_name, custom_category FROM category_mappings WHERE id = ?', [id]);
+  const mapping = getOne('SELECT category_name, custom_category FROM category_mappings WHERE id = ? AND deleted = 0', [id]);
   var cleared = 0;
   if (mapping) {
     cleared = clearProductsByMapping(mapping.category_name, mapping.custom_category);
-  }
-  run('DELETE FROM category_mappings WHERE id = ?', [id]);
-  if (cloudDb.connected && mapping) {
-    cloudDb.cloudRun('DELETE FROM category_mappings WHERE category_name = ? AND custom_category = ?', [mapping.category_name, mapping.custom_category]).catch(function () {});
+    run("UPDATE category_mappings SET deleted = 1, updated_at = datetime('now', '+8 hours') WHERE id = ?", [id]);
+    if (cloudDb.connected) {
+      cloudDb.cloudRun("UPDATE category_mappings SET deleted = 1, updated_at = datetime('now', '+8 hours') WHERE category_name = ? AND custom_category = ?", [mapping.category_name, mapping.custom_category]).catch(function () {});
+    }
+  } else {
+    run("UPDATE category_mappings SET deleted = 1, updated_at = datetime('now', '+8 hours') WHERE id = ?", [id]);
   }
   res.json({ ok: true, cleared: cleared });
 });
@@ -164,7 +164,7 @@ router.post('/category-mappings', (req, res) => {
   const { categoryName, customCategory } = req.body;
   if (!categoryName || !customCategory) return res.status(400).json({ error: '参数不完整' });
   try {
-    const existing = getOne('SELECT id FROM category_mappings WHERE category_name = ? AND custom_category = ?', [categoryName, customCategory]);
+    const existing = getOne('SELECT id FROM category_mappings WHERE category_name = ? AND custom_category = ? AND deleted = 0', [categoryName, customCategory]);
     if (!existing) {
       run(`INSERT INTO category_mappings (category_name, custom_category, count, source, created_at, updated_at) VALUES (?, ?, 1, 'manual', datetime('now', '+8 hours'), datetime('now', '+8 hours'))`, [categoryName, customCategory]);
       if (cloudDb.connected) {
@@ -198,7 +198,7 @@ router.post('/keyword-rels/rebuild', (req, res) => {
   });
 
   // 同时统计映射表
-  var mappings = getAll("SELECT category_name FROM category_mappings WHERE source = 'manual'");
+  var mappings = getAll("SELECT category_name FROM category_mappings WHERE source = 'manual' AND deleted = 0");
   learned += mappings.length;
 
   console.log('[关联库回填] 完成, 学习:', learned, '条, 失败:', errors);

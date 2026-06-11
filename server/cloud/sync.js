@@ -7,18 +7,18 @@ module.exports = function (cloud, db) {
     if (!cloud.connected) return { ok: false, error: '未连接' };
     var counts = {};
 
-    var mappings = db.getAll('SELECT category_name, custom_category, count, source FROM category_mappings');
+    var mappings = db.getAll('SELECT category_name, custom_category, count, source, deleted, updated_at FROM category_mappings');
     for (var i = 0; i < mappings.length; i++) {
       var m = mappings[i];
-      var existing = await cloud.getOne('SELECT id, count FROM category_mappings WHERE category_name = ? AND custom_category = ?', [m.category_name, m.custom_category]);
+      var existing = await cloud.getOne('SELECT id, updated_at FROM category_mappings WHERE category_name = ? AND custom_category = ?', [m.category_name, m.custom_category]);
       if (existing) {
-        var maxCount = Math.max(existing.count || 0, m.count);
-        if (maxCount > existing.count) {
-          await cloud.run('UPDATE category_mappings SET count = ? WHERE id = ?', [maxCount, existing.id]);
+        var localNewer = m.updated_at && (!existing.updated_at || m.updated_at > existing.updated_at);
+        if (localNewer) {
+          await cloud.run('UPDATE category_mappings SET count = ?, source = ?, deleted = ?, updated_at = ? WHERE id = ?', [m.count, m.source, m.deleted || 0, m.updated_at, existing.id]);
         }
       } else {
-        await cloud.run(`INSERT INTO category_mappings (category_name, custom_category, count, source, created_at, updated_at) VALUES (?, ?, ?, ?, datetime('now', '+8 hours'), datetime('now', '+8 hours'))`,
-          [m.category_name, m.custom_category, m.count, m.source]);
+        await cloud.run(`INSERT INTO category_mappings (category_name, custom_category, count, source, deleted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, datetime('now', '+8 hours'), ?)`,
+          [m.category_name, m.custom_category, m.count, m.source, m.deleted || 0, m.updated_at || '']);
       }
     }
     counts.category_mappings = mappings.length;
@@ -110,18 +110,18 @@ module.exports = function (cloud, db) {
     if (!cloud.connected) return { ok: false, error: '未连接' };
     var counts = {};
 
-    var cloudMappings = await cloud.getAll('SELECT category_name, custom_category, count, source FROM category_mappings');
+    var cloudMappings = await cloud.getAll('SELECT category_name, custom_category, count, source, deleted, updated_at FROM category_mappings');
     for (var i = 0; i < cloudMappings.length; i++) {
       var m = cloudMappings[i];
-      var local = db.getOne('SELECT id, count FROM category_mappings WHERE category_name = ? AND custom_category = ?', [m.category_name, m.custom_category]);
+      var local = db.getOne('SELECT id, updated_at FROM category_mappings WHERE category_name = ? AND custom_category = ?', [m.category_name, m.custom_category]);
       if (local) {
-        var maxCount = Math.max(local.count || 0, m.count);
-        if (maxCount > local.count) {
-          db.run('UPDATE category_mappings SET count = ? WHERE id = ?', [maxCount, local.id]);
+        var cloudNewer = m.updated_at && (!local.updated_at || m.updated_at > local.updated_at);
+        if (cloudNewer) {
+          db.run('UPDATE category_mappings SET count = ?, source = ?, deleted = ?, updated_at = ? WHERE id = ?', [m.count, m.source, m.deleted || 0, m.updated_at, local.id]);
         }
       } else {
-        db.run(`INSERT INTO category_mappings (category_name, custom_category, count, source, created_at, updated_at) VALUES (?, ?, ?, ?, datetime('now', '+8 hours'), datetime('now', '+8 hours'))`,
-          [m.category_name, m.custom_category, m.count, m.source]);
+        db.run(`INSERT INTO category_mappings (category_name, custom_category, count, source, deleted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, datetime('now', '+8 hours'), ?)`,
+          [m.category_name, m.custom_category, m.count, m.source, m.deleted || 0, m.updated_at || '']);
       }
     }
     counts.category_mappings = cloudMappings.length;
@@ -259,7 +259,7 @@ module.exports = function (cloud, db) {
       where = ' WHERE updated_at >= ?';
       params = [options.since];
     }
-    var products = db.getAll("SELECT uid, source_url, title, main_images, desc_images, detail_images, attrs, skus, category, custom_category, dxm_category, manual_category, status, deleted, created_at, updated_at, automation_stage, automation_log, automation_issues, automation_started_at, automation_finished_at FROM products" + where, params);
+    var products = db.getAll("SELECT uid, source_url, title, main_images, desc_images, detail_images, attrs, skus, category, custom_category, dxm_category, manual_category, status, deleted, store_name, variant_attr_name, product_no, variant_attr_name2, variant_attr_name3, variant_attr_images, original_images, created_at, updated_at, automation_stage, automation_log, automation_issues, automation_started_at, automation_finished_at FROM products" + where, params);
     var total = products.length;
     var uploaded = 0;
     var skipped = 0;
@@ -271,13 +271,13 @@ module.exports = function (cloud, db) {
         if (!p.uid) return null; // 跳过无 uid 的旧记录
         return {
           sql: (function () {
-            var cols = ['source_url', 'title', 'main_images', 'desc_images', 'detail_images', 'attrs', 'skus', 'category', 'custom_category', 'dxm_category', 'manual_category', 'status', 'deleted', 'automation_stage', 'automation_log', 'automation_issues', 'automation_started_at', 'automation_finished_at'];
-            var sets = cols.map(function (c) { return c + ' = CASE WHEN excluded.updated_at >= products.updated_at THEN excluded.' + c + ' ELSE products.' + c + ' END'; });
+            var cols = ['source_url', 'title', 'main_images', 'desc_images', 'detail_images', 'attrs', 'skus', 'category', 'custom_category', 'dxm_category', 'manual_category', 'status', 'deleted', 'store_name', 'variant_attr_name', 'product_no', 'variant_attr_name2', 'variant_attr_name3', 'variant_attr_images', 'original_images', 'automation_stage', 'automation_log', 'automation_issues', 'automation_started_at', 'automation_finished_at'];
+            var sets = cols.map(function (c) { return c + ' = CASE WHEN excluded.updated_at > products.updated_at THEN excluded.' + c + ' ELSE products.' + c + ' END'; });
             sets.push('created_at = COALESCE(products.created_at, excluded.created_at)');
-            sets.push('updated_at = CASE WHEN excluded.updated_at >= products.updated_at THEN excluded.updated_at ELSE products.updated_at END');
-            return 'INSERT INTO products (uid, source_url, title, main_images, desc_images, detail_images, attrs, skus, category, custom_category, dxm_category, manual_category, status, deleted, created_at, updated_at, automation_stage, automation_log, automation_issues, automation_started_at, automation_finished_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(uid) DO UPDATE SET ' + sets.join(', ');
+            sets.push('updated_at = CASE WHEN excluded.updated_at > products.updated_at THEN excluded.updated_at ELSE products.updated_at END');
+            return 'INSERT INTO products (uid, source_url, title, main_images, desc_images, detail_images, attrs, skus, category, custom_category, dxm_category, manual_category, status, deleted, store_name, variant_attr_name, product_no, variant_attr_name2, variant_attr_name3, variant_attr_images, original_images, created_at, updated_at, automation_stage, automation_log, automation_issues, automation_started_at, automation_finished_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(uid) DO UPDATE SET ' + sets.join(', ');
           })(),
-          args: [p.uid, p.source_url, p.title, p.main_images || '', p.desc_images || '', p.detail_images || '', p.attrs || '', p.skus || '', p.category || '', p.custom_category || '', p.dxm_category || '', p.manual_category || '', p.status || 0, p.deleted || 0, p.created_at || '', p.updated_at || '', p.automation_stage || 'none', p.automation_log || '', p.automation_issues || '', p.automation_started_at || null, p.automation_finished_at || null]
+          args: [p.uid, p.source_url, p.title, p.main_images || '', p.desc_images || '', p.detail_images || '', p.attrs || '', p.skus || '', p.category || '', p.custom_category || '', p.dxm_category || '', p.manual_category || '', p.status || 0, p.deleted || 0, p.store_name || '', p.variant_attr_name || '', p.product_no || '', p.variant_attr_name2 || '', p.variant_attr_name3 || '', p.variant_attr_images || '', p.original_images || '', p.created_at || '', p.updated_at || '', p.automation_stage || 'none', p.automation_log || '', p.automation_issues || '', p.automation_started_at || null, p.automation_finished_at || null]
         };
       }).filter(Boolean);
       try {
@@ -325,7 +325,7 @@ module.exports = function (cloud, db) {
       where = ' WHERE updated_at >= ?';
       params = [options.since];
     }
-    var cloudProducts = await cloud.getAll('SELECT uid, source_url, title, main_images, desc_images, detail_images, attrs, skus, category, custom_category, dxm_category, manual_category, status, deleted, created_at, updated_at, automation_stage, automation_log, automation_issues, automation_started_at, automation_finished_at FROM products' + where, params);
+    var cloudProducts = await cloud.getAll('SELECT uid, source_url, title, main_images, desc_images, detail_images, attrs, skus, category, custom_category, dxm_category, manual_category, status, deleted, store_name, variant_attr_name, product_no, variant_attr_name2, variant_attr_name3, variant_attr_images, original_images, created_at, updated_at, automation_stage, automation_log, automation_issues, automation_started_at, automation_finished_at FROM products' + where, params);
     var added = 0;
     var updated = 0;
     var skipped = 0;
@@ -338,14 +338,14 @@ module.exports = function (cloud, db) {
       var local = db.getOne('SELECT id, deleted as local_deleted, created_at as local_created_at, updated_at as local_updated_at FROM products WHERE uid = ?', [p.uid]);
       if (!local) {
         if (isDeleted) { skipped++; continue; }
-        db.run('INSERT INTO products (uid, source_url, title, main_images, desc_images, detail_images, attrs, skus, category, custom_category, dxm_category, manual_category, status, deleted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          [p.uid, p.source_url || '', p.title, p.main_images, p.desc_images, p.detail_images, p.attrs, p.skus, p.category, p.custom_category, p.dxm_category, p.manual_category, p.status, 0, p.created_at, p.updated_at]);
+        db.run('INSERT INTO products (uid, source_url, title, main_images, desc_images, detail_images, attrs, skus, category, custom_category, dxm_category, manual_category, status, deleted, store_name, variant_attr_name, product_no, variant_attr_name2, variant_attr_name3, variant_attr_images, original_images, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          [p.uid, p.source_url || '', p.title, p.main_images, p.desc_images, p.detail_images, p.attrs, p.skus, p.category, p.custom_category, p.dxm_category, p.manual_category, p.status, 0, p.store_name || '', p.variant_attr_name || '', p.product_no || '', p.variant_attr_name2 || '', p.variant_attr_name3 || '', p.variant_attr_images || '', p.original_images || '', p.created_at, p.updated_at]);
         added++;
       } else {
-        var cloudNewer = p.updated_at && (!local.local_updated_at || p.updated_at >= local.local_updated_at);
+        var cloudNewer = p.updated_at && (!local.local_updated_at || p.updated_at > local.local_updated_at);
         if (cloudNewer) {
-          db.run('UPDATE products SET source_url = ?, title = ?, main_images = ?, desc_images = ?, detail_images = ?, attrs = ?, skus = ?, category = ?, custom_category = ?, dxm_category = ?, manual_category = ?, status = ?, deleted = ?, created_at = COALESCE(created_at, ?), updated_at = ?, automation_stage = ?, automation_log = ?, automation_issues = ?, automation_started_at = ?, automation_finished_at = ? WHERE id = ?',
-            [p.source_url || '', p.title, p.main_images, p.desc_images, p.detail_images, p.attrs, p.skus, p.category, p.custom_category, p.dxm_category, p.manual_category, p.status, p.deleted || 0, p.created_at, p.updated_at, p.automation_stage || 'none', p.automation_log || '', p.automation_issues || '', p.automation_started_at || null, p.automation_finished_at || null, local.id]);
+          db.run('UPDATE products SET source_url = ?, title = ?, main_images = ?, desc_images = ?, detail_images = ?, attrs = ?, skus = ?, category = ?, custom_category = ?, dxm_category = ?, manual_category = ?, status = ?, deleted = ?, store_name = ?, variant_attr_name = ?, product_no = ?, variant_attr_name2 = ?, variant_attr_name3 = ?, variant_attr_images = ?, original_images = ?, created_at = COALESCE(created_at, ?), updated_at = ?, automation_stage = ?, automation_log = ?, automation_issues = ?, automation_started_at = ?, automation_finished_at = ? WHERE id = ?',
+            [p.source_url || '', p.title, p.main_images, p.desc_images, p.detail_images, p.attrs, p.skus, p.category, p.custom_category, p.dxm_category, p.manual_category, p.status, p.deleted || 0, p.store_name || '', p.variant_attr_name || '', p.product_no || '', p.variant_attr_name2 || '', p.variant_attr_name3 || '', p.variant_attr_images || '', p.original_images || '', p.created_at, p.updated_at, p.automation_stage || 'none', p.automation_log || '', p.automation_issues || '', p.automation_started_at || null, p.automation_finished_at || null, local.id]);
           updated++;
         } else if (!local.local_created_at && p.created_at) {
           db.run('UPDATE products SET created_at = ? WHERE id = ?', [p.created_at, local.id]);
@@ -378,11 +378,11 @@ module.exports = function (cloud, db) {
 
   function saveProductToLocalAndCloud(uid, sourceUrl, title, category, customCategory, dxmCategory, manualCategory, createdAt, mainImages, descImages, detailImages, attrs, skus) {
     if (!cloud.connected || !uid) return;
-    var updatedAt = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    var updatedAt = new Date(Date.now() + 8 * 3600000).toISOString().replace('T', ' ').substring(0, 19);
     var cols = ['source_url', 'title', 'main_images', 'desc_images', 'detail_images', 'attrs', 'skus', 'category', 'custom_category', 'dxm_category', 'manual_category', 'status', 'deleted', 'automation_stage', 'automation_log', 'automation_issues', 'automation_started_at', 'automation_finished_at'];
-    var sets = cols.map(function (c) { return c + ' = CASE WHEN excluded.updated_at >= products.updated_at THEN excluded.' + c + ' ELSE products.' + c + ' END'; });
+    var sets = cols.map(function (c) { return c + ' = CASE WHEN excluded.updated_at > products.updated_at THEN excluded.' + c + ' ELSE products.' + c + ' END'; });
     sets.push('created_at = COALESCE(products.created_at, excluded.created_at)');
-    sets.push('updated_at = CASE WHEN excluded.updated_at >= products.updated_at THEN excluded.updated_at ELSE products.updated_at END');
+    sets.push('updated_at = CASE WHEN excluded.updated_at > products.updated_at THEN excluded.updated_at ELSE products.updated_at END');
     var sql = 'INSERT INTO products (uid, source_url, title, main_images, desc_images, detail_images, attrs, skus, category, custom_category, dxm_category, manual_category, status, deleted, created_at, updated_at, automation_stage, automation_log, automation_issues, automation_started_at, automation_finished_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, \'\', \'\', \'\', NULL, NULL) ON CONFLICT(uid) DO UPDATE SET ' + sets.join(', ');
     cloud.run(sql,
       [uid, sourceUrl || '', title || '', mainImages || '', descImages || '', detailImages || '', attrs || '', skus || '', category || '', customCategory || '', dxmCategory || '', manualCategory || '', 0, createdAt || '', updatedAt]
@@ -392,18 +392,18 @@ module.exports = function (cloud, db) {
   // ===== 单表同步 =====
   var SINGLE_TABLE_DEFS = {
     mappings: {
-      localGet: function () { return db.getAll('SELECT category_name, custom_category, count, source, created_at, updated_at FROM category_mappings'); },
-      cloudCols: 'category_name, custom_category, count, source, created_at, updated_at',
+      localGet: function () { return db.getAll('SELECT category_name, custom_category, count, source, deleted, created_at, updated_at FROM category_mappings'); },
+      cloudCols: 'category_name, custom_category, count, source, deleted, created_at, updated_at',
       cloudKey: ['category_name', 'custom_category'],
-      localKeyMatch: function (r) { return 'SELECT id, count FROM category_mappings WHERE category_name = ? AND custom_category = ?'; },
+      localKeyMatch: function (r) { return 'SELECT id, count, deleted, updated_at FROM category_mappings WHERE category_name = ? AND custom_category = ?'; },
       localKeyParams: function (r) { return [r.category_name, r.custom_category]; },
-      localInsert: `INSERT INTO category_mappings (category_name, custom_category, count, source, created_at, updated_at) VALUES (?, ?, ?, ?, datetime('now', '+8 hours'), datetime('now', '+8 hours'))`,
-      localInsertParams: function (r) { return [r.category_name, r.custom_category, r.count, r.source]; },
-      localUpdate: `UPDATE category_mappings SET count = ?, source = ?, updated_at = datetime('now', '+8 hours') WHERE id = ?`,
+      localInsert: `INSERT INTO category_mappings (category_name, custom_category, count, source, deleted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, datetime('now', '+8 hours'), ?)`,
+      localInsertParams: function (r) { return [r.category_name, r.custom_category, r.count, r.source, r.deleted || 0, r.updated_at || '']; },
+      localUpdate: `UPDATE category_mappings SET count = ?, source = ?, deleted = ?, updated_at = ? WHERE id = ?`,
       cloudTable: 'category_mappings',
-      cloudInsert: `INSERT INTO category_mappings (category_name, custom_category, count, source, created_at, updated_at) VALUES (?, ?, ?, ?, datetime('now', '+8 hours'), datetime('now', '+8 hours'))`,
-      cloudInsertParams: function (r) { return [r.category_name, r.custom_category, r.count, r.source]; },
-      cloudUpdate: `UPDATE category_mappings SET count = ?, source = ?, updated_at = datetime('now', '+8 hours') WHERE id = ?`,
+      cloudInsert: `INSERT INTO category_mappings (category_name, custom_category, count, source, deleted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, datetime('now', '+8 hours'), ?)`,
+      cloudInsertParams: function (r) { return [r.category_name, r.custom_category, r.count, r.source, r.deleted || 0, r.updated_at || '']; },
+      cloudUpdate: `UPDATE category_mappings SET count = ?, source = ?, deleted = ?, updated_at = ? WHERE id = ?`,
       label: '类目映射'
     },
     'keyword-rels': {
@@ -492,10 +492,10 @@ module.exports = function (cloud, db) {
         await cloud.run(def.cloudInsert, def.cloudInsertParams(r));
         pushed++;
       } else if (tableKey === 'mappings') {
-        var localCount = r.count || 0;
-        var cloudRow = await cloud.getOne('SELECT count FROM category_mappings WHERE id = ?', [cloudExisting.id]);
-        if (cloudRow && localCount > (cloudRow.count || 0)) {
-          await cloud.run('UPDATE category_mappings SET count = ? WHERE id = ?', [localCount, cloudExisting.id]);
+        var cloudRow = await cloud.getOne('SELECT updated_at FROM category_mappings WHERE id = ?', [cloudExisting.id]);
+        var localNewer = r.updated_at && (!cloudRow.updated_at || r.updated_at > cloudRow.updated_at);
+        if (localNewer) {
+          await cloud.run(def.cloudUpdate, [r.count, r.source, r.deleted || 0, r.updated_at, cloudExisting.id]);
           pushed++;
         } else { skipped++; }
       } else if (tableKey === 'keyword-rels') {
@@ -537,9 +537,16 @@ module.exports = function (cloud, db) {
         db.run(def.localInsert, def.localInsertParams(r));
         added++;
       } else if (tableKey === 'mappings') {
-        var maxCount = Math.max(local.count || 0, r.count || 0);
-        if (maxCount > local.count) {
-          db.run('UPDATE category_mappings SET count = ? WHERE id = ?', [maxCount, local.id]);
+        var cloudNewer = r.updated_at && (!local.updated_at || r.updated_at > local.updated_at);
+        if (cloudNewer) {
+          db.run(def.localUpdate, [r.count, r.source, r.deleted || 0, r.updated_at, local.id]);
+          updated++;
+        }
+      } else if (tableKey === 'keyword-rels') {
+        var maxW = Math.max(local.weight || 1.0, r.weight || 1.0);
+        var maxM = Math.max(local.match_count || 1, r.match_count || 1);
+        if (maxW > local.weight || maxM > local.match_count) {
+          db.run('UPDATE keyword_category_rel SET weight = ?, match_count = ? WHERE id = ?', [maxW, maxM, local.id]);
           updated++;
         }
       } else if (tableKey === 'keyword-rels') {
@@ -551,7 +558,7 @@ module.exports = function (cloud, db) {
         }
       }
     }
-    // 物理清理：本地有但云端没有的记录，说明已被另一端删除
+    // 清理：本地有但云端没有的记录
     var purged = 0;
     if (def.cloudKey && def.cloudKey.length) {
       var cloudKeys = {};
@@ -565,7 +572,12 @@ module.exports = function (cloud, db) {
         var localKey = localKeyVals.join('\x00');
         if (!cloudKeys[localKey]) {
           var delWhere = def.cloudKey.map(function (k) { return k + ' = ?'; }).join(' AND ');
-          db.run('DELETE FROM ' + def.cloudTable + ' WHERE ' + delWhere, localKeyVals);
+          if (tableKey === 'mappings') {
+            // 映射表用逻辑删除，不物理删除
+            db.run('UPDATE category_mappings SET deleted = 1 WHERE ' + delWhere, localKeyVals);
+          } else {
+            db.run('DELETE FROM ' + def.cloudTable + ' WHERE ' + delWhere, localKeyVals);
+          }
           purged++;
         }
       }

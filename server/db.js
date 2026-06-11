@@ -226,6 +226,9 @@ var LOCAL_TABLE_DEFS = [
       custom_category TEXT NOT NULL,
       count INTEGER DEFAULT 1,
       source TEXT DEFAULT 'auto',
+      deleted INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT '',
+      updated_at TEXT DEFAULT '',
       UNIQUE(category_name, custom_category)
     )`
   },
@@ -438,6 +441,7 @@ async function initDb() {
   var alterTimestamps = [
     'ALTER TABLE category_mappings ADD COLUMN created_at TEXT DEFAULT \'\'',
     'ALTER TABLE category_mappings ADD COLUMN updated_at TEXT DEFAULT \'\'',
+    'ALTER TABLE category_mappings ADD COLUMN deleted INTEGER DEFAULT 0',
     'ALTER TABLE keyword_synonyms ADD COLUMN created_at TEXT DEFAULT \'\'',
     'ALTER TABLE keyword_synonyms ADD COLUMN updated_at TEXT DEFAULT \'\'',
     'ALTER TABLE keyword_blacklist ADD COLUMN created_at TEXT DEFAULT \'\'',

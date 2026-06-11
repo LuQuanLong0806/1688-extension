@@ -617,6 +617,14 @@ Vue.component('detail-modal', {
       if (!this.editable) return;
       window.open('https://www.dianxiaomi.com/web/temu/add?collectId=' + this.editable.uid, '_blank');
     },
+    onDetailCategoryChange: function (v) {
+      this.editable.customCategory = v;
+      this.editable.manualCategory = '';
+      this.editable.dxmCategory = '';
+    },
+    onDetailCategoryPath: function (p) {
+      this.editable.manualCategory = p;
+    },
     close: function () { this.$emit('update:visible', false); },
     goToMeitu: function () {
       var vm = this;
@@ -1611,7 +1619,7 @@ Vue.component('detail-modal', {
               <i-input v-model="editable.title" style="width:100%;font-size:14px" placeholder="产品标题" />
             </span>
             <span class="label">选择分类</span><span class="value">
-              <category-picker :value="editable.customCategory" :path="editable.manualCategory || ''" @input="function(v) { editable.customCategory = v; editable.manualCategory = ''; editable.dxmCategory = ''; }" @path="function(p) { editable.manualCategory = p }" placeholder="搜索或选择分类" style="width:600px" />
+              <category-picker :value="editable.customCategory" :path="editable.manualCategory || ''" @input="onDetailCategoryChange" @path="onDetailCategoryPath" placeholder="搜索或选择分类" style="width:600px" />
             </span>
             <span class="info-more-toggle" @click="showMoreInfo = !showMoreInfo">
               {{ showMoreInfo ? '收起 ▲' : '更多 ▼' }}
@@ -1699,8 +1707,9 @@ Vue.component('detail-modal', {
                 <checkbox :value="isDetailImageChecked(i)" @click.native.stop></checkbox>
               </div>
               <div class="img-action img-edit" @click.stop="editImageWithMeitu(url, 'detail_images', i)" title="编辑图片">✎</div>
-              <div class="img-action img-annotate" @click.stop="annotateSingleImage(url, 'detail_images', i)" title="尺寸标注">📐</div></div>
+              <div class="img-action img-annotate" @click.stop="annotateSingleImage(url, 'detail_images', i)" title="尺寸标注">📐</div>
               <div class="img-del" @click.stop="removeDetailImage(i)">&times;</div>
+            </div>
             </div>
           </div>
         </div>
@@ -1801,7 +1810,7 @@ Vue.component('detail-modal', {
               <thead><tr>
                 <th class="sku-check-col"><checkbox :value="allSkuSelected" @on-change="toggleSkuAll"></checkbox></th>
                 <th>图片</th><th>SKU名称</th>
-                <th>自定义名称 <Poptip v-model="showBatchReplace" placement="bottom" width="360" trigger="click" transfer>
+                <th>自定义名称 <Poptip v-model="showBatchReplace" placement="top" width="360" trigger="click" transfer>
                     <span class="th-action">批量替换</span>
                     <div slot="content" class="batch-replace-panel">
                       <div class="batch-mode-tabs">

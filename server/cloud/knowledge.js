@@ -5,17 +5,17 @@ module.exports = function (cloud, db) {
 
   async function getMappings(categoryName) {
     // 本地优先，避免远程 170-240ms 延迟
-    var rows = db.getAll('SELECT custom_category, count, source FROM category_mappings WHERE category_name = ? ORDER BY count DESC, id', [categoryName]);
+    var rows = db.getAll('SELECT custom_category, count, source FROM category_mappings WHERE category_name = ? AND deleted = 0 ORDER BY count DESC, id', [categoryName]);
     if (rows && rows.length > 0) return rows;
     // 本地无数据时再查云端
     if (cloud.connected) {
-      return await cloud.getAll('SELECT custom_category, count, source FROM category_mappings WHERE category_name = ? ORDER BY count DESC, id', [categoryName]);
+      return await cloud.getAll('SELECT custom_category, count, source FROM category_mappings WHERE category_name = ? AND deleted = 0 ORDER BY count DESC, id', [categoryName]);
     }
     return [];
   }
 
   async function saveMapping(aliCat, customCat, source) {
-    var existing = db.getOne('SELECT id, count FROM category_mappings WHERE category_name = ? AND custom_category = ?', [aliCat, customCat]);
+    var existing = db.getOne('SELECT id, count FROM category_mappings WHERE category_name = ? AND custom_category = ? AND deleted = 0', [aliCat, customCat]);
     if (existing) {
       db.run(`UPDATE category_mappings SET count = count + 1, source = ?, updated_at = datetime('now', '+8 hours') WHERE id = ?`, [source || 'auto', existing.id]);
     } else {

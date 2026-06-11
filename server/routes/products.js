@@ -96,7 +96,7 @@ router.get('/product/categories', (req, res) => {
 
 // 已映射的店小秘类目列表
 router.get('/product/dxm-categories', (req, res) => {
-  const rows = getAll("SELECT DISTINCT custom_category FROM category_mappings WHERE custom_category IS NOT NULL AND custom_category != '' ORDER BY custom_category");
+  const rows = getAll("SELECT DISTINCT custom_category FROM category_mappings WHERE deleted = 0 AND custom_category IS NOT NULL AND custom_category != '' ORDER BY custom_category");
   res.json(rows.map(r => r.custom_category));
 });
 
@@ -146,7 +146,7 @@ router.post('/product', (req, res) => {
   if (category) {
     const catName = category.leafCategoryName || category.categoryPath;
     if (catName) {
-      const mappingRow = getOne('SELECT custom_category FROM category_mappings WHERE category_name = ? ORDER BY id DESC LIMIT 1', [catName]);
+      const mappingRow = getOne('SELECT custom_category FROM category_mappings WHERE category_name = ? AND deleted = 0 ORDER BY id DESC LIMIT 1', [catName]);
       if (mappingRow && mappingRow.custom_category) {
         customCategory = mappingRow.custom_category;
       } else {
@@ -287,6 +287,7 @@ async function doRecommendAndSave(title, aliCat, attrs, productId, imageUrl) {
       params.push(result.path);
     }
     if (updates.length) {
+      updates.push("updated_at = datetime('now', '+8 hours')");
       params.push(productId);
       try {
         dbModule.db.run('UPDATE products SET ' + updates.join(', ') + ' WHERE id = ?', params);
@@ -303,7 +304,7 @@ async function doRecommendAndSave(title, aliCat, attrs, productId, imageUrl) {
       sseBroadcast('product-category-updated', { id: productId, category: result.category, path: result.path, source: result.source });
 
       if (aliCat && result.category && result.confidence >= 0.7) {
-        var existingMap = getOne('SELECT id, count FROM category_mappings WHERE category_name = ? AND custom_category = ?', [aliCat, result.category]);
+        var existingMap = getOne('SELECT id, count FROM category_mappings WHERE category_name = ? AND custom_category = ? AND deleted = 0', [aliCat, result.category]);
         if (existingMap) {
           run(`UPDATE category_mappings SET count = count + 1, updated_at = datetime('now', '+8 hours') WHERE id = ?`, [existingMap.id]);
         } else {
@@ -636,6 +637,7 @@ router.post('/product/:id/recommend-category', (req, res) => {
             params.push(result.path);
           }
           if (updates.length) {
+            updates.push("updated_at = datetime('now', '+8 hours')");
             params.push(parsed.uid);
             dbModule.db.run('UPDATE products SET ' + updates.join(', ') + ' WHERE uid = ?', params);
             scheduleSave();

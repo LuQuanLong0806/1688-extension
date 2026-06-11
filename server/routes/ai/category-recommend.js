@@ -938,7 +938,7 @@ function findSimilarMappings(aliCategory, aliCategoryWords, existingPaths) {
   allWords.forEach(function (w) { if (!seen[w]) { seen[w] = true; uniqueWords.push(w); } });
   if (!uniqueWords.length) return [];
 
-  var conditions = '(' + uniqueWords.map(function () { return 'category_name LIKE ?'; }).join(' OR ') + ')';
+  var conditions = 'deleted = 0 AND (' + uniqueWords.map(function () { return 'category_name LIKE ?'; }).join(' OR ') + ')';
   var params = uniqueWords.map(function (w) { return '%' + w + '%'; });
   // 排除精确匹配当前 1688 类目的行（Step 1 已处理）
   if (aliCategory) {
@@ -1220,11 +1220,11 @@ router.post('/save-category-mapping', function (req, res) {
     return res.status(400).json({ error: '请提供 ali_category 和 temu_category' });
   }
 
-  var existing = dbModule.getOne('SELECT id, count FROM category_mappings WHERE category_name = ? AND custom_category = ?', [aliCategory, temuCategory]);
+  var existing = dbModule.getOne('SELECT id, count FROM category_mappings WHERE category_name = ? AND custom_category = ? AND deleted = 0', [aliCategory, temuCategory]);
   if (existing) {
-    dbModule.run('UPDATE category_mappings SET count = count + 1 WHERE id = ?', [existing.id]);
+    dbModule.run("UPDATE category_mappings SET count = count + 1, updated_at = datetime('now', '+8 hours') WHERE id = ?", [existing.id]);
   } else {
-    dbModule.run('INSERT INTO category_mappings (category_name, custom_category, count, source) VALUES (?, ?, 1, \'manual\')', [aliCategory, temuCategory]);
+    dbModule.run("INSERT INTO category_mappings (category_name, custom_category, count, source, deleted, created_at, updated_at) VALUES (?, ?, 1, 'manual', 0, datetime('now', '+8 hours'), datetime('now', '+8 hours'))", [aliCategory, temuCategory]);
   }
   console.log('[分类映射] 保存:', aliCategory, '→', temuCategory);
 

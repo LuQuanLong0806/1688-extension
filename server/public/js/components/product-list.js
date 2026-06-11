@@ -353,7 +353,8 @@ Vue.component('page-products', {
     syncAndRefresh: function () {
       var vm = this;
       vm.syncing = true;
-      fetch('/api/sync/product-pull', { method: 'POST' })
+      var since = new Date(Date.now() - 24 * 3600000 + 8 * 3600000).toISOString().replace('T', ' ').substring(0, 19);
+      fetch('/api/sync/product-pull', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ since: since }) })
         .then(function (r) { return r.json(); })
         .then(function (res) {
           vm.syncing = false;
