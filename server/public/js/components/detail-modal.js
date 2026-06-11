@@ -1949,7 +1949,6 @@ Vue.component('detail-modal', {
           <i-button type="success" icon="md-paper-plane" @click="saveAndPublish">保存并发布</i-button>
           <i-button type="warning" icon="md-images" @click="goToMeitu">小秘美图</i-button>
           <i-button icon="md-grid" @click="goToMeituCollage">拼图</i-button>
-          <i-button icon="md-color-palette" @click="replaceBackground" :loading="replacingBg">🖼️ 换背景</i-button>
           <i-button icon="md-close" @click="close">关闭</i-button>
         </div>
 
