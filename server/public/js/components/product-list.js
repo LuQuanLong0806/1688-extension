@@ -3,6 +3,7 @@ Vue.component('page-products', {
   data: function () {
     return {
       loading: false,
+      syncing: false,
       list: [],
       total: 0,
       page: 1,
@@ -349,6 +350,29 @@ Vue.component('page-products', {
         })
         .catch(function () {});
     },
+    syncAndRefresh: function () {
+      var vm = this;
+      vm.syncing = true;
+      fetch('/api/sync/product-pull', { method: 'POST' })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          vm.syncing = false;
+          if (res.ok) {
+            var msg = '同步完成';
+            if (res.added) msg += ' 新增' + res.added;
+            if (res.updated) msg += ' 更新' + res.updated;
+            vm.$Message.success(msg);
+          } else {
+            vm.$Message.warning(res.error || '未连接云端，仅刷新本地');
+          }
+          vm.loadList();
+        })
+        .catch(function () {
+          vm.syncing = false;
+          vm.$Message.info('已刷新');
+          vm.loadList();
+        });
+    },
     loadList: function (p) {
       var vm = this;
       if (p) vm.page = p;
@@ -611,7 +635,7 @@ Vue.component('page-products', {
           <i-button type="info" icon="md-swap" :disabled="selectedIds.length === 0" @click="batchToggleStatus">
             批量修改状态{{ selectedIds.length ? ' (' + selectedIds.length + ')' : '' }}
           </i-button>
-          <tooltip content="刷新" placement="top"><i-button icon="md-refresh" shape="circle" @click="loadList()"></i-button></tooltip>
+          <tooltip content="云同步并刷新" placement="top"><i-button icon="md-refresh" shape="circle" :loading="syncing" @click="syncAndRefresh"></i-button></tooltip>
         </div>
       </div>
       <div v-if="pipelineActive" class="pipeline-bar" :class="{ 'pipeline-bar-expanded': pipelineDrawerVisible }" @click="pipelineDrawerVisible = !pipelineDrawerVisible">

@@ -3,13 +3,15 @@ Vue.component('page-word-library', {
   data: function () {
     return {
       activeTab: 'noise',
-      tabs: [
+      allTabs: [
         { key: 'noise', label: '过滤词库' },
         { key: 'generic', label: '泛义词库' },
         { key: 'mutex', label: '互斥组' },
         { key: 'blacklist', label: '黑名单' },
         { key: 'rels', label: '关联库' }
       ],
+      visibleTabs: ['noise', 'blacklist', 'rels'],
+      showTabMenu: false,
       loading: false,
       list: [],
       total: 0,
@@ -26,6 +28,10 @@ Vue.component('page-word-library', {
     };
   },
   computed: {
+    tabs: function () {
+      var vm = this;
+      return vm.allTabs.filter(function (t) { return vm.visibleTabs.indexOf(t.key) >= 0; });
+    },
     isKbTab: function () { return this.activeTab === 'blacklist' || this.activeTab === 'rels'; },
     columns: function () {
       var vm = this;
@@ -81,6 +87,13 @@ Vue.component('page-word-library', {
     }
   },
   mounted: function () {
+    try {
+      var saved = localStorage.getItem('wordlib_visible_tabs');
+      if (saved) this.visibleTabs = JSON.parse(saved);
+      if (this.visibleTabs.indexOf(this.activeTab) < 0) {
+        this.activeTab = this.visibleTabs[0] || 'noise';
+      }
+    } catch (e) {}
     this.loadList();
   },
   methods: {
@@ -90,6 +103,24 @@ Vue.component('page-word-library', {
       this.keyword = '';
       this.selectedIds = [];
       this.loadList();
+    },
+    toggleVisibleTab: function (key) {
+      var idx = this.visibleTabs.indexOf(key);
+      if (idx >= 0) {
+        if (this.visibleTabs.length <= 1) return;
+        this.visibleTabs.splice(idx, 1);
+        if (this.activeTab === key) this.activeTab = this.visibleTabs[0];
+      } else {
+        this.visibleTabs.push(key);
+      }
+      try { localStorage.setItem('wordlib_visible_tabs', JSON.stringify(this.visibleTabs)); } catch (e) {}
+      this.$forceUpdate();
+    },
+    toggleTabMenu: function () {
+      this.showTabMenu = !this.showTabMenu;
+    },
+    hideTabMenu: function () {
+      this.showTabMenu = false;
     },
     loadList: function (pg) {
       var vm = this;
@@ -313,6 +344,18 @@ Vue.component('page-word-library', {
         <tabs :value="activeTab" @on-click="switchTab" style="margin-right:8px">
           <tab-pane v-for="t in tabs" :key="t.key" :name="t.key" :label="t.label" />
         </tabs>
+        <div style="flex:1"></div>
+        <div style="position:relative">
+          <tooltip content="显示选项卡" placement="top-end">
+            <i-button icon="ios-settings-outline" shape="circle" size="small" @click="toggleTabMenu"></i-button>
+          </tooltip>
+          <div v-if="showTabMenu" style="position:absolute;right:0;top:36px;z-index:999;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:8px 0;min-width:140px" @mouseleave="hideTabMenu">
+            <div v-for="t in allTabs" :key="t.key" @click="toggleVisibleTab(t.key)" style="padding:6px 16px;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:13px;white-space:nowrap" @mouseenter="$event.currentTarget.style.background='var(--bg-elevated)'" @mouseleave="$event.currentTarget.style.background=''">
+              <icon :type="visibleTabs.indexOf(t.key) >= 0 ? 'md-checkbox' : 'md-square-outline'" :style="{color: visibleTabs.indexOf(t.key) >= 0 ? 'var(--accent)' : 'var(--text-muted)'}"></icon>
+              <span>{{ t.label }}</span>
+            </div>
+          </div>
+        </div>
         <i-input v-model="keyword" :placeholder="isKbTab ? '搜索关键词或类目...' : '搜索词语...'" clearable style="width:200px"
           @on-enter="loadList(1)" @on-clear="loadList(1)">
           <icon type="ios-search" slot="prefix"></icon>

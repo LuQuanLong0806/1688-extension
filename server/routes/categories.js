@@ -370,6 +370,11 @@ router.post('/category-config', function (req, res) {
 
   if (!type || !value) return res.status(400).json({ error: 'type 和 value 必填' });
 
+  // 检查是否已存在（未删除的同 type+value+group）
+  var dbModule = require('../db');
+  var existing = dbModule.getOne('SELECT id FROM category_config WHERE type = ? AND value = ? AND group_name = ? AND deleted = 0', [type, value, groupName || '']);
+  if (existing) return res.status(409).json({ error: '该配置已存在', id: existing.id });
+
   cloudDb.saveCategoryConfig(type, value, groupName, description, sortOrder).catch(function (e) {
     console.log('[分类配置] 保存失败:', e.message);
   });

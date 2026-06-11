@@ -493,6 +493,10 @@ router.post('/suggest-category', async function (req, res) {
     var llmResult = await extractProductKeywords(title, aliCategory, attrSummary, imageUrl);
     var keywords = llmResult.keywords || [];
     var categoryHint = llmResult.categoryHint || '';
+    // 品类提示参与搜索（如"饰品"、"美妆"等大类词帮助缩小候选范围）
+    if (categoryHint && keywords.indexOf(categoryHint) < 0) {
+      keywords.push(categoryHint);
+    }
     var localKw = extractSearchKeywords(title, aliCategory);
     localKw.slice(0, 2).forEach(function (kw) {
       if (keywords.indexOf(kw) < 0 && getGenericWords().indexOf(kw) < 0) keywords.push(kw);
