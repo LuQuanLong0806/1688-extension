@@ -693,6 +693,82 @@ router.get('/comfyui-status', function (req, res) {
   });
 });
 
+// ===== 自动场景图：视觉分析 → 文生背景 → 抠图合成 =====
+var replaceBgService = require('../../services/replace-bg-composite');
+
+router.post('/img2img-auto', function (req, res) {
+  var imageBase64 = req.body.image_base64;
+  if (!imageBase64) return res.status(400).json({ error: '请提供 image_base64' });
+  var productTitle = (req.body.title || '').trim();
+  var userPrompt = (req.body.prompt || '').trim();
+  var scale = parseFloat(req.body.scale) || 0.7;
+  var t0 = Date.now();
+
+  // 第一步：视觉模型分析产品，生成场景背景提示词
+  var visionPrompt = 'Analyze this product image' + (productTitle ? ' (product: ' + productTitle + ')' : '') + '. Generate an English prompt for generating a SCENE BACKGROUND (no product in it). Requirements:\n1. Describe the ideal background/scene/environment for this product\n2. Include lighting, atmosphere, texture, environment details\n3. Professional e-commerce photography style\n4. Output ONLY the prompt text, no explanation, no quotes, under 80 words';
+
+  console.log('[自动场景图] 视觉分析开始...');
+  providers.recognizeLLMRequest(imageBase64, visionPrompt).then(function (visionResult) {
+    var scenePrompt = '';
+    if (visionResult && visionResult.choices && visionResult.choices[0]) {
+      scenePrompt = visionResult.choices[0].message.content.trim();
+    }
+    if (!scenePrompt) scenePrompt = 'clean modern studio background, soft natural lighting, marble surface, minimalist style, professional photography';
+    if (userPrompt) scenePrompt = userPrompt + ', ' + scenePrompt;
+    console.log('[自动场景图] AI提示词:', scenePrompt.substring(0, 80));
+    return doSceneComposite(imageBase64, scenePrompt, scale, t0, res);
+  }).catch(function (err) {
+    console.error('[自动场景图] 视觉分析失败:', err.message);
+    var fallbackPrompt = userPrompt || 'clean modern studio background, soft natural lighting, marble surface, minimalist style';
+    return doSceneComposite(imageBase64, fallbackPrompt, scale, t0, res);
+  });
+});
+
+function doSceneComposite(imageBase64, scenePrompt, scale, t0, res) {
+  // 第二步：文生图生成纯背景
+  console.log('[自动场景图] 生成场景背景...');
+  providers.imageGenLLMRequest('/images/generations', {
+    model: 'cogview-3-flash',
+    prompt: scenePrompt,
+    size: '1024x1024'
+  }).then(function (result) {
+    var bgUrl = result.data && result.data[0] && result.data[0].url;
+    if (!bgUrl) throw new Error('未生成背景图');
+    // 下载背景图
+    return downloadImageToBuffer(bgUrl);
+  }).then(function (bgBuf) {
+    // 第三步：抠图 + 合成
+    console.log('[自动场景图] 抠图+合成...');
+    var productBuf = Buffer.from(imageBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+    return replaceBgService.replaceBackground(productBuf, bgBuf, { scale: scale, position: 'center', shadow: false });
+  }).then(function (compositeBuf) {
+    var filename = 'scene_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8) + '.png';
+    fs.writeFile(path.join(UPLOADS_DIR, filename), compositeBuf, function (err) {
+      if (err) return res.status(500).json({ error: '保存失败' });
+      console.log('[自动场景图] 完成, 耗时:', Date.now() - t0, 'ms');
+      res.json({ ok: true, url: '/uploads/' + filename, prompt: scenePrompt });
+    });
+  }).catch(function (err) {
+    console.error('[自动场景图] 失败:', err.message);
+    res.status(502).json({ error: '场景图生成失败: ' + err.message });
+  });
+}
+
+function downloadImageToBuffer(url) {
+  return new Promise(function (resolve, reject) {
+    var proto = url.startsWith('https') ? require('https') : require('http');
+    proto.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, function (dlRes) {
+      if (dlRes.statusCode >= 300 && dlRes.statusCode < 400 && dlRes.headers.location) {
+        downloadImageToBuffer(dlRes.headers.location).then(resolve).catch(reject);
+        return;
+      }
+      var chunks = [];
+      dlRes.on('data', function (c) { chunks.push(c); });
+      dlRes.on('end', function () { resolve(Buffer.concat(chunks)); });
+    }).on('error', reject);
+  });
+}
+
 // ===== 图生图（生成场景图）— ComfyUI 优先，智谱 CogView 降级 =====
 router.post('/img2img', function (req, res) {
   var imageBase64 = req.body.image_base64;

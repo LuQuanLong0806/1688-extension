@@ -2331,29 +2331,29 @@ function initMeituCollage() {
     panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
   });
 
-  document.getElementById('edSceneDenoise').addEventListener('input', function () {
-    document.getElementById('edSceneDenoiseVal').textContent = this.value + '%';
+  document.getElementById('edSceneScale').addEventListener('input', function () {
+    document.getElementById('edSceneScaleVal').textContent = this.value + '%';
   });
 
   document.getElementById('edAiSceneGen').addEventListener('click', function () {
     if (!editorSrc) { showToast('请先打开图片', 'err'); return; }
-    var prompt = document.getElementById('edScenePrompt').value.trim();
-    if (!prompt) { showToast('请输入场景描述', 'err'); return; }
-    var denoise = parseInt(document.getElementById('edSceneDenoise').value) / 100;
+    var userPrompt = document.getElementById('edScenePrompt').value.trim();
+    var productTitle = '';
+    try { productTitle = sessionStorage.getItem('__meitu_source_title') || ''; } catch (e) {}
     var oldSrc = editorSrc;
-    showEditorLoading('AI 生成场景图中，请耐心等待（约10-30秒）...');
+    showEditorLoading('AI 分析产品并生成场景图...');
 
     var b64 = editorSrc.indexOf('data:') === 0 ? editorSrc : '';
     var ready = b64 ? Promise.resolve(b64) : urlToBase64(editorSrc);
 
     ready.then(function (base64) {
-      return fetch(getServerBase() + '/api/ai/img2img', {
+      return fetch(getServerBase() + '/api/ai/img2img-auto', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           image_base64: base64,
-          prompt: prompt,
-          denoise: denoise
+          title: productTitle,
+          prompt: userPrompt
         })
       });
     }).then(function (res) { return res.json(); }).then(function (data) {
@@ -2361,8 +2361,8 @@ function initMeituCollage() {
       if (data.error) { showToast(data.error, 'err'); return; }
       var newUrl = data.url;
       if (newUrl && !newUrl.startsWith('data:')) newUrl = getServerBase() + newUrl;
+      if (data.prompt) document.getElementById('edScenePrompt').value = data.prompt;
       urlToBase64(newUrl).then(function (base64) {
-        // 加入编辑器图片列表
         editorImages.push({
           id: 'scene_' + Date.now(),
           src: base64,

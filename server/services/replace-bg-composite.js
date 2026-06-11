@@ -89,31 +89,35 @@ async function replaceBackground(productBuf, backgroundBuf, options) {
   }
 
   // Step 6: 合成
-  // 如果需要阴影，先创建带阴影的版本
   var compositeBuf;
   if (addShadow) {
-    // 用 sharp 的 blur 模拟柔和投影
-    var shadowBuf = await sharp(resized)
-      .extractChannel(3) // alpha 通道
-      .blur(8)
+    // 投影：alpha 通道 → 灰度图 → 偏移叠加
+    var shadowGray = await sharp(resized)
+      .extractChannel(3)
+      .blur(10)
       .toBuffer();
-    var shadowOverlay = await sharp({
-      create: {
-        width: newW + 16,
-        height: newH + 16,
-        channels: 4,
-        background: { r: 0, g: 0, b: 0, alpha: 0 }
-      }
-    })
-    .composite([
-      { input: await sharp(shadowBuf).resize(newW + 16, newH + 16).toBuffer(), blend: 'over', left: 0, top: 0 }
-    ])
-    .png()
-    .toBuffer();
+    var shadowRgba = await sharp(shadowGray)
+      .joinChannel(shadowGray)
+      .joinChannel(shadowGray)
+      .joinChannel(shadowGray)
+      .raw()
+      .toBuffer()
+      .then(function(raw) {
+        // 降低 alpha（50%透明度投影）
+        var result = Buffer.alloc(raw.length);
+        var px = raw.length / 4;
+        for (var i = 0; i < px; i++) {
+          result[i * 4] = 0;
+          result[i * 4 + 1] = 0;
+          result[i * 4 + 2] = 0;
+          result[i * 4 + 3] = Math.round(raw[i * 4 + 3] * 0.4);
+        }
+        return sharp(result, { raw: { width: newW, height: newH, channels: 4 } }).png().toBuffer();
+      });
 
     compositeBuf = await sharp(backgroundBuf)
       .composite([
-        { input: shadowOverlay, blend: 'over', left: offsetX - 8, top: offsetY + 8 },
+        { input: shadowRgba, blend: 'over', left: offsetX + 5, top: offsetY + 5 },
         { input: resized, blend: 'over', left: offsetX, top: offsetY }
       ])
       .png()

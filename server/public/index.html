@@ -244,9 +244,9 @@
             <button class="acc-btn" id="edAiEnhance">AI 画质增强</button>
             <button class="acc-btn" id="edAiScene">生成场景图</button>
             <div id="edSceneParams" style="display:none;margin-top:6px">
-              <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">场景描述（英文效果更佳）</div>
-              <textarea id="edScenePrompt" rows="2" style="width:100%;resize:vertical;font-size:12px;padding:4px 6px;border:1px solid var(--border-subtle);border-radius:4px;background:var(--bg-primary);color:var(--text-primary)" placeholder="e.g. modern living room table, soft lighting"></textarea>
-              <div class="acc-slider" style="margin-top:4px"><div class="slider-header"><span>创意强度</span><span class="slider-val" id="edSceneDenoiseVal">50%</span></div><input type="range" id="edSceneDenoise" min="20" max="90" value="50"></div>
+              <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">AI 自动分析产品生成场景（可手动补充提示词）</div>
+              <textarea id="edScenePrompt" rows="2" style="width:100%;resize:vertical;font-size:12px;padding:4px 6px;border:1px solid var(--border-subtle);border-radius:4px;background:var(--bg-primary);color:var(--text-primary)" placeholder="留空则AI自动生成，也可输入补充关键词..."></textarea>
+              <div class="acc-slider" style="margin-top:4px"><div class="slider-header"><span>商品占比</span><span class="slider-val" id="edSceneScaleVal">70%</span></div><input type="range" id="edSceneScale" min="30" max="100" value="70"></div>
               <button class="acc-btn primary" id="edAiSceneGen" style="margin-top:6px;width:100%">开始生成</button>
             </div>
             <div style="margin-top:8px;padding-top:6px;border-top:1px solid var(--border-subtle)">

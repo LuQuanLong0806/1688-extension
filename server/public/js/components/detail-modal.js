@@ -639,6 +639,7 @@ Vue.component('detail-modal', {
         return { id: 'ext-' + i, src: url, originalSrc: url, type: 'external', refId: null, label: '图片 #' + (i + 1) + slotLabel, _slot: s || null };
       });
       try { sessionStorage.setItem('__meitu_source_product', vm.editable.uid); } catch (e) {}
+      try { sessionStorage.setItem('__meitu_source_title', (vm.editable.title || '').substring(0, 200)); } catch (e) {}
       // 确保 collage 已初始化（编辑器依赖其 JS 函数）
       if (typeof initMeituCollage === 'function' && !initMeituCollage._init) initMeituCollage();
       if (typeof window.openEditor === 'function') {
@@ -666,6 +667,7 @@ Vue.component('detail-modal', {
       if (!urls.length) { vm.$Message.warning('请先选中要处理的图片'); return; }
       try { sessionStorage.setItem('__meitu_pending_import', JSON.stringify(urls)); } catch (e) {}
       try { sessionStorage.setItem('__meitu_source_product', vm.editable.uid); } catch (e) {}
+      try { sessionStorage.setItem('__meitu_source_title', (vm.editable.title || '').substring(0, 200)); } catch (e) {}
       vm.$root.showCollageModal = true;
     },
     goToMeituCleaner: function () {
@@ -692,6 +694,7 @@ Vue.component('detail-modal', {
         return { id: 'ext-' + i, src: url, originalSrc: url, type: 'external', refId: null, label: '图片 #' + (i + 1) + slotLabel, _slot: s || null };
       });
       try { sessionStorage.setItem('__meitu_source_product', vm.editable.uid); } catch (e) {}
+      try { sessionStorage.setItem('__meitu_source_title', (vm.editable.title || '').substring(0, 200)); } catch (e) {}
       if (typeof initMeituCollage === 'function' && !initMeituCollage._init) initMeituCollage();
       if (typeof window.openEditor === 'function') {
         window.openEditor(images[0].src, images);
@@ -724,6 +727,7 @@ Vue.component('detail-modal', {
         return { id: 'ext-' + i, src: url, originalSrc: url, type: 'external', refId: null, label: '图片 #' + (i + 1) + slotLabel, _slot: s || null };
       });
       try { sessionStorage.setItem('__meitu_source_product', vm.editable.uid); } catch (e) {}
+      try { sessionStorage.setItem('__meitu_source_title', (vm.editable.title || '').substring(0, 200)); } catch (e) {}
       if (typeof initMeituCollage === 'function' && !initMeituCollage._init) initMeituCollage();
       if (typeof window.openEditor === 'function') {
         window.openEditor(images[0].src, images);
@@ -742,6 +746,7 @@ Vue.component('detail-modal', {
       var slots = [{ field: field, index: index, url: url }];
       var images = [{ id: 'ext-0', src: url, originalSrc: url, type: 'external', refId: null, label: '图片 #1', _slot: slots[0] }];
       try { sessionStorage.setItem('__meitu_source_product', vm.editable.uid); } catch (e) {}
+      try { sessionStorage.setItem('__meitu_source_title', (vm.editable.title || '').substring(0, 200)); } catch (e) {}
       try { sessionStorage.setItem('__meitu_annotate_auto_detect', '1'); } catch (e) {}
       if (typeof initMeituCollage === 'function' && !initMeituCollage._init) initMeituCollage();
       if (typeof window.openEditor === 'function') {
@@ -1014,7 +1019,7 @@ Vue.component('detail-modal', {
         }));
       } catch (e) {}
       try { sessionStorage.setItem('__meitu_source_product', this.editable ? this.editable.uid : ''); } catch (e) {}
-      this.$root.showCollageModal = true;
+      try { sessionStorage.setItem('__meitu_source_title', this.editable ? (this.editable.title || '').substring(0, 200) : ''); } catch (e) {}
     },
     updateImageUrl: function (field, index, newUrl) {
       if (!this.editable) return;
