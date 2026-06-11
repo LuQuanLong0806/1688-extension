@@ -53,9 +53,12 @@ Vue.component('category-picker', {
       if (!input) return;
       var rect = input.getBoundingClientRect();
       var w = Math.max(360, rect.width);
+      var spaceBelow = window.innerHeight - rect.bottom;
+      var openUp = spaceBelow < 280;
       this.dropStyle = {
         position: 'absolute',
-        top: '34px',
+        top: openUp ? 'auto' : '34px',
+        bottom: openUp ? '34px' : 'auto',
         left: '0px',
         minWidth: w + 'px',
         maxHeight: '260px',

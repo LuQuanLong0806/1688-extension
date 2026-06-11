@@ -211,16 +211,17 @@ module.exports = function (cloud, db) {
     db.scheduleSave();
     if (cloud.connected) {
       // 云端同样先尝试复活
-      cloud.getOne('SELECT id FROM category_config WHERE type = ? AND value = ? AND group_name = ? AND deleted = 1', [type, value, groupName || '']).then(function (cloudSoft) {
+      return cloud.getOne('SELECT id FROM category_config WHERE type = ? AND value = ? AND group_name = ? AND deleted = 1', [type, value, groupName || '']).then(function (cloudSoft) {
         if (cloudSoft) {
-          cloud.run(`UPDATE category_config SET description = ?, sort_order = ?, deleted = 0, updated_at = datetime('now', '+8 hours') WHERE id = ?`,
-            [description || '', sortOrder || 0, cloudSoft.id]).catch(function () {});
+          return cloud.run(`UPDATE category_config SET description = ?, sort_order = ?, deleted = 0, updated_at = datetime('now', '+8 hours') WHERE id = ?`,
+            [description || '', sortOrder || 0, cloudSoft.id]);
         } else {
-          cloud.run(`INSERT OR REPLACE INTO category_config (type, value, group_name, description, sort_order, deleted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, datetime('now', '+8 hours'), datetime('now', '+8 hours'))`,
-            [type, value, groupName || '', description || '', sortOrder || 0]).catch(function () {});
+          return cloud.run(`INSERT OR REPLACE INTO category_config (type, value, group_name, description, sort_order, deleted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, datetime('now', '+8 hours'), datetime('now', '+8 hours'))`,
+            [type, value, groupName || '', description || '', sortOrder || 0]);
         }
       }).catch(function () {});
     }
+    return Promise.resolve();
   }
 
   function deleteCategoryConfig(id) {
@@ -228,8 +229,9 @@ module.exports = function (cloud, db) {
     db.run(`UPDATE category_config SET deleted = 1, updated_at = datetime('now', '+8 hours') WHERE id = ?`, [id]);
     db.scheduleSave();
     if (cloud.connected && row) {
-      cloud.run(`UPDATE category_config SET deleted = 1, updated_at = datetime('now', '+8 hours') WHERE type = ? AND value = ? AND group_name = ?`, [row.type, row.value, row.group_name]).catch(function () {});
+      return cloud.run(`UPDATE category_config SET deleted = 1, updated_at = datetime('now', '+8 hours') WHERE type = ? AND value = ? AND group_name = ?`, [row.type, row.value, row.group_name]).catch(function () {});
     }
+    return Promise.resolve();
   }
 
   function seedCategoryConfig() {
@@ -254,7 +256,7 @@ module.exports = function (cloud, db) {
       { names: ['食品', '零食', '茶叶', '酒水'], label: '食品' },
       { names: ['包装', '包装用品', '快递', '物流', '邮政'], label: '包装物流' },
       { names: ['五金', '工具', '五金工具', '家装', '建材', '装修'], label: '五金建材' },
-      { names: ['珠宝', '饰品', '首饰', '钟表'], label: '珠宝饰品' }
+      { names: ['珠宝', '饰品', '首饰', '钟表', '发饰', '发夹', '发梳', '头花', '发卡'], label: '珠宝饰品' }
     ];
     groups.forEach(function (g, gi) {
       g.names.forEach(function (name) {

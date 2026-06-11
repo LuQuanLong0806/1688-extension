@@ -437,7 +437,7 @@ function dispatchByCategory(category, apiPath, body) {
   function tryKeysDispatch(provider, keys, keyIdx, callFn) {
     if (keyIdx >= keys.length) return Promise.reject(new Error('__ALL_KEYS_EXHAUSTED__'));
     if (isKeyCooling(provider, keyIdx)) return tryKeysDispatch(provider, keys, keyIdx + 1, callFn);
-    console.log('[Key轮换]', provider, '尝试Key#' + keyIdx);
+    console.log('[Key轮换]', provider, '尝试Key#' + keyIdx, '(' + maskApiKey(keys[keyIdx].key || keys[keyIdx]) + ')');
     return callFn(keys[keyIdx])
       .then(function (r) { clearKeyCooldown(provider, keyIdx); return r; })
       .catch(function (err) {

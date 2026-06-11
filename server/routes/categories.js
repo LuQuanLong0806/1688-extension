@@ -166,9 +166,9 @@ router.post('/category-mappings', (req, res) => {
   try {
     const existing = getOne('SELECT id FROM category_mappings WHERE category_name = ? AND custom_category = ?', [categoryName, customCategory]);
     if (!existing) {
-      run('INSERT INTO category_mappings (category_name, custom_category, count, source, created_at, updated_at) VALUES (?, ?, 1, \'manual\', datetime("now", "+8 hours"), datetime("now", "+8 hours"))', [categoryName, customCategory]);
+      run(`INSERT INTO category_mappings (category_name, custom_category, count, source, created_at, updated_at) VALUES (?, ?, 1, 'manual', datetime('now', '+8 hours'), datetime('now', '+8 hours'))`, [categoryName, customCategory]);
       if (cloudDb.connected) {
-        cloudDb.cloudRun('INSERT OR IGNORE INTO category_mappings (category_name, custom_category, count, source, created_at, updated_at) VALUES (?, ?, 1, ?, datetime("now", "+8 hours"), datetime("now", "+8 hours"))', [categoryName, customCategory, 'manual']).catch(function () {});
+        cloudDb.cloudRun(`INSERT OR IGNORE INTO category_mappings (category_name, custom_category, count, source, created_at, updated_at) VALUES (?, ?, 1, ?, datetime('now', '+8 hours'), datetime('now', '+8 hours'))`, [categoryName, customCategory, 'manual']).catch(function () {});
       }
     }
     res.json({ ok: true });
@@ -232,9 +232,9 @@ router.get('/keyword-rels', (req, res) => {
 router.delete('/keyword-rels/:id', (req, res) => {
   const id = parseInt(req.params.id);
   const rel = getOne('SELECT keyword, category_name FROM keyword_category_rel WHERE id = ?', [id]);
-  run('UPDATE keyword_category_rel SET valid = 0, updated_at = datetime("now", "+8 hours") WHERE id = ?', [id]);
+  run(`UPDATE keyword_category_rel SET valid = 0, updated_at = datetime('now', '+8 hours') WHERE id = ?`, [id]);
   if (cloudDb.connected && rel) {
-    cloudDb.cloudRun('UPDATE keyword_category_rel SET valid = 0, updated_at = datetime("now", "+8 hours") WHERE keyword = ? AND category_name = ?', [rel.keyword, rel.category_name]).catch(function () {});
+    cloudDb.cloudRun(`UPDATE keyword_category_rel SET valid = 0, updated_at = datetime('now', '+8 hours') WHERE keyword = ? AND category_name = ?`, [rel.keyword, rel.category_name]).catch(function () {});
   }
   res.json({ ok: true });
 });
@@ -245,9 +245,9 @@ router.post('/keyword-rels/batch-invalidate', (req, res) => {
   if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ error: '请提供ids数组' });
   ids.forEach(id => {
     var rel = getOne('SELECT keyword, category_name FROM keyword_category_rel WHERE id = ?', [parseInt(id)]);
-    run('UPDATE keyword_category_rel SET valid = 0, updated_at = datetime("now", "+8 hours") WHERE id = ?', [parseInt(id)]);
+    run(`UPDATE keyword_category_rel SET valid = 0, updated_at = datetime('now', '+8 hours') WHERE id = ?`, [parseInt(id)]);
     if (cloudDb.connected && rel) {
-      cloudDb.cloudRun('UPDATE keyword_category_rel SET valid = 0, updated_at = datetime("now", "+8 hours") WHERE keyword = ? AND category_name = ?', [rel.keyword, rel.category_name]).catch(function () {});
+      cloudDb.cloudRun(`UPDATE keyword_category_rel SET valid = 0, updated_at = datetime('now', '+8 hours') WHERE keyword = ? AND category_name = ?`, [rel.keyword, rel.category_name]).catch(function () {});
     }
   });
   res.json({ ok: true });
@@ -272,9 +272,9 @@ router.post('/keyword-synonyms', (req, res) => {
   const { wordA, wordB } = req.body;
   if (!wordA || !wordB) return res.status(400).json({ error: '请提供wordA和wordB' });
   try {
-    run('INSERT OR IGNORE INTO keyword_synonyms (word_a, word_b, created_at, updated_at) VALUES (?, ?, datetime("now", "+8 hours"), datetime("now", "+8 hours"))', [wordA, wordB]);
+    run(`INSERT OR IGNORE INTO keyword_synonyms (word_a, word_b, created_at, updated_at) VALUES (?, ?, datetime('now', '+8 hours'), datetime('now', '+8 hours'))`, [wordA, wordB]);
     if (cloudDb.connected) {
-      cloudDb.cloudRun('INSERT OR IGNORE INTO keyword_synonyms (word_a, word_b, created_at, updated_at) VALUES (?, ?, datetime("now", "+8 hours"), datetime("now", "+8 hours"))', [wordA, wordB]).catch(function () {});
+      cloudDb.cloudRun(`INSERT OR IGNORE INTO keyword_synonyms (word_a, word_b, created_at, updated_at) VALUES (?, ?, datetime('now', '+8 hours'), datetime('now', '+8 hours'))`, [wordA, wordB]).catch(function () {});
     }
     res.json({ ok: true });
   } catch (e) {

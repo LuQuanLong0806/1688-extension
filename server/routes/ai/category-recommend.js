@@ -50,7 +50,7 @@ function loadMutexGroups() {
     { names: ['食品', '零食', '茶叶', '酒水'], label: '食品' },
     { names: ['包装', '包装用品', '快递', '物流', '邮政'], label: '包装物流' },
     { names: ['五金', '工具', '五金工具', '家装', '建材', '装修'], label: '五金建材' },
-    { names: ['珠宝', '饰品', '首饰', '钟表'], label: '珠宝饰品' }
+    { names: ['珠宝', '饰品', '首饰', '钟表', '发饰', '发夹', '发梳', '头花', '发卡'], label: '珠宝饰品' },
   ];
   MUTEX_CACHE_TIME = now;
   return MUTEX_CACHE;
@@ -117,6 +117,7 @@ function getNoiseWords() {
 
 // 获取当前生效的泛词列表
 function getGenericWords() {
+  return []; // 暂时禁用泛词
   loadFilterWords();
   if (GENERIC_CACHE) return GENERIC_CACHE;
   return [
@@ -131,12 +132,14 @@ function getGenericWords() {
     '不伤', '神器', '好用', '必备', '专用', '通用',
     '圆形', '方形', '长方形', '双面', '单面',
     '多功能', '全自动', '半自动',
-    '商业', '商用', '工业', '酒店', '物业'
+    '商业', '商用', '工业', '酒店', '物业',
+    '配件', '配饰'
   ];
 }
 
 // 判定一个类目路径属于哪个互斥组（返回组索引，-1 表示未匹配）
 function getMutexGroupIndex(pathOrName) {
+  return -1; // 暂时禁用互斥组
   var text = (pathOrName || '').toLowerCase();
   var groups = loadMutexGroups();
   for (var i = 0; i < groups.length; i++) {
@@ -228,7 +231,7 @@ function scoreCategory(titleKeywords, aliCategoryWords, candidate, blacklistEntr
   var aliDetail = calcHitDetail(aliCategoryWords, candFull, candName, candPath);
   var titleDetail = calcHitDetail(titleKeywords, candFull, candName, candPath);
 
-  // 双方重合词（1688词和标题词都命中同一个候选）
+  // 双方重合词（1688词和视觉/LLM词都命中同一个候选）
   var overlapWords = aliDetail.hitWords.filter(function (w) {
     return titleDetail.hitWords.indexOf(w) >= 0;
   });
@@ -236,8 +239,8 @@ function scoreCategory(titleKeywords, aliCategoryWords, candidate, blacklistEntr
   var aliOnlyRatio = Math.max(0, aliDetail.ratio - overlapRatio);
   var titleOnlyRatio = Math.max(0, titleDetail.ratio - overlapRatio);
 
-  // 三级加权：重合 0.5，仅1688 0.35，仅标题 0.15
-  score += (overlapRatio * 0.5 + aliOnlyRatio * 0.35 + titleOnlyRatio * 0.15) * 0.5;
+  // 三级加权：重合 0.5，仅视觉/LLM 0.3，仅1688 0.2
+  score += (overlapRatio * 0.5 + titleOnlyRatio * 0.3 + aliOnlyRatio * 0.2) * 0.5;
 
   // 2. 精确匹配加分（权重 0.3）
   var exactBonus = 0;
@@ -248,13 +251,13 @@ function scoreCategory(titleKeywords, aliCategoryWords, candidate, blacklistEntr
     if (candName.indexOf(kw) >= 0 || kw.indexOf(candName) >= 0) { if (exactBonus < 0.8) exactBonus = 0.8; }
     if (candPath.indexOf(kw) >= 0) { if (exactBonus < 0.4) exactBonus = 0.4; }
   }
-  // 标题精确匹配权重稍低
+  // 视觉/LLM精确匹配（视觉关键词更准，权重提高）
   if (exactBonus < 1.0) {
     for (var i = 0; i < titleKeywords.length; i++) {
       var kw = titleKeywords[i];
-      if (candName === kw) { if (exactBonus < 0.7) exactBonus = 0.7; break; }
-      if (candName.indexOf(kw) >= 0 || kw.indexOf(candName) >= 0) { if (exactBonus < 0.5) exactBonus = 0.5; }
-      if (candPath.indexOf(kw) >= 0) { if (exactBonus < 0.3) exactBonus = 0.3; }
+      if (candName === kw) { if (exactBonus < 0.85) exactBonus = 0.85; break; }
+      if (candName.indexOf(kw) >= 0 || kw.indexOf(candName) >= 0) { if (exactBonus < 0.6) exactBonus = 0.6; }
+      if (candPath.indexOf(kw) >= 0) { if (exactBonus < 0.35) exactBonus = 0.35; }
     }
   }
   score += exactBonus * 0.3;
@@ -279,6 +282,41 @@ function scoreCategory(titleKeywords, aliCategoryWords, candidate, blacklistEntr
   // 5. 惩罚"其他/杂项"类目
   if (/^其他|杂项|其他（/.test(candidate.name || candidate.cat_name || '')) {
     score *= 0.5;
+  }
+
+  // 5.1 负面词惩罚：候选类目名包含与商品无关的词
+  var allProductWords = (titleKeywords || []).concat(aliCategoryWords || []).join(' ');
+  // 硬过滤：儿童/玩具 绝不出现在分类中（除非商品明确包含这些词）
+  var hardBlock = ['儿童', '玩具'];
+  for (var hb = 0; hb < hardBlock.length; hb++) {
+    if (candName.indexOf(hardBlock[hb]) >= 0 && allProductWords.indexOf(hardBlock[hb]) < 0) {
+      return 0;
+    }
+  }
+  // 软惩罚：其他不相关词
+  var negGroups = [
+    { words: ['狗', '猫', '宠物'], label: '宠物' },
+    { words: ['摩托'], label: '摩托' },
+    { words: ['户外', '体育', '健身'], label: '运动户外' },
+    { words: ['派对', '聚会'], label: '派对' },
+    { words: ['汽车', '车载'], label: '汽车' }
+  ];
+  for (var ng = 0; ng < negGroups.length; ng++) {
+    var ngWords = negGroups[ng].words;
+    var matched = false;
+    for (var nw = 0; nw < ngWords.length; nw++) {
+      if (candName.indexOf(ngWords[nw]) >= 0) { matched = true; break; }
+    }
+    if (matched) {
+      var productHas = false;
+      for (var pw = 0; pw < ngWords.length; pw++) {
+        if (allProductWords.indexOf(ngWords[pw]) >= 0) { productHas = true; break; }
+      }
+      if (!productHas) {
+        score *= 0.3;
+        break;
+      }
+    }
   }
 
   // 5.5 逐字匹配加分：1688类目词始终参与，重合词的字权重加倍
@@ -452,7 +490,7 @@ router.post('/suggest-category', async function (req, res) {
     }
 
     // Step 2: LLM 提取关键词（仅提取，不做分类决策）
-    var llmResult = await extractProductKeywords(title, aliCategory, attrSummary);
+    var llmResult = await extractProductKeywords(title, aliCategory, attrSummary, imageUrl);
     var keywords = llmResult.keywords || [];
     var categoryHint = llmResult.categoryHint || '';
     var localKw = extractSearchKeywords(title, aliCategory);
@@ -492,9 +530,9 @@ router.post('/suggest-category', async function (req, res) {
       });
     }
 
-    // 数据库搜索候选：1688 类目词（含子串）优先，LLM 关键词补充
-    var searchKeywords = aliCategoryWordsAll.slice();
-    keywords.forEach(function (w) {
+    // 数据库搜索候选：视觉/LLM 关键词优先，1688 类目词补充
+    var searchKeywords = keywords.slice();
+    aliCategoryWordsAll.forEach(function (w) {
       if (searchKeywords.indexOf(w) < 0) searchKeywords.push(w);
     });
     searchKeywords = searchKeywords.slice(0, 12);
@@ -666,7 +704,7 @@ router.post('/suggest-category', async function (req, res) {
     // Step 7: 判定输出
     var best = candidates[0];
 
-    if (best.score >= 0.4) {
+    if (best.score >= 0.35) {
       console.log('[分类推荐] 计分命中:', best.name, '分数:', best.score.toFixed(3));
       return res.json({
         ok: true, source: 'score', category: best.name,
@@ -689,7 +727,7 @@ router.post('/suggest-category', async function (req, res) {
         });
         candidates.sort(function (a, b) { return (b.score || 0) - (a.score || 0); });
         var newBest = candidates[0];
-        if (newBest.score >= 0.4) {
+        if (newBest.score >= 0.35) {
           console.log('[分类推荐] 相似映射命中:', newBest.name, '分数:', newBest.score.toFixed(3),
             '(来自相似类目:', (newBest.similarCategoryName || ''), ')');
           return res.json({
@@ -702,10 +740,12 @@ router.post('/suggest-category', async function (req, res) {
       }
     }
 
-    // Step 7.2: LLM 兜底决策
+    // Step 7.2: 视觉/LLM 兜底决策（有主图时用视觉模型，否则纯文本LLM）
     if (candidates.length > 0) {
       try {
-        var llmResult = await llmDecideFromCandidates(title, aliCategory, attrSummary, candidates);
+        var llmResult = imageUrl
+          ? await visionDecideFromCandidates(title, aliCategory, attrSummary, candidates, imageUrl)
+          : await llmDecideFromCandidates(title, aliCategory, attrSummary, candidates);
         if (llmResult && llmResult.confidence >= 0.4) {
           return res.json({
             ok: true, source: 'llm_decision', category: llmResult.category,
@@ -733,33 +773,69 @@ router.post('/suggest-category', async function (req, res) {
 });
 
 // LLM 提取关键词 + 品类提示（一次调用，避免限流）
-function extractProductKeywords(title, aliCategory, attrSummary) {
-  var prompt = '你是产品分类分析专家。请从产品信息中完成以下2项任务（一次输出）：\n\n';
-
-  prompt += '任务1 — 核心品类词：只提取"这个产品到底是什么东西"的名词\n';
-  prompt += '  正确示例："跨境圆形可悬挂洗头按摩搓澡刷" → ["搓澡刷", "洗澡刷"]\n';
-  prompt += '  正确示例："黑色大号垃圾袋加厚平口" → ["垃圾袋"]\n';
-  prompt += '  正确示例："纯棉短袖T恤男夏季新款" → ["T恤"]\n';
-  prompt += '  禁止提取：材质词、形容词、营销词、功能词、用途词\n\n';
-
-  prompt += '任务2 — 产品品类判定：根据标题和类目，判断该产品属于什么品类大类\n';
-  prompt += '  输出一个简短品类描述，如"洗浴用品"、"包装袋"、"服装"、"清洁工具"\n\n';
-
+function extractProductKeywords(title, aliCategory, attrSummary, imageUrl) {
   var combinedInput = '';
-  if (aliCategory) combinedInput += '【平台类目】' + aliCategory + '\n';
+  if (aliCategory) combinedInput += '【平台类目】' + aliCategory + '（可能不准确，仅供参考）\n';
   if (title) combinedInput += '【产品标题】' + title + '\n';
   if (attrSummary) combinedInput += '【规格参数】' + attrSummary + '\n';
-  prompt += combinedInput;
-  prompt += '\n请结合【平台类目】优先判断品类。\n';
+
+  // 有主图 → 视觉模型（看图+文本，一次输出）
+  // 无主图 → 降级纯文本LLM
+  var useVision = imageUrl && imageUrl.length > 10;
+  var prompt;
+
+  if (useVision) {
+    prompt = '你是产品分类专家。请结合商品图片和以下信息，提取核心品类关键词。\n\n';
+    prompt += combinedInput;
+    prompt += '请看图判断这个产品到底是什么，只提取核心品类名词（中文）。\n';
+    prompt += '图片为主，文字辅助。忽略材质、颜色、品牌、营销词。\n';
+    prompt += '正确示例：看到一把折叠椅 → ["折叠椅"]\n';
+    prompt += '正确示例：看到一个淋浴挂钩 → ["淋浴挂钩", "挂钩"]\n';
+    prompt += '正确示例：看到一个陶瓷花瓶 → ["花瓶"]\n';
+    prompt += '禁止提取：材质词、形容词、营销词、功能词、用途词\n\n';
+    prompt += '任务2 — 产品品类判定：输出一个简短品类描述，如"卫浴用品"、"包装袋"、"服装"\n\n';
+  } else {
+    prompt = '你是产品分类分析专家。请从产品信息中完成以下2项任务（一次输出）：\n\n';
+    prompt += combinedInput;
+    prompt += '任务1 — 核心品类词：只提取"这个产品到底是什么东西"的名词\n';
+    prompt += '  正确示例："跨境圆形可悬挂洗头按摩搓澡刷" → ["搓澡刷", "洗澡刷"]\n';
+    prompt += '  禁止提取：材质词、形容词、营销词、功能词、用途词\n\n';
+    prompt += '任务2 — 产品品类判定：输出一个简短品类描述，如"洗浴用品"、"包装袋"、"服装"\n\n';
+  }
+
   prompt += '返回JSON格式（只返回一行）：\n';
   prompt += '{"keywords": ["核心词1", "核心词2"], "category_hint": "品类大类"}\n';
   prompt += '只返回一行JSON，不要其他文字。';
 
-  return providers.extractionLLMRequest('/chat/completions', {
-    messages: [{ role: 'user', content: prompt }],
-    temperature: 0.1,
-    max_tokens: 400
-  }).then(function (result) {
+  var llmPromise;
+  if (useVision) {
+    // 视觉模型：图片 + 文本一起发
+    var imageUrlValue = imageUrl;
+    if (imageUrlValue && !imageUrlValue.startsWith('data:') && !imageUrlValue.startsWith('http')) {
+      imageUrlValue = 'data:image/jpeg;base64,' + imageUrlValue;
+    }
+    llmPromise = providers.visionLLMRequest('/chat/completions', {
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image_url', image_url: { url: imageUrlValue } },
+          { type: 'text', text: prompt }
+        ]
+      }],
+      temperature: 0.1,
+      max_tokens: 400
+    });
+  } else {
+    // 无图：纯文本LLM
+    llmPromise = providers.extractionLLMRequest('/chat/completions', {
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.1,
+      max_tokens: 400
+    });
+  }
+
+  var source = useVision ? '视觉' : '文本';
+  return llmPromise.then(function (result) {
     var msg = result.choices && result.choices[0] && result.choices[0].message;
     var text = (msg && msg.content) || '';
     if (!text && msg && msg.reasoning_content) {
@@ -785,17 +861,22 @@ function extractProductKeywords(title, aliCategory, attrSummary) {
 
       var categoryHint = parsed.category_hint || '';
       if (categoryHint) {
-        console.log('[分类推荐] LLM品类提示:', categoryHint);
+        console.log('[分类推荐] ' + source + '品类提示:', categoryHint);
       }
 
-      console.log('[分类推荐] LLM提炼关键词:', filtered.join(', '));
+      console.log('[分类推荐] ' + source + '提炼关键词:', filtered.join(', '));
       return { keywords: filtered, categoryHint: categoryHint };
     } catch (e) {
-      console.log('[分类推荐] LLM提炼JSON解析失败:', text.substring(0, 100));
+      console.log('[分类推荐] ' + source + 'JSON解析失败:', text.substring(0, 100));
       return { keywords: [], categoryHint: '' };
     }
   }).catch(function (err) {
-    console.log('[分类推荐] LLM提炼请求失败:', err.message);
+    console.log('[分类推荐] ' + source + '提取请求失败:', err.message);
+    // 视觉模型失败时降级到纯文本
+    if (useVision) {
+      console.log('[分类推荐] 视觉失败，降级到文本LLM');
+      return extractProductKeywords(title, aliCategory, attrSummary, '');
+    }
     return { keywords: [], categoryHint: '' };
   });
 }
@@ -954,6 +1035,75 @@ function llmDecideFromCandidates(title, aliCategory, attrSummary, candidates) {
   }).catch(function (e) {
     console.log('[分类推荐] LLM兜底决策失败:', e.message);
     return null;
+  });
+}
+
+// 视觉模型兜底决策：看图从候选中选最匹配的
+function visionDecideFromCandidates(title, aliCategory, attrSummary, candidates, imageUrl) {
+  if (!candidates || !candidates.length || !imageUrl) return Promise.resolve(null);
+
+  var topCandidates = candidates.slice(0, 8);
+  var candidateList = topCandidates.map(function (c, i) {
+    return (i + 1) + '. ' + (c.path || c.name) + ' (评分:' + (c.score || 0).toFixed(2) +
+      (c.fromMapping ? ', 映射来源' : '') +
+      (c.fromSimilarMapping ? ', 相似映射(' + (c.similarCategoryName || '') + ')' : '') +
+      ')';
+  }).join('\n');
+
+  var prompt = '你是跨境电商分类专家。请看商品图片，结合标题信息，从候选类目中选择最匹配的。\n\n';
+  if (title) prompt += '商品标题: ' + title + '\n';
+  if (aliCategory) prompt += '来源类目: ' + aliCategory + '（可能不准）\n';
+  prompt += '\n候选类目:\n' + candidateList;
+  prompt += '\n\n选择规则:\n';
+  prompt += '1. 以图片为准，看商品实物是什么就选什么\n';
+  prompt += '2. 优先贴合商品实际用途和使用场景\n';
+  prompt += '3. 如果图片显示商品与所有候选都不匹配，confidence设为0.3以下\n';
+  prompt += '\n返回JSON：{"choice": 序号, "confidence": 0.0-1.0}\n只返回一行JSON。';
+
+  return providers.visionLLMRequest('/chat/completions', {
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'image_url', image_url: { url: imageUrl } },
+        { type: 'text', text: prompt }
+      ]
+    }],
+    temperature: 0.1,
+    max_tokens: 200
+  }).then(function (result) {
+    var msg = result.choices && result.choices[0] && result.choices[0].message;
+    var text = (msg && msg.content) || '';
+    if (!text && msg && msg.reasoning_content) {
+      var m = msg.reasoning_content.match(/\{[^{}]*"choice"[^{}]*\}/);
+      if (m) text = m[0];
+    }
+    if (!text) return null;
+    try {
+      var jsonStr = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+      var parsed = JSON.parse(jsonStr);
+      var idx = (parsed.choice || 1) - 1;
+      if (idx >= 0 && idx < topCandidates.length) {
+        var conf = parsed.confidence !== undefined ? parsed.confidence : 0.6;
+        if (conf < 0.4) {
+          console.log('[分类推荐] 视觉兜底决策: 置信度过低', conf);
+          return null;
+        }
+        var selected = topCandidates[idx];
+        var validation = postSelectionValidate(title, selected.name, selected.path);
+        if (validation) {
+          console.log('[分类推荐] 视觉兜底决策: 互斥拦截', selected.name);
+          return null;
+        }
+        console.log('[分类推荐] 视觉兜底决策:', selected.name, '置信度:', conf);
+        return { category: selected.name, path: selected.path, confidence: conf };
+      }
+    } catch (e) {
+      console.log('[分类推荐] 视觉兜底决策JSON解析失败:', text.substring(0, 100));
+    }
+    return null;
+  }).catch(function (e) {
+    console.log('[分类推荐] 视觉兜底决策失败，降级到文本LLM:', e.message);
+    return llmDecideFromCandidates(title, aliCategory, attrSummary, candidates);
   });
 }
 

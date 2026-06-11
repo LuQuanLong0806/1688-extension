@@ -164,10 +164,21 @@ module.exports = function (cloud, db) {
     }
     counts.keyword_blacklist = cloudBl.length;
 
-    var cloudConfigs = await cloud.getAll('SELECT type, value, group_name, description, sort_order, deleted FROM category_config');
+    var cloudConfigs = await cloud.getAll('SELECT type, value, group_name, description, sort_order, deleted, updated_at FROM category_config');
     for (var i = 0; i < cloudConfigs.length; i++) {
-      db.run(`INSERT OR REPLACE INTO category_config (type, value, group_name, description, sort_order, deleted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now', '+8 hours'), datetime('now', '+8 hours'))`,
-        [cloudConfigs[i].type, cloudConfigs[i].value, cloudConfigs[i].group_name, cloudConfigs[i].description, cloudConfigs[i].sort_order, cloudConfigs[i].deleted || 0]);
+      var cc = cloudConfigs[i];
+      var localCc = db.getOne('SELECT id, updated_at FROM category_config WHERE type = ? AND value = ? AND group_name = ?', [cc.type, cc.value, cc.group_name || '']);
+      if (localCc) {
+        // 本地已有：仅云端更新时间更晚时才覆盖
+        var cloudNewer = cc.updated_at && (!localCc.updated_at || cc.updated_at > localCc.updated_at);
+        if (cloudNewer) {
+          db.run('UPDATE category_config SET description = ?, sort_order = ?, deleted = ?, updated_at = ? WHERE id = ?',
+            [cc.description || '', cc.sort_order || 0, cc.deleted || 0, cc.updated_at, localCc.id]);
+        }
+      } else {
+        db.run(`INSERT OR IGNORE INTO category_config (type, value, group_name, description, sort_order, deleted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now', '+8 hours'), ?)`,
+          [cc.type, cc.value, cc.group_name || '', cc.description || '', cc.sort_order || 0, cc.deleted || 0, cc.updated_at || '']);
+      }
     }
     counts.category_config = cloudConfigs.length;
 

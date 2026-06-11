@@ -41,7 +41,7 @@ router.put('/settings', (req, res) => {
   const { items } = req.body;
   if (!Array.isArray(items) || !items.length) return res.json({ ok: true });
   for (const item of items) {
-    run('INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, datetime("now", "+8 hours"))', [item.key, item.value]);
+    run(`INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, datetime('now', '+8 hours'))`, [item.key, item.value]);
   }
   res.json({ ok: true });
 });
@@ -54,7 +54,7 @@ router.get('/settings/:key', (req, res) => {
 
 router.post('/settings/:key', (req, res) => {
   const { value } = req.body;
-  run('INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, datetime("now", "+8 hours"))', [req.params.key, value || '']);
+  run(`INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, datetime('now', '+8 hours'))`, [req.params.key, value || '']);
   res.json({ ok: true });
 });
 
@@ -81,7 +81,7 @@ router.post('/settings-import', (req, res) => {
     if (skipKeys.includes(key)) continue;
     var val = String(value);
     if (sec.isSensitive(key) && val.indexOf('ENC:') !== 0) val = sec.encrypt(val);
-    run('INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, datetime("now", "+8 hours"))', [key, val]);
+    run(`INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, datetime('now', '+8 hours'))`, [key, val]);
     count++;
   }
   // 迁移：旧单 key 格式 → 新多 key 数组格式

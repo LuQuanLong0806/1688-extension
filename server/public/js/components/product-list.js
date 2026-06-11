@@ -212,15 +212,16 @@ Vue.component('page-products', {
     saveCategory: function (row, val) {
       if (val === undefined) return;
       row.customCategory = val;
-      if (!val) row.manualCategory = '';
+      // 改分类时清空旧路径，等 saveCategoryPath 设置新路径
+      if (val) row.manualCategory = '';
       var vm = this;
       fetch('/api/product/' + row.uid, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           customCategory: val || '',
-          manualCategory: val ? undefined : '',
-          dxmCategory: val ? undefined : ''
+          manualCategory: '',
+          dxmCategory: ''
         })
       })
         .then(function () {
@@ -680,7 +681,7 @@ Vue.component('page-products', {
           </template>
           <template slot="category" slot-scope="{ row }">
             <div style="display:flex;align-items:center;gap:4px">
-              <category-picker :value="row.customCategory || ''" :path="row.manualCategory || (row.dxmCategory ? row.dxmCategory.path : '')"
+              <category-picker :value="row.customCategory || ''" :path="(row.dxmCategory && row.dxmCategory.path) || row.manualCategory || ''"
                 placeholder="搜索或选择分类"
                 @input="saveCategory(row, $event)"
                 @path="saveCategoryPath(row, $event)" />

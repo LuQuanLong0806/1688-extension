@@ -1611,7 +1611,7 @@ Vue.component('detail-modal', {
               <i-input v-model="editable.title" style="width:100%;font-size:14px" placeholder="产品标题" />
             </span>
             <span class="label">选择分类</span><span class="value">
-              <category-picker :value="editable.customCategory" :path="editable.manualCategory || ''" @input="function(v) { editable.customCategory = v; if (!v) { editable.manualCategory = ''; editable.dxmCategory = ''; } }" @path="function(p) { editable.manualCategory = p }" placeholder="搜索或选择分类" style="width:600px" />
+              <category-picker :value="editable.customCategory" :path="editable.manualCategory || ''" @input="function(v) { editable.customCategory = v; editable.manualCategory = ''; editable.dxmCategory = ''; }" @path="function(p) { editable.manualCategory = p }" placeholder="搜索或选择分类" style="width:600px" />
             </span>
             <span class="info-more-toggle" @click="showMoreInfo = !showMoreInfo">
               {{ showMoreInfo ? '收起 ▲' : '更多 ▼' }}
