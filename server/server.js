@@ -192,10 +192,10 @@ initDb().then(() => initTreeDb()).then(() => {
       }
     });
 
-    // Uploads 定期清理（30天过期，每24小时扫描）
+    // Uploads 定期清理（7天过期，每6小时扫描）
     var cleanup = require('./services/cleanup');
-    cleanup.startCleanupScheduler(24 * 60 * 60 * 1000, 30);
-    setTimeout(function () { cleanup.runCleanup(30); }, 10000);
+    cleanup.startCleanupScheduler(6 * 60 * 60 * 1000, 7);
+    setTimeout(function () { cleanup.runCleanup(7); }, 10000);
 
     // 自动启动 PaddleOCR 微服务
     startOcrService();

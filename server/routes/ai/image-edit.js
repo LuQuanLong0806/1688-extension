@@ -1,13 +1,9 @@
 // AI 图片编辑 — 抠图/修复/智能检测 + OCR文字处理
 const express = require('express');
 const router = express.Router();
-const path = require('path');
-const fs = require('fs');
 const sharp = require('sharp');
 
 var providers = require('./providers');
-
-var UPLOADS_DIR = path.join(__dirname, '..', '..', 'public', 'uploads');
 var lamaService = require('../../services/inpaint');
 var comfyuiInpaint = null;
 try { comfyuiInpaint = require('../../services/comfyui-inpaint'); } catch (e) {}
@@ -40,11 +36,7 @@ router.post('/inpaint', function (req, res) {
 
   svc.inpaint(imgBuf, maskBuf).then(function (resultBuf) {
     console.log('[AI消除] 完成, 耗时:', Date.now() - t0, 'ms');
-    var filename = 'inpaint_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8) + '.png';
-    fs.writeFile(path.join(UPLOADS_DIR, filename), resultBuf, function (err) {
-      if (err) return res.status(500).json({ error: '保存失败' });
-      res.json({ ok: true, url: '/uploads/' + filename });
-    });
+    res.json({ ok: true, url: 'data:image/png;base64,' + resultBuf.toString('base64') });
   }).catch(function (err) {
     console.error('[AI消除失败]', err.message);
     res.status(502).json({ error: 'AI消除失败: ' + err.message });
@@ -183,19 +175,11 @@ router.post('/remove-bg', function (req, res) {
     return removeBg(uint8);
   }).then(function (resultBlob) {
     return resultBlob.arrayBuffer().then(function (ab) {
-      var resultBuf = Buffer.from(ab);
-      var filename = 'removebg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8) + '.png';
-      var filepath = path.join(UPLOADS_DIR, filename);
-      return new Promise(function (resolve, reject) {
-        fs.writeFile(filepath, resultBuf, function (err) {
-          if (err) return reject(err);
-          resolve('/uploads/' + filename);
-        });
-      });
+      return Buffer.from(ab);
     });
-  }).then(function (localUrl) {
+  }).then(function (resultBuf) {
     console.log('[AI抠图] 完成, 耗时:', Date.now() - t0, 'ms');
-    res.json({ ok: true, url: localUrl });
+    res.json({ ok: true, url: 'data:image/png;base64,' + resultBuf.toString('base64') });
   }).catch(function (err) {
     console.error('[AI抠图失败]', err.message);
     if (!res.headersSent) res.status(502).json({ error: err.message });
@@ -225,13 +209,8 @@ router.post('/remove-bg-local', function (req, res) {
   }
 
   removePromise.then(function (resultBuf) {
-    var filename = 'removebg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8) + '.png';
-    var filepath = path.join(UPLOADS_DIR, filename);
-    fs.writeFile(filepath, resultBuf, function (err) {
-      if (err) return res.status(500).json({ error: '保存失败' });
-      console.log('[AI抠图] 完成, 耗时:', Date.now() - t0, 'ms');
-      res.json({ ok: true, url: '/uploads/' + filename });
-    });
+    console.log('[AI抠图] 完成, 耗时:', Date.now() - t0, 'ms');
+    res.json({ ok: true, url: 'data:image/png;base64,' + resultBuf.toString('base64') });
   }).catch(function (err) {
     console.error('[AI抠图失败]', err.message);
     if (!res.headersSent) res.status(502).json({ error: err.message });
@@ -263,13 +242,8 @@ router.post('/replace-bg', function (req, res) {
   };
 
   replaceBgService.replaceBackground(productBuf, bgBuf, opts).then(function (resultBuf) {
-    var filename = 'replacebg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8) + '.png';
-    var filepath = path.join(UPLOADS_DIR, filename);
-    fs.writeFile(filepath, resultBuf, function (err) {
-      if (err) return res.status(500).json({ error: '保存失败' });
-      console.log('[换背景] 完成, 耗时:', Date.now() - t0, 'ms');
-      res.json({ ok: true, url: '/uploads/' + filename });
-    });
+    console.log('[换背景] 完成, 耗时:', Date.now() - t0, 'ms');
+    res.json({ ok: true, url: 'data:image/png;base64,' + resultBuf.toString('base64') });
   }).catch(function (err) {
     console.error('[换背景失败]', err.message);
     if (!res.headersSent) res.status(502).json({ error: err.message });
@@ -779,12 +753,8 @@ function doSceneComposite(imageBase64, scenePrompt, scale, t0, res) {
     var productBuf = Buffer.from(imageBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64');
     return replaceBgService.replaceBackground(productBuf, bgBuf, { scale: scale, position: 'center', shadow: false });
   }).then(function (compositeBuf) {
-    var filename = 'scene_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8) + '.png';
-    fs.writeFile(path.join(UPLOADS_DIR, filename), compositeBuf, function (err) {
-      if (err) return res.status(500).json({ error: '保存失败' });
-      console.log('[自动场景图] 完成, 耗时:', Date.now() - t0, 'ms');
-      res.json({ ok: true, url: '/uploads/' + filename, prompt: scenePrompt });
-    });
+    console.log('[自动场景图] 完成, 耗时:', Date.now() - t0, 'ms');
+    res.json({ ok: true, url: 'data:image/png;base64,' + compositeBuf.toString('base64'), prompt: scenePrompt });
   }).catch(function (err) {
     console.error('[自动场景图] 失败:', err.message);
     res.status(502).json({ error: '场景图生成失败: ' + err.message });
@@ -844,12 +814,8 @@ router.post('/scene-inpaint', function (req, res) {
     var buf = Buffer.from(imageBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64');
     return comfyuiInpaint.inpaintScene(buf, { prompt: fallbackPrompt });
   }).then(function (resultBuf) {
-    var filename = 'scene_inpaint_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8) + '.png';
-    fs.writeFile(path.join(UPLOADS_DIR, filename), resultBuf, function (err) {
-      if (err) return res.status(500).json({ error: '保存失败' });
-      console.log('[场景Inpaint] 完成, 耗时:', Date.now() - t0, 'ms');
-      res.json({ ok: true, url: '/uploads/' + filename, backend: 'comfyui-inpaint' });
-    });
+    console.log('[场景Inpaint] 完成, 耗时:', Date.now() - t0, 'ms');
+    res.json({ ok: true, url: 'data:image/png;base64,' + resultBuf.toString('base64'), backend: 'comfyui-inpaint' });
   }).catch(function (err) {
     console.error('[场景Inpaint] 失败:', err.message);
     res.status(502).json({ error: '场景图生成失败: ' + err.message });
@@ -876,12 +842,8 @@ router.post('/img2img', function (req, res) {
       denoise: parseFloat(req.body.denoise) || 0.5,
       model: req.body.model || ''
     }).then(function (resultBuf) {
-      var filename = 'scene_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8) + '.png';
-      fs.writeFile(path.join(UPLOADS_DIR, filename), resultBuf, function (err) {
-        if (err) return res.status(500).json({ error: '保存失败' });
-        console.log('[图生图] ComfyUI 完成, 耗时:', Date.now() - t0, 'ms');
-        res.json({ ok: true, url: '/uploads/' + filename, backend: 'comfyui' });
-      });
+      console.log('[图生图] ComfyUI 完成, 耗时:', Date.now() - t0, 'ms');
+      res.json({ ok: true, url: 'data:image/png;base64,' + resultBuf.toString('base64'), backend: 'comfyui' });
     }).catch(function (err) {
       console.warn('[图生图] ComfyUI 失败，降级到智谱:', err.message);
       doCogViewFallback(imageBase64, prompt, t0, res);
@@ -905,35 +867,15 @@ function doCogViewFallback(imageBase64, prompt, t0, res) {
     size: '1024x1024'
   }).then(function (result) {
     var url = result.data && result.data[0] && result.data[0].url;
-    if (!url) return res.status(502).json({ error: '智谱未返回图片' });
-    // 下载到本地
-    var proto = url.startsWith('https') ? require('https') : require('http');
-    var filename = 'scene_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8) + '.png';
-    var filepath = path.join(UPLOADS_DIR, filename);
-    proto.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, function (dlRes) {
-      if (dlRes.statusCode >= 300 && dlRes.statusCode < 400 && dlRes.headers.location) {
-        proto.get(dlRes.headers.location, function (r2) {
-          var ws = require('fs').createWriteStream(filepath);
-          r2.pipe(ws);
-          ws.on('finish', function () {
-            console.log('[图生图] CogView 降级完成, 耗时:', Date.now() - t0, 'ms');
-            res.json({ ok: true, url: '/uploads/' + filename, backend: 'cogview' });
-          });
-        });
-        return;
-      }
-      var ws = require('fs').createWriteStream(filepath);
-      dlRes.pipe(ws);
-      ws.on('finish', function () {
-        console.log('[图生图] CogView 降级完成, 耗时:', Date.now() - t0, 'ms');
-        res.json({ ok: true, url: '/uploads/' + filename, backend: 'cogview' });
-      });
-    }).on('error', function (e) {
-      if (!res.headersSent) res.status(502).json({ error: '下载图片失败: ' + e.message });
-    });
-  }).catch(function (err) {
-    console.error('[图生图] CogView 降级也失败:', err.message);
-    if (!res.headersSent) res.status(502).json({ error: '图生图失败: ' + err.message });
+    if (!url) throw new Error('智谱未返回图片');
+    // 下载到内存
+    return downloadImageToBuffer(url);
+  }).then(function (resultBuf) {
+    console.log('[图生图] CogView 降级完成, 耗时:', Date.now() - t0, 'ms');
+    res.json({ ok: true, url: 'data:image/png;base64,' + resultBuf.toString('base64'), backend: 'cogview' });
+  }).catch(function (e) {
+    console.error('[图生图] CogView 降级失败:', e.message);
+    if (!res.headersSent) res.status(502).json({ error: '图生图失败: ' + e.message });
   });
 }
 
