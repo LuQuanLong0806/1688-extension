@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const path = require('path');
 const fs = require('fs');
+const sharp = require('sharp');
 
 var providers = require('./providers');
 
@@ -690,6 +691,38 @@ router.get('/comfyui-status', function (req, res) {
   if (!base) return res.json({ configured: false, available: false });
   comfyuiInpaint.checkHealth().then(function (health) {
     res.json({ configured: true, url: base, health: health });
+  });
+});
+
+// ===== 添加到主图：去中文 + resize 800×800 + 上传图床 =====
+router.post('/prepare-main-image', function (req, res) {
+  var imageBase64 = req.body.image_base64;
+  if (!imageBase64) return res.status(400).json({ error: '请提供 image_base64' });
+  var t0 = Date.now();
+  var buf = Buffer.from(imageBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+
+  console.log('[添加主图] 开始处理...');
+  // Step 1: 检测去中文
+  textCleaner.cleanImage(buf, { chineseOnly: true, enableVision: false }).then(function (result) {
+    var processBuf = result.cleaned ? result.imageBuffer : buf;
+    if (result.cleaned) {
+      console.log('[添加主图] 去中文完成, 消除', result.regionCount, '个区域');
+    }
+    // Step 2: resize 800×800（contain + 白底）
+    return sharp(processBuf)
+      .resize(800, 800, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 1 } })
+      .png()
+      .toBuffer()
+      .then(function (resizedBuf) {
+        // Step 3: 上传图床
+        return textCleaner.uploadToSmms(resizedBuf).then(function (uploadResult) {
+          console.log('[添加主图] 完成, 耗时:', Date.now() - t0, 'ms, 去中文:', !!result.cleaned);
+          res.json({ ok: true, url: uploadResult.url, cleaned: !!result.cleaned, regionCount: result.regionCount || 0 });
+        });
+      });
+  }).catch(function (err) {
+    console.error('[添加主图] 失败:', err.message);
+    res.status(502).json({ error: '处理失败: ' + err.message });
   });
 });
 

@@ -2433,30 +2433,37 @@ function initMeituCollage() {
   document.getElementById('edAddToProduct').addEventListener('click', function () {
     if (!editorSrc) { showToast('没有可添加的图片', 'err'); return; }
     var src = editorSrc;
-    showToast('正在上传到图床...', 'loading');
+    showEditorLoading('正在处理图片（去中文+调整尺寸+上传）...');
     var b64 = src.indexOf('data:') === 0 ? src : '';
     if (!b64) {
-      urlToBase64(src).then(function (base64) { uploadAndAdd(base64); });
+      urlToBase64(src).then(function (base64) { prepareAndAdd(base64); });
     } else {
-      uploadAndAdd(b64);
+      prepareAndAdd(b64);
     }
   });
 
-  function uploadAndAdd(base64) {
-    fetch(getServerBase() + '/api/ai/image-upload', {
+  function prepareAndAdd(base64) {
+    fetch(getServerBase() + '/api/ai/prepare-main-image', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ image_base64: base64 })
     }).then(function (r) { return r.json(); }).then(function (d) {
-      if (!d.ok || !d.url) { showToast('上传失败', 'err'); return; }
-      // 找到 page-meitu 组件调用 appendImagesToProduct
+      hideEditorLoading();
+      if (!d.ok || !d.url) { showToast(d.error || '处理失败', 'err'); return; }
       var meituComp = document.querySelector('.meitu-page');
       if (meituComp && meituComp.__vue__) {
         meituComp.__vue__.appendImagesToProduct('main_images', [d.url]);
       }
-      showToast('已添加到主图', 'ok');
+      // 标记当前图片已添加
+      if (editorImages[editorCurrentIdx]) {
+        editorImages[editorCurrentIdx].addedToProduct = true;
+      }
+      var msg = '已添加到主图';
+      if (d.cleaned) msg += '（已去除' + d.regionCount + '处中文）';
+      showToast(msg, 'ok');
     }).catch(function (err) {
-      showToast('上传失败: ' + err.message, 'err');
+      hideEditorLoading();
+      showToast('处理失败: ' + err.message, 'err');
     });
   }
   function loadSmmsStatus() {
