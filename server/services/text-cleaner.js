@@ -555,6 +555,18 @@ async function cleanImage(imageBuffer, options) {
   }
 
   if (!detectResult.ok || !detectResult.regions || detectResult.regions.length === 0) {
+    // chineseOnly 模式下 OCR 未检出 → 直接返回，不浪费视觉模型调用
+    if (chineseOnly) {
+      return {
+        ok: true,
+        cleaned: false,
+        regions: [],
+        ocrRegions: [],
+        visionRegions: [],
+        message: 'No chinese text detected'
+      };
+    }
+
     // OCR + 增强OCR 都未检出 → 视觉模型兜底检测淡色水印
     try {
       var meta = await sharp(imageBuffer).metadata();

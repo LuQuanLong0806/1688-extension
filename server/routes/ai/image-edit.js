@@ -13,9 +13,8 @@ var comfyuiInpaint = null;
 try { comfyuiInpaint = require('../../services/comfyui-inpaint'); } catch (e) {}
 var sizeAnnotate = require('../../services/size-annotate');
 
-// 自动选择修复服务：ComfyUI（GPU）优先，降级 LaMa（CPU）
+// AI消除/小区域修复 → LaMa（快、精准），场景图生成 → ComfyUI inpaint
 function getInpaintService() {
-  if (comfyuiInpaint && comfyuiInpaint.isAvailable()) return comfyuiInpaint;
   return lamaService;
 }
 
@@ -733,12 +732,17 @@ router.post('/img2img-auto', function (req, res) {
   var imageBase64 = req.body.image_base64;
   if (!imageBase64) return res.status(400).json({ error: '请提供 image_base64' });
   var productTitle = (req.body.title || '').trim();
+  var productSize = (req.body.size || '').trim();
   var userPrompt = (req.body.prompt || '').trim();
   var scale = parseFloat(req.body.scale) || 0.7;
   var t0 = Date.now();
 
   // 第一步：视觉模型分析产品，生成场景背景提示词
-  var visionPrompt = 'Analyze this product image' + (productTitle ? ' (product: ' + productTitle + ')' : '') + '. Generate an English prompt for generating a SCENE BACKGROUND (no product in it). Requirements:\n1. Describe the ideal background/scene/environment for this product\n2. Include lighting, atmosphere, texture, environment details\n3. Professional e-commerce photography style\n4. Output ONLY the prompt text, no explanation, no quotes, under 80 words';
+  var contextParts = [];
+  if (productTitle) contextParts.push('product name: ' + productTitle);
+  if (productSize) contextParts.push('product size: ' + productSize);
+  var contextStr = contextParts.length ? ' (' + contextParts.join(', ') + ')' : '';
+  var visionPrompt = 'Analyze this product image' + contextStr + '. Generate an English prompt for generating a SCENE BACKGROUND (no product in it). Requirements:\n1. Describe the ideal background/scene/environment for this product\n2. Include lighting, atmosphere, texture, environment details\n3. Professional e-commerce photography style\n4. Output ONLY the prompt text, no explanation, no quotes, under 80 words';
 
   console.log('[自动场景图] 视觉分析开始...');
   providers.recognizeLLMRequest(imageBase64, visionPrompt).then(function (visionResult) {
@@ -801,6 +805,56 @@ function downloadImageToBuffer(url) {
     }).on('error', reject);
   });
 }
+
+// ===== 场景图方案 B：ComfyUI Inpainting（产品不变，AI重绘背景）=====
+router.post('/scene-inpaint', function (req, res) {
+  var imageBase64 = req.body.image_base64;
+  if (!imageBase64) return res.status(400).json({ error: '请提供 image_base64' });
+  var productTitle = (req.body.title || '').trim();
+  var productSize = (req.body.size || '').trim();
+  var userPrompt = (req.body.prompt || '').trim();
+  var t0 = Date.now();
+
+  if (!comfyuiInpaint || !comfyuiInpaint.isAvailable()) {
+    return res.status(400).json({ error: 'ComfyUI 不可用，请使用 CogView 方案' });
+  }
+
+  // 视觉模型分析生成提示词 — 包含商品名称和尺寸信息
+  var contextParts = [];
+  if (productTitle) contextParts.push('product name: ' + productTitle);
+  if (productSize) contextParts.push('product size: ' + productSize);
+  var contextStr = contextParts.length ? ' (' + contextParts.join(', ') + ')' : '';
+  var visionPrompt = 'Analyze this product image' + contextStr + '. Generate an English prompt for SD1.5 inpainting to REPLACE THE BACKGROUND with a realistic scene. Requirements:\n1. The product must stay UNCHANGED — only generate a new background/scene/environment\n2. Describe the ideal scene (surface, setting, props) that suits this specific product\n3. Include lighting direction, atmosphere, material textures\n4. Professional e-commerce lifestyle photography style\n5. Output ONLY the prompt text, no explanation, no quotes, under 80 words';
+
+  console.log('[场景Inpaint] 视觉分析开始...');
+  providers.recognizeLLMRequest(imageBase64, visionPrompt).then(function (visionResult) {
+    var scenePrompt = '';
+    if (visionResult && visionResult.choices && visionResult.choices[0]) {
+      scenePrompt = visionResult.choices[0].message.content.trim();
+    }
+    if (!scenePrompt) scenePrompt = 'clean modern studio background, soft natural lighting, minimalist style';
+    if (userPrompt) scenePrompt = userPrompt + ', ' + scenePrompt;
+    console.log('[场景Inpaint] 提示词:', scenePrompt.substring(0, 80));
+
+    var buf = Buffer.from(imageBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+    return comfyuiInpaint.inpaintScene(buf, { prompt: scenePrompt });
+  }).catch(function (err) {
+    console.error('[场景Inpaint] 视觉分析失败:', err.message);
+    var fallbackPrompt = userPrompt || 'clean modern studio background, soft natural lighting, marble surface';
+    var buf = Buffer.from(imageBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+    return comfyuiInpaint.inpaintScene(buf, { prompt: fallbackPrompt });
+  }).then(function (resultBuf) {
+    var filename = 'scene_inpaint_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8) + '.png';
+    fs.writeFile(path.join(UPLOADS_DIR, filename), resultBuf, function (err) {
+      if (err) return res.status(500).json({ error: '保存失败' });
+      console.log('[场景Inpaint] 完成, 耗时:', Date.now() - t0, 'ms');
+      res.json({ ok: true, url: '/uploads/' + filename, backend: 'comfyui-inpaint' });
+    });
+  }).catch(function (err) {
+    console.error('[场景Inpaint] 失败:', err.message);
+    res.status(502).json({ error: '场景图生成失败: ' + err.message });
+  });
+});
 
 // ===== 图生图（生成场景图）— ComfyUI 优先，智谱 CogView 降级 =====
 router.post('/img2img', function (req, res) {

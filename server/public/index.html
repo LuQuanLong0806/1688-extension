@@ -244,9 +244,16 @@
             <button class="acc-btn" id="edAiEnhance">AI 画质增强</button>
             <button class="acc-btn" id="edAiScene">生成场景图</button>
             <div id="edSceneParams" style="display:none;margin-top:6px">
-              <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">AI 自动分析产品生成场景（可手动补充提示词）</div>
-              <textarea id="edScenePrompt" rows="2" style="width:100%;resize:vertical;font-size:12px;padding:4px 6px;border:1px solid var(--border-subtle);border-radius:4px;background:var(--bg-primary);color:var(--text-primary)" placeholder="留空则AI自动生成，也可输入补充关键词..."></textarea>
-              <div class="acc-slider" style="margin-top:4px"><div class="slider-header"><span>商品占比</span><span class="slider-val" id="edSceneScaleVal">70%</span></div><input type="range" id="edSceneScale" min="30" max="100" value="70"></div>
+              <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">商品信息越详细，AI 生成的场景越精准</div>
+              <div style="display:flex;gap:4px;margin-bottom:4px">
+                <input id="edSceneTitle" type="text" placeholder="商品名称/描述，如：陶瓷花瓶" style="flex:1;font-size:12px;padding:4px 6px;border:1px solid var(--border-subtle);border-radius:4px;background:var(--bg-primary);color:var(--text-primary)">
+                <input id="edSceneSize" type="text" placeholder="尺寸，如：20×15cm" style="width:100px;font-size:12px;padding:4px 6px;border:1px solid var(--border-subtle);border-radius:4px;background:var(--bg-primary);color:var(--text-primary)">
+              </div>
+              <textarea id="edScenePrompt" rows="2" style="width:100%;resize:vertical;font-size:12px;padding:4px 6px;border:1px solid var(--border-subtle);border-radius:4px;background:var(--bg-primary);color:var(--text-primary)" placeholder="补充关键词（留空则AI自动生成）..."></textarea>
+              <div style="display:flex;gap:4px;margin-top:4px">
+                <button class="acc-btn" id="edSceneModeComposite" style="flex:1;font-size:11px;padding:4px" title="CogView生成背景+抠图合成">合成模式</button>
+                <button class="acc-btn active" id="edSceneModeInpaint" style="flex:1;font-size:11px;padding:4px" title="ComfyUI Inpainting保留产品重绘背景">Inpaint模式</button>
+              </div>
               <button class="acc-btn primary" id="edAiSceneGen" style="margin-top:6px;width:100%">开始生成</button>
             </div>
             <div style="margin-top:8px;padding-top:6px;border-top:1px solid var(--border-subtle)">

@@ -1116,6 +1116,7 @@ function initMeituCollage() {
   function restoreEditorSrc(src) {
     editorSrc = src;
     var img = new Image();
+    img.crossOrigin = 'anonymous';
     img.onload = function () {
       editorNatW = img.naturalWidth;
       editorNatH = img.naturalHeight;
@@ -1273,6 +1274,7 @@ function initMeituCollage() {
     resetFilterSliders();
 
     var img = new Image();
+    img.crossOrigin = 'anonymous';
     img.onload = function () {
       editorNatW = img.naturalWidth;
       editorNatH = img.naturalHeight;
@@ -1590,6 +1592,7 @@ function initMeituCollage() {
 
   function refreshEditorCanvas() {
     var img = new Image();
+    img.crossOrigin = 'anonymous';
     img.onload = function () {
       editorImgCtx.clearRect(0, 0, editorImgCanvas.width, editorImgCanvas.height);
       editorImgCtx.drawImage(img, 0, 0, editorImgCanvas.width, editorImgCanvas.height);
@@ -1629,6 +1632,7 @@ function initMeituCollage() {
   function transformEditorImage(fn) {
     var oldSrc = editorSrc;
     var img = new Image();
+    img.crossOrigin = 'anonymous';
     img.onload = function () {
       var c = document.createElement('canvas');
       c.width = img.width; c.height = img.height;
@@ -1680,6 +1684,7 @@ function initMeituCollage() {
     if (editorSrc !== editorOriginalSrc) {
       editorSrc = editorOriginalSrc;
       var img = new Image();
+      img.crossOrigin = 'anonymous';
       img.onload = function () {
         editorNatW = img.naturalWidth; editorNatH = img.naturalHeight;
         fitEditorCanvas();
@@ -2065,6 +2070,7 @@ function initMeituCollage() {
   function getOrigImageCanvas() {
     return new Promise(function (resolve) {
       var img = new Image();
+      img.crossOrigin = 'anonymous';
       img.onload = function () {
         var c = document.createElement('canvas');
         c.width = editorNatW; c.height = editorNatH;
@@ -2331,28 +2337,44 @@ function initMeituCollage() {
     panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
   });
 
-  document.getElementById('edSceneScale').addEventListener('input', function () {
-    document.getElementById('edSceneScaleVal').textContent = this.value + '%';
+  var sceneMode = 'inpaint'; // 'inpaint' or 'composite'
+  document.getElementById('edSceneModeComposite').addEventListener('click', function () {
+    sceneMode = 'composite';
+    this.classList.add('active');
+    document.getElementById('edSceneModeInpaint').classList.remove('active');
   });
+  document.getElementById('edSceneModeInpaint').addEventListener('click', function () {
+    sceneMode = 'inpaint';
+    this.classList.add('active');
+    document.getElementById('edSceneModeComposite').classList.remove('active');
+  });
+
+  // 回显商品标题到场景图输入框
+  try {
+    var storedTitle = sessionStorage.getItem('__meitu_source_title') || '';
+    if (storedTitle) document.getElementById('edSceneTitle').value = storedTitle;
+  } catch (e) {}
 
   document.getElementById('edAiSceneGen').addEventListener('click', function () {
     if (!editorSrc) { showToast('请先打开图片', 'err'); return; }
     var userPrompt = document.getElementById('edScenePrompt').value.trim();
-    var productTitle = '';
-    try { productTitle = sessionStorage.getItem('__meitu_source_title') || ''; } catch (e) {}
+    var sceneTitle = document.getElementById('edSceneTitle').value.trim();
+    var sceneSize = document.getElementById('edSceneSize').value.trim();
     var oldSrc = editorSrc;
-    showEditorLoading('AI 分析产品并生成场景图...');
+    var endpoint = sceneMode === 'inpaint' ? '/api/ai/scene-inpaint' : '/api/ai/img2img-auto';
+    showEditorLoading(sceneMode === 'inpaint' ? 'ComfyUI Inpainting 生成场景图...' : 'AI 分析产品并生成场景图...');
 
     var b64 = editorSrc.indexOf('data:') === 0 ? editorSrc : '';
     var ready = b64 ? Promise.resolve(b64) : urlToBase64(editorSrc);
 
     ready.then(function (base64) {
-      return fetch(getServerBase() + '/api/ai/img2img-auto', {
+      return fetch(getServerBase() + endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           image_base64: base64,
-          title: productTitle,
+          title: sceneTitle,
+          size: sceneSize,
           prompt: userPrompt
         })
       });

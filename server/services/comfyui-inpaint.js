@@ -239,66 +239,6 @@ function uploadImage(imageBuffer, filename, subfolder, _retrying) {
 }
 
 // ========== 构建 Inpainting Workflow ==========
-// 方案A（推荐）：ComfyUI 内置 InpaintModelConditioning + dreamshaper
-// 优点：不需要额外模型，标准 SD inpainting，兼容性好
-function buildInpaintWorkflow(imageName, maskName, modelName, prompt, negativePrompt) {
-  return {
-    "1": {
-      "class_type": "CheckpointLoaderSimple",
-      "inputs": { "ckpt_name": modelName || "sd-v1-5-inpainting.ckpt" }
-    },
-    "2": {
-      "class_type": "LoadImage",
-      "inputs": { "image": imageName }
-    },
-    "3": {
-      "class_type": "LoadImageMask",
-      "inputs": { "image": maskName, "channel": "red" }
-    },
-    "4": {
-      "class_type": "InpaintModelConditioning",
-      "inputs": {
-        "positive": ["5", 0],
-        "negative": ["6", 0],
-        "vae": ["1", 2],
-        "pixels": ["2", 0],
-        "mask": ["3", 0],
-        "noise_mask": true
-      }
-    },
-    "5": {
-      "class_type": "CLIPTextEncode",
-      "inputs": { "text": prompt || "match surrounding texture, seamless background continuation, natural, no objects, no text", "clip": ["1", 1] }
-    },
-    "6": {
-      "class_type": "CLIPTextEncode",
-      "inputs": { "text": negativePrompt || "text, watermark, logo, objects, patterns, drawings, images, people, noise, artifacts", "clip": ["1", 1] }
-    },
-    "7": {
-      "class_type": "KSampler",
-      "inputs": {
-        "seed": Math.floor(Math.random() * 10000000000),
-        "steps": 20,
-        "cfg": 4.0,
-        "sampler_name": "euler",
-        "scheduler": "normal",
-        "denoise": 0.5,
-        "model": ["1", 0],
-        "positive": ["4", 0],
-        "negative": ["4", 1],
-        "latent_image": ["4", 2]
-      }
-    },
-    "8": {
-      "class_type": "VAEDecode",
-      "inputs": { "samples": ["7", 0], "vae": ["1", 2] }
-    },
-    "9": {
-      "class_type": "SaveImage",
-      "inputs": { "filename_prefix": "inpaint_" + Date.now(), "images": ["8", 0] }
-    }
-  };
-}
 
 // ========== 核心 inpaint 函数（与 LaMa 接口一致）==========
 
@@ -355,7 +295,7 @@ async function inpaint(imageBuffer, maskBuffer, options) {
 
   // Step 2: 构建 workflow 并提交
   var model = getWorkflowModel() || 'sd-v1-5-inpainting.ckpt';
-  var workflow = buildInpaintWorkflow(imgName, maskName, model, prompt, negativePrompt);
+  var workflow = buildInpaintWorkflow(imgName, maskName, prompt, negativePrompt, model);
   var client_id = 'openclaw_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
 
   var promptResult;
@@ -812,6 +752,167 @@ async function img2img(imageBuffer, options) {
   }
 }
 
+// ========== Inpainting 场景图（产品不变，AI重绘背景）==========
+
+function buildInpaintWorkflow(imageName, maskName, prompt, negativePrompt, modelName) {
+  return {
+    "1": {
+      "class_type": "CheckpointLoaderSimple",
+      "inputs": { "ckpt_name": modelName || "sd-v1-5-inpainting.ckpt" }
+    },
+    "2": {
+      "class_type": "LoadImage",
+      "inputs": { "image": imageName }
+    },
+    "3": {
+      "class_type": "LoadImageMask",
+      "inputs": { "image": maskName, "channel": "red" }
+    },
+    "4": {
+      "class_type": "CLIPTextEncode",
+      "inputs": { "text": prompt || "clean modern studio background, soft natural lighting, professional product photography, 4k", "clip": ["1", 1] }
+    },
+    "5": {
+      "class_type": "CLIPTextEncode",
+      "inputs": { "text": negativePrompt || "text, watermark, logo, blurry, low quality, distorted, ugly", "clip": ["1", 1] }
+    },
+    "6": {
+      "class_type": "InpaintModelConditioning",
+      "inputs": {
+        "positive": ["4", 0],
+        "negative": ["5", 0],
+        "vae": ["1", 2],
+        "pixels": ["2", 0],
+        "mask": ["3", 0],
+        "noise_mask": true
+      }
+    },
+    "7": {
+      "class_type": "KSampler",
+      "inputs": {
+        "seed": Math.floor(Math.random() * 10000000000),
+        "steps": 25,
+        "cfg": 7.0,
+        "sampler_name": "euler_ancestral",
+        "scheduler": "normal",
+        "denoise": 0.85,
+        "model": ["1", 0],
+        "positive": ["6", 0],
+        "negative": ["6", 1],
+        "latent_image": ["6", 2]
+      }
+    },
+    "8": {
+      "class_type": "VAEDecode",
+      "inputs": { "samples": ["7", 0], "vae": ["1", 2] }
+    },
+    "9": {
+      "class_type": "SaveImage",
+      "inputs": { "images": ["8", 0], "filename_prefix": "inpaint_scene_" + Date.now() }
+    }
+  };
+}
+
+async function inpaintScene(imageBuffer, options) {
+  options = options || {};
+  var base = getComfyuiBase();
+  if (!base) throw new Error('ComfyUI 未配置');
+
+  var t0 = Date.now();
+  console.log('[ComfyUI-InpaintScene] 开始, prompt:', (options.prompt || '').substring(0, 50));
+
+  // Step 1: 抠图获取 mask
+  var removeBgService = require('./remove-bg');
+  var maskBuf = await removeBgService.removeBackground(imageBuffer);
+  console.log('[ComfyUI-InpaintScene] 抠图完成');
+
+  // Step 2: 从抠图结果提取 alpha 通道作为 mask
+  var sharp = require('sharp');
+  var maskAlpha = await sharp(maskBuf).extractChannel(3).raw().toBuffer();
+  var maskMeta = await sharp(maskBuf).metadata();
+
+  // Step 3: 反转 mask（产品区域=黑色=保护，背景区域=白色=重绘）
+  var invertedMask = Buffer.alloc(maskAlpha.length);
+  for (var i = 0; i < maskAlpha.length; i++) {
+    invertedMask[i] = 255 - maskAlpha[i];
+  }
+  var invertedMaskBuf = await sharp(invertedMask, { raw: { width: maskMeta.width, height: maskMeta.height, channels: 1 } }).png().toBuffer();
+
+  // Step 4: 缩放到 SD1.5 最佳尺寸
+  var origMeta = await sharp(imageBuffer).metadata();
+  var maxDim = Math.max(origMeta.width, origMeta.height);
+  var targetSize = maxDim <= 512 ? 512 : 768;
+
+  var resizedImage = await sharp(imageBuffer)
+    .resize(targetSize, targetSize, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 1 } })
+    .png().toBuffer();
+  var resizedMask = await sharp(invertedMaskBuf)
+    .resize(targetSize, targetSize, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 1 } })
+    .png().toBuffer();
+
+  // Step 5: 上传图片和 mask
+  var timestamp = Date.now();
+  var imgName = await uploadImage(resizedImage, 'inpaint_img_' + timestamp + '.png', 'input');
+  var mskName = await uploadImage(resizedMask, 'inpaint_mask_' + timestamp + '.png', 'input');
+  console.log('[ComfyUI-InpaintScene] 上传完成: img=%s, mask=%s', imgName, mskName);
+
+  // Step 6: 构建工作流并提交
+  var workflow = buildInpaintWorkflow(imgName, mskName, options.prompt, options.negativePrompt);
+  var promptResult = await comfyuiRequest('/prompt', 'POST', {
+    prompt: workflow,
+    client_id: 'inpaint_scene_' + timestamp
+  });
+  var promptId = promptResult.prompt_id;
+  console.log('[ComfyUI-InpaintScene] 任务已提交, prompt_id:', promptId);
+
+  // Step 7: 轮询等待结果
+  var outputFilename = null;
+  var startTime = Date.now();
+  while (Date.now() - startTime < POLL_TIMEOUT) {
+    await new Promise(function (r) { setTimeout(r, POLL_INTERVAL); });
+    try {
+      var history = await comfyuiRequest('/history/' + promptId);
+      var item = history[promptId];
+      if (!item) continue;
+      var status = item.status || {};
+      if (status.completed || status.status_str === 'success') {
+        var outputs = item.outputs;
+        if (outputs) {
+          for (var nodeId in outputs) {
+            var nodeOutput = outputs[nodeId];
+            if (nodeOutput.images && nodeOutput.images.length) {
+              outputFilename = nodeOutput.images[0].filename;
+              var sf = nodeOutput.images[0].subfolder || '';
+              if (sf) outputFilename = sf + '/' + outputFilename;
+              break;
+            }
+          }
+        }
+        break;
+      }
+      if (status.status_str === 'error') {
+        var errMsg = (item.status && item.status.messages && JSON.stringify(item.status.messages)) || '未知错误';
+        throw new Error('ComfyUI inpaint 执行失败: ' + errMsg);
+      }
+    } catch (pollErr) {
+      if (pollErr.message && pollErr.message.indexOf('执行失败') >= 0) throw pollErr;
+    }
+  }
+
+  if (!outputFilename) throw new Error('ComfyUI inpaint 等待超时');
+
+  // Step 8: 下载结果
+  var resultBuf = await downloadFromComfyui(outputFilename);
+  console.log('[ComfyUI-InpaintScene] 完成, 耗时:', Date.now() - t0, 'ms');
+
+  // Step 9: 缩放回原尺寸
+  var result = await sharp(resultBuf)
+    .resize(origMeta.width, origMeta.height, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 1 } })
+    .png().toBuffer();
+
+  return result;
+}
+
 // ========== 导出 ==========
 
 module.exports = {
@@ -828,5 +929,6 @@ module.exports = {
   getModelList: getModelList,
   updateWorkflowModel: updateWorkflowModel,
   getWorkflowModel: getWorkflowModel,
-  img2img: img2img
+  img2img: img2img,
+  inpaintScene: inpaintScene
 };
