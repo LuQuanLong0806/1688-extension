@@ -44,16 +44,11 @@ def get_ocr_engine():
     try:
         from paddleocr import PaddleOCR
         logger.info("Loading PaddleOCR model (first time ~3-5s)...")
-        # 兼容新旧版本参数名
+        # 旧版参数名(det_db_thresh等)适用于 PaddleOCR<=2.9.x
+        # 新版参数名(text_det_thresh等)适用于 PaddleOCR 3.x+
+        # 新版参数名在旧版中会被 **kwargs 静默忽略，导致用默认值(det_db_box_thresh=0.6)
+        # 所以必须先试旧版，再试新版
         try:
-            _ocr_engine = PaddleOCR(
-                use_textline_orientation=True,
-                lang="ch",
-                text_det_thresh=0.2,
-                text_det_box_thresh=0.3,
-                text_det_unclip_ratio=2.0,
-            )
-        except TypeError:
             _ocr_engine = PaddleOCR(
                 use_angle_cls=True,
                 lang="ch",
@@ -61,6 +56,14 @@ def get_ocr_engine():
                 det_db_thresh=0.2,
                 det_db_box_thresh=0.3,
                 det_db_unclip_ratio=2.0,
+            )
+        except TypeError:
+            _ocr_engine = PaddleOCR(
+                use_textline_orientation=True,
+                lang="ch",
+                text_det_thresh=0.2,
+                text_det_box_thresh=0.3,
+                text_det_unclip_ratio=2.0,
             )
         logger.info("PaddleOCR model loaded")
         return _ocr_engine
@@ -140,10 +143,11 @@ async def detect_text(req: DetectRequest):
         img_array = np.array(img)
 
         ocr = get_ocr_engine()
-        try:
-            result = ocr.predict(img_array)
-        except AttributeError:
+        # 先试 ocr() (PaddleOCR<=2.9.x)，再试 predict() (3.x+)
+        if hasattr(ocr, 'ocr'):
             result = ocr.ocr(img_array, cls=True)
+        else:
+            result = ocr.predict(img_array)
 
         if not result or not result[0]:
             elapsed = int((time.time() - t0) * 1000)

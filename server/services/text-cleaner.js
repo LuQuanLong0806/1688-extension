@@ -134,12 +134,11 @@ function expandPolygon(polygon, dilatePx) {
 // ========== 徽章检测（Badge Detection）==========
 // 处理"文字印在纯色背景块"场景（如"包邮""特价"标签），将mask扩展覆盖整个背景块
 
-var BADGE_SCAN_MAX_PX = 120;      // 最大向外扫描像素
+var BADGE_SCAN_MAX_PX = 80;      // 最大向外扫描像素
 var BADGE_MAX_AREA_RATIO = 0.25;  // 徽章最大占图面积比
-var BADGE_COLOR_THRESHOLD = 35;  // 颜色相似判定阈值（越小越宽松）
-var BADGE_VOTE_RATIO = 0.45;     // 列/行匹配像素最小占比
-var BADGE_MAX_CONSEC_FAIL = 5;   // 连续不匹配容忍列/行数
-var BADGE_DOMINANT_VARIANCE = 55; // 徽章底色最大方差（允许渐变/纹理）
+var BADGE_COLOR_THRESHOLD = 50;  // 颜色相似判定阈值
+var BADGE_VOTE_RATIO = 0.55;     // 列/行匹配像素最小占比
+var BADGE_MAX_CONSEC_FAIL = 3;   // 连续不匹配容忍列/行数
 
 function colorDistance(c1, c2) {
   var dr = c1[0] - c2[0], dg = c1[1] - c2[1], db = c1[2] - c2[2];
@@ -172,7 +171,7 @@ function _getDominantColor(pixels, maxVariance) {
   var avg = [r / n, g / n, b / n];
   var totalDist = 0;
   for (var i = 0; i < n; i++) totalDist += colorDistance(pixels[i], avg);
-  if (totalDist / n > (maxVariance || BADGE_DOMINANT_VARIANCE)) return null;
+  if (totalDist / n > (maxVariance || 35)) return null;
   return { color: avg, variance: totalDist / n };
 }
 
@@ -212,7 +211,7 @@ function _scanOutward(raw, W, H, startPos, rangeMin, rangeMax, bgColor, directio
 }
 
 function _sampleBadgeEdgePixels(raw, W, H, bbox) {
-  var pad = Math.max(4, Math.round(Math.min(bbox.w, bbox.h) * 0.15));
+  var pad = Math.max(2, Math.round(Math.min(bbox.w, bbox.h) * 0.08));
   var pixels = [];
   for (var x = bbox.x; x <= bbox.x + bbox.w && x < W; x += 2) {
     if (bbox.y - pad >= 0) pixels.push(_getPixel(raw, W, x, bbox.y - pad));
@@ -621,7 +620,7 @@ async function cleanImage(imageBuffer, options) {
   var visionRegions = [];
 
   // Step 2.5: OCR 为基础 + 视觉补充
-  // 徽章扩展默认关闭（detectBadges 需显式开启，避免误伤商品图）
+  // 徽章扩展默认关闭（detectBadges 需显式开启）
   if (options.detectBadges === true) {
     try {
       regions = await expandRegionsForBadges(imageBuffer, regions);
