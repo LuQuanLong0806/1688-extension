@@ -62,6 +62,31 @@
 - 管理员可以分配商品给指定 operator
 - 采集箱中的商品超时未认领可自动清理
 
+### 采集插件登录流程
+```
+┌──────────────────────────────────────────────────────┐
+│ 1688 浏览器插件                                        │
+│                                                      │
+│  设置页: 填写服务器地址 + 用户名/密码                      │
+│     ↓                                                │
+│  点击「登录」→ POST /api/plugin-login                  │
+│     ↓                                                │
+│  成功 → 存储 JWT token 到 chrome.storage.local        │
+│  失败 → 提示错误，仍可采集（进采集箱）                     │
+│                                                      │
+│  采集商品时:                                            │
+│     ↓                                                │
+│  有 token? → POST /api/product (Authorization: Bearer)│
+│    ✅ 有 → owner = 当前用户（直接进「我的商品」）           │
+│    ❌ 无 → owner = ''（进采集箱）                        │
+└──────────────────────────────────────────────────────┘
+```
+
+- 插件端增加一个简洁的登录设置面板（服务器地址 + 用户名 + 密码）
+- 登录成功后保存 token，后续采集请求自动带上 `Authorization: Bearer <token>` 头
+- 未登录的插件仍可采集，商品进采集箱（owner=''）
+- token 过期后提示重新登录
+
 ### 数据隔离策略
 | 数据 | 隔离方式 |
 |---|---|
@@ -310,8 +335,11 @@ users: {
 ### 采集插件改动
 | 改动点 | 说明 |
 |---|---|
-| 插件配置 | 增加 token 字段 |
-| 采集请求 | 带 token，商品进采集箱（owner=''） |
+| 插件设置页 | 增加服务器地址、用户名、密码、登录按钮 |
+| 登录接口 | `POST /api/plugin-login` → 返回 JWT token，存 `chrome.storage.local` |
+| 采集请求（已登录） | 带 `Authorization: Bearer` 头，商品进 `owner=username` |
+| 采集请求（未登录） | 不带头，商品进采集箱 `owner=''` |
+| token 刷新 | 401 响应 → 清除本地 token，提示重新登录 |
 
 ---
 
@@ -340,9 +368,9 @@ users: {
 
 | 文件 | 操作 | 说明 |
 |---|---|---|
-| `server/middleware/auth.js` | 新建 | JWT 鉴权中间件 |
+| `server/middleware/auth.js` | 新建 | JWT 鉴权中间件（白名单 + 角色校验） |
 | `server/public/login.html` | 新建 | 登录页 |
-| `server/routes/users.js` | 新建 | 用户 CRUD + 登录接口 |
+| `server/routes/users.js` | 新建 | 用户 CRUD + 登录 + 插件登录接口 |
 | `server/db.js` | 修改 | users 表 DDL + products 补 owner/claim_at 列 |
 | `server/cloud/index.js` | 修改 | 云端 users 表 DDL + products 补 owner/claim_at 列 |
 | `server/cloud/sync.js` | 修改 | uploadProducts/downloadProducts 加 owner/claim_at + users 表同步 |
@@ -352,11 +380,157 @@ users: {
 | `server/public/index.html` | 修改 | 前端 token 处理 + 用户名显示 |
 | `server/public/js/components/product-list.js` | 修改 | 我的/采集箱/全部切换 + 认领按钮 |
 | `server/public/js/components/page-users.js` | 新建 | 用户管理页（admin） |
-| `sites/1688/float-btn.js` | 修改 | 插件带 token |
+| `sites/1688/float-btn.js` | 修改 | 插件登录面板 + token 传递 |
 
 ---
 
-## 八、Cloudflare Tunnel 配置
+## 八、完整 API 鉴权矩阵
+
+### 无需登录（白名单）
+| 端点 | 说明 |
+|---|---|
+| `GET /` | 首页重定向到 login.html 或 index.html |
+| `GET /login.html` | 登录页 |
+| `POST /api/login` | Web 端登录 |
+| `POST /api/plugin-login` | 插件端登录 |
+| `GET /api/proxy-image` | 图片代理（采集插件用） |
+| `GET /uploads/*` | 上传文件访问 |
+| `GET /events` | SSE 推送（query ?token=xxx 验证） |
+| 静态资源 | `.css` `.js` `.png` `.jpg` `.ico` 等 |
+
+### 需要登录（任何角色）
+| 端点 | 方法 | 说明 |
+|---|---|---|
+| `/api/me` | GET | 当前用户信息 |
+| `/api/change-password` | POST | 修改密码 |
+| `/api/products` | GET | 商品列表（scope=mine/inbox/all） |
+| `/api/products/claim` | POST | 认领商品 |
+| `/api/product/:uid` | GET | 商品详情 |
+| `/api/product` | POST | 保存商品 |
+| `/api/product/:uid` | PUT | 更新商品 |
+| `/api/product/:uid` | DELETE | 删除商品 |
+| `/api/products/batch-*` | POST | 批量操作 |
+| `/api/categories/*` | 全部 | 分类映射（共享知识库） |
+| `/api/keywords/*` | 全部 | 关键词管理（共享知识库） |
+| `/api/dxm-categories` | GET | DXM 分类树 |
+| `/api/settings` | GET | 获取设置（敏感值脱敏） |
+| `/api/ai/*` | 全部 | AI 相关接口 |
+| `/api/proxy-image` | POST | 图片代理（POST 方式） |
+
+### 仅 admin
+| 端点 | 方法 | 说明 |
+|---|---|---|
+| `/api/users` | GET | 用户列表 |
+| `/api/users` | POST | 创建用户 |
+| `/api/users/:id` | PUT | 编辑用户 |
+| `/api/users/:id` | DELETE | 禁用用户 |
+| `/api/products/assign` | POST | 分配商品给用户 |
+| `/api/products` | GET | `scope=all` 仅 admin 可用 |
+| `/api/settings` | POST | 修改系统设置 |
+| `/api/settings/export` | GET | 导出配置 |
+| `/api/settings/import` | POST | 导入配置 |
+
+### 权限逻辑
+- **operator/viewer** 调用 `scope=all` → 返回 403
+- **viewer** 调用任何 POST/PUT/DELETE → 返回 403
+- **operator** 只能编辑 `owner = 自己` 的商品，操作别人的商品 → 返回 403
+- **admin** 无限制
+
+---
+
+## 九、老数据兼容方案
+
+### 9.1 现有 products 无 owner 字段
+- ALTER TABLE 迁移加 `owner TEXT DEFAULT ''` 和 `claim_at TEXT DEFAULT ''`
+- 迁移后所有老商品 `owner = ''`（空字符串），自动归入采集箱
+- 首次登录后 admin 可看到采集箱有大量老数据，可：
+  - 一键「全部认领」将老数据归到自己名下
+  - 或分配给其他 operator
+
+### 9.2 现有插件无 token
+- 插件不带 token 采集 → 服务端正常接收，商品进采集箱（owner=''）
+- 完全向后兼容，老版本插件无需升级即可继续采集
+- 升级后登录 → 新采集的商品直接进自己的列表
+
+### 9.3 本地数据库迁移
+```javascript
+// server/db.js 迁移逻辑（启动时自动执行）
+const migrations = [
+  // 已有的迁移...
+  { table: 'products', column: 'owner', type: 'TEXT DEFAULT \'\'' },
+  { table: 'products', column: 'claim_at', type: 'TEXT DEFAULT \'\'' },
+];
+```
+
+### 9.4 云端数据库迁移
+- `migrateCloudSchema()` 自动检测缺失列并 ALTER TABLE
+- 云端 products 已有 `from_machine` 字段（废弃不用），新增 `owner` / `claim_at`
+- 云端新增 users 表，DDL 自动建表
+
+### 9.5 云同步兼容
+- products 同步字段列表加 `owner` / `claim_at`
+- 老数据同步时 owner 为空字符串，两端一致
+- users 表加入 SINGLE_TABLE_DEFS 同步
+- 知识库同步不变，保持全局共享
+
+### 9.6 前端兼容
+- 未登录用户访问 → 重定向到 login.html
+- 首次启动自动创建 admin 账户（默认密码 admin123，强制首次修改）
+- 老数据的 owner='' 在前端显示为「采集箱」标签
+
+---
+
+## 十、云同步改造详解
+
+### 10.1 products 同步加 owner/claim_at
+
+**uploadProducts（本地 → 云端）SELECT 改动**：
+```sql
+-- 加 owner, claim_at 到 SELECT（放在 original_images 之后、created_at 之前）
+SELECT uid, source_url, title, main_images, desc_images, detail_images, attrs, skus,
+  category, custom_category, dxm_category, manual_category, status, deleted,
+  store_name, variant_attr_name, product_no, variant_attr_name2, variant_attr_name3,
+  variant_attr_images, original_images, owner, claim_at,
+  created_at, updated_at,
+  automation_stage, automation_log, automation_issues, automation_started_at, automation_finished_at
+FROM products
+```
+
+INSERT / ON CONFLICT UPDATE 字段列表同步加上 `owner` 和 `claim_at`。
+
+**downloadProducts（云端 → 本地）同理**：SELECT 加 owner, claim_at，INSERT/UPDATE 加上。
+
+### 10.2 users 表同步
+
+新增到 `SINGLE_TABLE_DEFS`：
+```javascript
+users: {
+  localGet: function () { return db.getAll('SELECT username, password_hash, display_name, role, last_login, created_at, updated_at FROM users'); },
+  cloudCols: 'username, password_hash, display_name, role, last_login, created_at, updated_at',
+  cloudKey: ['username'],
+  localKeyMatch: function (r) { return 'SELECT id FROM users WHERE username = ?'; },
+  localKeyParams: function (r) { return [r.username]; },
+  localInsert: 'INSERT OR IGNORE INTO users (username, password_hash, display_name, role, last_login, created_at, updated_at) VALUES (?, ?, ?, ?, datetime(\'now\', \'+8 hours\'), ?)',
+  localInsertParams: function (r) { return [r.username, r.password_hash, r.display_name, r.role, r.updated_at]; },
+  localUpdate: 'UPDATE users SET display_name = ?, role = ?, updated_at = ? WHERE username = ?',
+  localUpdateParams: function (r) { return [r.display_name, r.role, r.updated_at, r.username]; },
+  cloudTable: 'users',
+  cloudInsert: 'INSERT OR IGNORE INTO users (username, password_hash, display_name, role, last_login, created_at, updated_at) VALUES (?, ?, ?, ?, datetime(\'now\', \'+8 hours\'), ?)',
+  cloudInsertParams: function (r) { return [r.username, r.password_hash, r.display_name, r.role, r.updated_at]; },
+  cloudUpdate: 'UPDATE users SET display_name = ?, role = ?, updated_at = ? WHERE username = ?',
+  cloudUpdateParams: function (r) { return [r.display_name, r.role, r.updated_at, r.username]; },
+  label: '用户'
+}
+```
+
+**注意**：密码哈希同步（各机器均可验证），updated_at 比较决定覆盖方向。
+
+### 10.3 知识库同步
+不变。知识库表保持全局共享，不按用户隔离。
+
+---
+
+## 十一、Cloudflare Tunnel 配置
 
 复用之前的 tunnel，加一条路由：
 ```yaml
@@ -376,28 +550,19 @@ cloudflared tunnel run <tunnel-id>
 
 ---
 
-## 九、白名单路由（不需要登录）
-- `POST /api/login`
-- `GET /api/proxy-image`
-- `GET /uploads/*`
-- 静态资源（.css/.js/.png 等）
-- `GET /events`（SSE，通过 query token 验证）
-
----
-
-## 十、实施顺序
+## 十二、实施顺序
 
 1. **登录鉴权** — 中间件 + 登录页 + JWT，单用户也能用
-2. **用户表** — DDL + 用户 CRUD + 首次启动自动创建 admin
+2. **用户表** — DDL + 用户 CRUD + 首次启动创建 admin
 3. **采集箱** — products 加 owner/claim_at + scope 查询 + 认领按钮
 4. **用户管理** — admin 页面
-5. **插件改造** — 带 token
+5. **插件改造** — 登录面板 + token 传递
 6. **云同步改造** — users 表同步 + products 同步带 owner/claim_at
 7. **Cloudflare Tunnel** — 最后配置公网访问
 
 ---
 
-## 十一、风险和注意事项
+## 十三、风险和注意事项
 
 1. **向后兼容**：已有 products 的 owner 为空，启动时自动归类为采集箱；已登录 admin 可一键全部认领
 2. **知识库共享**：分类映射、词库等保持全局共享，不按用户隔离
@@ -406,3 +571,4 @@ cloudflared tunnel run <tunnel-id>
 5. **token 安全**：JWT 有效期 7 天，修改密码后旧 token 失效
 6. **users 同步**：用户数据通过 Turso 同步，所有机器共享同一套用户账户；密码哈希同步后各机器均可验证
 7. **from_machine 字段**：云端已有的 `from_machine` 字段不再使用，保留不删（避免迁移风险），`owner` 替代其设计意图
+8. **插件兼容**：老版本插件无 token 仍可采集，商品进采集箱，完全向后兼容
