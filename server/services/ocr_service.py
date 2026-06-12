@@ -137,7 +137,10 @@ async def detect_text(req: DetectRequest):
         img_array = np.array(img)
 
         ocr = get_ocr_engine()
-        result = ocr.ocr(img_array, cls=True)
+        try:
+            result = ocr.predict(img_array)
+        except AttributeError:
+            result = ocr.ocr(img_array, cls=True)
 
         if not result or not result[0]:
             elapsed = int((time.time() - t0) * 1000)
