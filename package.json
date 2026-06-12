@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "node sites/build.js"
+    "build": "node sites/build.js",
+    "build:static": "node sites/static-build.js"
   },
   "dependencies": {
     "ali-oss": "^6.23.0"
