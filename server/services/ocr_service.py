@@ -41,14 +41,24 @@ def get_ocr_engine():
     try:
         from paddleocr import PaddleOCR
         logger.info("Loading PaddleOCR model (first time ~3-5s)...")
-        _ocr_engine = PaddleOCR(
-            use_angle_cls=True,
-            lang="ch",
-            use_gpu=False,
-            det_db_thresh=0.2,
-            det_db_box_thresh=0.3,
-            det_db_unclip_ratio=2.0,
-        )
+        # 兼容新旧版本参数名
+        try:
+            _ocr_engine = PaddleOCR(
+                use_textline_orientation=True,
+                lang="ch",
+                text_det_thresh=0.2,
+                text_det_box_thresh=0.3,
+                text_det_unclip_ratio=2.0,
+            )
+        except TypeError:
+            _ocr_engine = PaddleOCR(
+                use_angle_cls=True,
+                lang="ch",
+                use_gpu=False,
+                det_db_thresh=0.2,
+                det_db_box_thresh=0.3,
+                det_db_unclip_ratio=2.0,
+            )
         logger.info("PaddleOCR model loaded")
         return _ocr_engine
     except Exception as e:
