@@ -890,3 +890,142 @@ cloudflared tunnel run <tunnel-id>
 12. **云同步路由**：`/api/sync/*` 是高危操作（推送/拉取/覆盖），必须限 admin
 13. **前端改造量**：所有组件文件中的 `fetch` 调用都需加 `Authorization` 头，建议封装统一的 `apiFetch()` 工具函数
 14. **图片代理**：`/api/product/check` 和 `/api/product`（POST 保存）需加入白名单或允许匿名访问，否则老插件无法采集
+
+---
+
+## 十六、实施补充与修正
+
+> 实际开发中发现以下需要补充或修正的内容。
+
+### 16.1 users 表字段补充
+
+文档中 users 表缺少以下字段，实际实现已补充：
+
+```sql
+-- 补充字段：
+password_salt TEXT NOT NULL,        -- SHA-256 加盐所需
+must_change_password INTEGER DEFAULT 0  -- 首次登录强制改密码
+```
+
+完整 DDL：
+```sql
+CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  password_salt TEXT NOT NULL,
+  display_name TEXT DEFAULT '',
+  role TEXT DEFAULT 'operator',
+  last_login TEXT DEFAULT '',
+  must_change_password INTEGER DEFAULT 0,
+  disabled INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT '',
+  updated_at TEXT DEFAULT ''
+)
+```
+
+### 16.2 auth 中间件白名单行为修正
+
+**原始设计**：白名单路由跳过中间件，不设置 `req.user`。
+
+**实际实现**：白名单路由仍会尝试解析 token 并设置 `req.user`，只是不因无 token 而拒绝请求。
+
+```javascript
+// 修正后的行为：
+// 1. 始终尝试从 Authorization 头或 ?token= 提取 JWT
+// 2. 有效 token → 设置 req.user（包括白名单路由）
+// 3. 无 token 或 token 无效 → 不设置 req.user
+// 4. 白名单路由 → 放行（不管有没有 req.user）
+// 5. 非白名单路由 → 无 req.user 则返回 401
+```
+
+**原因**：`POST /api/product` 是白名单路由（允许未登录插件采集），但已登录用户采集时应自动设置 `owner`。如果白名单跳过整个中间件，`req.user` 不会被设置，`owner` 始终为空。
+
+### 16.3 saveProductToLocalAndCloud 签名变更
+
+**改动前**：
+```javascript
+function saveProductToLocalAndCloud(uid, sourceUrl, title, category, customCategory, dxmCategory, manualCategory, createdAt, mainImages, descImages, detailImages, attrs, skus)
+```
+
+**改动后**：增加 `owner` 参数
+```javascript
+function saveProductToLocalAndCloud(uid, sourceUrl, title, category, customCategory, dxmCategory, manualCategory, createdAt, mainImages, descImages, detailImages, attrs, skus, owner)
+```
+
+### 16.4 密码哈希方案
+
+使用 SHA-256 + salt（而非 bcrypt），避免 native 依赖编译问题：
+```javascript
+var salt = crypto.randomBytes(16).toString('hex');
+var hash = crypto.createHash('sha256').update(salt + password).digest('hex');
+```
+
+### 16.5 CORS 白名单配置
+
+实际实现中 CORS origin 检查需要配置实际域名：
+```javascript
+// server.js 中 CORS 配置
+// 需要将 '你的域名.com' 替换为实际部署域名
+var ALLOWED_ORIGINS = [
+  'http://localhost:',
+  // 在此添加实际域名，如 'https://app.example.com'
+];
+```
+
+### 16.6 依赖注入模式
+
+为支持测试（内存 SQLite），auth 中间件和 users 路由采用依赖注入模式：
+```javascript
+// auth.js
+var _db = null;
+function _getDb() { return _db || require('../db'); }
+module.exports._setDb = function (db) { _db = db; };
+
+// users.js
+var _customDb = null;
+function _getDb() { return _customDb || db; }
+module.exports._setDb = function (d) { _customDb = d; };
+```
+
+### 16.7 前端 apiFetch 封装
+
+统一封装 `apiFetch()` 替代所有 `fetch()` 调用：
+```javascript
+// server/public/js/api.js
+function apiFetch(url, options) {
+  options = options || {};
+  var token = localStorage.getItem('jwt_token');
+  if (token) {
+    options.headers = options.headers || {};
+    options.headers['Authorization'] = 'Bearer ' + token;
+  }
+  return fetch(url, options).then(function (r) {
+    if (r.status === 401) {
+      localStorage.removeItem('jwt_token');
+      window.location.href = '/login.html';
+      return Promise.reject(new Error('登录已过期'));
+    }
+    return r;
+  });
+}
+```
+
+### 16.8 测试文件清单
+
+实际创建的测试文件：
+| 文件 | 测试数量 | 覆盖内容 |
+|---|---|---|
+| `server/__tests__/unit/auth.test.js` | 17 | JWT 鉴权、白名单、token 提取、requireRole |
+| `server/__tests__/routes/login.test.js` | 24 | 登录/登出、用户 CRUD、密码修改、权限检查 |
+| `server/__tests__/routes/product-claim.test.js` | 19 | scope 过滤、认领/分配、owner 权限 |
+| `server/__tests__/routes/plugin-auth.test.js` | 8 | 插件登录、带/不带 token 采集 |
+| `server/__tests__/unit/sync-owner.test.js` | 7 | owner/claim_at 同步、users 表定义 |
+
+### 16.9 插件设置面板改造
+
+`float-btn.js` 中原来的 `prompt()` 设置改为浮动面板：
+- 服务器地址输入框（保存时自动写入 localStorage + chrome.storage.local）
+- 登录表单（用户名 + 密码）
+- 登录状态显示（已登录显示用户名 + 退出按钮）
+- 点击 ⚙ 按钮切换面板显示/隐藏
