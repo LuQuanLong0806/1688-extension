@@ -8,6 +8,9 @@ PaddleOCR 文字检测微服务 - 跨境TEMU无中文图方案
   POST /health          - 健康检查
 """
 
+import os
+os.environ['FLAGS_use_mkldnn'] = '0'
+
 import argparse
 import base64
 import io
