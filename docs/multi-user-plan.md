@@ -14,6 +14,85 @@
 
 ---
 
+## 〇、现有项目功能清单
+
+> 当前系统为**单用户多设备**架构，前后端一体，无任何鉴权机制。
+
+### 技术栈
+| 层 | 技术 |
+|---|---|
+| 前端 | Vue 2.7.16 SPA + iView UI，动态组件切换（无 Vue Router） |
+| 后端 | Express.js，端口 3000 |
+| 本地数据库 | SQLite（`server/data.db` + `server/dxm_tree.db`） |
+| 云端数据库 | Turso（libSQL 云），双向同步 |
+| 采集端 | Chrome 浏览器扩展（1688 商品页注入） |
+| 加密 | AES-256-GCM（`server/crypto.js`），敏感配置加密存储 |
+| OCR 微服务 | Python FastAPI + PaddleOCR，端口 3001 |
+| AI 服务 | 智谱/通义/混元/ComfyUI 多 vendor 调度 |
+
+### 核心功能模块
+
+| 模块 | 路由文件 | 功能说明 |
+|---|---|---|
+| **商品采集** | `sites/1688/` 扩展 | 1688 商品页一键采集图片/标题/SKU/属性，POST 到服务器 |
+| **商品管理** | `server/routes/products.js` | 商品列表、详情、编辑、软删除、批量操作、分类推荐 |
+| **自动化流水线** | 同上 | 去中文(OCR) → 抠图(Rembg) → AI文生背景(ComfyUI) → 上传图床 → 添加到主图 |
+| **分类映射** | `server/routes/categories.js` | 1688 分类 → DXM 分类映射，AI 智能推荐分类 |
+| **词库管理** | 同上 | 关键词关联、同义词、黑名单、分类配置 |
+| **DXM 分类树** | `server/routes/dxm-tree.js` | DXM 分类树采集、搜索、路径解析 |
+| **云同步** | `server/routes/sync.js` | Turso 双向同步：products + 知识库表，按 updated_at 冲突解决 |
+| **AI 模型配置** | `server/routes/ai/index.js` | 多 vendor API Key 管理、模型选择、调度优先级 |
+| **AI 图像处理** | `server/routes/ai/image-edit.js` | 图片生成、图片编辑（ComfyUI img2img/inpaint） |
+| **系统设置** | `server/routes/settings.js` | 配置管理、导入导出、SSE 实时推送 |
+| **美图编辑器** | 前端组件 `meitu-editor-tools.js` | 在线图片标注、裁剪、批量替换 |
+| **仪表盘** | 前端组件 `dashboard.js` | 采集趋势、分类统计 |
+| **OCR 服务** | `server/services/ocr_service.py` | PaddleOCR 文字检测，中文区域定位 |
+| **抠图服务** | `server/services/remove-bg.js` | ISNet/Rembg 模型抠图 |
+| **修复服务** | `server/services/inpaint.js` | LaMa 模型图片修复（去文字后补背景） |
+
+### 现有 API 路由清单（全部无鉴权）
+
+| 挂载路径 | 路由文件 | 端点数 |
+|---|---|---|
+| `/api` | `routes/settings.js` | 8（设置 CRUD + 导入导出 + SSE + clear-signal） |
+| `/api` | `routes/products.js` | 15（商品 CRUD + 统计 + 批量 + 推荐） |
+| `/api` | `routes/categories.js` | 20（映射 CRUD + 关键词 + 同义词 + 黑名单 + 配置） |
+| `/api` | `routes/dxm-tree.js` | 8（分类树采集/搜索/同步） |
+| `/api/ai` | `routes/ai/index.js` | 20+（API Key 管理 + 模型配置 + ComfyUI 配置） |
+| `/api/ai` | `routes/ai/image-edit.js` | 3（图片生成/编辑/场景图） |
+| `/api/sync` | `routes/sync.js` | 16（云同步配置/测试/推送/拉取/双向同步） |
+
+### 现有前端组件
+
+| 文件 | 视图 |
+|---|---|
+| `product-list.js` | 商品列表（筛选、搜索、批量操作） |
+| `detail-modal.js` | 商品详情弹窗（编辑、图片管理、自动化流水线） |
+| `page-drafts.js` | 草稿箱 |
+| `page-publish-queue.js` | 待发布队列 |
+| `category-page.js` | 分类映射管理 |
+| `page-word-library.js` | 词库管理 |
+| `page-api-keys.js` | AI 模型配置 |
+| `page-cloud-sync.js` | 云同步管理 |
+| `page-meitu.js` | 美图编辑器 |
+| `page-dashboard.js` | 仪表盘统计 |
+| `page-editor.js` | 产品编辑器 |
+| `category-picker.js` | 分类选择器 |
+| `thumb-preview.js` | 图片预览 |
+| `meitu-editor-tools.js` | 图片编辑工具箱 |
+
+### 现有扩展文件
+
+| 文件 | 功能 |
+|---|---|
+| `content.js` | 内容脚本注入 |
+| `float-btn.js` | 1688 页面浮动按钮 + 设置面板 |
+| `grab-core.js` | 图片扫描与分类（主图/详情图/SKU图） |
+| `collect-data.js` | 数据采集与提交（fetch POST /api/product） |
+| `popup.js` | 扩展弹出面板 |
+
+---
+
 ## 一、现状分析
 
 ### 当前数据流
@@ -366,75 +445,199 @@ users: {
 
 ## 七、关键文件清单
 
-| 文件 | 操作 | 说明 |
-|---|---|---|
-| `server/middleware/auth.js` | 新建 | JWT 鉴权中间件（白名单 + 角色校验） |
-| `server/public/login.html` | 新建 | 登录页 |
-| `server/routes/users.js` | 新建 | 用户 CRUD + 登录 + 插件登录接口 |
-| `server/db.js` | 修改 | users 表 DDL + products 补 owner/claim_at 列 |
-| `server/cloud/index.js` | 修改 | 云端 users 表 DDL + products 补 owner/claim_at 列 |
-| `server/cloud/sync.js` | 修改 | uploadProducts/downloadProducts 加 owner/claim_at + users 表同步 |
-| `server/server.js` | 修改 | 挂载 auth 中间件 + 首次启动创建 admin 账户 |
-| `server/routes/products.js` | 修改 | 加 scope/claim/assign + owner 过滤 |
-| `server/routes/categories.js` | 修改 | 知识库保持共享，仅加 token 验证 |
-| `server/public/index.html` | 修改 | 前端 token 处理 + 用户名显示 |
-| `server/public/js/components/product-list.js` | 修改 | 我的/采集箱/全部切换 + 认领按钮 |
-| `server/public/js/components/page-users.js` | 新建 | 用户管理页（admin） |
-| `sites/1688/float-btn.js` | 修改 | 插件登录面板 + token 传递 |
+### 新建文件
+| 文件 | 说明 |
+|---|---|
+| `server/middleware/auth.js` | JWT 鉴权中间件（白名单路由匹配 + 角色校验 + token 解析） |
+| `server/public/login.html` | 登录页（用户名 + 密码，存 JWT 到 localStorage） |
+| `server/routes/users.js` | 用户 CRUD + `/api/login` + `/api/plugin-login` + `/api/me` + `/api/change-password` |
+| `server/public/js/components/page-users.js` | 用户管理页（admin 专用，创建/编辑/禁用用户） |
+
+### 需修改文件 — 后端
+| 文件 | 改动内容 |
+|---|---|
+| `server/server.js` | 挂载 auth 中间件 + CORS 限制 + 首次启动创建 admin 账户 |
+| `server/db.js` | users 表 DDL + products 补 `owner`/`claim_at` 列（ALTER TABLE 迁移） |
+| `server/cloud/index.js` | 云端 users 表 DDL + products 补 `owner`/`claim_at` 列 |
+| `server/cloud/sync.js` | uploadProducts/downloadProducts/saveProductToLocalAndCloud 加 `owner`/`claim_at` + users 表同步 |
+| `server/routes/products.js` | `GET /api/product` 加 scope/owner 过滤 + 认领/分配接口 + operator 编辑权限检查 |
+| `server/routes/categories.js` | 全部接口加 token 验证（知识库共享不按用户隔离） |
+| `server/routes/settings.js` | 修改/导出/导入接口限 admin，SSE 加 query token 验证 |
+| `server/routes/sync.js` | 全部接口限 admin（云同步是高危操作） |
+| `server/routes/dxm-tree.js` | 全部接口加 token 验证 |
+| `server/routes/ai/index.js` | global-key 限 admin，其余 operator+ |
+| `server/routes/ai/image-edit.js` | 加 token 验证，限 operator+ |
+
+### 需修改文件 — 前端
+| 文件 | 改动内容 |
+|---|---|
+| `server/public/index.html` | 启动时检查 localStorage token → 无则跳 login.html + 右上角用户名/退出 |
+| `server/public/js/components/product-list.js` | 我的/采集箱/全部切换 + 认领按钮 + 所有 fetch 加 Authorization 头 |
+| `server/public/js/components/detail-modal.js` | 编辑时检查 owner 权限 + fetch 加 token |
+| `server/public/js/components/page-dashboard.js` | fetch 加 token |
+| `server/public/js/components/page-cloud-sync.js` | fetch 加 token |
+| `server/public/js/components/category-page.js` | fetch 加 token |
+| `server/public/js/components/page-word-library.js` | fetch 加 token |
+| `server/public/js/components/page-api-keys.js` | fetch 加 token |
+| `server/public/js/components/page-meitu.js` | fetch 加 token |
+| `server/public/js/components/page-editor.js` | fetch 加 token |
+| `server/public/js/components/page-drafts.js` | fetch 加 token |
+| `server/public/js/components/page-publish-queue.js` | fetch 加 token |
+
+### 需修改文件 — 浏览器扩展
+| 文件 | 改动内容 |
+|---|---|
+| `sites/1688/float-btn.js` | 设置面板加用户名/密码/登录按钮 + 采集时带 token |
+| `sites/1688/collect-data.js` | fetch POST 加 `Authorization: Bearer` 头（有 token 时） |
+| `sites/1688/popup.js` | 显示登录状态 + 快捷登录入口 |
 
 ---
 
 ## 八、完整 API 鉴权矩阵
 
-### 无需登录（白名单）
-| 端点 | 说明 |
-|---|---|
-| `GET /` | 首页重定向到 login.html 或 index.html |
-| `GET /login.html` | 登录页 |
-| `POST /api/login` | Web 端登录 |
-| `POST /api/plugin-login` | 插件端登录 |
-| `GET /api/proxy-image` | 图片代理（采集插件用） |
-| `GET /uploads/*` | 上传文件访问 |
-| `GET /events` | SSE 推送（query ?token=xxx 验证） |
-| 静态资源 | `.css` `.js` `.png` `.jpg` `.ico` 等 |
+> 基于实际路由文件梳理，当前所有 90+ 个端点均无鉴权。
 
-### 需要登录（任何角色）
+### 无需登录（白名单）
 | 端点 | 方法 | 说明 |
 |---|---|---|
-| `/api/me` | GET | 当前用户信息 |
-| `/api/change-password` | POST | 修改密码 |
-| `/api/products` | GET | 商品列表（scope=mine/inbox/all） |
-| `/api/products/claim` | POST | 认领商品 |
-| `/api/product/:uid` | GET | 商品详情 |
-| `/api/product` | POST | 保存商品 |
-| `/api/product/:uid` | PUT | 更新商品 |
-| `/api/product/:uid` | DELETE | 删除商品 |
-| `/api/products/batch-*` | POST | 批量操作 |
-| `/api/categories/*` | 全部 | 分类映射（共享知识库） |
-| `/api/keywords/*` | 全部 | 关键词管理（共享知识库） |
-| `/api/dxm-categories` | GET | DXM 分类树 |
-| `/api/settings` | GET | 获取设置（敏感值脱敏） |
-| `/api/ai/*` | 全部 | AI 相关接口 |
-| `/api/proxy-image` | POST | 图片代理（POST 方式） |
+| `GET /` | GET | 首页（未登录 → login.html，已登录 → index.html） |
+| `GET /login.html` | GET | 登录页 |
+| `POST /api/login` | POST | Web 端登录 |
+| `POST /api/plugin-login` | POST | 插件端登录 |
+| `POST /api/product` | POST | 保存商品（插件采集入口，有 token 设 owner，无 token 进采集箱） |
+| `GET /api/product/check` | GET | 检查商品是否已存在（插件采集前校验） |
+| `GET /uploads/*` | GET | 上传文件访问 |
+| `GET /api/events` | GET | SSE 推送（query ?token=xxx 验证） |
+| 静态资源 | GET | `.css` `.js` `.png` `.jpg` `.ico` 等 |
 
-### 仅 admin
+### 需要登录 — 商品相关（routes/products.js）
+| 端点 | 方法 | 说明 | 权限 |
+|---|---|---|---|
+| `/api/product` | GET | 商品列表（加 `scope`: mine/inbox/all） | any（all 仅 admin） |
+| `/api/product/trend` | GET | 采集趋势统计 | any |
+| `/api/product/stats` | GET | 商品统计概览 | any |
+| `/api/product/categories` | GET | 1688 分类列表 | any |
+| `/api/product/dxm-categories` | GET | 已映射 DXM 分类 | any |
+| `/api/product/category-top` | GET | 分类排行 | any |
+| `/api/product/dxm-category-top` | GET | DXM 分类排行 | any |
+| `/api/product/:id` | GET | 商品详情 | any |
+| `/api/product/:id` | PUT | 更新商品（仅 owner 或 admin） | operator 仅自己的 |
+| `/api/product/:id` | DELETE | 删除商品（仅 owner 或 admin） | operator 仅自己的 |
+| `/api/product/batch-delete` | POST | 批量删除 | operator 仅自己的 |
+| `/api/product/batch-status` | POST | 批量改状态 | operator 仅自己的 |
+| `/api/product/:id/recommend-category` | POST | AI 分类推荐 | any |
+| `/api/products/claim` | POST | 认领商品（inbox → mine） | operator+ |
+| `/api/products/assign` | POST | 分配商品给用户（批量） | admin |
+| `PATCH /api/products/backfill-path` | PATCH | 补全分类路径 | admin |
+
+### 需要登录 — 分类映射/词库（routes/categories.js）
+| 端点 | 方法 | 说明 | 权限 |
+|---|---|---|---|
+| `/api/categories` | GET | 1688 分类 | any |
+| `/api/category-mappings` | GET | 映射列表 | any |
+| `/api/category-mappings/by-name` | GET | 按名称查映射 | any |
+| `/api/category-mappings/by-dxm` | GET | 按 DXM 查映射 | any |
+| `/api/category-mappings/grouped` | GET | 分组映射 | any |
+| `/api/category-mappings` | POST | 新增映射 | operator+ |
+| `/api/category-mappings/:id` | DELETE | 删除映射（逻辑删） | operator+ |
+| `/api/category-mappings/dxm/:name` | DELETE | 按 DXM 名批量删 | operator+ |
+| `/api/keyword-rels` | GET | 关键词关联列表 | any |
+| `/api/keyword-rels/rebuild` | POST | 重建关键词关联 | operator+ |
+| `/api/keyword-rels/:id` | DELETE | 标记无效 | operator+ |
+| `/api/keyword-rels/batch-invalidate` | POST | 批量标记无效 | operator+ |
+| `/api/keyword-synonyms` | GET/POST | 同义词 | any / operator+ |
+| `/api/keyword-synonyms/:id` | DELETE | 删除同义词 | operator+ |
+| `/api/keyword-blacklist` | GET/POST | 黑名单 | any / operator+ |
+| `/api/keyword-blacklist/:id` | DELETE | 移出黑名单 | operator+ |
+| `/api/category-config` | GET/POST | 分类配置 | any / operator+ |
+| `/api/category-config/:id` | DELETE | 删除配置 | operator+ |
+| `/api/category-config/batch-delete` | POST | 批量删除配置 | operator+ |
+
+### 需要登录 — DXM 分类树（routes/dxm-tree.js）
+| 端点 | 方法 | 说明 | 权限 |
+|---|---|---|---|
+| `/api/dxm-category/collect` | POST | 采集分类 | any |
+| `/api/dxm-tree/sync` | POST | 同步分类节点 | any |
+| `/api/dxm-tree/children` | GET | 子分类列表 | any |
+| `/api/dxm-tree/status` | GET | 同步状态 | any |
+| `/api/dxm-tree/root-status` | GET | 根分类状态 | any |
+| `/api/dxm-tree/search` | GET | 搜索分类 | any |
+| `/api/dxm-tree/resolve-path` | GET | 解析分类路径 | any |
+
+### 需要登录 — AI 模型配置（routes/ai/index.js）
+| 端点 | 方法 | 说明 | 权限 |
+|---|---|---|---|
+| `/api/ai/check-key` | GET | 检查 API Key | any |
+| `/api/ai/get-key` | GET | 获取 Key（脱敏） | any |
+| `/api/ai/save-key` | POST | 保存 Key | operator+ |
+| `/api/ai/delete-key` | POST | 删除 Key | operator+ |
+| `/api/ai/configs` | GET | 获取 AI 配置 | any |
+| `/api/ai/configs` | POST | 保存 AI 配置 | operator+ |
+| `/api/ai/global-key` | POST | 全局 Key | admin |
+| `/api/ai/zhipu-keys` | POST | 智谱 Key 管理 | operator+ |
+| `/api/ai/qwen-keys` | POST | 通义 Key 管理 | operator+ |
+| `/api/ai/hunyuan-keys` | POST | 混元 Key 管理 | operator+ |
+| `/api/ai/comfyui-status` | GET | ComfyUI 状态 | any |
+| `/api/ai/comfyui-config` | GET/POST | ComfyUI 配置 | any / operator+ |
+| `/api/ai/comfyui-models` | GET | ComfyUI 模型列表 | any |
+| `/api/ai/qwen-vl-config` | GET | 通义 VL 配置 | any |
+| `/api/ai/qwen-vl-config` | POST | 保存通义 VL | operator+ |
+| `/api/ai/qwen-vl-config/delete` | POST | 删除通义 VL | operator+ |
+| `/api/ai/vendor-configs` | GET | Vendor 配置 | any |
+| `/api/ai/vendor-model` | POST | 更新模型选择 | operator+ |
+| `/api/ai/dispatch-order` | GET/POST | 调度优先级 | any / operator+ |
+
+### 需要登录 — AI 图像处理（routes/ai/image-edit.js）
+| 端点 | 方法 | 说明 | 权限 |
+|---|---|---|---|
+| `/api/ai/image-gen` | POST | 图片生成 | operator+ |
+| `/api/ai/image-edit` | POST | 图片编辑 | operator+ |
+| `/api/ai/category-recommend` | POST | AI 分类推荐 | any |
+
+### 需要登录 — 系统设置（routes/settings.js）
+| 端点 | 方法 | 说明 | 权限 |
+|---|---|---|---|
+| `/api/settings` | GET | 获取所有设置（敏感值脱敏） | any |
+| `/api/settings/:key` | GET | 获取单个设置 | any |
+| `/api/settings/:key` | POST | 修改单个设置 | admin |
+| `/api/settings` | PUT | 批量修改设置 | admin |
+| `/api/settings-export` | GET | 导出配置（含解密敏感值） | admin |
+| `/api/settings-import` | POST | 导入配置 | admin |
+| `/api/clear-signal` | GET/POST | 清除信号 | any |
+
+### 仅 admin — 云同步（routes/sync.js）
+| 端点 | 方法 | 说明 |
+|---|---|---|
+| `/api/sync/config` | GET/POST | 同步配置 |
+| `/api/sync/test` | POST | 测试连接 |
+| `/api/sync/disconnect` | POST | 断开云端 |
+| `/api/sync/init` | POST | 初始化云端数据库 |
+| `/api/sync/sync` | POST | 双向同步 |
+| `/api/sync/pull` | POST | 拉取 |
+| `/api/sync/push` | POST | 推送 |
+| `/api/sync/status` | GET | 同步状态 |
+| `/api/sync/table-push/:key` | POST | 推送指定表 |
+| `/api/sync/table-pull/:key` | POST | 拉取指定表 |
+| `/api/sync/table-sync/:key` | POST | 同步指定表 |
+| `/api/sync/tree-push/pull/sync` | POST | 分类树同步 |
+| `/api/sync/product-push/pull/sync` | POST | 商品同步 |
+
+### 仅 admin — 用户管理（routes/users.js 新建）
 | 端点 | 方法 | 说明 |
 |---|---|---|
 | `/api/users` | GET | 用户列表 |
 | `/api/users` | POST | 创建用户 |
-| `/api/users/:id` | PUT | 编辑用户 |
+| `/api/users/:id` | PUT | 编辑用户（角色、昵称） |
 | `/api/users/:id` | DELETE | 禁用用户 |
-| `/api/products/assign` | POST | 分配商品给用户 |
-| `/api/products` | GET | `scope=all` 仅 admin 可用 |
-| `/api/settings` | POST | 修改系统设置 |
-| `/api/settings/export` | GET | 导出配置 |
-| `/api/settings/import` | POST | 导入配置 |
+| `/api/me` | GET | 当前用户信息 |
+| `/api/change-password` | POST | 修改密码 |
+| `/api/logout` | POST | 登出 |
 
-### 权限逻辑
-- **operator/viewer** 调用 `scope=all` → 返回 403
-- **viewer** 调用任何 POST/PUT/DELETE → 返回 403
-- **operator** 只能编辑 `owner = 自己` 的商品，操作别人的商品 → 返回 403
-- **admin** 无限制
+### 权限逻辑总结
+- **viewer**：所有 GET 可访问，任何 POST/PUT/DELETE → 403
+- **operator**：可编辑自己的商品（`owner = 自己`），操作别人的商品 → 403；知识库可读写
+- **admin**：无限制，可访问 `scope=all`、用户管理、云同步、系统设置
+- **未登录**：仅白名单端点可访问，其余 → 401
 
 ---
 
@@ -530,7 +733,116 @@ users: {
 
 ---
 
-## 十一、Cloudflare Tunnel 配置
+## 十一、公网安全加固
+
+> 当前 `server.js` 使用 `app.use(cors())` 允许所有来源，公网暴露后必须限制。
+
+### 11.1 CORS 限制
+```javascript
+// 改动前
+app.use(cors());
+
+// 改动后
+app.use(cors({
+  origin: function (origin, callback) {
+    // 允许无 origin 的请求（SSE、服务器间调用）
+    if (!origin) return callback(null, true);
+    // 允许本地访问
+    if (origin.startsWith('http://localhost:')) return callback(null, true);
+    // 允许自己的域名
+    if (origin.endsWith('你的域名.com')) return callback(null, true);
+    callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true
+}));
+```
+
+### 11.2 请求频率限制
+```javascript
+// 安装 express-rate-limit
+const rateLimit = require('express-rate-limit');
+
+// 全局限流：每 IP 每分钟 120 次
+app.use(rateLimit({ windowMs: 60 * 1000, max: 120 }));
+
+// 登录接口严格限流：每 IP 每分钟 5 次
+const loginLimiter = rateLimit({ windowMs: 60 * 1000, max: 5 });
+app.use('/api/login', loginLimiter);
+app.use('/api/plugin-login', loginLimiter);
+```
+
+### 11.3 Cloudflare Tunnel 自带的安全能力
+- **HTTPS**：自动提供 SSL 证书，无需本地配置
+- **DDoS 防护**：Cloudflare 基础防护
+- **访问控制**：可配合 Cloudflare Access 做邮箱白名单（可选，本方案用 JWT 鉴权替代）
+
+### 11.4 Helmet 安全头
+```javascript
+const helmet = require('helmet');
+app.use(helmet()); // 自动加 X-Content-Type-Options, X-Frame-Options 等
+```
+
+---
+
+## 十二、多用户新增功能清单
+
+> 按实施顺序排列，每项可独立验证。
+
+### 第一阶段：登录鉴权（单用户也能用）
+| # | 新增功能 | 涉及文件 | 验证方式 |
+|---|---|---|---|
+| 1.1 | JWT 鉴权中间件：白名单路由跳过，其余验证 Bearer token | `server/middleware/auth.js` 新建 | 无 token 访问受保护端点 → 401 |
+| 1.2 | 登录页：用户名 + 密码，返回 JWT，存 localStorage | `server/public/login.html` 新建 | 打开首页 → 跳转到登录页 |
+| 1.3 | 登录/登出 API | `server/routes/users.js` 新建 | POST /api/login 成功返回 token |
+| 1.4 | 插件登录 API（返回 JWT） | `server/routes/users.js` | 插件 POST → 返回 token |
+| 1.5 | server.js 挂载中间件 + 首次启动创建 admin | `server/server.js` | 首次启动自动创建 admin 账户 |
+| 1.6 | CORS 限制 + Helmet + 限流 | `server/server.js` | 非 allowed origin → CORS 拒绝 |
+| 1.7 | 前端所有 fetch 加 Authorization 头 | 所有前端组件 | 登录后所有操作正常 |
+
+### 第二阶段：用户表 + 用户管理
+| # | 新增功能 | 涉及文件 | 验证方式 |
+|---|---|---|---|
+| 2.1 | 本地 users 表 DDL + 迁移 | `server/db.js` | 启动后 users 表存在 |
+| 2.2 | 云端 users 表 DDL | `server/cloud/index.js` | 云端建表成功 |
+| 2.3 | 用户 CRUD API（admin） | `server/routes/users.js` | admin 创建/编辑/禁用用户 |
+| 2.4 | 用户管理前端页面（admin） | `server/public/js/components/page-users.js` 新建 | admin 看到用户管理菜单 |
+
+### 第三阶段：采集箱 + 数据隔离
+| # | 新增功能 | 涉及文件 | 验证方式 |
+|---|---|---|---|
+| 3.1 | products 加 owner/claim_at 列（本地 + 云端） | `server/db.js` + `server/cloud/index.js` | 迁移成功 |
+| 3.2 | 商品列表 scope 参数（mine/inbox/all） | `server/routes/products.js` | mine 只看自己的，inbox 看采集箱 |
+| 3.3 | 认领商品 API | `server/routes/products.js` | operator 认领 → owner 变自己 |
+| 3.4 | admin 分配商品 API | `server/routes/products.js` | admin 批量分配给 operator |
+| 3.5 | 前端 我的/采集箱/全部 切换 | `product-list.js` | 切换看到不同列表 |
+| 3.6 | 前端 认领按钮 | `product-list.js` | 点击认领 → 商品移到「我的」 |
+| 3.7 | operator 编辑权限检查 | `server/routes/products.js` | operator 编辑别人商品 → 403 |
+
+### 第四阶段：插件改造
+| # | 新增功能 | 涉及文件 | 验证方式 |
+|---|---|---|---|
+| 4.1 | 插件设置页加登录面板 | `sites/1688/float-btn.js` | 输入用户名密码 → 登录成功 |
+| 4.2 | 采集时带 Authorization 头 | `sites/1688/collect-data.js` | 已登录采集 → owner 为自己 |
+| 4.3 | 未登录采集进采集箱 | `sites/1688/collect-data.js` | 无 token → owner='' |
+| 4.4 | token 过期提示重新登录 | `sites/1688/collect-data.js` | 401 响应 → 清除 token |
+
+### 第五阶段：云同步改造
+| # | 新增功能 | 涉及文件 | 验证方式 |
+|---|---|---|---|
+| 5.1 | products 同步加 owner/claim_at | `server/cloud/sync.js` | 双向同步后 owner 一致 |
+| 5.2 | users 表同步 | `server/cloud/sync.js` | 多机器用户列表一致 |
+| 5.3 | saveProductToLocalAndCloud 加 owner | `server/cloud/sync.js` | 新采集商品云端也有 owner |
+
+### 第六阶段：公网部署
+| # | 新增功能 | 涉及文件 | 验证方式 |
+|---|---|---|---|
+| 6.1 | Cloudflare Tunnel 配置 | `~/.cloudflared/config.yml` | 公网域名可访问登录页 |
+| 6.2 | HTTPS 自动证书 | Cloudflare | 浏览器显示 HTTPS |
+| 6.3 | 插件配置公网服务器地址 | `sites/1688/float-btn.js` | 外网插件可采集 |
+
+---
+
+## 十三、Cloudflare Tunnel 配置
 
 复用之前的 tunnel，加一条路由：
 ```yaml
@@ -550,7 +862,7 @@ cloudflared tunnel run <tunnel-id>
 
 ---
 
-## 十二、实施顺序
+## 十四、实施顺序
 
 1. **登录鉴权** — 中间件 + 登录页 + JWT，单用户也能用
 2. **用户表** — DDL + 用户 CRUD + 首次启动创建 admin
@@ -562,7 +874,7 @@ cloudflared tunnel run <tunnel-id>
 
 ---
 
-## 十三、风险和注意事项
+## 十五、风险和注意事项
 
 1. **向后兼容**：已有 products 的 owner 为空，启动时自动归类为采集箱；已登录 admin 可一键全部认领
 2. **知识库共享**：分类映射、词库等保持全局共享，不按用户隔离
@@ -572,3 +884,9 @@ cloudflared tunnel run <tunnel-id>
 6. **users 同步**：用户数据通过 Turso 同步，所有机器共享同一套用户账户；密码哈希同步后各机器均可验证
 7. **from_machine 字段**：云端已有的 `from_machine` 字段不再使用，保留不删（避免迁移风险），`owner` 替代其设计意图
 8. **插件兼容**：老版本插件无 token 仍可采集，商品进采集箱，完全向后兼容
+9. **SSE 鉴权**：`EventSource` 不支持自定义 Header，需通过 `?token=xxx` query 参数验证；前端 SSE 连接时拼 token 参数
+10. **CORS 改动**：当前 `app.use(cors())` 允许所有来源，公网暴露后必须改为白名单域名 + localhost
+11. **敏感配置导出**：`/api/settings-export` 含解密后的 API Key，必须限 admin
+12. **云同步路由**：`/api/sync/*` 是高危操作（推送/拉取/覆盖），必须限 admin
+13. **前端改造量**：所有组件文件中的 `fetch` 调用都需加 `Authorization` 头，建议封装统一的 `apiFetch()` 工具函数
+14. **图片代理**：`/api/product/check` 和 `/api/product`（POST 保存）需加入白名单或允许匿名访问，否则老插件无法采集
