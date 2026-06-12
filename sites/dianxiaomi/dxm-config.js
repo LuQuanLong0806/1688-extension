@@ -445,6 +445,24 @@
     el.dispatchEvent(new MouseEvent('mouseleave', { bubbles: false }));
   }
 
+  function unhoverWithCoords(el) {
+    var rect = el.getBoundingClientRect();
+    var cx = rect.left + rect.width / 2;
+    var cy = rect.top + rect.height / 2;
+    var pOpts = { bubbles: true, cancelable: true, clientX: cx, clientY: cy, pointerId: 1, pointerType: 'mouse', isPrimary: true };
+    var mOpts = { bubbles: true, cancelable: true, view: window, clientX: cx, clientY: cy };
+    el.dispatchEvent(new PointerEvent('pointerout', pOpts));
+    el.dispatchEvent(new PointerEvent('pointerleave', { bubbles: false, clientX: cx, clientY: cy, pointerId: 1, pointerType: 'mouse' }));
+    el.dispatchEvent(new MouseEvent('mouseout', mOpts));
+    el.dispatchEvent(new MouseEvent('mouseleave', { bubbles: false, clientX: cx, clientY: cy }));
+  }
+
+  // 模拟鼠标从 fromEl 移到 toEl：先 unhover 源，再 hover 目标
+  function moveMouseTo(fromEl, toEl) {
+    unhoverWithCoords(fromEl);
+    hoverWithCoords(toEl);
+  }
+
   function forceOpenAntSelect(selector) {
     var rect = selector.getBoundingClientRect();
     var cx = rect.left + rect.width / 2;
@@ -521,6 +539,8 @@
     waitForElement: waitForElement,
     hoverElement: hoverElement,
     unhoverElement: unhoverElement,
+    unhoverWithCoords: unhoverWithCoords,
+    moveMouseTo: moveMouseTo,
     forceOpenAntSelect: forceOpenAntSelect,
     hoverWithCoords: hoverWithCoords
   };

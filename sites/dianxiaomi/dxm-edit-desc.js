@@ -18,6 +18,9 @@
   // ========== DOM Helpers (shared via BeeConfig) ==========
   var hoverWithCoords = C.hoverWithCoords;
 
+  // 共享变量：选择图片下拉触发元素，跨函数访问
+  var _ddTrigger = null;
+
   // ========== Step log ==========
   var editStep = 0;
   var editTotal = 13;
@@ -46,8 +49,9 @@
     editLog('展开批量操作菜单');
     C.hoverElement(trigger);
 
-    C.waitForVisibleLi('清空描述', 3000, function (clearDescItem) { // 批量操作下拉中的“清空描述”菜单项(悬浮展开子菜单)
+    C.waitForVisibleLi('清空描述', 3000, function (clearDescItem) { // 批量操作下拉中的”清空描述”菜单项(悬浮展开子菜单)
       if (!clearDescItem) {
+        C.unhoverElement(trigger);
         editDone('❌ 未找到清空描述', 'err');
         return;
       }
@@ -57,6 +61,7 @@
       setTimeout(function () {
         var item = C.findVisibleLi(moduleName);
         if (!item) {
+          C.unhoverElement(trigger);
           editDone('❌ 未找到' + moduleName, 'err');
           return;
         }
@@ -64,7 +69,7 @@
         item.click();
         C.unhoverElement(trigger);
 
-        C.waitForElement('.ant-modal-confirm .ant-modal-confirm-btns .ant-btn-primary', 3000, function (confirmBtn) { // 清空确认弹窗中的“确定”按钮
+        C.waitForElement('.ant-modal-confirm .ant-modal-confirm-btns .ant-btn-primary', 3000, function (confirmBtn) { // 清空确认弹窗中的”确定”按钮
           if (!confirmBtn) {
             editDone('❌ 未找到确定按钮', 'err');
             return;
@@ -136,8 +141,9 @@
     editLog('展开批量操作菜单');
     C.hoverElement(trigger);
 
-    C.waitForVisibleLi('批量传图', 3000, function (batchImgItem) { // 批量操作下拉中的“批量传图”菜单项
+    C.waitForVisibleLi('批量传图', 3000, function (batchImgItem) { // 批量操作下拉中的”批量传图”菜单项
       if (!batchImgItem) {
+        C.unhoverElement(trigger);
         editDone('❌ 未找到批量传图', 'err');
         return;
       }
@@ -166,9 +172,10 @@
         var ddTrigger = selectBtn;
         var p = selectBtn.parentElement;
         while (p && p !== document.body) {
-          if (p.classList.contains('ant-dropdown-trigger')) { ddTrigger = p; break; } // 向上查找“选择图片”按钮的 .ant-dropdown-trigger 祖先元素(用于触发下拉)
+          if (p.classList.contains('ant-dropdown-trigger')) { ddTrigger = p; break; } // 向上查找”选择图片”按钮的 .ant-dropdown-trigger 祖先元素(用于触发下拉)
           p = p.parentElement;
         }
+        _ddTrigger = ddTrigger;
         setTimeout(function () {
           C.hoverElement(ddTrigger);
           hoverWithCoords(ddTrigger);
@@ -188,6 +195,7 @@
 
   // ========== Shared: confirm batch upload + save ==========
   function doFinishUpload() {
+    if (_ddTrigger) C.unhoverWithCoords(_ddTrigger);
     setTimeout(function () {
       editLog('确认批量传图');
       var batchModal = C.findVisibleModal('批量传图'); // 通过标题文字+可见性双重判断定位批量传图弹窗
@@ -235,6 +243,7 @@
         return;
       }
       editLog('引用产品轮播图');
+      C.unhoverWithCoords(_ddTrigger);
       carouselItem.click();
 
       (function () {
@@ -305,6 +314,7 @@
         return;
       }
       editLog('网络上传');
+      C.unhoverWithCoords(_ddTrigger);
       webUploadItem.click();
 
       (function () {

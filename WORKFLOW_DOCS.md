@@ -16,6 +16,18 @@
 
 ---
 
+## 悬浮菜单交互规范
+
+所有涉及 `hoverElement` / `hoverWithCoords` 打开下拉菜单的操作，必须遵守以下规则：
+
+1. **鼠标移向下一步目标元素**：操作完成后，鼠标必须精确移到**下一个要操作的元素**上（使用 `moveMouseTo(fromEl, toEl)`），而不是随意 unhover 到空白区域
+2. **级联菜单防止消失**：有些菜单是级联的（如"批量操作" → "清空描述" → "清空文字模块"），鼠标必须沿着菜单链逐级移动，不能跳级，否则父级菜单可能因 mouseout 而关闭
+3. **弹窗输入场景**：当操作链是"hover 按钮 → 菜单 → 点击菜单项 → 弹窗 textarea"时，使用 `moveMouseTo(triggerBtn, textarea)` 让鼠标从触发按钮移到弹窗输入框，悬浮菜单自然关闭
+4. **失败路径兜底**：所有 hover 后的失败/超时分支，必须调用 `unhoverWithCoords(triggerEl)` 确保菜单关闭
+5. **方法选择**：`hoverWithCoords` / `unhoverWithCoords` 带完整 PointerEvent 坐标，适用于 React/Ant Design 的菜单组件；普通 `hoverElement` / `unhoverElement` 不带坐标，仅用于简单场景
+
+---
+
 ## 1. 自动填表
 
 **触发条件**：页面 URL 包含 `collectId=xxx` 参数时自动启动
@@ -87,9 +99,10 @@
   4. `waitForVisibleLi('网络图片', 3s)` 等待"网络图片"选项出现
   5. `.click()` 点击"网络图片"
   6. 等待弹窗 `findVisibleModal('从网络地址')`
-  7. 找到 `textarea.ant-input`，`setInputValue(textarea, urls.join('\n'))`
-  8. 等 250ms → 点击 `.ant-modal-footer .ant-btn-primary`（添加按钮）
-  9. 等 500ms 回调
+  7. 找到 `textarea.ant-input`，`moveMouseTo(selectBtn, textarea)` 模拟鼠标从按钮移到输入框，子菜单自然关闭
+  8. `setInputValue(textarea, urls.join('\n'))`
+  9. 等 250ms → 点击 `.ant-modal-footer .ant-btn-primary`（添加按钮）
+  10. 等 500ms 回调
 
 #### Step 2.5: 删除产品视频
 
@@ -128,7 +141,7 @@
   1. 找 `#packageInfo .header button` 文本含"选择图片"
   2. `hoverElement` → `waitForVisibleLi('网络图片')` → `.click()`
   3. 等待弹窗 `findVisibleModal('从网络地址')`
-  4. `setInputValue(textarea, imgUrl)` → 等 250ms → 点击添加按钮
+  4. `moveMouseTo(pkgBtn, textarea)` 模拟鼠标从按钮移到输入框 → `setInputValue(textarea, imgUrl)` → 等 250ms → 点击添加按钮
 
 #### Step 5: 描述图（仅存储到全局）
 
@@ -148,7 +161,7 @@
 - **填充 SKU 表格行** `fillSkuTableRows`：
   - 定位 `#skuDataInfo table tbody tr`
   - 逐行填充：
-    - **图片**：hover `.sku-image-box` 或 `.img-box` → 找下拉中 `li[data-menu-id="net"]`（网络图片）→ 等待弹窗 → 填入 URL → 点击添加
+    - **图片**：hover `.sku-image-box` 或 `.img-box` → 找下拉中 `li[data-menu-id="net"]`（网络图片）→ 等待弹窗 → `moveMouseTo(triggerEl, textarea)` 移鼠标到输入框 → 填入 URL → 点击添加
     - **申报价格**：`input[name="price"]`
     - **尺寸**：`input[name="skuLength/Width/Height"]`，先排序（大到小）
     - **重量**：`input[name="weight"]`
@@ -338,34 +351,35 @@
 
 对每个需要清空的模块：
 
-1. `hoverElement(trigger)` — 悬浮"批量操作"按钮
+1. `hoverWithCoords(trigger)` — 悬浮"批量操作"按钮
 2. `waitForVisibleLi('清空描述', 3s)` — 等待"清空描述"菜单项出现
 3. `hoverWithCoords(clearDescItem)` — 悬浮"清空描述"展开子菜单
 4. `findVisibleLi(moduleName)` — 找到"清空文字模块"或"清空图片模块"
 5. `.click()` 点击
-6. `unhoverElement(trigger)` — 取消悬浮
+6. `unhoverWithCoords(trigger)` — 取消悬浮
 7. `waitForElement('.ant-modal-confirm .ant-modal-confirm-btns .ant-btn-primary', 3s)` — 等待确认弹窗
 8. `.click()` 确认清空
 
 #### Step 4: 批量传图
 
-1. `hoverElement(trigger)` — 悬浮"批量操作"
+1. `hoverWithCoords(trigger)` — 悬浮"批量操作"
 2. `waitForVisibleLi('批量传图', 3s)` — 等待菜单项
 3. `.click()` 点击
-4. `waitForElement('.batch-smt-image', 5s)` — 等待批量传图面板
+4. `unhoverWithCoords(trigger)` — 取消悬浮
+5. `waitForElement('.batch-smt-image', 5s)` — 等待批量传图面板
 
 #### Step 5: 选择图片来源
 
 根据 `BeeConfig.loadDescWebUpload()` 配置：
 
 **方式A：引用产品轮播图**（默认）
-1. `waitForVisibleLi('引用产品轮播图', 5s)` → `.click()`
+1. `waitForVisibleLi('引用产品轮播图', 5s)` → `unhoverWithCoords(ddTrigger)` → `.click()`
 2. 等待弹窗 `findVisibleModal('引用产品图片')`
 3. 找 `label.ant-checkbox-wrapper` 中文本为"全部"的 → `.click()` 全选
 4. `.ant-modal-footer .ant-btn-primary`（选择按钮）→ `.click()`
 
 **方式B：网络上传**
-1. `waitForVisibleLi('网络上传', 5s)` → `.click()`
+1. `waitForVisibleLi('网络上传', 5s)` → `unhoverWithCoords(ddTrigger)` → `.click()`
 2. 等待弹窗 `findVisibleModal('从网络地址')`
 3. 抓取产品主图：`#productProductInfo .mainImage .img-list .img-item img.img-css` 前 8 张的 src
 4. `textarea.ant-input` → `setInputValue(textarea, urls.join('\n'))`
@@ -437,7 +451,9 @@
 | `setInputValue(input, value)` | 设置 input/textarea 值并触发 React/Vue 的 input/change 事件 |
 | `hoverElement(el)` | 模拟鼠标悬浮（mouseenter + mouseover） |
 | `unhoverElement(el)` | 模拟鼠标离开（mouseleave + mouseout） |
-| `hoverWithCoords(el)` | 带坐标信息的悬浮（某些菜单需要 mousemove 事件） |
+| `hoverWithCoords(el)` | 带坐标信息的悬浮（PointerEvent + MouseEvent，含 clientX/clientY） |
+| `unhoverWithCoords(el)` | 带坐标的鼠标离开（pointerout + pointerleave + mouseout + mouseleave），与 `hoverWithCoords` 对称 |
+| `moveMouseTo(fromEl, toEl)` | 模拟鼠标从 fromEl 移到 toEl：先 `unhoverWithCoords(fromEl)` 再 `hoverWithCoords(toEl)` |
 | `waitForElement(selector, timeout, cb)` | 轮询等待 DOM 元素出现 |
 | `waitForVisibleLi(text, timeout, cb)` | 等待可见的下拉菜单项（文本匹配） |
 | `findVisibleModal(titleText)` | 找到标题包含指定文本且可见的弹窗 |

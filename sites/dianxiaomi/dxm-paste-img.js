@@ -276,6 +276,7 @@
 
       C.waitForVisibleLi('网络图片', 3000, function (webImgItem) {
         if (!webImgItem) {
+          C.unhoverWithCoords(selectBtn);
           pasteDone('❌ 未找到网络图片选项', 'err');
           return;
         }
@@ -286,7 +287,7 @@
         (function checkModal() {
           var modal = C.findVisibleModal('从网络地址');
           if (modal) {
-            fillAndAdd(modal, urlText, function () {
+            fillAndAdd(modal, selectBtn, urlText, function () {
               if (C.loadAutoResize()) {
                 waitForImagesUploaded(initialImgCount);
               } else {
@@ -297,6 +298,7 @@
             return;
           }
           if (Date.now() - start > 5000) {
+            C.unhoverWithCoords(selectBtn);
             pasteDone('❌ 未找到网络图片弹窗', 'err');
             return;
           }
@@ -328,14 +330,16 @@
   }
 
   // ========== Fill textarea + click add ==========
-  function fillAndAdd(modal, urlText, callback) {
+  function fillAndAdd(modal, triggerEl, urlText, callback) {
     pasteLog('添加图片');
     var textarea = modal.querySelector('textarea.ant-input');
     if (!textarea) {
+      if (triggerEl) C.unhoverWithCoords(triggerEl);
       pasteDone('❌ 未找到输入框', 'err');
       return;
     }
 
+    C.moveMouseTo(triggerEl, textarea);
     C.setInputValue(textarea, urlText);
 
     setTimeout(function () {
@@ -398,10 +402,11 @@
       }
       if (resizeItem) {
         resizeItem.click();
-        waitForResizeModal();
+        waitForResizeModal(editBtn);
         return;
       }
       if (Date.now() - start > 3000) {
+        C.unhoverWithCoords(editBtn);
         console.log('%c[小蜜蜂-粘] ⚠️ 未找到批量改图片尺寸选项', 'color:#AB47BC;font-weight:bold');
         pasteDone('✅ 粘图完成', 'ok');
         return;
@@ -410,16 +415,17 @@
     })();
   }
 
-  function waitForResizeModal() {
+  function waitForResizeModal(triggerEl) {
     pasteLog('设置图片尺寸...');
     var start = Date.now();
     (function check() {
       var modal = C.findVisibleModal('批量改图片尺寸');
       if (modal) {
-        doSetResizeAndGenerate(modal);
+        doSetResizeAndGenerate(modal, triggerEl);
         return;
       }
       if (Date.now() - start > 5000) {
+        C.unhoverWithCoords(triggerEl);
         console.log('%c[小蜜蜂-粘] ⚠️ 未找到批量改图片尺寸弹窗', 'color:#AB47BC;font-weight:bold');
         pasteDone('✅ 粘图完成', 'ok');
         return;
@@ -428,7 +434,7 @@
     })();
   }
 
-  function doSetResizeAndGenerate(modal) {
+  function doSetResizeAndGenerate(modal, triggerEl) {
     var widthInput = modal.querySelector('input[name="valueW"]');
     if (widthInput && !widthInput.value) {
       C.setInputValue(widthInput, '800');
@@ -446,9 +452,11 @@
       }
       if (jpgBtn) {
         jpgBtn.click();
+        C.unhoverWithCoords(triggerEl);
         console.log('%c[小蜜蜂-粘] ✅ 粘图+批量修改完成', 'color:#AB47BC;font-weight:bold;font-size:14px');
         pasteDone('✅ 粘图+批量修改完成', 'ok');
       } else {
+        C.unhoverWithCoords(triggerEl);
         console.log('%c[小蜜蜂-粘] ⚠️ 未找到生成JPG图片按钮', 'color:#AB47BC;font-weight:bold');
         pasteDone('✅ 粘图完成', 'ok');
       }

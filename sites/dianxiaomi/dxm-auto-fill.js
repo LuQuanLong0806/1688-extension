@@ -47,6 +47,8 @@
   // ========== DOM Helpers (shared via BeeConfig) ==========
   var setInputValue = C.setInputValue;
   var hoverElement = C.hoverElement;
+  var unhoverElement = C.unhoverWithCoords;
+  var moveMouseTo = C.moveMouseTo;
   var waitForElement = C.waitForElement;
   var waitForVisibleLi = C.waitForVisibleLi;
   var findVisibleModal = C.findVisibleModal;
@@ -461,6 +463,7 @@
     waitForVisibleLi('批量改图片尺寸', 3000, function (resizeItem) {
       if (!resizeItem) {
         autoLog('未找到批量改图片尺寸选项');
+        unhoverElement(editBtn);
         cb();
         return;
       }
@@ -470,11 +473,12 @@
       (function checkModal() {
         var modal = findVisibleModal('批量改图片尺寸');
         if (modal) {
-          doSetResizeAndGenerate(modal, cb);
+          doSetResizeAndGenerate(modal, editBtn, cb);
           return;
         }
         if (Date.now() - start > 5000) {
           autoLog('未找到批量改图片尺寸弹窗');
+          unhoverElement(editBtn);
           cb();
           return;
         }
@@ -483,7 +487,7 @@
     });
   }
 
-  function doSetResizeAndGenerate(modal, cb) {
+  function doSetResizeAndGenerate(modal, triggerEl, cb) {
     autoLog('设置图片尺寸...');
     var widthInput = modal.querySelector('input[name="valueW"]');
     if (widthInput && !widthInput.value) {
@@ -503,9 +507,11 @@
       if (jpgBtn) {
         jpgBtn.click();
         autoLog('图片尺寸已批量修改');
+        unhoverElement(triggerEl);
         setTimeout(cb, 500);
       } else {
         autoLog('未找到生成JPG图片按钮');
+        unhoverElement(triggerEl);
         cb();
       }
     }, 300);
@@ -1129,6 +1135,7 @@
     waitForVisibleLi('网络图片', 3000, function (webImgItem) {
       if (!webImgItem) {
         autoError('未找到网络图片选项');
+        unhoverElement(selectBtn);
         cb();
         return;
       }
@@ -1140,11 +1147,12 @@
       (function checkModal() {
         var modal = findVisibleModal('从网络地址');
         if (modal) {
-          fillImageModal(modal, urls.join('\n'), cb);
+          fillImageModal(modal, selectBtn, urls.join('\n'), cb);
           return;
         }
         if (Date.now() - start > 5000) {
           autoError('未找到网络图片弹窗');
+          unhoverElement(selectBtn);
           cb();
           return;
         }
@@ -1153,16 +1161,19 @@
     });
   }
 
-  function fillImageModal(modal, urlText, cb) {
+  function fillImageModal(modal, triggerEl, urlText, cb) {
     autoLog('填入图片地址');
 
     var textarea = modal.querySelector('textarea.ant-input');
     if (!textarea) {
       autoError('未找到图片输入框');
+      unhoverElement(triggerEl);
       cb();
       return;
     }
 
+    // 模拟鼠标从按钮移到文本框，带坐标移动使悬浮子菜单自然关闭
+    moveMouseTo(triggerEl, textarea);
     setInputValue(textarea, urlText);
 
     setTimeout(function () {
@@ -1227,6 +1238,7 @@
     waitForVisibleLi('网络图片', 3000, function (webImgItem) {
       if (!webImgItem) {
         autoLog('未找到外包装网络图片选项');
+        unhoverElement(pkgBtn);
         cb();
         return;
       }
@@ -1237,11 +1249,12 @@
       (function checkModal() {
         var modal = findVisibleModal('从网络地址');
         if (modal) {
-          fillPkgImageModal(modal, imgUrl, cb);
+          fillPkgImageModal(modal, pkgBtn, imgUrl, cb);
           return;
         }
         if (Date.now() - start > 5000) {
           autoLog('外包装图片弹窗超时');
+          unhoverElement(pkgBtn);
           cb();
           return;
         }
@@ -1250,15 +1263,18 @@
     });
   }
 
-  function fillPkgImageModal(modal, imgUrl, cb) {
+  function fillPkgImageModal(modal, triggerEl, imgUrl, cb) {
     autoLog('填入外包装图片地址');
 
     var textarea = modal.querySelector('textarea.ant-input');
     if (!textarea) {
+      unhoverElement(triggerEl);
       cb();
       return;
     }
 
+    // 模拟鼠标从按钮移到文本框，带坐标移动使悬浮子菜单自然关闭
+    moveMouseTo(triggerEl, textarea);
     setInputValue(textarea, imgUrl);
 
     setTimeout(function () {
@@ -1628,7 +1644,10 @@
             var modal = findVisibleModal('从网络地址');
             if (modal) {
               var textarea = modal.querySelector('textarea.ant-input');
-              if (textarea) setInputValue(textarea, imgUrl);
+              if (textarea) {
+                moveMouseTo(triggerEl, textarea);
+                setInputValue(textarea, imgUrl);
+              }
               setTimeout(function () {
                 var addBtn = modal.querySelector(
                   '.ant-modal-footer .ant-btn-primary'
@@ -1639,6 +1658,7 @@
               return;
             }
             if (Date.now() - modalStart > 5000) {
+              unhoverElement(triggerEl);
               cb();
               return;
             }
@@ -1648,6 +1668,7 @@
         }
 
         if (Date.now() - start > 3000) {
+          unhoverElement(triggerEl);
           cb();
           return;
         }

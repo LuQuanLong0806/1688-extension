@@ -105,10 +105,11 @@
           (function checkModal() {
             var modal = C.findVisibleModal('从网络地址');
             if (modal) {
-              fillImageModal(modal, imgUrl, cb);
+              fillImageModal(modal, triggerEl, imgUrl, cb);
               return;
             }
             if (Date.now() - modalStart > 5000) {
+              C.unhoverWithCoords(triggerEl);
               console.log('%c[小蜜蜂-SKU表] 网络图片弹窗超时，跳过预览图', 'color:#00838F;font-weight:bold');
               cb();
               return;
@@ -119,6 +120,7 @@
         }
 
         if (Date.now() - start > 3000) {
+          C.unhoverWithCoords(triggerEl);
           console.log('%c[小蜜蜂-SKU表] 预览图下拉菜单超时，跳过预览图', 'color:#00838F;font-weight:bold');
           cb();
           return;
@@ -128,10 +130,11 @@
     }, 300);
   }
 
-  function fillImageModal(modal, imgUrl, cb) {
+  function fillImageModal(modal, triggerEl, imgUrl, cb) {
     var textarea = modal.querySelector('textarea.ant-input');
-    if (!textarea) { cb(); return; }
+    if (!textarea) { C.unhoverWithCoords(triggerEl); cb(); return; }
 
+    C.moveMouseTo(triggerEl, textarea);
     C.setInputValue(textarea, imgUrl);
 
     setTimeout(function () {

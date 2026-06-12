@@ -323,6 +323,8 @@
     '__dxm_bee_package', '__dxm_bee_edit', '__dxm_bee_collage'];
 
   // ========== Workflow Manager ==========
+  var _workflowTimer = null;
+
   Config.startWorkflow = function (btnId) {
     if (isWorking) return false;
     isWorking = true;
@@ -331,10 +333,19 @@
       var el = document.getElementById(id);
       if (el) el.classList.add('__dxm_bee_disabled');
     });
+    // 30s 安全超时：防止流程卡住导致所有按钮永久禁用
+    clearTimeout(_workflowTimer);
+    _workflowTimer = setTimeout(function () {
+      if (isWorking) {
+        console.warn('[小蜜蜂] 工作流超时，强制解锁按钮');
+        Config.finishWorkflow(false);
+      }
+    }, 30000);
     return true;
   };
 
   Config.finishWorkflow = function (success) {
+    clearTimeout(_workflowTimer);
     isWorking = false;
     var btn = activeWorkflowBtn;
     activeWorkflowBtn = null;
@@ -656,7 +667,8 @@
 
   // ========== DOM Helpers (shared via BeeConfig) ==========
   var hoverElement = Config.hoverElement;
-  var unhoverElement = Config.unhoverElement;
+  var unhoverElement = Config.unhoverWithCoords;
+  var moveMouseTo = Config.moveMouseTo;
   var waitForElement = Config.waitForElement;
   var forceOpenAntSelect = Config.forceOpenAntSelect;
 
@@ -1112,6 +1124,7 @@
       Config.hoverElement(editBtn);
       Config.waitForVisibleLi('批量改图片尺寸', 3000, function (resizeItem) {
         if (!resizeItem) {
+          Config.unhoverWithCoords(editBtn);
           showBubble('❌ 未找到批量改图片尺寸', 'err');
           setTimeout(hideBubble, 2000);
           Config.finishWorkflow(false);
@@ -1138,6 +1151,7 @@
                   break;
                 }
               }
+              Config.unhoverWithCoords(editBtn);
               if (jpgBtn) {
                 jpgBtn.click();
                 showBubble('✅ 图片尺寸已修改', 'ok');
@@ -1152,6 +1166,7 @@
             return;
           }
           if (Date.now() - start > 5000) {
+            Config.unhoverWithCoords(editBtn);
             showBubble('❌ 未找到弹窗', 'err');
             setTimeout(hideBubble, 2000);
             Config.finishWorkflow(false);
@@ -1255,7 +1270,7 @@
       hoverElement(pkgBtn);
 
       Config.waitForVisibleLi('网络图片', 3000, function (webImgItem) {
-        if (!webImgItem) { cb(); return; }
+        if (!webImgItem) { unhoverElement(pkgBtn); cb(); return; }
         webImgItem.click();
 
         var start = Date.now();
@@ -1263,7 +1278,10 @@
           var modal = Config.findVisibleModal('从网络地址');
           if (modal) {
             var textarea = modal.querySelector('textarea.ant-input');
-            if (textarea) Config.setInputValue(textarea, imgUrl);
+            if (textarea) {
+              moveMouseTo(pkgBtn, textarea);
+              Config.setInputValue(textarea, imgUrl);
+            }
             setTimeout(function () {
               var addBtn = modal.querySelector('.ant-modal-footer .ant-btn-primary');
               if (addBtn) addBtn.click();
@@ -1271,7 +1289,7 @@
             }, 200);
             return;
           }
-          if (Date.now() - start > 5000) { cb(); return; }
+          if (Date.now() - start > 5000) { unhoverElement(pkgBtn); cb(); return; }
           requestAnimationFrame(checkModal);
         })();
       });
