@@ -60,7 +60,10 @@
     var results = [];
     for (var i = 0; i < scripts.length; i++) {
       try {
-        var resp = await fetch(DEV + '/' + scripts[i] + '?t=' + Date.now());
+        var ctrl = new AbortController();
+        var timer = setTimeout(function () { ctrl.abort(); }, 10000);
+        var resp = await fetch(DEV + '/' + scripts[i] + '?t=' + Date.now(), { signal: ctrl.signal });
+        clearTimeout(timer);
         if (!resp.ok) return null;
         results.push(await resp.text());
       } catch (e) {
