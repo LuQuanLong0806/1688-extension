@@ -1,4 +1,21 @@
-﻿var resultTabsMap = {};
+﻿// Auto-reload: poll server for version changes, reload extension when code updates
+(function () {
+  var lastVersion = '';
+  setInterval(function () {
+    fetch('http://localhost:3000/api/extension-version')
+      .then(function (r) { return r.text(); })
+      .then(function (v) {
+        if (lastVersion && v !== lastVersion) {
+          console.log('[hot-reload] version changed, reloading...');
+          chrome.runtime.reload();
+        }
+        lastVersion = v;
+      })
+      .catch(function () {});
+  }, 3000);
+})();
+
+var resultTabsMap = {};
 var collageMap = {}; // sourceId -> collageTabId (1:1)
 var cleanerMap = {}; // sourceId -> cleanerTabId (1:1)
 

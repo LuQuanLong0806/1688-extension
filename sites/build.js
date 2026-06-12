@@ -4,7 +4,7 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 const OUT = path.join(ROOT, '1688-extension');
 const sitesDir = __dirname;
-const rootFiles = ['manifest.json', 'background.js', 'icon.svg', 'dev-loader.js'];
+const rootFiles = ['manifest.json', 'background.js', 'icon.svg'];
 
 if (fs.existsSync(OUT)) fs.rmSync(OUT, { recursive: true });
 fs.mkdirSync(OUT, { recursive: true });

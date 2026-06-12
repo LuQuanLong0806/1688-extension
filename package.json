@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "build": "node sites/build.js",
-    "build:static": "node sites/static-build.js"
+    "watch": "node sites/watch.js"
   },
   "dependencies": {
     "ali-oss": "^6.23.0"

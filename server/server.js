@@ -14,9 +14,24 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.static(path.join(__dirname, 'public'), { etag: false, maxAge: 0 }));
 
 // Dev mode: serve sites/ files with no-cache for dynamic extension loading
-app.use('/dev', express.static(path.join(__dirname, '..', 'sites'), { etag: false, maxAge: 0, setHeaders: function (res) {
+app.use('/dev/sites', express.static(path.join(__dirname, '..', 'sites'), { etag: false, maxAge: 0, setHeaders: function (res) {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
 }}));
+
+// Extension auto-reload: return hash of sites/ file modification times
+app.get('/api/extension-version', function (req, res) {
+  var crypto = require('crypto');
+  var hash = crypto.createHash('md5');
+  function walk(dir) {
+    fs.readdirSync(dir).forEach(function (entry) {
+      var p = path.join(dir, entry);
+      if (fs.statSync(p).isDirectory()) { walk(p); return; }
+      if (/\.js$/.test(entry)) hash.update(entry + fs.statSync(p).mtimeMs);
+    });
+  }
+  walk(path.join(__dirname, '..', 'sites'));
+  res.send(hash.digest('hex'));
+});
 
 // Uploads directory
 const UPLOADS_DIR = path.join(__dirname, 'public', 'uploads');
