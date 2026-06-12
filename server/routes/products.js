@@ -12,18 +12,20 @@ function localNow() {
 const router = Router();
 
 // 公共：插入商品到数据库
-function insertProduct(sourceUrl, title, category, customCategory, dxmCategory, manualCategory, mainImages, descImages, detailImages, attrs, skus) {
+function insertProduct(sourceUrl, title, category, customCategory, dxmCategory, manualCategory, mainImages, descImages, detailImages, attrs, skus, owner) {
   var now = localNow();
   var uid = dbModule.generateUid();
+  var productOwner = owner || '';
+  var claimAt = productOwner ? now : '';
   dbModule.db.run(
-    `INSERT INTO products (uid, source_url, title, category, custom_category, dxm_category, manual_category, main_images, desc_images, detail_images, attrs, skus, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO products (uid, source_url, title, category, custom_category, dxm_category, manual_category, main_images, desc_images, detail_images, attrs, skus, owner, claim_at, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       uid, sourceUrl || '', title || '', JSON.stringify(category || {}),
       customCategory || '', dxmCategory || '', manualCategory || '',
       JSON.stringify(mainImages || []), JSON.stringify(descImages || []),
       JSON.stringify(detailImages || []), JSON.stringify(attrs || []), JSON.stringify(skus || []),
-      now, now
+      productOwner, claimAt, now, now
     ]
   );
   // 异步同步到云端
@@ -139,6 +141,7 @@ router.get('/product/dxm-category-top', (req, res) => {
 // 保存采集数据
 router.post('/product', (req, res) => {
   const { sourceUrl, title, category, mainImages, descImages, detailImages, attrs, skus } = req.body;
+  const owner = (req.user && req.user.username) || '';
 
   let customCategory = '';
   let dxmCategoryVal = '';
@@ -193,7 +196,7 @@ router.post('/product', (req, res) => {
       }
     }
 
-    const row = insertProduct(sourceUrl, title, category, customCategory, dxmCategoryVal, manualCategoryVal, mainImages, descImages, detailImages, attrs, skus);
+    const row = insertProduct(sourceUrl, title, category, customCategory, dxmCategoryVal, manualCategoryVal, mainImages, descImages, detailImages, attrs, skus, owner);
     updateCategoryStats(category, customCategory);
 
     // 自动保存映射
@@ -208,7 +211,7 @@ router.post('/product', (req, res) => {
     res.json({ ok: true, id: row.id, recommendation: recResult, customCategory: customCategory });
   }).catch(function (err) {
     console.error('[采集] 推荐失败，不带分类入库:', err.message);
-    const row = insertProduct(sourceUrl, title, category, '', '', '', mainImages, descImages, detailImages, attrs, skus);
+    const row = insertProduct(sourceUrl, title, category, '', '', '', mainImages, descImages, detailImages, attrs, skus, owner);
     updateCategoryStats(category, '');
     scheduleSave();
     sseBroadcast('product-added', { id: row.id, title: title || '' });
@@ -349,6 +352,7 @@ router.get('/product', (req, res) => {
   const category = (req.query.category || '').trim();
   const dxmCategory = (req.query.dxmCategory || '').trim();
   const deleted = req.query.deleted;
+  const scope = (req.query.scope || '').trim();
 
   let where = [];
   let params = [];
@@ -386,12 +390,30 @@ router.get('/product', (req, res) => {
     params.push(req.query.stage);
   }
 
+  // scope 过滤（多用户数据隔离）
+  if (req.user) {
+    if (scope === 'mine') {
+      where.push('owner = ?');
+      params.push(req.user.username);
+    } else if (scope === 'inbox') {
+      where.push("(owner IS NULL OR owner = '')");
+    } else if (scope === 'all') {
+      if (req.user.role !== 'admin') {
+        where.push("(owner = ? OR owner IS NULL OR owner = '')");
+        params.push(req.user.username);
+      }
+    } else {
+      where.push("(owner = ? OR owner IS NULL OR owner = '')");
+      params.push(req.user.username);
+    }
+  }
+
   const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
   const countRow = getOne(`SELECT COUNT(*) as count FROM products ${whereClause}`, params);
   const total = countRow ? countRow.count : 0;
   const offset = (page - 1) * pageSize;
   const list = getAll(
-    `SELECT id, uid, source_url, title, category, custom_category, manual_category, dxm_category, attrs, skus, main_images, status, created_at, updated_at, automation_stage
+    `SELECT id, uid, source_url, title, category, custom_category, manual_category, dxm_category, attrs, skus, main_images, status, owner, claim_at, created_at, updated_at, automation_stage
      FROM products ${whereClause}
      ORDER BY created_at DESC, id DESC
      LIMIT ? OFFSET ?`,
@@ -401,6 +423,8 @@ router.get('/product', (req, res) => {
   const parsedList = list.map(row => ({
     ...row,
     category: row.category ? JSON.parse(row.category) : {},
+    owner: row.owner || '',
+    claimAt: row.claim_at || '',
     customCategory: row.custom_category || '',
     manualCategory: row.manual_category || '',
     dxmCategory: row.dxm_category ? JSON.parse(row.dxm_category) : null,
@@ -435,6 +459,13 @@ router.get('/product/:id', (req, res) => {
 // 更新商品
 router.put('/product/:id', (req, res) => {
   var uid = req.params.id || '';
+  // owner 权限检查
+  if (req.user && req.user.role !== 'admin') {
+    var product = getOne('SELECT owner FROM products WHERE uid = ?', [uid]);
+    if (product && product.owner && product.owner !== req.user.username) {
+      return res.status(403).json({ error: '无权编辑他人的商品' });
+    }
+  }
   const fields = [];
   const params = [];
 
@@ -578,6 +609,13 @@ router.put('/product/:id', (req, res) => {
 // 删除商品
 router.delete('/product/:id', (req, res) => {
   var uid = req.params.id || '';
+  // owner 权限检查
+  if (req.user && req.user.role !== 'admin') {
+    var product = getOne('SELECT owner FROM products WHERE uid = ?', [uid]);
+    if (product && product.owner && product.owner !== req.user.username) {
+      return res.status(403).json({ error: '无权删除他人的商品' });
+    }
+  }
   run(`UPDATE products SET deleted = 1, updated_at = datetime('now', '+8 hours') WHERE uid = ?`, [uid]);
   if (cloudDb.connected && uid) {
     cloudDb.cloudRun('UPDATE products SET deleted = 1 WHERE uid = ?', [uid]).catch(function () {});
@@ -702,16 +740,21 @@ router.post('/product/batch-delete', (req, res) => {
   if (ids.length > 500) return res.status(400).json({ error: '单次最多操作 500 条' });
   const validUids = ids.filter(function (id) { return id && typeof id === 'string' && id.trim(); });
   if (!validUids.length) return res.json({ ok: true, deleted: 0 });
-  const placeholders = validUids.map(() => '?').join(',');
-  const before = getOne(`SELECT COUNT(*) as count FROM products WHERE uid IN (${placeholders})`, validUids);
-  run(`UPDATE products SET deleted = 1, updated_at = datetime('now', '+8 hours') WHERE uid IN (${placeholders})`, validUids);
+  // operator 只能删自己的
+  if (req.user && req.user.role !== 'admin') {
+    const placeholders = validUids.map(() => '?').join(',');
+    run(`UPDATE products SET deleted = 1, updated_at = datetime('now', '+8 hours') WHERE uid IN (${placeholders}) AND owner = ?`, [...validUids, req.user.username]);
+  } else {
+    const placeholders = validUids.map(() => '?').join(',');
+    run(`UPDATE products SET deleted = 1, updated_at = datetime('now', '+8 hours') WHERE uid IN (${placeholders})`, validUids);
+  }
   saveNow();
   if (cloudDb.connected) {
     validUids.forEach(function (uid) {
       cloudDb.cloudRun('UPDATE products SET deleted = 1 WHERE uid = ?', [uid]).catch(function () {});
     });
   }
-  res.json({ ok: true, deleted: before ? before.count : 0 });
+  res.json({ ok: true });
 });
 
 router.post('/product/batch-status', (req, res) => {
@@ -728,6 +771,44 @@ router.post('/product/batch-status', (req, res) => {
     run(`UPDATE products SET status = ?, updated_at = datetime('now', '+8 hours') WHERE uid IN (${placeholders})`, [status, ...validUids]);
   }
   res.json({ ok: true, updated: ids.length });
+});
+
+// 认领商品（inbox → mine）
+router.post('/products/claim', (req, res) => {
+  if (!req.user) return res.status(401).json({ error: '未登录' });
+  var uids = req.body.uids || [];
+  if (!Array.isArray(uids) || !uids.length) return res.status(400).json({ error: '请选择商品' });
+  var claimed = 0;
+  uids.forEach(function (uid) {
+    try {
+      dbModule.db.run(
+        "UPDATE products SET owner = ?, claim_at = datetime('now','+8 hours'), updated_at = datetime('now','+8 hours') WHERE uid = ? AND (owner IS NULL OR owner = '')",
+        [req.user.username, uid]
+      );
+      claimed++;
+    } catch (e) {}
+  });
+  scheduleSave();
+  sseBroadcast('products-changed', {});
+  res.json({ ok: true, claimed: claimed });
+});
+
+// admin 分配商品给指定用户
+var auth = require('../middleware/auth');
+router.post('/products/assign', auth.requireRole('admin'), (req, res) => {
+  var uids = req.body.uids || [];
+  var assignTo = (req.body.username || '').trim();
+  if (!assignTo) return res.status(400).json({ error: '请指定目标用户' });
+  if (!Array.isArray(uids) || !uids.length) return res.status(400).json({ error: '请选择商品' });
+  uids.forEach(function (uid) {
+    run(
+      "UPDATE products SET owner = ?, claim_at = datetime('now','+8 hours'), updated_at = datetime('now','+8 hours') WHERE uid = ?",
+      [assignTo, uid]
+    );
+  });
+  scheduleSave();
+  sseBroadcast('products-changed', {});
+  res.json({ ok: true, assigned: uids.length });
 });
 
 // 补全指定类目下商品的完整路径

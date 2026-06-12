@@ -25,7 +25,11 @@ Vue.component('page-products', {
       pipelineProgress: {},
       pipelineQueue: {},
       pipelineDrawerVisible: false,
-      pipelineTotalCount: 0
+      pipelineTotalCount: 0,
+      scopeFilter: 'mine',
+      assignModalVisible: false,
+      assignUsername: '',
+      assignLoading: false
     };
   },
   mounted: function () {
@@ -41,7 +45,7 @@ Vue.component('page-products', {
   computed: {
     columns: function () {
       var vm = this;
-      return [
+      var base = [
         { type: 'selection', width: 40, align: 'center' },
         {
           title: '状态',
@@ -87,16 +91,30 @@ Vue.component('page-products', {
           width: 180,
           slot: 'sku'
         },
-        { title: '采集时间', key: 'created_at', width: 200 },
-        {
-          title: '操作',
-          width: 220,
-          align: 'center',
-          className: 'col-actions',
-          fixed: 'right',
-          slot: 'actions'
-        }
+        { title: '采集时间', key: 'created_at', width: 200 }
       ];
+      if (vm.scopeFilter === 'inbox') {
+        base.push({
+          title: '认领',
+          width: 80,
+          align: 'center',
+          render: function (h, params) {
+            return h('i-button', {
+              props: { size: 'small', type: 'success' },
+              on: { click: function () { vm.claimProduct(params.row); } }
+            }, '认领');
+          }
+        });
+      }
+      base.push({
+        title: '操作',
+        width: 220,
+        align: 'center',
+        className: 'col-actions',
+        fixed: 'right',
+        slot: 'actions'
+      });
+      return base;
     }
   },
   methods: {
@@ -380,6 +398,7 @@ Vue.component('page-products', {
       if (p) vm.page = p;
       vm.saveFilters();
       vm.loading = true;
+      vm.selectedIds = [];
       var params = new URLSearchParams({
         page: vm.page,
         pageSize: vm.pageSize
@@ -390,6 +409,7 @@ Vue.component('page-products', {
       if (vm.deletedFilter) params.set('deleted', vm.deletedFilter);
       if (vm.categoryFilter) params.set('category', vm.categoryFilter);
       if (vm.dxmCategoryFilter) params.set('dxmCategory', vm.dxmCategoryFilter);
+      if (vm.scopeFilter) params.set('scope', vm.scopeFilter);
       apiFetch('/api/product?' + params.toString())
         .then(function (r) {
           return r.json();
@@ -405,6 +425,55 @@ Vue.component('page-products', {
     },
     onPageChange: function (p) {
       this.loadList(p);
+    },
+    switchScope: function (scope) {
+      this.scopeFilter = scope;
+      this.loadList(1);
+    },
+    claimProduct: function (row) {
+      var vm = this;
+      apiFetch('/api/products/claim', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uids: [row.uid] })
+      }).then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d.ok) { vm.$Message.success('认领成功'); vm.loadList(); }
+          else { vm.$Message.error(d.error || '认领失败'); }
+        }).catch(function () { vm.$Message.error('认领失败'); });
+    },
+    batchClaim: function () {
+      var vm = this;
+      if (!vm.selectedIds.length) { vm.$Message.warning('请选择商品'); return; }
+      apiFetch('/api/products/claim', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uids: vm.selectedIds })
+      }).then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d.ok) { vm.$Message.success('认领 ' + d.claimed + ' 件商品'); vm.loadList(); }
+        });
+    },
+    openAssignModal: function () {
+      var vm = this;
+      if (!vm.selectedIds.length) { vm.$Message.warning('请选择商品'); return; }
+      vm.assignUsername = '';
+      vm.assignModalVisible = true;
+    },
+    doAssign: function () {
+      var vm = this;
+      if (!vm.assignUsername.trim()) { vm.$Message.warning('请输入用户名'); return; }
+      vm.assignLoading = true;
+      apiFetch('/api/products/assign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uids: vm.selectedIds, username: vm.assignUsername.trim() })
+      }).then(function (r) { return r.json(); })
+        .then(function (d) {
+          vm.assignLoading = false;
+          if (d.ok) { vm.assignModalVisible = false; vm.$Message.success('已分配 ' + d.assigned + ' 件商品'); vm.loadList(); }
+          else { vm.$Message.error(d.error || '分配失败'); }
+        }).catch(function () { vm.assignLoading = false; });
     },
     onPageSizeChange: function (s) {
       this.pageSize = s;
@@ -594,6 +663,11 @@ Vue.component('page-products', {
   },
   template: `
     <div class="list-card">
+      <div style="display:flex;gap:4px;margin-bottom:10px;">
+        <span class="scope-tab" :class="{active: scopeFilter==='mine'}" @click="switchScope('mine')">我的商品</span>
+        <span class="scope-tab" :class="{active: scopeFilter==='inbox'}" @click="switchScope('inbox')">采集箱</span>
+        <span class="scope-tab" :class="{active: scopeFilter==='all'}" @click="switchScope('all')" v-if="$root.currentUser && $root.currentUser.role === 'admin'">全部</span>
+      </div>
       <div class="filter-bar">
         <span style="font-size:13px;color:var(--text-secondary);white-space:nowrap">标题</span>
         <i-input v-model="keyword" placeholder="搜索标题..." clearable style="width:220px" @on-enter="loadList(1)" @on-clear="loadList(1)">
@@ -625,6 +699,8 @@ Vue.component('page-products', {
       <div class="action-bar">
         <div class="action-bar-left">共采集 <strong>{{ total }}</strong> 条数据</div>
         <div class="action-bar-right">
+          <i-button v-if="scopeFilter==='inbox' && selectedIds.length" type="success" icon="md-checkmark-circle" @click="batchClaim">认领 ({{selectedIds.length}})</i-button>
+          <i-button v-if="scopeFilter==='inbox' && $root.currentUser && $root.currentUser.role==='admin' && selectedIds.length" icon="md-person" @click="openAssignModal">分配给...</i-button>
           <i-button type="warning" icon="md-pricetag" :disabled="selectedIds.length === 0" @click="openBatchCategory">
             批量设置类目{{ selectedIds.length ? ' (' + selectedIds.length + ')' : '' }}
           </i-button>
@@ -749,6 +825,16 @@ Vue.component('page-products', {
         <div slot="footer">
           <i-button @click="batchCatVisible = false">取消</i-button>
           <i-button type="primary" @click="saveBatchCategory">保存</i-button>
+        </div>
+      </modal>
+      <modal v-model="assignModalVisible" title="分配商品给用户" :mask-closable="false" width="400">
+        <div style="margin-bottom:12px">
+          <p style="margin-bottom:8px;color:var(--text-secondary)">将 <strong>{{ selectedIds.length }}</strong> 条商品分配给：</p>
+          <i-input v-model="assignUsername" placeholder="输入目标用户名"></i-input>
+        </div>
+        <div slot="footer">
+          <i-button @click="assignModalVisible = false">取消</i-button>
+          <i-button type="primary" :loading="assignLoading" @click="doAssign">确认分配</i-button>
         </div>
       </modal>
     </div>`
