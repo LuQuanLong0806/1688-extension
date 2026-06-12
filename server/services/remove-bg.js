@@ -1,4 +1,5 @@
 // AI抠图 — onnxruntime-node + ISNet model (server-side)
+process.env.ORT_LOGGING_LEVEL = '3';
 var ort = require('onnxruntime-node');
 var sharp = require('sharp');
 var fs = require('fs');

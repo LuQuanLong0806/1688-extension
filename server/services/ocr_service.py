@@ -191,6 +191,19 @@ async def health():
         return {"status": "error", "model": "PaddleOCR", "error": str(e)}
 
 
+@app.on_event("startup")
+async def preload_model():
+    """服务启动时静默加载模型，避免首次请求等待"""
+    import threading
+    def _load():
+        try:
+            get_ocr_engine()
+            logger.info("PaddleOCR model preloaded on startup")
+        except Exception as e:
+            logger.error("PaddleOCR preload failed: %s", e)
+    threading.Thread(target=_load, daemon=True).start()
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="PaddleOCR Text Detection Service")
     parser.add_argument("--port", type=int, default=3001)

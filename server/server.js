@@ -199,6 +199,28 @@ initDb().then(() => initTreeDb()).then(() => {
 
     // 自动启动 PaddleOCR 微服务
     startOcrService();
+
+    // 静默预加载本地 ONNX 模型（LaMa + ISNet），避免首次请求等待
+    setTimeout(function () {
+      try {
+        var lamaService = require('./services/inpaint');
+        if (lamaService.isModelAvailable()) {
+          lamaService.getSession().then(function () {
+            console.log('[预加载] LaMa 模型已就绪');
+          }).catch(function (e) {
+            console.log('[预加载] LaMa 模型加载失败:', e.message);
+          });
+        }
+      } catch (e) {}
+      try {
+        var removeBg = require('./services/remove-bg');
+        removeBg.getSession().then(function () {
+          console.log('[预加载] ISNet 抠图模型已就绪');
+        }).catch(function (e) {
+          console.log('[预加载] ISNet 模型加载失败:', e.message);
+        });
+      } catch (e) {}
+    }, 3000);
   });
 });
 

@@ -1,4 +1,5 @@
 // LaMa ONNX 推理服务 — 图像修复（消除水印/文字/LOGO）
+process.env.ORT_LOGGING_LEVEL = '3'; // 抑制 ONNX Runtime 冗余警告
 const sharp = require('sharp');
 const path = require('path');
 const fs = require('fs');

@@ -401,6 +401,9 @@ function initMeituEditorTools() {
 
       if (annData.ok) {
         var annotatedSrc = annData.base64;
+        if (annotatedSrc && annotatedSrc.indexOf('data:') !== 0) {
+          annotatedSrc = 'data:image/png;base64,' + annotatedSrc;
+        }
         window.editorSrc = annotatedSrc;
         window.editorImages[window.editorCurrentIdx].src = annotatedSrc;
         var img = new Image();
@@ -411,6 +414,10 @@ function initMeituEditorTools() {
           updateEditorModifiedDot();
           hideEditorLoading();
           showToast('标注完成', 'ok');
+        };
+        img.onerror = function () {
+          hideEditorLoading();
+          showToast('标注图加载失败', 'err');
         };
         img.src = annotatedSrc;
       } else {
