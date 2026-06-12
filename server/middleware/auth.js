@@ -55,19 +55,19 @@ function isWhitelisted(method, path) {
 }
 
 function authMiddleware(req, res, next) {
-  if (isWhitelisted(req.method, req.path)) return next();
   var token = null;
   var authHeader = req.headers.authorization;
   if (authHeader && authHeader.indexOf('Bearer ') === 0) token = authHeader.slice(7);
   if (!token && req.query && req.query.token) token = req.query.token;
-  if (!token) return res.status(401).json({ error: '未登录' });
-  try {
-    var decoded = jwt.verify(token, getSecret());
-    req.user = { id: decoded.id, username: decoded.username, role: decoded.role };
-    next();
-  } catch (e) {
-    return res.status(401).json({ error: '登录已过期' });
+  if (token) {
+    try {
+      var decoded = jwt.verify(token, getSecret());
+      req.user = { id: decoded.id, username: decoded.username, role: decoded.role };
+    } catch (e) {}
   }
+  if (isWhitelisted(req.method, req.path)) return next();
+  if (!req.user) return res.status(401).json({ error: '未登录' });
+  next();
 }
 
 function requireRole() {

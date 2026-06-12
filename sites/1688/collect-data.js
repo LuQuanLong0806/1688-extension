@@ -3,11 +3,13 @@
   window.__1688CollectData = true;
 
   var STORAGE_KEY = '1688_server_url';
+  var TOKEN_KEY = '1688_token';
 
   // 启动时从 chrome.storage.local 同步到 localStorage
   try {
-    chrome.storage.local.get(STORAGE_KEY, function (r) {
+    chrome.storage.local.get([STORAGE_KEY, TOKEN_KEY], function (r) {
       if (r[STORAGE_KEY]) localStorage.setItem(STORAGE_KEY, r[STORAGE_KEY]);
+      if (r[TOKEN_KEY]) localStorage.setItem(TOKEN_KEY, r[TOKEN_KEY]);
     });
   } catch (e) {}
 
@@ -20,6 +22,35 @@
     try { var _o = {}; _o[STORAGE_KEY] = url; chrome.storage.local.set(_o); } catch (e) {}
   }
 
+  function getToken() {
+    return localStorage.getItem(TOKEN_KEY) || '';
+  }
+
+  function setToken(token) {
+    localStorage.setItem(TOKEN_KEY, token || '');
+    try { var _o = {}; _o[TOKEN_KEY] = token || ''; chrome.storage.local.set(_o); } catch (e) {}
+  }
+
+  function clearToken() {
+    localStorage.removeItem(TOKEN_KEY);
+    try { chrome.storage.local.remove(TOKEN_KEY); } catch (e) {}
+  }
+
+  function authHeaders(headers) {
+    var token = getToken();
+    if (token) {
+      headers = headers || {};
+      headers['Authorization'] = 'Bearer ' + token;
+    }
+    return headers;
+  }
+
+  function handleAuthError(response) {
+    if (response.status === 401) {
+      clearToken();
+    }
+  }
+
   function getOfferId() {
     var m = location.href.match(/offer\/(\d+)\.html/i);
     return m ? m[1] : '';
@@ -29,10 +60,12 @@
     var offerId = getOfferId();
     if (!offerId) { callback({ exists: false }); return; }
     var serverUrl = getServerUrl();
-    fetch(serverUrl + '/api/product/check?offerId=' + offerId)
-      .then(function (r) { return r.json(); })
-      .then(function (res) { callback(res); })
-      .catch(function () { callback({ exists: false }); });
+    fetch(serverUrl + '/api/product/check?offerId=' + offerId, {
+      headers: authHeaders()
+    })
+    .then(function (r) { handleAuthError(r); return r.json(); })
+    .then(function (res) { callback(res); })
+    .catch(function () { callback({ exists: false }); });
   }
 
   // ========== 数据采集 ==========
@@ -457,10 +490,10 @@
     var serverUrl = getServerUrl();
     fetch(serverUrl + '/api/product', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(data)
     })
-    .then(function (r) { return r.json(); })
+    .then(function (r) { handleAuthError(r); return r.json(); })
     .then(function (res) {
       if (callback) callback(null, res);
     })
@@ -478,7 +511,10 @@
     getOfferId: getOfferId,
     getServerUrl: getServerUrl,
     setServerUrl: setServerUrl,
-    collectAttrs: collectAttrs
+    collectAttrs: collectAttrs,
+    getToken: getToken,
+    setToken: setToken,
+    clearToken: clearToken
   };
   // 暴露给小鹦鹉抓图使用
   window.waitForPageReady = waitForPageReady;

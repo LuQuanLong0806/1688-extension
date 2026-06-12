@@ -94,7 +94,28 @@
     'opacity:0;pointer-events:none;white-space:nowrap;font-family:"Microsoft YaHei",Arial,sans-serif;' +
     'display:flex;align-items:center;gap:8px;border-left:4px solid #43A047}' +
     '#__1688_toast.err{border-left-color:#e53935}' +
-    '#__1688_toast.visible{transform:translateX(-50%) translateY(0);opacity:1}';
+    '#__1688_toast.visible{transform:translateX(-50%) translateY(0);opacity:1}' +
+
+    '#__1688_settings_panel{display:none;position:absolute;bottom:100%;left:50%;transform:translateX(-50%);' +
+    'margin-bottom:8px;background:#fff;border-radius:12px;padding:16px;box-shadow:0 4px 16px rgba(0,0,0,.15);' +
+    'border:1px solid #f0f0f0;width:240px;font:13px/1.6 "Microsoft YaHei",Arial,sans-serif;z-index:1}' +
+    '#__1688_settings_panel.show{display:block}' +
+    '#__1688_settings_panel label{display:block;font-size:12px;color:#999;margin-bottom:2px}' +
+    '#__1688_settings_panel input{width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:6px;' +
+    'font-size:13px;margin-bottom:8px;outline:none;transition:border-color .2s}' +
+    '#__1688_settings_panel input:focus{border-color:#43A047}' +
+    '#__1688_settings_panel .s-btn{width:100%;padding:7px 0;border:none;border-radius:6px;font-size:13px;' +
+    'font-weight:500;cursor:pointer;transition:all .2s}' +
+    '#__1688_settings_panel .s-btn-login{background:linear-gradient(135deg,#43A047,#2E7D32);color:#fff}' +
+    '#__1688_settings_panel .s-btn-login:hover{filter:brightness(1.08)}' +
+    '#__1688_settings_panel .s-btn-login:disabled{opacity:.6;cursor:not-allowed}' +
+    '#__1688_settings_panel .s-btn-logout{background:#f5f5f5;color:#666;border:1px solid #e0e0e0}' +
+    '#__1688_settings_panel .s-btn-logout:hover{background:#eee}' +
+    '#__1688_settings_panel .s-status{font-size:12px;margin-bottom:8px;text-align:center}' +
+    '#__1688_settings_panel .s-status.logged-in{color:#43A047}' +
+    '#__1688_settings_panel .s-status.logged-out{color:#999}' +
+    '#__1688_settings_panel .s-divider{border-top:1px solid #f0f0f0;margin:8px 0}' +
+    '#__1688_grab_panel.at-right #__1688_settings_panel{left:auto;right:-20px;transform:none}';
 
   document.head.appendChild(s);
   document.body.appendChild(panel);
@@ -103,6 +124,26 @@
   var toastEl = document.createElement('div');
   toastEl.id = '__1688_toast';
   document.body.appendChild(toastEl);
+
+  var settingsPanel = document.createElement('div');
+  settingsPanel.id = '__1688_settings_panel';
+  settingsPanel.innerHTML =
+    '<label>服务器地址</label>' +
+    '<input id="__1688_s_url" type="text" placeholder="http://localhost:3000">' +
+    '<div class="s-divider"></div>' +
+    '<div id="__1688_s_status" class="s-status logged-out">未登录</div>' +
+    '<div id="__1688_s_login_fields">' +
+      '<label>用户名</label>' +
+      '<input id="__1688_s_user" type="text" placeholder="输入用户名">' +
+      '<label>密码</label>' +
+      '<input id="__1688_s_pass" type="password" placeholder="输入密码">' +
+      '<button id="__1688_s_login_btn" class="s-btn s-btn-login">登录</button>' +
+    '</div>' +
+    '<div id="__1688_s_logged_in" style="display:none">' +
+      '<div id="__1688_s_user_info" style="font-size:13px;text-align:center;margin-bottom:8px;color:#333"></div>' +
+      '<button id="__1688_s_logout_btn" class="s-btn s-btn-logout">退出登录</button>' +
+    '</div>';
+  panel.appendChild(settingsPanel);
 
   var toastTimer = null;
   function showToast(text, type) {
@@ -294,20 +335,114 @@
     doRound();
   }
 
-  // ========== Settings button ==========
+  // ========== Settings panel ==========
   var settingsBtn = document.getElementById('__1688_grab_settings');
-  settingsBtn.addEventListener('click', function () {
-    var current = CollectData.getServerUrl();
-    var url = prompt('设置服务器地址：', current);
-    if (url !== null) {
-      url = url.trim().replace(/\/+$/, '');
-      if (CollectData.setServerUrl) {
-        CollectData.setServerUrl(url);
-      } else {
-        localStorage.setItem('1688_server_url', url);
-      }
-      _log('服务器地址已保存: ' + url);
+  var settingsVisible = false;
+
+  function updateLoginUI() {
+    var token = CollectData.getToken();
+    var loginFields = document.getElementById('__1688_s_login_fields');
+    var loggedInDiv = document.getElementById('__1688_s_logged_in');
+    var statusEl = document.getElementById('__1688_s_status');
+    var userInfoEl = document.getElementById('__1688_s_user_info');
+    var urlInput = document.getElementById('__1688_s_url');
+
+    urlInput.value = CollectData.getServerUrl();
+
+    if (token) {
+      loginFields.style.display = 'none';
+      loggedInDiv.style.display = 'block';
+      statusEl.className = 's-status logged-in';
+      statusEl.textContent = '已登录';
+      userInfoEl.textContent = '';
+      var serverUrl = CollectData.getServerUrl();
+      fetch(serverUrl + '/api/me', { headers: { 'Authorization': 'Bearer ' + token } })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          if (res.username) {
+            userInfoEl.textContent = res.display_name || res.username;
+          } else {
+            statusEl.className = 's-status logged-out';
+            statusEl.textContent = '登录已过期';
+            loginFields.style.display = 'block';
+            loggedInDiv.style.display = 'none';
+          }
+        })
+        .catch(function () {
+          statusEl.className = 's-status logged-out';
+          statusEl.textContent = '无法连接服务器';
+        });
+    } else {
+      loginFields.style.display = 'block';
+      loggedInDiv.style.display = 'none';
+      statusEl.className = 's-status logged-out';
+      statusEl.textContent = '未登录';
     }
+  }
+
+  settingsBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    settingsVisible = !settingsVisible;
+    settingsPanel.classList.toggle('show', settingsVisible);
+    if (settingsVisible) updateLoginUI();
+  });
+
+  document.addEventListener('click', function (e) {
+    if (settingsVisible && !settingsPanel.contains(e.target) && e.target !== settingsBtn) {
+      settingsVisible = false;
+      settingsPanel.classList.remove('show');
+    }
+  });
+
+  settingsPanel.addEventListener('click', function (e) { e.stopPropagation(); });
+
+  // Save server URL on input change
+  settingsPanel.querySelector('#__1688_s_url').addEventListener('change', function () {
+    var url = this.value.trim().replace(/\/+$/, '');
+    CollectData.setServerUrl(url);
+    _log('服务器地址已保存: ' + url);
+  });
+
+  // Login button
+  settingsPanel.querySelector('#__1688_s_login_btn').addEventListener('click', function () {
+    var btn = this;
+    var username = document.getElementById('__1688_s_user').value.trim();
+    var password = document.getElementById('__1688_s_pass').value;
+    if (!username || !password) { showToast('请输入用户名和密码', 'err'); return; }
+
+    btn.disabled = true;
+    btn.textContent = '登录中...';
+    var serverUrl = CollectData.getServerUrl();
+
+    fetch(serverUrl + '/api/plugin-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: username, password: password })
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (res) {
+      btn.disabled = false;
+      btn.textContent = '登录';
+      if (res.token) {
+        CollectData.setToken(res.token);
+        showToast('登录成功');
+        updateLoginUI();
+      } else {
+        showToast(res.error || '登录失败', 'err');
+      }
+    })
+    .catch(function (err) {
+      btn.disabled = false;
+      btn.textContent = '登录';
+      showToast('连接失败: ' + err.message, 'err');
+    });
+  });
+
+  // Logout button
+  settingsPanel.querySelector('#__1688_s_logout_btn').addEventListener('click', function () {
+    CollectData.clearToken();
+    showToast('已退出登录');
+    updateLoginUI();
   });
 
   // ========== Collect button ==========

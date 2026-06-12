@@ -1,3 +1,28 @@
+// 登录状态检查
+(function () {
+  var statusEl = document.getElementById('loginStatus');
+  chrome.storage.local.get(['1688_token', '1688_server_url'], function (r) {
+    var token = r['1688_token'];
+    var serverUrl = r['1688_server_url'] || 'http://localhost:3000';
+    if (token) {
+      fetch(serverUrl + '/api/me', { headers: { 'Authorization': 'Bearer ' + token } })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+          if (data.username) {
+            statusEl.innerHTML = '<span class="dot on"></span>' + (data.display_name || data.username) + ' (' + (data.role || '') + ')';
+          } else {
+            statusEl.innerHTML = '<span class="dot off"></span>未登录，请在页面侧边栏登录';
+          }
+        })
+        .catch(function () {
+          statusEl.innerHTML = '<span class="dot off"></span>无法连接服务器';
+        });
+    } else {
+      statusEl.innerHTML = '<span class="dot off"></span>未登录，请在1688页面侧边栏登录';
+    }
+  });
+})();
+
 document.getElementById('grabBtn').addEventListener('click', function () {
   var btn = this;
   var statusEl = document.getElementById('status');
