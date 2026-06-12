@@ -1,4 +1,4 @@
-// Hybrid loader: all scripts succeed from server → atomic cache update; any fail → cache → bundle
+// Hybrid loader: execute immediately from cache/bundle, background-update from server for next refresh
 (async function () {
   var DEV = 'http://localhost:3000/dev';
   var CP = 'dev_cache:';
@@ -31,31 +31,6 @@
 
   if (!scripts.length) return;
 
-  // Check if dev server is available (1s timeout)
-  var useServer = false;
-  try {
-    var ctrl = new AbortController();
-    var timer = setTimeout(function () { ctrl.abort(); }, 1000);
-    var check = await fetch(DEV + '/manifest.json?t=' + Date.now(), { signal: ctrl.signal });
-    clearTimeout(timer);
-    useServer = check.ok;
-  } catch (e) {}
-
-  // Try fetch all scripts from server, return null if any fails
-  async function fetchFromServer() {
-    var results = [];
-    for (var i = 0; i < scripts.length; i++) {
-      try {
-        var resp = await fetch(DEV + '/' + scripts[i] + '?t=' + Date.now());
-        if (!resp.ok) return null;
-        results.push(await resp.text());
-      } catch (e) {
-        return null;
-      }
-    }
-    return results;
-  }
-
   // Load all from cache, return null if any missing
   async function loadFromCache() {
     var keys = scripts.map(function (s) { return CP + s; });
@@ -74,12 +49,28 @@
     var results = [];
     for (var i = 0; i < scripts.length; i++) {
       var resp = await fetch(chrome.runtime.getURL(scripts[i]));
+      if (!resp.ok) throw new Error('bundle: ' + scripts[i] + ' ' + resp.status);
       results.push(await resp.text());
     }
     return results;
   }
 
-  // Atomic: only save cache when ALL scripts fetched successfully
+  // Fetch all from server, return null if any fails
+  async function fetchFromServer() {
+    var results = [];
+    for (var i = 0; i < scripts.length; i++) {
+      try {
+        var resp = await fetch(DEV + '/' + scripts[i] + '?t=' + Date.now());
+        if (!resp.ok) return null;
+        results.push(await resp.text());
+      } catch (e) {
+        return null;
+      }
+    }
+    return results;
+  }
+
+  // Atomic cache save
   function saveCache(codes) {
     var items = {};
     for (var i = 0; i < scripts.length; i++) {
@@ -88,32 +79,42 @@
     chrome.storage.local.set(items);
   }
 
+  // ---- Step 1: Execute immediately (cache → bundle, no waiting) ----
   var codes = null;
   var source = 'bundle';
 
-  if (useServer) {
-    codes = await fetchFromServer();
-    if (codes) {
-      saveCache(codes);
-      source = 'server';
-    } else {
-      codes = await loadFromCache();
-      if (codes) source = 'cache';
-    }
-  } else {
+  try {
     codes = await loadFromCache();
     if (codes) {
       source = 'cache';
+    } else {
+      codes = await loadFromBundle();
+      source = 'bundle';
+    }
+  } catch (e) {
+    console.error('[loader] Fatal:', e);
+    return;
+  }
+
+  var loaded = 0;
+  for (var i = 0; i < codes.length; i++) {
+    try {
+      (0, eval)(codes[i]);
+      loaded++;
+    } catch (e) {
+      console.error('[loader] ' + scripts[i] + ':', e);
     }
   }
+  console.log('[loader] ' + loaded + '/' + scripts.length + ' (' + source + ')');
 
-  if (!codes) {
-    codes = await loadFromBundle();
-    source = 'bundle';
-  }
-
-  for (var i = 0; i < codes.length; i++) {
-    (0, eval)(codes[i]);
-  }
-  console.log('[loader] ' + scripts.length + ' scripts (' + source + ')');
+  // ---- Step 2: Background — fetch latest, update cache for next refresh ----
+  (async function () {
+    try {
+      var fresh = await fetchFromServer();
+      if (fresh) {
+        saveCache(fresh);
+        console.log('[loader] updated cache from server');
+      }
+    } catch (e) {}
+  })();
 })();
