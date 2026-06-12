@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="1688">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>登录 - 商品采集管理平台</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="https://unpkg.com/view-design@4.7.0/dist/styles/iview.css">
+  <link rel="stylesheet" href="css/theme-1688.css">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-base, #f4f5f7);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+    .login-card {
+      width: 380px;
+      background: var(--bg-surface, #fff);
+      border-radius: var(--radius-lg, 10px);
+      box-shadow: var(--shadow-hover, 0 8px 24px rgba(0,0,0,.08));
+      padding: 40px 36px;
+    }
+    .login-header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    .login-header h2 {
+      color: var(--text-primary, #1a1a2e);
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .login-header p {
+      color: var(--text-muted, #9ea3b0);
+      font-size: 13px;
+    }
+    .login-field {
+      margin-bottom: 20px;
+    }
+    .login-field label {
+      display: block;
+      font-size: 13px;
+      color: var(--text-secondary, #555770);
+      margin-bottom: 6px;
+      font-weight: 500;
+    }
+    .login-field input {
+      width: 100%;
+      height: 40px;
+      padding: 0 12px;
+      border: 1px solid var(--border, #e1e4e8);
+      border-radius: var(--radius-sm, 6px);
+      font-size: 14px;
+      color: var(--text-primary, #1a1a2e);
+      background: var(--bg-surface, #fff);
+      outline: none;
+      transition: border-color var(--transition, .25s);
+    }
+    .login-field input:focus {
+      border-color: var(--accent, #ff6a00);
+      box-shadow: 0 0 0 2px var(--accent-glow, rgba(255,106,0,.18));
+    }
+    .login-btn {
+      width: 100%;
+      height: 42px;
+      border: none;
+      border-radius: var(--radius-sm, 6px);
+      background: var(--accent-gradient, linear-gradient(135deg, #ff6a00, #ff9a44));
+      color: #fff;
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity var(--transition, .25s);
+      margin-top: 8px;
+    }
+    .login-btn:hover { opacity: .9; }
+    .login-btn:disabled { opacity: .5; cursor: not-allowed; }
+    .login-error {
+      color: var(--danger, #ff4d4f);
+      font-size: 13px;
+      text-align: center;
+      margin-top: 12px;
+      min-height: 20px;
+    }
+    .login-must-change {
+      background: var(--warning-bg, rgba(255,153,0,.06));
+      border: 1px solid var(--warning, #ff9900);
+      border-radius: var(--radius-sm, 6px);
+      padding: 12px;
+      margin-bottom: 20px;
+      font-size: 13px;
+      color: var(--text-secondary, #555770);
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div class="login-card">
+      <div class="login-header">
+        <h2>商品采集管理平台</h2>
+        <p>请登录您的账户</p>
+      </div>
+      <div class="login-must-change" v-if="mustChange">
+        首次登录请修改默认密码
+      </div>
+      <div class="login-field">
+        <label>用户名</label>
+        <input type="text" v-model="username" placeholder="请输入用户名" @keyup.enter="login">
+      </div>
+      <div class="login-field">
+        <label>密码</label>
+        <input type="password" v-model="password" placeholder="请输入密码" @keyup.enter="login">
+      </div>
+      <div class="login-field" v-if="mustChange">
+        <label>新密码</label>
+        <input type="password" v-model="newPassword" placeholder="请输入新密码（至少6位）" @keyup.enter="login">
+      </div>
+      <button class="login-btn" @click="login" :disabled="loading">
+        {{ loading ? '登录中...' : (mustChange ? '修改密码并登录' : '登 录') }}
+      </button>
+      <div class="login-error">{{ error }}</div>
+    </div>
+  </div>
+  <script src="https://unpkg.com/vue@2.7.16/dist/vue.min.js"></script>
+  <script>
+    new Vue({
+      el: '#app',
+      data: { username: '', password: '', newPassword: '', loading: false, error: '', mustChange: false, token: '' },
+      mounted: function () {
+        var saved = localStorage.getItem('jwt_token');
+        if (saved) {
+          fetch('/api/me', { headers: { 'Authorization': 'Bearer ' + saved } })
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+              if (d.id) window.location.href = '/';
+            }).catch(function () {});
+        }
+      },
+      methods: {
+        login: function () {
+          var vm = this;
+          vm.error = '';
+          if (!vm.username || !vm.password) { vm.error = '请输入用户名和密码'; return; }
+          if (vm.mustChange && (!vm.newPassword || vm.newPassword.length < 6)) { vm.error = '新密码至少6个字符'; return; }
+          vm.loading = true;
+          fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: vm.username, password: vm.password })
+          }).then(function (r) { return r.json(); })
+            .then(function (d) {
+              vm.loading = false;
+              if (d.error) { vm.error = d.error; return; }
+              if (d.user && d.user.must_change_password) {
+                vm.mustChange = true;
+                vm.token = d.token;
+                return;
+              }
+              localStorage.setItem('jwt_token', d.token);
+              localStorage.setItem('jwt_user', JSON.stringify(d.user));
+              window.location.href = '/';
+            }).catch(function () { vm.loading = false; vm.error = '网络错误'; });
+          if (vm.mustChange && vm.token) {
+            fetch('/api/change-password', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + vm.token },
+              body: JSON.stringify({ oldPassword: vm.password, newPassword: vm.newPassword })
+            }).then(function (r) { return r.json(); })
+              .then(function (d) {
+                vm.loading = false;
+                if (d.error) { vm.error = d.error; return; }
+                localStorage.setItem('jwt_token', d.token);
+                window.location.href = '/';
+              }).catch(function () { vm.loading = false; vm.error = '网络错误'; });
+          }
+        }
+      }
+    });
+  </script>
+</body>
+</html>

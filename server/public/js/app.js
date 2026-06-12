@@ -6,6 +6,7 @@ new Vue({
     sidebarCollapsed: false,
     theme: '1688',
     stats: { total: 0, unused: 0, used: 0, totalCategories: 0 },
+    currentUser: null,
     // detail modal
     showDetail: false,
     detailData: null,
@@ -23,8 +24,16 @@ new Vue({
     }
   },
   mounted: function () {
-    this.loadStats();
-    this.initTheme();
+    var vm = this;
+    var token = localStorage.getItem('jwt_token');
+    if (!token) { window.location.href = '/login.html'; return; }
+    apiFetch('/api/me').then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.error || !d.id) { localStorage.removeItem('jwt_token'); window.location.href = '/login.html'; return; }
+        vm.currentUser = d;
+        vm.loadStats();
+        vm.initTheme();
+      }).catch(function () { window.location.href = '/login.html'; });
   },
   methods: {
     initTheme: function () {
@@ -54,12 +63,17 @@ new Vue({
     },
     loadStats: function () {
       var vm = this;
-      fetch('/api/product/stats').then(function (r) { return r.json(); })
+      apiFetch('/api/product/stats').then(function (r) { return r.json(); })
         .then(function (d) { vm.stats = d; }).catch(function () {});
+    },
+    logout: function () {
+      localStorage.removeItem('jwt_token');
+      localStorage.removeItem('jwt_user');
+      window.location.href = '/login.html';
     },
     openDetail: function (id) {
       var vm = this;
-      fetch('/api/product/' + id).then(function (r) { return r.json(); })
+      apiFetch('/api/product/' + id).then(function (r) { return r.json(); })
         .then(function (d) { vm.detailData = d; vm.showDetail = true; }).catch(function () { vm.$Message.error('加载详情失败'); });
     },
     onDetailStatusChanged: function () {

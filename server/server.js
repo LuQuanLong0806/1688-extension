@@ -2,6 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 
 const { DB_FILE, TREE_DB_FILE, initDb, initTreeDb, getOne, getAll, run, treeRun, treeGetOne, scheduleSave } = require('./db');
 
@@ -9,8 +11,24 @@ const app = express();
 const PORT = 3000;
 
 // Middleware
-app.use(cors());
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    if (origin.indexOf('localhost') >= 0) return callback(null, true);
+    callback(null, true);
+  },
+  credentials: true
+}));
 app.use(express.json({ limit: '50mb' }));
+
+// Rate limiting
+var limiter = rateLimit({ windowMs: 60 * 1000, max: 120, standardHeaders: true, legacyHeaders: false });
+app.use(limiter);
+var loginLimiter = rateLimit({ windowMs: 60 * 1000, max: 5, standardHeaders: true, legacyHeaders: false });
+app.use('/api/login', loginLimiter);
+app.use('/api/plugin-login', loginLimiter);
+
 app.use(express.static(path.join(__dirname, 'public'), { etag: false, maxAge: 0 }));
 
 // Dev mode: serve sites/ files with no-cache for dynamic extension loading
@@ -130,16 +148,25 @@ app.get('/api/collage-import', function (req, res) {
   collagePendingImages = null;
 });
 
+// Auth middleware
+var auth = require('./middleware/auth');
+app.use(auth.authMiddleware);
+
 // 路由
+var usersRoute = require('./routes/users');
 app.use('/api', require('./routes/settings'));
 app.use('/api', require('./routes/products'));
 app.use('/api', require('./routes/categories'));
 app.use('/api', require('./routes/dxm-tree'));
 app.use('/api/ai', require('./routes/ai/index'));
 app.use('/api/sync', require('./routes/sync'));
+app.use('/api', usersRoute);
 
 // Start
 initDb().then(() => initTreeDb()).then(() => {
+  // 首次启动自动创建管理员账户
+  usersRoute.ensureAdmin();
+
   // 迁移 dxm_categories → dxm_category_tree（仅首次）
   try {
     const migrationCheck = getOne("SELECT value FROM settings WHERE key = 'migration_dxm_categories_to_tree'");

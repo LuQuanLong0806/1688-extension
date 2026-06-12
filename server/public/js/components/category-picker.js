@@ -68,7 +68,7 @@ Vue.component('category-picker', {
     doSearch: function (kw) {
       var vm = this;
       vm.searchLoading = true;
-      fetch('/api/dxm-tree/search?keyword=' + encodeURIComponent(kw))
+      apiFetch('/api/dxm-tree/search?keyword=' + encodeURIComponent(kw))
         .then(function (r) {
           return r.json();
         })

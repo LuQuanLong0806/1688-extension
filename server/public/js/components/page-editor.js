@@ -85,7 +85,7 @@ Vue.component('page-editor', {
       vm.saving = true;
 
       var dataUrl = vm.editor.toDataURL({ format: 'jpeg', quality: 0.92 });
-      fetch('/api/upload-image', {
+      apiFetch('/api/upload-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dataUrl: dataUrl })

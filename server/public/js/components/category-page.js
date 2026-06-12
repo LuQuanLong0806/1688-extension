@@ -44,7 +44,7 @@ Vue.component('page-categories', {
       if (vm.keyword.trim()) params.set('keyword', vm.keyword.trim());
       params.set('page', vm.page);
       params.set('pageSize', vm.pageSize);
-      fetch('/api/category-mappings/grouped?' + params.toString())
+      apiFetch('/api/category-mappings/grouped?' + params.toString())
         .then(function (r) { return r.json(); })
         .then(function (data) {
           vm.list = data.list || [];
@@ -57,13 +57,13 @@ Vue.component('page-categories', {
     clearSearch: function () { this.keyword = ''; this.page = 1; this.loadList(); },
     loadTreeStatus: function () {
       var vm = this;
-      fetch('/api/dxm-tree/status').then(function (r) { return r.json(); }).then(function (s) {
+      apiFetch('/api/dxm-tree/status').then(function (r) { return r.json(); }).then(function (s) {
         vm.treeStatus = s;
       }).catch(function () {});
     },
     loadAliCategories: function () {
       var vm = this;
-      fetch('/api/product/categories').then(function (r) { return r.json(); }).then(function (list) {
+      apiFetch('/api/product/categories').then(function (r) { return r.json(); }).then(function (list) {
         vm.addAliList = list || [];
       }).catch(function () {});
     },
@@ -74,7 +74,7 @@ Vue.component('page-categories', {
         title: '确认删除',
         content: '确认删除店小秘类目「' + row.customCategory + '」的所有映射？通过该映射分类的' + row.productCount + '条商品分类也将被清空。',
         onOk: function () {
-          fetch('/api/category-mappings/dxm/' + encodeURIComponent(row.customCategory), { method: 'DELETE' })
+          apiFetch('/api/category-mappings/dxm/' + encodeURIComponent(row.customCategory), { method: 'DELETE' })
             .then(function (r) { return r.json(); })
             .then(function (data) {
               vm.$Message.success('已删除，清空 ' + (data.cleared || 0) + ' 条商品分类');
@@ -104,7 +104,7 @@ Vue.component('page-categories', {
     loadModalList: function () {
       var vm = this;
       vm.modalLoading = true;
-      fetch('/api/category-mappings/by-dxm?name=' + encodeURIComponent(vm.modalDxmName))
+      apiFetch('/api/category-mappings/by-dxm?name=' + encodeURIComponent(vm.modalDxmName))
         .then(function (r) { return r.json(); })
         .then(function (data) {
           vm.modalList = data;
@@ -119,7 +119,7 @@ Vue.component('page-categories', {
         title: '确认删除',
         content: '确认解除1688类目「' + item.categoryName + '」与店小秘类目的绑定？通过该映射分类的' + item.productCount + '条商品分类也将被清空。',
         onOk: function () {
-          fetch('/api/category-mappings/' + item.id, { method: 'DELETE' })
+          apiFetch('/api/category-mappings/' + item.id, { method: 'DELETE' })
             .then(function (r) { return r.json(); })
             .then(function (data) {
               vm.$Message.success('已解除，清空 ' + (data.cleared || 0) + ' 条商品分类');
@@ -136,7 +136,7 @@ Vue.component('page-categories', {
       if (!kw) { vm.addOptions = []; return; }
       clearTimeout(vm._addTimer);
       vm._addTimer = setTimeout(function () {
-        fetch('/api/categories?keyword=' + encodeURIComponent(kw))
+        apiFetch('/api/categories?keyword=' + encodeURIComponent(kw))
           .then(function (r) { return r.json(); })
           .then(function (d) {
             vm.addOptions = d.list || [];
@@ -146,7 +146,7 @@ Vue.component('page-categories', {
     // 维护弹窗 - 选中1688类目绑定
     addMapping: function (cat) {
       var vm = this;
-      fetch('/api/category-mappings', {
+      apiFetch('/api/category-mappings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ categoryName: cat.name, customCategory: vm.modalDxmName })
@@ -168,7 +168,7 @@ Vue.component('page-categories', {
         content: '确认补全类目「' + row.customCategory + '」下 ' + missing + ' 件缺少路径的商品？',
         loading: true,
         onOk: function () {
-          fetch('/api/products/backfill-path', {
+          apiFetch('/api/products/backfill-path', {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ customCategory: row.customCategory })
@@ -205,7 +205,7 @@ Vue.component('page-categories', {
       if (!vm.addDxmSelected) { vm.$Message.warning('请选择店小秘类目'); return; }
       if (!vm.addAliSelected.length) { vm.$Message.warning('请选择1688类目'); return; }
       Promise.all(vm.addAliSelected.map(function (name) {
-        return fetch('/api/category-mappings', {
+        return apiFetch('/api/category-mappings', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ categoryName: name, customCategory: vm.addDxmSelected })
@@ -221,7 +221,7 @@ Vue.component('page-categories', {
       var vm = this;
       vm.batchBackfillSelected = [];
       vm.batchBackfillLoading = false;
-      fetch('/api/category-mappings/grouped?pageSize=9999')
+      apiFetch('/api/category-mappings/grouped?pageSize=9999')
         .then(function (r) { return r.json(); })
         .then(function (data) {
           vm.batchBackfillList = (data.list || []).filter(function (row) { return (row.missingPathCount || 0) > 0; });
@@ -239,7 +239,7 @@ Vue.component('page-categories', {
       var done = 0;
       var totalUpdated = 0;
       vm.batchBackfillSelected.forEach(function (cat) {
-        fetch('/api/products/backfill-path', {
+        apiFetch('/api/products/backfill-path', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ customCategory: cat })

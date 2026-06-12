@@ -44,7 +44,7 @@ Vue.component('page-api-keys', {
     loadConfigs: function () {
       var vm = this;
       vm.loading = true;
-      fetch('/api/ai/vendor-configs')
+      apiFetch('/api/ai/vendor-configs')
         .then(function (r) { return r.json(); })
         .then(function (data) {
           var v = data.vendors || {};
@@ -61,7 +61,7 @@ Vue.component('page-api-keys', {
     // ===== 调度优先级 =====
     loadDispatch: function () {
       var vm = this;
-      fetch('/api/ai/dispatch-order').then(function (r) { return r.json(); }).then(function (d) {
+      apiFetch('/api/ai/dispatch-order').then(function (r) { return r.json(); }).then(function (d) {
         vm.dispatch = d.dispatch || { text: [], vision: [], image: [] };
         vm.dispatchVendorStatus = d.vendorStatus || {};
         vm.dispatchAvailableModels = d.availableModels || {};
@@ -95,7 +95,7 @@ Vue.component('page-api-keys', {
     },
     saveDispatch: function () {
       var vm = this;
-      fetch('/api/ai/dispatch-order', {
+      apiFetch('/api/ai/dispatch-order', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dispatch: vm.dispatch })
       }).then(function (r) { return r.json(); }).then(function (d) {
@@ -148,14 +148,14 @@ Vue.component('page-api-keys', {
           var key = (m.key || '').trim();
           if (!key) { vm.$Message.warning('请输入API Key'); return; }
           vm.saving = 'zhipu';
-          fetch('/api/ai/zhipu-keys', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'add', key: key, label: label }) })
+          apiFetch('/api/ai/zhipu-keys', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'add', key: key, label: label }) })
             .then(function (r) { return r.json(); }).then(function (d) {
               if (d.ok) { vm.$Message.success('已添加，共 ' + d.count + ' 个Key'); vm.loadConfigs(); }
               else vm.$Message.error(d.error || '添加失败');
               vm.saving = null; vm.keyModal.show = false;
             }).catch(function () { vm.$Message.error('添加失败'); vm.saving = null; });
         } else {
-          fetch('/api/ai/zhipu-keys', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'update-label', index: m.index, label: label }) })
+          apiFetch('/api/ai/zhipu-keys', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'update-label', index: m.index, label: label }) })
             .then(function (r) { return r.json(); }).then(function (d) {
               if (d.ok) { vm.$Message.success('已更新'); vm.loadConfigs(); }
               else vm.$Message.error(d.error || '更新失败');
@@ -167,14 +167,14 @@ Vue.component('page-api-keys', {
           var key = (m.key || '').trim();
           if (!key) { vm.$Message.warning('请输入API Key'); return; }
           vm.saving = 'qwen';
-          fetch('/api/ai/qwen-keys', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'add', key: key, label: label }) })
+          apiFetch('/api/ai/qwen-keys', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'add', key: key, label: label }) })
             .then(function (r) { return r.json(); }).then(function (d) {
               if (d.ok) { vm.$Message.success('已添加，共 ' + d.count + ' 个Key'); vm.loadConfigs(); }
               else vm.$Message.error(d.error || '添加失败');
               vm.saving = null; vm.keyModal.show = false;
             }).catch(function () { vm.$Message.error('添加失败'); vm.saving = null; });
         } else {
-          fetch('/api/ai/qwen-keys', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'update-label', index: m.index, label: label }) })
+          apiFetch('/api/ai/qwen-keys', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'update-label', index: m.index, label: label }) })
             .then(function (r) { return r.json(); }).then(function (d) {
               if (d.ok) { vm.$Message.success('已更新'); vm.loadConfigs(); }
               else vm.$Message.error(d.error || '更新失败');
@@ -187,14 +187,14 @@ Vue.component('page-api-keys', {
           var skey = (m.skey || '').trim();
           if (!sid || !skey) { vm.$Message.warning('请输入 SecretId 和 SecretKey'); return; }
           vm.saving = 'hunyuan';
-          fetch('/api/ai/hunyuan-keys', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'add', secretId: sid, secretKey: skey, label: label }) })
+          apiFetch('/api/ai/hunyuan-keys', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'add', secretId: sid, secretKey: skey, label: label }) })
             .then(function (r) { return r.json(); }).then(function (d) {
               if (d.ok) { vm.$Message.success('已添加，共 ' + d.count + ' 个账号'); vm.loadConfigs(); }
               else vm.$Message.error(d.error || '添加失败');
               vm.saving = null; vm.keyModal.show = false;
             }).catch(function () { vm.$Message.error('添加失败'); vm.saving = null; });
         } else {
-          fetch('/api/ai/hunyuan-keys', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'update-label', index: m.index, label: label }) })
+          apiFetch('/api/ai/hunyuan-keys', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'update-label', index: m.index, label: label }) })
             .then(function (r) { return r.json(); }).then(function (d) {
               if (d.ok) { vm.$Message.success('已更新'); vm.loadConfigs(); }
               else vm.$Message.error(d.error || '更新失败');
@@ -204,7 +204,7 @@ Vue.component('page-api-keys', {
       } else if (m.provider === 'imgbb') {
         if (m.mode === 'edit') {
           vm.saving = 'imgbb';
-          fetch('/api/ai/smms-token', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ labelOnly: true, label: label }) })
+          apiFetch('/api/ai/smms-token', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ labelOnly: true, label: label }) })
             .then(function (r) { return r.json(); }).then(function (d) {
               if (d.ok) { vm.$Message.success('备注已更新'); vm.loadImgbb(); }
               else vm.$Message.error(d.error || '更新失败');
@@ -214,7 +214,7 @@ Vue.component('page-api-keys', {
           var key = (m.key || '').trim();
           if (!key) { vm.$Message.warning('请输入API Key'); return; }
           vm.saving = 'imgbb';
-          fetch('/api/ai/smms-token', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: key, label: label }) })
+          apiFetch('/api/ai/smms-token', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: key, label: label }) })
             .then(function (r) { return r.json(); }).then(function (d) {
               if (d.ok) { vm.$Message.success('ImgBB Key 已保存'); vm.loadImgbb(); }
               else vm.$Message.error(d.error || '保存失败');
@@ -230,7 +230,7 @@ Vue.component('page-api-keys', {
       vm.$Modal.confirm({ title: '确认删除', content: '确定要删除这个' + (names[provider] || 'Key') + '吗？', okText: '删除', cancelText: '取消',
         onOk: function () {
           var endpoint = provider === 'zhipu' ? '/api/ai/zhipu-keys' : provider === 'qwen' ? '/api/ai/qwen-keys' : '/api/ai/hunyuan-keys';
-          fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete', index: idx }) })
+          apiFetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete', index: idx }) })
             .then(function (r) { return r.json(); }).then(function (d) {
               if (d.ok) { vm.$Message.success('已删除'); vm.loadConfigs(); }
               else vm.$Message.error(d.error || '删除失败');
@@ -242,7 +242,7 @@ Vue.component('page-api-keys', {
       var vm = this;
       vm.$Modal.confirm({ title: '确认删除', content: '确定要删除 ImgBB API Key 吗？', okText: '删除', cancelText: '取消',
         onOk: function () {
-          fetch('/api/ai/smms-token-delete', { method: 'POST' })
+          apiFetch('/api/ai/smms-token-delete', { method: 'POST' })
             .then(function (r) { return r.json(); }).then(function (d) {
               if (d.ok) { vm.$Message.success('已删除'); vm.loadImgbb(); }
             }).catch(function () { vm.$Message.error('删除失败'); });
@@ -255,7 +255,7 @@ Vue.component('page-api-keys', {
       var model = (vm.ollamaModel || '').trim() || 'qwen3:8b';
       var port = (vm.ollamaPort || '').trim() || '11434';
       vm.saving = 'ollama';
-      fetch('/api/ai/configs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ providers: { ollama: { model: model, port: port } } }) })
+      apiFetch('/api/ai/configs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ providers: { ollama: { model: model, port: port } } }) })
         .then(function (r) { return r.json(); }).then(function (result) {
           if (result.ok) { vm.$Message.success('本地模型配置已保存'); vm.loadConfigs(); }
           else vm.$Message.error(result.error || '保存失败');
@@ -265,14 +265,14 @@ Vue.component('page-api-keys', {
     // ===== ImgBB =====
     loadImgbb: function () {
       var vm = this;
-      fetch('/api/ai/smms-token').then(function (r) { return r.json(); }).then(function (d) {
+      apiFetch('/api/ai/smms-token').then(function (r) { return r.json(); }).then(function (d) {
         vm.imgbbStatus = { configured: !!d.configured, masked: d.masked || '', label: d.label || '' };
       }).catch(function () {});
     },
     // ===== 阿里云 OSS =====
     loadOss: function () {
       var vm = this;
-      fetch('/api/ai/oss-config').then(function (r) { return r.json(); }).then(function (d) {
+      apiFetch('/api/ai/oss-config').then(function (r) { return r.json(); }).then(function (d) {
         vm.ossStatus = { configured: !!d.configured, masked: d.masked || '', bucket: d.bucket || '', region: d.region || '', endpoint: d.endpoint || '', label: d.label || '' };
       }).catch(function () {});
     },
@@ -287,7 +287,7 @@ Vue.component('page-api-keys', {
         vm.$Message.warning('请填写 AccessKey ID、Secret、Bucket 和 Region');
         return;
       }
-      fetch('/api/ai/oss-config', {
+      apiFetch('/api/ai/oss-config', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ accessKeyId: m.accessKeyId, accessKeySecret: m.accessKeySecret, bucket: m.bucket, region: m.region, endpoint: m.endpoint, label: m.label })
       }).then(function (r) { return r.json(); }).then(function (d) {
@@ -299,7 +299,7 @@ Vue.component('page-api-keys', {
       var vm = this;
       vm.$Modal.confirm({ title: '确认删除', content: '确定要删除阿里云 OSS 配置吗？', okText: '删除', cancelText: '取消',
         onOk: function () {
-          fetch('/api/ai/oss-config-delete', { method: 'POST' })
+          apiFetch('/api/ai/oss-config-delete', { method: 'POST' })
             .then(function (r) { return r.json(); }).then(function (d) {
               if (d.ok) { vm.$Message.success('已删除'); vm.loadOss(); }
             }).catch(function () { vm.$Message.error('删除失败'); });
@@ -309,7 +309,7 @@ Vue.component('page-api-keys', {
     // ===== ComfyUI =====
     loadComfyui: function () {
       var vm = this;
-      fetch('/api/ai/comfyui-config').then(function (r) { return r.json(); }).then(function (d) {
+      apiFetch('/api/ai/comfyui-config').then(function (r) { return r.json(); }).then(function (d) {
         vm.comfyuiUrl = d.url || '';
         vm.comfyuiUsername = d.username || '';
         vm.comfyuiPassword = d.creds_configured ? '********' : '';
@@ -327,7 +327,7 @@ Vue.component('page-api-keys', {
         payload.username = vm.comfyuiUsername.trim();
         payload.password = vm.comfyuiPassword;
       }
-      fetch('/api/ai/comfyui-config', {
+      apiFetch('/api/ai/comfyui-config', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       }).then(function (r) { return r.json(); }).then(function (d) {
@@ -342,7 +342,7 @@ Vue.component('page-api-keys', {
     // ===== Turso =====
     loadTurso: function () {
       var vm = this;
-      fetch('/api/sync/config').then(function (r) { return r.json(); }).then(function (data) {
+      apiFetch('/api/sync/config').then(function (r) { return r.json(); }).then(function (data) {
         vm.tursoUrl = data.url || '';
         vm.tursoToken = data.token || '';
         vm.tursoStatus = { connected: data.status ? data.status.connected : false, config: data.configured };
@@ -355,7 +355,7 @@ Vue.component('page-api-keys', {
       var token = (vm.tursoToken || '').trim();
       if (!url || !token) { vm.$Message.warning('请填写 URL 和 Token'); return; }
       vm.tursoSaving = true;
-      fetch('/api/sync/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: url, token: token }) })
+      apiFetch('/api/sync/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: url, token: token }) })
         .then(function (r) { return r.json(); }).then(function (data) {
           if (data.ok) { vm.$Message.success('配置已保存'); vm.loadTurso(); }
           else vm.$Message.error(data.message || '保存失败');
@@ -374,7 +374,7 @@ Vue.component('page-api-keys', {
         reader.onload = function (ev) {
           try {
             var data = JSON.parse(ev.target.result);
-            fetch('/api/settings-import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+            apiFetch('/api/settings-import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
               .then(function (r) { return r.json(); }).then(function (res) {
                 if (res.ok) { vm.$Message.success('导入成功，共 ' + res.imported + ' 项'); vm.loadConfigs(); vm.loadImgbb(); }
                 else vm.$Message.error(res.error || '导入失败');

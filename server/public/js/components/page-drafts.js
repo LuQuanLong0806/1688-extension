@@ -69,7 +69,7 @@ Vue.component('page-drafts', {
         stage: 'draft'
       });
       if (vm.keyword.trim()) params.set('keyword', vm.keyword.trim());
-      fetch('/api/product?' + params.toString())
+      apiFetch('/api/product?' + params.toString())
         .then(function (r) { return r.json(); })
         .then(function (d) {
           vm.list = d.list;
@@ -114,7 +114,7 @@ Vue.component('page-drafts', {
         content: '确认将 ' + vm.selectedIds.length + ' 个商品' + label + '？',
         onOk: function () {
           vm.batchOperating = true;
-          fetch('/api/product/batch-stage', {
+          apiFetch('/api/product/batch-stage', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ uids: vm.selectedIds, stage: targetStage })
@@ -133,7 +133,7 @@ Vue.component('page-drafts', {
     },
     setStage: function (row, stage) {
       var vm = this;
-      fetch('/api/product/' + row.uid + '/stage', {
+      apiFetch('/api/product/' + row.uid + '/stage', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ stage: stage })

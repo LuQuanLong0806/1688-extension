@@ -183,7 +183,25 @@ var LOCAL_TABLE_DEFS = [
       automation_issues TEXT DEFAULT '',
       automation_started_at DATETIME,
       automation_finished_at DATETIME,
-      original_images TEXT DEFAULT ''
+      original_images TEXT DEFAULT '',
+      owner TEXT DEFAULT '',
+      claim_at TEXT DEFAULT ''
+    )`
+  },
+  {
+    name: 'users',
+    ddl: `CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      password_salt TEXT NOT NULL,
+      display_name TEXT DEFAULT '',
+      role TEXT DEFAULT 'operator',
+      last_login TEXT DEFAULT '',
+      must_change_password INTEGER DEFAULT 0,
+      disabled INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT '',
+      updated_at TEXT DEFAULT ''
     )`
   },
   {

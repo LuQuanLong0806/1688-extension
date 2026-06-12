@@ -71,7 +71,7 @@ Vue.component('page-cloud-sync', {
     loadConfig: function () {
       var vm = this;
       vm.loading = true;
-      fetch('/api/sync/config')
+      apiFetch('/api/sync/config')
         .then(function (r) { return r.json(); })
         .then(function (data) {
           vm.status = { connected: data.status ? data.status.connected : false, lastSyncTime: data.status ? data.status.lastSyncTime : null, config: data.configured };
@@ -83,7 +83,7 @@ Vue.component('page-cloud-sync', {
       var vm = this;
       vm.syncing = true;
       vm.syncingType = 'connect';
-      fetch('/api/sync/test', { method: 'POST' })
+      apiFetch('/api/sync/test', { method: 'POST' })
         .then(function (r) { return r.json(); })
         .then(function (data) {
           if (data.ok) vm.$Message.success('连接成功');
@@ -102,7 +102,7 @@ Vue.component('page-cloud-sync', {
         onOk: function () {
           vm.syncing = true;
           vm.syncingType = 'disconnect';
-          fetch('/api/sync/disconnect', { method: 'POST' })
+          apiFetch('/api/sync/disconnect', { method: 'POST' })
             .then(function (r) { return r.json(); })
             .then(function (data) {
               vm.$Message.success('已断开连接');
@@ -121,7 +121,7 @@ Vue.component('page-cloud-sync', {
         content: '<p>将建表并上传本地所有知识库数据到 Turso。</p><p style="color:var(--danger);margin-top:6px">分类库和商品需单独同步。</p>',
         onOk: function () {
           vm.setBusy('init');
-          fetch('/api/sync/init', { method: 'POST' })
+          apiFetch('/api/sync/init', { method: 'POST' })
             .then(function (r) { return r.json(); })
             .then(function (data) { data.ok ? vm.done('初始化完成', data) : vm.fail(data.error || '初始化失败'); })
             .catch(function () { vm.fail('初始化失败'); });
@@ -135,7 +135,7 @@ Vue.component('page-cloud-sync', {
         content: '<p>合并云端和本地知识库（映射、关联、同义词、黑名单），取最大值不丢数据。</p><p style="color:var(--accent);margin-top:6px">分类库和商品需单独同步。</p>',
         onOk: function () {
           vm.setBusy('sync');
-          fetch('/api/sync/sync', { method: 'POST' })
+          apiFetch('/api/sync/sync', { method: 'POST' })
             .then(function (r) { return r.json(); })
             .then(function (data) { data.ok ? vm.done('同步完成', data) : vm.fail(data.error || '同步失败'); })
             .catch(function () { vm.fail('同步失败'); });
@@ -163,7 +163,7 @@ Vue.component('page-cloud-sync', {
           var d = new Date(vm.syncDateRange[0]);
           body.since = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
         }
-        fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+        apiFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
           .then(function (r) { return r.json(); })
           .then(function (data) { data.ok ? vm.done(label + actionLabel + '完成', data) : vm.fail(data.error || '操作失败'); })
           .catch(function () { vm.fail(label + actionLabel + '失败'); });

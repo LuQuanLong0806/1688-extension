@@ -216,7 +216,7 @@ Vue.component('page-products', {
       // 改分类时清空旧路径，等 saveCategoryPath 设置新路径
       if (val) row.manualCategory = '';
       var vm = this;
-      fetch('/api/product/' + row.uid, {
+      apiFetch('/api/product/' + row.uid, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -234,7 +234,7 @@ Vue.component('page-products', {
     },
     saveCategoryPath: function (row, path) {
       row.manualCategory = path || '';
-      fetch('/api/product/' + row.uid, {
+      apiFetch('/api/product/' + row.uid, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -247,7 +247,7 @@ Vue.component('page-products', {
       var vm = this;
       if (!row.uid) { vm.$Message.warning('商品缺少唯一标识'); return; }
       vm.$set(vm.recommending, row.uid, true);
-      fetch('/api/product/' + row.uid + '/recommend-category', { method: 'POST' })
+      apiFetch('/api/product/' + row.uid + '/recommend-category', { method: 'POST' })
         .then(function (r) { return r.json(); })
         .then(function (data) {
           if (data.ok) {
@@ -265,7 +265,8 @@ Vue.component('page-products', {
     // -- 数据加载 --
     startPoll: function () {
       var vm = this;
-      var es = new EventSource('/api/events');
+      var token = localStorage.getItem('jwt_token') || '';
+      var es = new EventSource('/api/events?token=' + encodeURIComponent(token));
       es.addEventListener('product-added', function () {
         vm.loadList(vm.page);
         vm.$root.loadStats();
@@ -330,7 +331,7 @@ Vue.component('page-products', {
     },
     loadCategories: function () {
       var vm = this;
-      fetch('/api/product/categories')
+      apiFetch('/api/product/categories')
         .then(function (r) {
           return r.json();
         })
@@ -341,7 +342,7 @@ Vue.component('page-products', {
     },
     loadDxmCategories: function () {
       var vm = this;
-      fetch('/api/product/dxm-categories')
+      apiFetch('/api/product/dxm-categories')
         .then(function (r) {
           return r.json();
         })
@@ -354,7 +355,7 @@ Vue.component('page-products', {
       var vm = this;
       vm.syncing = true;
       var since = new Date(Date.now() - 24 * 3600000 + 8 * 3600000).toISOString().replace('T', ' ').substring(0, 19);
-      fetch('/api/sync/product-pull', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ since: since }) })
+      apiFetch('/api/sync/product-pull', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ since: since }) })
         .then(function (r) { return r.json(); })
         .then(function (res) {
           vm.syncing = false;
@@ -389,7 +390,7 @@ Vue.component('page-products', {
       if (vm.deletedFilter) params.set('deleted', vm.deletedFilter);
       if (vm.categoryFilter) params.set('category', vm.categoryFilter);
       if (vm.dxmCategoryFilter) params.set('dxmCategory', vm.dxmCategoryFilter);
-      fetch('/api/product?' + params.toString())
+      apiFetch('/api/product?' + params.toString())
         .then(function (r) {
           return r.json();
         })
@@ -438,7 +439,7 @@ Vue.component('page-products', {
         title: '确认删除',
         content: '确认删除此商品？',
         onOk: function () {
-          fetch('/api/product/' + id, { method: 'DELETE' })
+          apiFetch('/api/product/' + id, { method: 'DELETE' })
             .then(function () {
               vm.loadList();
               vm.$root.loadStats();
@@ -455,7 +456,7 @@ Vue.component('page-products', {
       row._statusPending = true;
       // 先切换视觉效果（动画）
       row.status = row.status === 1 ? 0 : 1;
-      fetch('/api/product/batch-status', {
+      apiFetch('/api/product/batch-status', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids: [row.uid], status: -1 })
@@ -486,7 +487,7 @@ Vue.component('page-products', {
         title: '批量修改状态',
         content: '确认将 ' + vm.selectedIds.length + ' 条商品的状态反转？',
         onOk: function () {
-          fetch('/api/product/batch-status', {
+          apiFetch('/api/product/batch-status', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ids: vm.selectedIds, status: -1 })
@@ -509,7 +510,7 @@ Vue.component('page-products', {
         title: '确认删除',
         content: '确认删除 ' + vm.selectedIds.length + ' 条商品？',
         onOk: function () {
-          fetch('/api/product/batch-delete', {
+          apiFetch('/api/product/batch-delete', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ids: vm.selectedIds })
@@ -548,7 +549,7 @@ Vue.component('page-products', {
       }
       Promise.all(
         vm.selectedIds.map(function (id) {
-          return fetch('/api/product/' + id, {
+          return apiFetch('/api/product/' + id, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body)
@@ -575,7 +576,7 @@ Vue.component('page-products', {
         content: '将对 ' + vm.selectedIds.length + ' 个商品启动自动化处理（去水印、白底图、分类推荐等）',
         onOk: function () {
           vm.automating = true;
-          fetch('/api/product/batch-automate', {
+          apiFetch('/api/product/batch-automate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ uids: vm.selectedIds })

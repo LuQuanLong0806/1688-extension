@@ -134,7 +134,7 @@ Vue.component('page-word-library', {
       }
       var params = '?type=' + vm.activeTab;
       if (vm.keyword) params += '&keyword=' + encodeURIComponent(vm.keyword);
-      fetch('/api/category-config' + params)
+      apiFetch('/api/category-config' + params)
         .then(function (r) { return r.json(); })
         .then(function (res) {
           vm.loading = false;
@@ -160,7 +160,7 @@ Vue.component('page-word-library', {
       var url = vm.activeTab === 'blacklist'
         ? '/api/keyword-blacklist?' + params.toString()
         : '/api/keyword-rels?' + params.toString();
-      fetch(url).then(function (r) { return r.json(); }).then(function (data) {
+      apiFetch(url).then(function (r) { return r.json(); }).then(function (data) {
         if (data.list) {
           vm.list = data.list;
           vm.total = data.total || 0;
@@ -180,7 +180,7 @@ Vue.component('page-word-library', {
         return;
       }
       vm.addSaving = true;
-      fetch('/api/category-config', {
+      apiFetch('/api/category-config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -226,7 +226,7 @@ Vue.component('page-word-library', {
         return;
       }
       vm.editSaving = true;
-      fetch('/api/category-config', {
+      apiFetch('/api/category-config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -257,7 +257,7 @@ Vue.component('page-word-library', {
           title: '删除黑名单',
           content: '确认删除「' + row.keyword + ' → ' + row.category_name + '」？',
           onOk: function () {
-            fetch('/api/keyword-blacklist/' + row.id, { method: 'DELETE' })
+            apiFetch('/api/keyword-blacklist/' + row.id, { method: 'DELETE' })
               .then(function (r) { return r.json(); })
               .then(function () { vm.$Message.success('已删除'); vm.loadList(); })
               .catch(function () { vm.$Message.error('删除失败'); });
@@ -270,7 +270,7 @@ Vue.component('page-word-library', {
           title: '作废关联',
           content: '确认作废「' + row.keyword + ' → ' + row.category_name + '」？作废后不再参与推荐。',
           onOk: function () {
-            fetch('/api/keyword-rels/' + row.id, { method: 'DELETE' })
+            apiFetch('/api/keyword-rels/' + row.id, { method: 'DELETE' })
               .then(function (r) { return r.json(); })
               .then(function () { vm.$Message.success('已作废'); vm.loadList(); })
               .catch(function () { vm.$Message.error('操作失败'); });
@@ -282,7 +282,7 @@ Vue.component('page-word-library', {
         title: '确认删除',
         content: '确定要删除「' + row.value + '」吗？',
         onOk: function () {
-          fetch('/api/category-config/' + row.id, { method: 'DELETE' })
+          apiFetch('/api/category-config/' + row.id, { method: 'DELETE' })
             .then(function (r) { return r.json(); })
             .then(function (res) {
               if (res.ok) {
@@ -304,7 +304,7 @@ Vue.component('page-word-library', {
         title: '批量删除',
         content: '确定要删除选中的 ' + count + ' 条记录吗？',
         onOk: function () {
-          fetch('/api/category-config/batch-delete', {
+          apiFetch('/api/category-config/batch-delete', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ids: vm.selectedIds.slice() })

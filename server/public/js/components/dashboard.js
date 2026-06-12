@@ -30,7 +30,7 @@ Vue.component('page-dashboard', {
     goProducts: function () { this.$emit('switch-view', 'products'); },
     loadRecent: function () {
       var vm = this;
-      fetch('/api/product?pageSize=5').then(function (r) { return r.json(); })
+      apiFetch('/api/product?pageSize=5').then(function (r) { return r.json(); })
         .then(function (d) {
           vm.recentList = (d.list || []).map(function (item) {
             try {
@@ -55,7 +55,7 @@ Vue.component('page-dashboard', {
       var tc = this.themeColor.bind(this);
       var accentColor = tc('--accent');
       var accentLight = tc('--accent-glow');
-      fetch('/api/product/trend?days=7').then(function (r) { return r.json(); })
+      apiFetch('/api/product/trend?days=7').then(function (r) { return r.json(); })
         .then(function (data) {
           var dates = data.map(function (d) { return d.date.substring(5); });
           var counts = data.map(function (d) { return d.count; });
@@ -83,7 +83,7 @@ Vue.component('page-dashboard', {
       var chart = echarts.init(el);
       this.charts.status = chart;
       var tc = this.themeColor.bind(this);
-      fetch('/api/product/dxm-category-top?limit=10').then(function (r) { return r.json(); })
+      apiFetch('/api/product/dxm-category-top?limit=10').then(function (r) { return r.json(); })
         .then(function (data) {
           if (!Array.isArray(data) || !data.length) {
             chart.setOption({

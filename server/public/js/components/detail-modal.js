@@ -80,7 +80,7 @@ Vue.component('detail-modal', {
   },
   mounted: function () {
     var vm = this;
-    fetch('/api/settings/price_formulas')
+    apiFetch('/api/settings/price_formulas')
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (data.value) {
@@ -98,7 +98,7 @@ Vue.component('detail-modal', {
     autoCleanChinese: function (v) { localStorage.setItem('1688_auto_clean_chinese', v); },
     autoCleanBadge: function (v) {
       localStorage.setItem('1688_auto_clean_badge', v);
-      fetch('/api/settings/auto_clean_badge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value: String(v) }) }).catch(function () {});
+      apiFetch('/api/settings/auto_clean_badge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value: String(v) }) }).catch(function () {});
     },
     detail: function (val) {
       if (val) {
@@ -833,7 +833,7 @@ Vue.component('detail-modal', {
               canvas.getContext('2d').drawImage(img, 0, 0);
               var productBase64 = canvas.toDataURL('image/png');
               // 调后端换背景 API（不依赖 ComfyUI）
-              fetch(serverBase + '/api/ai/replace-bg', {
+              apiFetch(serverBase + '/api/ai/replace-bg', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ product_base64: productBase64, bg_base64: bgBase64 })
@@ -935,7 +935,7 @@ Vue.component('detail-modal', {
       var vm = this;
       if (!vm.editable) return;
       var ns = vm.editable.status === 0 ? 1 : 0;
-      fetch('/api/product/' + vm.editable.uid, {
+      apiFetch('/api/product/' + vm.editable.uid, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: ns })
@@ -991,7 +991,7 @@ Vue.component('detail-modal', {
         skus: skus,
         status: vm.editable.status
       };
-      return fetch('/api/product/' + vm.editable.uid, {
+      return apiFetch('/api/product/' + vm.editable.uid, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -1079,7 +1079,7 @@ Vue.component('detail-modal', {
             };
             if (vm.autoCleanChinese) {
               vm.$Message.loading({ content: '正在去中文...', duration: 0 });
-              fetch('/api/ai/auto-clean-chinese', {
+              apiFetch('/api/ai/auto-clean-chinese', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ image_base64: raw, chinese_only: true, enable_badge_vision: vm.autoCleanBadge })
               }).then(function (r) { return r.json(); }).then(function (d) {
@@ -1104,7 +1104,7 @@ Vue.component('detail-modal', {
     doImageUpload: function (base64) {
       var vm = this;
       vm.$Message.loading({ content: '正在上传图片...', duration: 0 });
-      fetch('/api/ai/image-upload', {
+      apiFetch('/api/ai/image-upload', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image_base64: base64 })
       }).then(function (r) { return r.json(); }).then(function (d) {
@@ -1149,7 +1149,7 @@ Vue.component('detail-modal', {
               var raw = reader.result;
               var doUpload = function (base64) {
                 vm.$Message.loading({ content: '正在上传图片...', duration: 0 });
-                fetch('/api/ai/image-upload', {
+                apiFetch('/api/ai/image-upload', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ image_base64: base64 })
@@ -1177,7 +1177,7 @@ Vue.component('detail-modal', {
 
               if (vm.autoCleanChinese) {
                 vm.$Message.loading({ content: '正在去中文...', duration: 0 });
-                fetch('/api/ai/auto-clean-chinese', {
+                apiFetch('/api/ai/auto-clean-chinese', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ image_base64: raw, chinese_only: true, enable_badge_vision: vm.autoCleanBadge })
@@ -1494,7 +1494,7 @@ Vue.component('detail-modal', {
     },
     saveFormulas: function () {
       var vm = this;
-      fetch('/api/settings/price_formulas', {
+      apiFetch('/api/settings/price_formulas', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ value: JSON.stringify(vm.priceFormulas) })
@@ -1582,7 +1582,7 @@ Vue.component('detail-modal', {
         productNo: vm.productNo,
         variantAttrImages: variantAttrImages
       };
-      return fetch('/api/product/' + vm.editable.uid, {
+      return apiFetch('/api/product/' + vm.editable.uid, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
