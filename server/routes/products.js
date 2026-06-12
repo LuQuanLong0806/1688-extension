@@ -33,7 +33,8 @@ function insertProduct(sourceUrl, title, category, customCategory, dxmCategory, 
     uid, sourceUrl, title, JSON.stringify(category || {}), customCategory || '', dxmCategory || '',
     manualCategory || '', now,
     JSON.stringify(mainImages || []), JSON.stringify(descImages || []),
-    JSON.stringify(detailImages || []), JSON.stringify(attrs || []), JSON.stringify(skus || [])
+    JSON.stringify(detailImages || []), JSON.stringify(attrs || []), JSON.stringify(skus || []),
+    productOwner || ''
   );
   return getOne('SELECT last_insert_rowid() as id');
 }
