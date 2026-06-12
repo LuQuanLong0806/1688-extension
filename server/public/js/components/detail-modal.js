@@ -64,7 +64,8 @@ Vue.component('detail-modal', {
       _imgSizeTimer: null,
       // 添加图片粘贴模式
       addingImage: false,
-      autoCleanChinese: true,
+      autoCleanChinese: localStorage.getItem('1688_auto_clean_chinese') !== 'false',
+      autoCleanBadge: localStorage.getItem('1688_auto_clean_badge') === 'true',
       compressBeforeUpload: true,
       mainImgDragOver: false,
       _addImgPasteHandler: null,
@@ -94,6 +95,11 @@ Vue.component('detail-modal', {
       });
   },
   watch: {
+    autoCleanChinese: function (v) { localStorage.setItem('1688_auto_clean_chinese', v); },
+    autoCleanBadge: function (v) {
+      localStorage.setItem('1688_auto_clean_badge', v);
+      fetch('/api/settings/auto_clean_badge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value: String(v) }) }).catch(function () {});
+    },
     detail: function (val) {
       if (val) {
         this.editable = JSON.parse(JSON.stringify(val));
@@ -1075,7 +1081,7 @@ Vue.component('detail-modal', {
               vm.$Message.loading({ content: '正在去中文...', duration: 0 });
               fetch('/api/ai/auto-clean-chinese', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ image_base64: raw, chinese_only: true })
+                body: JSON.stringify({ image_base64: raw, chinese_only: true, enable_badge_vision: vm.autoCleanBadge })
               }).then(function (r) { return r.json(); }).then(function (d) {
                 vm.$Message.destroy();
                 if (d.ok && d.cleaned && d.url) {
@@ -1174,7 +1180,7 @@ Vue.component('detail-modal', {
                 fetch('/api/ai/auto-clean-chinese', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ image_base64: raw, chinese_only: true })
+                  body: JSON.stringify({ image_base64: raw, chinese_only: true, enable_badge_vision: vm.autoCleanBadge })
                 }).then(function (r) { return r.json(); }).then(function (d) {
                   vm.$Message.destroy();
                   if (d.ok && d.cleaned && d.url) {
@@ -1676,6 +1682,7 @@ Vue.component('detail-modal', {
             </div>
             <div v-if="addingImage" class="paste-options-bar">
               <label class="paste-opt"><i-switch v-model="autoCleanChinese" size="small" /><span class="paste-opt-label">去中文</span></label>
+              <label class="paste-opt"><i-switch v-model="autoCleanBadge" size="small" /><span class="paste-opt-label">去徽章</span></label>
               <label class="paste-opt"><i-switch v-model="compressBeforeUpload" size="small" /><span class="paste-opt-label">压缩800px</span></label>
             </div>
           </div>

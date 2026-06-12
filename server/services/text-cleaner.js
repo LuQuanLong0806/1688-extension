@@ -337,6 +337,100 @@ function expandVisionRegions(regions, imgW, imgH, ratio) {
   });
 }
 
+// ========== 第二遍：视觉模型检测残留徽章/色块 ==========
+// 在文字去除后调用，检测残留的纯色背景块（如"包邮""特价"标签底色）
+async function detectBadgesWithVision(imageBuffer, imgW, imgH, textRegions) {
+  var providers;
+  try { providers = require('../routes/ai/providers'); } catch (e) { return null; }
+
+  var prompt = '任务：这张电商商品主图（尺寸' + imgW + 'x' + imgH + '）已经过文字去除处理，但可能残留一些空白的营销标签底色块。' +
+    '\n请找出所有残留的营销标签/徽章/色块区域。' +
+    '\n\n目标特征（满足任一即框选）：' +
+    '\n- 纯色或渐变色块：看起来像被涂抹过的矩形/圆角矩形区域，和周围背景不协调。' +
+    '\n- 营销标签底色：曾经印有"包邮""特价""新品"等文字的纯色背景块。' +
+    '\n- 气泡形状：类似聊天气泡、对话框的圆角形状，带有小三角尾巴的色块。' +
+    '\n- 品牌角标/水印底色：角落或边缘的半透明/不透明色块。' +
+    '\n\n排除规则（绝对不能框选）：' +
+    '\n- 商品本身的包装、标签、说明书上的内容。' +
+    '\n- 商品的自然纹理、反光、阴影。' +
+    '\n- 看起来和商品融为一体的区域。' +
+    '\n- 如果不确定，宁可漏选也不要误选。' +
+    '\n\n输出要求：' +
+    '\n- 用矩形框完整覆盖整个色块。' +
+    '\n- 如果图片没有残留色块，返回空数组[]。' +
+    '\n只输出JSON数组，不要输出其他文字说明: [{"x":左上角x,"y":左上角y,"width":宽,"height":高}]';
+
+  // 压缩图片
+  var fullBase64;
+  try {
+    var maxDim = 800;
+    var meta = await sharp(imageBuffer).metadata();
+    if (meta.width > maxDim || meta.height > maxDim) {
+      var resized = await sharp(imageBuffer).resize(maxDim, maxDim, { fit: 'inside' }).jpeg({ quality: 85 }).toBuffer();
+      fullBase64 = 'data:image/jpeg;base64,' + resized.toString('base64');
+    } else {
+      fullBase64 = 'data:image/png;base64,' + imageBuffer.toString('base64');
+    }
+  } catch (e) {
+    fullBase64 = 'data:image/png;base64,' + imageBuffer.toString('base64');
+  }
+
+  try {
+    var result = await providers.visionLLMRequest('/chat/completions', {
+      _vlImageContent: fullBase64,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.1,
+      max_tokens: 512
+    });
+
+    var text = result.choices && result.choices[0] && result.choices[0].message && result.choices[0].message.content;
+    if (!text) return null;
+
+    var jsonStr = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+    var regions = JSON.parse(jsonStr);
+    if (!Array.isArray(regions) || regions.length === 0) return null;
+
+    // 过滤：排除和文字区域重叠太多的（已经被处理过的）以及面积太大的
+    var imgArea = imgW * imgH;
+    var valid = regions.filter(function (r) {
+      if (typeof r.x !== 'number' || typeof r.y !== 'number' ||
+          typeof r.width !== 'number' || typeof r.height !== 'number') return false;
+      var area = r.width * r.height;
+      if (area > imgArea * 0.15) return false; // 太大，可能误判
+      // 检查是否和已处理的文字区域高度重叠
+      var overlapCount = 0;
+      for (var i = 0; i < textRegions.length; i++) {
+        var tr = getRegionBBox(textRegions[i]);
+        var ox = Math.max(r.x, tr.x);
+        var oy = Math.max(r.y, tr.y);
+        var ow = Math.min(r.x + r.width, tr.x + tr.w) - ox;
+        var oh = Math.min(r.y + r.height, tr.y + tr.h) - oy;
+        if (ow > 0 && oh > 0 && (ow * oh) / area > 0.7) {
+          overlapCount++;
+        }
+      }
+      // 如果和超过一半的文字区域高度重叠，说明已经处理过了
+      if (textRegions.length > 0 && overlapCount > textRegions.length * 0.5) return false;
+      return true;
+    }).map(function (r) {
+      return {
+        x: Math.max(0, Math.round(r.x)),
+        y: Math.max(0, Math.round(r.y)),
+        width: Math.round(r.width),
+        height: Math.round(r.height),
+        _badgeVision: true
+      };
+    });
+
+    if (valid.length === 0) return null;
+    console.log('[徽章视觉] 检测到 ' + valid.length + ' 个残留徽章区域');
+    return valid;
+  } catch (e) {
+    console.warn('[徽章视觉] 检测失败:', e.message);
+    return null;
+  }
+}
+
 // ========== 视觉模型兜底检测淡色水印（OCR 未检出时调用） ==========
 async function detectFaintWatermarkWithVision(base64Data, imgW, imgH) {
   var providers;
@@ -504,6 +598,7 @@ async function cleanImage(imageBuffer, options) {
   var minConfidence = options.minConfidence || 0.5;
   var dilatePx = options.dilatePx || 40;
   var useVision = options.enableVision === true;
+  var useBadgeVision = options.enableBadgeVision === true;
 
   // Step 1: 转base64
   var base64Data = imageBuffer.toString('base64');
@@ -690,8 +785,27 @@ async function cleanImage(imageBuffer, options) {
   // Step 4: 生成 mask
   var maskBuffer = await generateMask(imgW, imgH, regions, { dilatePx: dilatePx });
 
-  // Step 5: Inpaint
+  // Step 5: Inpaint（去除文字）
   var resultBuffer = await doInpaint(imageBuffer, maskBuffer);
+
+  // Step 6: 第二遍 — 视觉模型检测残留徽章/色块，再次 inpaint
+  var badgeVisionRegions = [];
+  console.log('[文字清理] useBadgeVision=' + useBadgeVision);
+  if (useBadgeVision) {
+    try {
+      var badgeRegions = await detectBadgesWithVision(resultBuffer, imgW, imgH, regions);
+      if (badgeRegions && badgeRegions.length > 0) {
+        var badgeMask = await generateMask(imgW, imgH, badgeRegions, { dilatePx: 5 });
+        resultBuffer = await doInpaint(resultBuffer, badgeMask);
+        badgeVisionRegions = badgeRegions;
+        console.log('[文字清理] 第二遍徽章去除: ' + badgeRegions.length + ' 个区域');
+      } else {
+        console.log('[文字清理] 视觉模型未检测到残留徽章');
+      }
+    } catch (e) {
+      console.warn('[文字清理] 第二遍徽章检测失败:', e.message);
+    }
+  }
 
   return {
     ok: true,
@@ -699,6 +813,7 @@ async function cleanImage(imageBuffer, options) {
     regions: regions,
     ocrRegions: ocrRegions,
     visionRegions: visionRegions,
+    badgeVisionRegions: badgeVisionRegions,
     regionCount: regions.length,
     imageBuffer: resultBuffer,
     imageWidth: imgW,

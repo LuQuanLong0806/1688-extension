@@ -10,6 +10,25 @@ try { comfyuiInpaint = require('../../services/comfyui-inpaint'); } catch (e) {}
 var sizeAnnotate = require('../../services/size-annotate');
 
 // AI消除/小区域修复 → LaMa（快、精准），场景图生成 → ComfyUI inpaint
+var settingsDb;
+function getSettingsDb() {
+  if (!settingsDb) {
+    try { settingsDb = require('../../db'); } catch (e) { return null; }
+  }
+  return settingsDb;
+}
+
+function getAutoCleanBadge() {
+  try {
+    var db = getSettingsDb();
+    if (db && db.getOne) {
+      var row = db.getOne('SELECT value FROM settings WHERE key = ?', ['auto_clean_badge']);
+      return row && row.value === 'true';
+    }
+  } catch (e) {}
+  return false;
+}
+
 function getInpaintService() {
   return lamaService;
 }
@@ -296,7 +315,8 @@ router.post('/auto-clean-chinese', function (req, res) {
       chineseOnly: req.body.chinese_only !== false,
       minConfidence: req.body.min_confidence || 0.5,
       dilatePx: req.body.dilate_px || 20,
-      enableVision: req.body.enable_vision === true
+      enableVision: req.body.enable_vision === true,
+      enableBadgeVision: req.body.enable_badge_vision === true || (!('enable_badge_vision' in req.body) && getAutoCleanBadge())
     }).then(function (result) {
       return { imgBuf: imgBuf, result: result };
     });
@@ -376,7 +396,8 @@ router.post('/batch-clean-chinese', function (req, res) {
     return imagePromise.then(function (buf) {
       return textCleaner.cleanImage(buf, {
         chineseOnly: true,
-        enableVision: req.body.enable_vision === true
+        enableVision: req.body.enable_vision === true,
+        enableBadgeVision: req.body.enable_badge_vision === true || (!('enable_badge_vision' in req.body) && getAutoCleanBadge())
       });
     }).then(function (result) {
       if (!result.cleaned) {
@@ -408,6 +429,7 @@ router.post('/batch-clean', function (req, res) {
   var options = {
     enableOCR: req.body.enable_ocr !== false,          // 默认开启
     enableVision: req.body.enable_vision === true,     // 默认关闭（需API费用）
+    enableBadgeVision: req.body.enable_badge_vision === true || (!('enable_badge_vision' in req.body) && getAutoCleanBadge()),
     visionType: req.body.vision_type || 'all',           // watermark/text/all
     chineseOnly: req.body.chinese_only !== false,
     minConfidence: req.body.min_confidence || 0.5,
