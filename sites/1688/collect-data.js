@@ -22,6 +22,25 @@
     try { var _o = {}; _o[STORAGE_KEY] = url; chrome.storage.local.set(_o); } catch (e) {}
   }
 
+  // 从管理平台 cookie 自动获取 token（通过 background 中转）
+  function autoGetToken(callback) {
+    var serverUrl = getServerUrl();
+    var cached = localStorage.getItem(TOKEN_KEY);
+    if (cached) { callback(cached); return; }
+    try {
+      chrome.runtime.sendMessage({ action: 'getToken', serverUrl: serverUrl }, function (resp) {
+        var token = (resp && resp.token) || '';
+        if (token) {
+          localStorage.setItem(TOKEN_KEY, token);
+          try { var _o = {}; _o[TOKEN_KEY] = token; chrome.storage.local.set(_o); } catch (e) {}
+        }
+        callback(token);
+      });
+    } catch (e) {
+      callback('');
+    }
+  }
+
   function getToken() {
     return localStorage.getItem(TOKEN_KEY) || '';
   }
@@ -48,8 +67,14 @@
   function handleAuthError(response) {
     if (response.status === 401) {
       clearToken();
+      autoGetToken(function () {});
     }
   }
+
+  // 启动时自动获取 token
+  autoGetToken(function (token) {
+    if (!token) console.log('[1688] 未检测到管理平台登录');
+  });
 
   function getOfferId() {
     var m = location.href.match(/offer\/(\d+)\.html/i);
@@ -514,7 +539,8 @@
     collectAttrs: collectAttrs,
     getToken: getToken,
     setToken: setToken,
-    clearToken: clearToken
+    clearToken: clearToken,
+    autoGetToken: autoGetToken
   };
   // 暴露给小鹦鹉抓图使用
   window.waitForPageReady = waitForPageReady;

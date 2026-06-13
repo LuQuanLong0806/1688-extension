@@ -39,6 +39,21 @@
     return 'http://localhost:3000';
   }
 
+  var _cachedToken = '';
+  function authHeaders(headers) {
+    if (_cachedToken) {
+      headers = headers || {};
+      headers['Authorization'] = 'Bearer ' + _cachedToken;
+    }
+    return headers;
+  }
+  // 通过 background 中转获取 token（content script 无权调 chrome.cookies）
+  try {
+    chrome.runtime.sendMessage({ action: 'getToken', serverUrl: getServerBase() }, function (resp) {
+      if (resp && resp.token) _cachedToken = resp.token;
+    });
+  } catch (e) {}
+
   // ========== Toast ==========
   var toastTimer = null;
   function showToast(msg, type) {
@@ -56,7 +71,7 @@
   function checkServices() {
     var base = getServerBase();
     // OCR
-    fetch(base + '/api/ai/ocr-status').then(function (r) { return r.json(); }).then(function (d) {
+    fetch(base + '/api/ai/ocr-status', { headers: authHeaders() }).then(function (r) { return r.json(); }).then(function (d) {
       if (d.ocr && d.ocr.status === 'ok') {
         ocrStatusEl.textContent = 'OCR ✅';
         ocrStatusEl.className = 'status ok';
@@ -208,7 +223,7 @@
 
     fetch(base + '/api/ai/detect-text', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         image_base64: currentImageBuf,
         chinese_only: chineseOnly,
@@ -257,7 +272,7 @@
 
     fetch(base + '/api/ai/auto-clean-chinese', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         image_base64: currentImageBuf,
         chinese_only: chineseOnly,
@@ -399,7 +414,7 @@
 
     fetch(base + '/api/ai/batch-clean-chinese', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ images: images, enable_vision: false })
     }).then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);

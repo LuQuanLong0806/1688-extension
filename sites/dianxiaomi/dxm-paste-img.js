@@ -13,7 +13,7 @@
     pasteEl.addEventListener('click', function () {
       if (!C.startWorkflow('__dxm_bee_paste')) return;
       try { chrome.runtime.sendMessage({ action: 'clearResultSelections' }); } catch (e) {}
-      try { fetch(_serverUrl() + '/api/clear-signal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientId: _clientId() }) }).catch(function () {}); } catch (e) {}
+      try { fetch(_serverUrl() + '/api/clear-signal', { method: 'POST', headers: C.authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ clientId: _clientId() }) }).catch(function () {}); } catch (e) {}
       var mainImg = document.querySelector('#productProductInfo .mainImage');
       if (mainImg) mainImg.scrollIntoView({ behavior: 'smooth', block: 'center' });
       // 先检测剪贴板是否有图片，有则上传后写回URL，再走正常流程
@@ -27,7 +27,7 @@
     deleteEl.addEventListener('click', function () {
       if (!C.startWorkflow('__dxm_bee_delete')) return;
       try { chrome.runtime.sendMessage({ action: 'clearResultSelections' }); } catch (e) {}
-      try { fetch(_serverUrl() + '/api/clear-signal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientId: _clientId() }) }).catch(function () {}); } catch (e) {}
+      try { fetch(_serverUrl() + '/api/clear-signal', { method: 'POST', headers: C.authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ clientId: _clientId() }) }).catch(function () {}); } catch (e) {}
       var mainImg = document.querySelector('#productProductInfo .mainImage');
       if (mainImg) mainImg.scrollIntoView({ behavior: 'smooth', block: 'center' });
       doDeleteImages();
@@ -72,14 +72,14 @@
   function cleanCompressAndUpload(base64, onSuccess, onError) {
     fetch(_serverUrl() + '/api/ai/auto-clean-chinese', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: C.authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ image_base64: base64, chinese_only: true })
     }).then(function (r) { return r.json(); }).then(function (d) {
       var afterClean = function (imgBase64) {
         compressImage(imgBase64, 800).then(function (compressed) {
           fetch(_serverUrl() + '/api/ai/image-upload', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: C.authHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify({ image_base64: compressed })
           }).then(function (r2) { return r2.json(); }).then(function (up) {
             if (up.ok && up.url) {
@@ -631,7 +631,7 @@
     }
     if (!imageFiles.length) return;
     if (!C.startWorkflow('__dxm_bee_paste')) return;
-    try { fetch(_serverUrl() + '/api/clear-signal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientId: _clientId() }) }).catch(function () {}); } catch (e) {}
+    try { fetch(_serverUrl() + '/api/clear-signal', { method: 'POST', headers: C.authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ clientId: _clientId() }) }).catch(function () {}); } catch (e) {}
     pasteStep = 0;
     pasteTotal = 7;
     C.showBubble('1/7 拖拽图片，去中文+压缩+上传...', 'loading');

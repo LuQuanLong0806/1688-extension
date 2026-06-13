@@ -484,7 +484,7 @@
       tryRender();
     });
 
-    fetch(serverUrl + '/api/dxm-tree/root-status')
+    fetch(serverUrl + '/api/dxm-tree/root-status', { headers: Config.authHeaders() })
       .then(function (r) { return r.json(); })
       .then(function (data) { syncStatus = data || []; tryRender(); })
       .catch(function () { syncStatus = []; tryRender(); });

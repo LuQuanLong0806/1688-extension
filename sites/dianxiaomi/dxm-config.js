@@ -19,6 +19,7 @@
   var AUTO_RESIZE_KEY = '__dxm_bee_auto_resize';
 
   var SERVER_URL_KEY = '1688_server_url';
+  var TOKEN_KEY = '1688_token';
 
   // ========== 跨域共享服务器地址（chrome.storage.local）==========
   // 启动时从 chrome.storage.local 读取到 localStorage，其他脚本直接读 localStorage 即可
@@ -37,6 +38,49 @@
     try { var _o = {}; _o[SERVER_URL_KEY] = url; chrome.storage.local.set(_o); } catch (e) {}
   }
 
+  // ========== Token 管理（通过 background 中转从管理平台 cookie 获取） ==========
+
+  function autoGetToken(callback) {
+    var cached = localStorage.getItem(TOKEN_KEY);
+    if (cached) { callback(cached); return; }
+    try {
+      chrome.runtime.sendMessage({ action: 'getToken', serverUrl: getServerUrl() }, function (resp) {
+        var token = (resp && resp.token) || '';
+        if (token) {
+          localStorage.setItem(TOKEN_KEY, token);
+        }
+        callback(token);
+      });
+    } catch (e) {
+      callback('');
+    }
+  }
+
+  function getCachedToken() {
+    return localStorage.getItem(TOKEN_KEY) || '';
+  }
+
+  function authHeaders(headers) {
+    var token = getCachedToken();
+    if (token) {
+      headers = headers || {};
+      headers['Authorization'] = 'Bearer ' + token;
+    }
+    return headers;
+  }
+
+  function handleAuthError(response) {
+    if (response.status === 401) {
+      localStorage.removeItem(TOKEN_KEY);
+      autoGetToken(function () {});
+    }
+  }
+
+  // 启动时自动获取 token
+  autoGetToken(function (token) {
+    if (!token) console.log('[店小蜜] 未检测到管理平台登录');
+  });
+
   var SYNC_TS_KEY = '__dxm_bee_sync_ts';
   var pendingSyncs = {};
   var syncTimer = null;
@@ -52,27 +96,31 @@
       pendingSyncs = {};
       if (!items.length) return;
       localStorage.setItem(SYNC_TS_KEY, new Date().toISOString());
-      fetch(getServerUrl() + '/api/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: items })
-      }).catch(function () {});
+      autoGetToken(function () {
+        fetch(getServerUrl() + '/api/settings', {
+          method: 'PUT',
+          headers: authHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ items: items })
+        }).then(function (r) { handleAuthError(r); }).catch(function () {});
+      });
     }, 300);
   }
 
   function loadFromServer() {
     var localTs = localStorage.getItem(SYNC_TS_KEY) || '';
-    fetch(getServerUrl() + '/api/settings')
-      .then(function (r) { return r.json(); })
-      .then(function (settings) {
-        for (var key in settings) {
-          var entry = settings[key];
-          if (!entry) continue;
-          if (localTs && entry.updated_at && entry.updated_at <= localTs) continue;
-          localStorage.setItem(key, typeof entry === 'string' ? entry : entry.value);
-        }
-      })
-      .catch(function () {});
+    autoGetToken(function () {
+      fetch(getServerUrl() + '/api/settings', { headers: authHeaders() })
+        .then(function (r) { handleAuthError(r); return r.json(); })
+        .then(function (settings) {
+          for (var key in settings) {
+            var entry = settings[key];
+            if (!entry) continue;
+            if (localTs && entry.updated_at && entry.updated_at <= localTs) continue;
+            localStorage.setItem(key, typeof entry === 'string' ? entry : entry.value);
+          }
+        })
+        .catch(function () {});
+    });
   }
 
   function getDefaultFilters() {
@@ -531,6 +579,10 @@
     loadFromServer: loadFromServer,
     getServerUrl: getServerUrl,
     setServerUrl: setServerUrl,
+    autoGetToken: autoGetToken,
+    getCachedToken: getCachedToken,
+    authHeaders: authHeaders,
+    handleAuthError: handleAuthError,
     setInputValue: setInputValue,
     applyFilters: applyFilters,
     findVisibleModal: findVisibleModal,

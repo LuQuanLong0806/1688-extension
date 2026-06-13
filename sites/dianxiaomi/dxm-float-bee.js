@@ -1013,7 +1013,7 @@
   }); } catch (e) {}
   function notifyClearResult() {
     try { chrome.runtime.sendMessage({ action: 'clearResultSelections' }); } catch (e) {}
-    try { var _su = (Config && Config.getServerUrl ? Config.getServerUrl() : localStorage.getItem('1688_server_url')) || 'http://localhost:3000'; fetch(_su + '/api/clear-signal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientId: __sharedClientId }) }).catch(function () {}); } catch (e) {}
+    try { var _su = (Config && Config.getServerUrl ? Config.getServerUrl() : localStorage.getItem('1688_server_url')) || 'http://localhost:3000'; fetch(_su + '/api/clear-signal', { method: 'POST', headers: Config.authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ clientId: __sharedClientId }) }).catch(function () {}); } catch (e) {}
   }
   document.addEventListener('visibilitychange', function () {
     if (!document.hidden) notifyClearResult();
@@ -1310,7 +1310,7 @@
       });
       var serverUrl = (Config && Config.getServerUrl ? Config.getServerUrl() : localStorage.getItem('1688_server_url')) || 'http://localhost:3000';
       var promise = urls.length
-        ? fetch(serverUrl + '/api/collage-import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: urls }) }).catch(function () {})
+        ? fetch(serverUrl + '/api/collage-import', { method: 'POST', headers: Config.authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ images: urls }) }).catch(function () {})
         : Promise.resolve();
       promise.then(function () {
         try {
@@ -1390,7 +1390,7 @@
       batchBuffer = [];
       fetch(serverUrl + '/api/dxm-tree/sync', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: Config.authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ categories: items })
       }).catch(function () {});
     }

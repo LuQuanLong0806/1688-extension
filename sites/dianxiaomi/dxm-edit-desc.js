@@ -227,7 +227,7 @@
           var serverUrl = (C && C.getServerUrl ? C.getServerUrl() : localStorage.getItem('1688_server_url')) || 'http://localhost:3000';
           fetch(serverUrl + '/api/product/' + collectId, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: (C && C.authHeaders ? C.authHeaders({ 'Content-Type': 'application/json' }) : { 'Content-Type': 'application/json' }),
             body: JSON.stringify({ status: 1 })
           }).catch(function () {});
         }

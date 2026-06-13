@@ -19,13 +19,26 @@ var resultTabsMap = {};
 var collageMap = {}; // sourceId -> collageTabId (1:1)
 var cleanerMap = {}; // sourceId -> cleanerTabId (1:1)
 
-chrome.runtime.onMessage.addListener(function (msg, sender) {
+chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   if (msg.action === 'openTab' && msg.url) {
     chrome.tabs.create({ url: msg.url }, function (tab) {
       var sourceId = sender.tab.id;
       if (!resultTabsMap[sourceId]) resultTabsMap[sourceId] = [];
       resultTabsMap[sourceId].push(tab.id);
     });
+  }
+  // 获取管理平台 token（content script 无权调用 chrome.cookies，由 background 中转）
+  if (msg.action === 'getToken') {
+    var serverUrl = msg.serverUrl || 'http://localhost:3000';
+    try {
+      chrome.cookies.get({ url: serverUrl, name: 'auth_token' }, function (cookie) {
+        sendResponse({ token: (cookie && cookie.value) || '' });
+      });
+      return true; // 异步响应
+    } catch (e) {
+      sendResponse({ token: '' });
+    }
+    return false;
   }
   // 拼图页面：紧挨源标签打开，一对一关联
   if (msg.action === 'openCollage' && msg.url) {

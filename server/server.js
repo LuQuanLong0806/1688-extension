@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const cookieParser = require('cookie-parser');
 
 const { DB_FILE, TREE_DB_FILE, initDb, initTreeDb, getOne, getAll, run, treeRun, treeGetOne, scheduleSave } = require('./db');
 
@@ -21,6 +22,7 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json({ limit: '50mb' }));
+app.use(cookieParser());
 
 // Rate limiting
 var limiter = rateLimit({ windowMs: 60 * 1000, max: 120, standardHeaders: true, legacyHeaders: false });

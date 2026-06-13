@@ -114,6 +114,8 @@
     '#__1688_settings_panel .s-status{font-size:12px;margin-bottom:8px;text-align:center}' +
     '#__1688_settings_panel .s-status.logged-in{color:#43A047}' +
     '#__1688_settings_panel .s-status.logged-out{color:#999}' +
+    '#__1688_settings_panel .s-user-name{font-size:14px;font-weight:600;color:#333;text-align:center;margin-bottom:4px}' +
+    '#__1688_settings_panel .s-user-role{font-size:11px;color:#999;text-align:center;margin-bottom:8px}' +
     '#__1688_settings_panel .s-divider{border-top:1px solid #f0f0f0;margin:8px 0}' +
     '#__1688_grab_panel.at-right #__1688_settings_panel{left:auto;right:-20px;transform:none}';
 
@@ -131,17 +133,10 @@
     '<label>服务器地址</label>' +
     '<input id="__1688_s_url" type="text" placeholder="http://localhost:3000">' +
     '<div class="s-divider"></div>' +
-    '<div id="__1688_s_status" class="s-status logged-out">未登录</div>' +
-    '<div id="__1688_s_login_fields">' +
-      '<label>用户名</label>' +
-      '<input id="__1688_s_user" type="text" placeholder="输入用户名">' +
-      '<label>密码</label>' +
-      '<input id="__1688_s_pass" type="password" placeholder="输入密码">' +
-      '<button id="__1688_s_login_btn" class="s-btn s-btn-login">登录</button>' +
-    '</div>' +
-    '<div id="__1688_s_logged_in" style="display:none">' +
-      '<div id="__1688_s_user_info" style="font-size:13px;text-align:center;margin-bottom:8px;color:#333"></div>' +
-      '<button id="__1688_s_logout_btn" class="s-btn s-btn-logout">退出登录</button>' +
+    '<div id="__1688_s_status" class="s-status logged-out">检测中...</div>' +
+    '<div id="__1688_s_user_info_wrap" style="display:none">' +
+      '<div id="__1688_s_user_name" class="s-user-name"></div>' +
+      '<div id="__1688_s_user_role" class="s-user-role"></div>' +
     '</div>';
   panel.appendChild(settingsPanel);
 
@@ -340,44 +335,44 @@
   var settingsVisible = false;
 
   function updateLoginUI() {
-    var token = CollectData.getToken();
-    var loginFields = document.getElementById('__1688_s_login_fields');
-    var loggedInDiv = document.getElementById('__1688_s_logged_in');
     var statusEl = document.getElementById('__1688_s_status');
-    var userInfoEl = document.getElementById('__1688_s_user_info');
+    var infoWrap = document.getElementById('__1688_s_user_info_wrap');
+    var userNameEl = document.getElementById('__1688_s_user_name');
+    var userRoleEl = document.getElementById('__1688_s_user_role');
     var urlInput = document.getElementById('__1688_s_url');
 
     urlInput.value = CollectData.getServerUrl();
 
-    if (token) {
-      loginFields.style.display = 'none';
-      loggedInDiv.style.display = 'block';
-      statusEl.className = 's-status logged-in';
-      statusEl.textContent = '已登录';
-      userInfoEl.textContent = '';
+    function showStatus(text, logged, name, role) {
+      statusEl.className = 's-status ' + (logged ? 'logged-in' : 'logged-out');
+      statusEl.textContent = text;
+      if (infoWrap) infoWrap.style.display = logged ? 'block' : 'none';
+      if (userNameEl) userNameEl.textContent = name || '';
+      if (userRoleEl) userRoleEl.textContent = role || '';
+    }
+
+    // 先从 cookie 获取 token
+    CollectData.autoGetToken(function (token) {
+      if (!token) {
+        showStatus('请先登录管理平台', false);
+        return;
+      }
+
+      showStatus('验证中...', false);
       var serverUrl = CollectData.getServerUrl();
       fetch(serverUrl + '/api/me', { headers: { 'Authorization': 'Bearer ' + token } })
         .then(function (r) { return r.json(); })
         .then(function (res) {
           if (res.username) {
-            userInfoEl.textContent = res.display_name || res.username;
+            showStatus('已登录', true, res.display_name || res.username, res.role);
           } else {
-            statusEl.className = 's-status logged-out';
-            statusEl.textContent = '登录已过期';
-            loginFields.style.display = 'block';
-            loggedInDiv.style.display = 'none';
+            showStatus('Token 已过期，请重新登录管理平台', false);
           }
         })
         .catch(function () {
-          statusEl.className = 's-status logged-out';
-          statusEl.textContent = '无法连接服务器';
+          showStatus('无法连接服务器', false);
         });
-    } else {
-      loginFields.style.display = 'block';
-      loggedInDiv.style.display = 'none';
-      statusEl.className = 's-status logged-out';
-      statusEl.textContent = '未登录';
-    }
+    });
   }
 
   settingsBtn.addEventListener('click', function (e) {
@@ -403,47 +398,7 @@
     _log('服务器地址已保存: ' + url);
   });
 
-  // Login button
-  settingsPanel.querySelector('#__1688_s_login_btn').addEventListener('click', function () {
-    var btn = this;
-    var username = document.getElementById('__1688_s_user').value.trim();
-    var password = document.getElementById('__1688_s_pass').value;
-    if (!username || !password) { showToast('请输入用户名和密码', 'err'); return; }
-
-    btn.disabled = true;
-    btn.textContent = '登录中...';
-    var serverUrl = CollectData.getServerUrl();
-
-    fetch(serverUrl + '/api/plugin-login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: username, password: password })
-    })
-    .then(function (r) { return r.json(); })
-    .then(function (res) {
-      btn.disabled = false;
-      btn.textContent = '登录';
-      if (res.token) {
-        CollectData.setToken(res.token);
-        showToast('登录成功');
-        updateLoginUI();
-      } else {
-        showToast(res.error || '登录失败', 'err');
-      }
-    })
-    .catch(function (err) {
-      btn.disabled = false;
-      btn.textContent = '登录';
-      showToast('连接失败: ' + err.message, 'err');
-    });
-  });
-
-  // Logout button
-  settingsPanel.querySelector('#__1688_s_logout_btn').addEventListener('click', function () {
-    CollectData.clearToken();
-    showToast('已退出登录');
-    updateLoginUI();
-  });
+  // Auto auth: token managed by collect-data.js via cookie
 
   // ========== Collect button ==========
   collectBtn.addEventListener('click', function () {

@@ -28,7 +28,7 @@
   function detectChineseInImage(imageUrl) {
     return fetch(getServerUrl() + '/api/ai/detect-text', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: Config.authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         image_url: imageUrl,
         chinese_only: true,
@@ -44,7 +44,7 @@
   function cleanChineseInImage(imageUrl) {
     return fetch(getServerUrl() + '/api/ai/auto-clean-chinese', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: Config.authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ image_url: imageUrl, enable_vision: false })
     }).then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -60,7 +60,7 @@
 
     return fetch(getServerUrl() + '/api/ai/batch-clean-chinese', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: Config.authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ images: images, enable_vision: false })
     }).then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -70,7 +70,7 @@
 
   // ========== 检查OCR服务状态 ==========
   function checkOcrStatus() {
-    return fetch(getServerUrl() + '/api/ai/ocr-status')
+    return fetch(getServerUrl() + '/api/ai/ocr-status', { headers: Config.authHeaders() })
       .then(function (r) { return r.json(); })
       .catch(function () { return { ocr: { status: 'offline' }, lama: { available: false } }; });
   }

@@ -22,6 +22,8 @@ function signToken(user) {
   return jwt.sign({ id: user.id, username: user.username, role: user.role }, auth.getSecret(), { expiresIn: '7d' });
 }
 
+var COOKIE_OPTIONS = { httpOnly: true, maxAge: 7 * 24 * 60 * 60 * 1000, sameSite: 'lax' };
+
 function localNow() {
   return new Date(Date.now() + 8 * 3600000).toISOString().replace('T', ' ').substring(0, 19);
 }
@@ -38,6 +40,7 @@ router.post('/login', function (req, res) {
   _getDb().run("UPDATE users SET last_login = datetime('now','+8 hours') WHERE id = ?", [user.id]);
   _getDb().scheduleSave();
   var token = signToken(user);
+  res.cookie('auth_token', token, COOKIE_OPTIONS);
   res.json({
     ok: true,
     token: token,
@@ -63,6 +66,7 @@ router.post('/plugin-login', function (req, res) {
   _getDb().run("UPDATE users SET last_login = datetime('now','+8 hours') WHERE id = ?", [user.id]);
   _getDb().scheduleSave();
   var token = signToken(user);
+  res.cookie('auth_token', token, COOKIE_OPTIONS);
   res.json({ ok: true, token: token, user: { username: user.username, display_name: user.display_name, role: user.role } });
 });
 
@@ -89,11 +93,13 @@ router.post('/change-password', function (req, res) {
   _getDb().run("UPDATE users SET password_hash = ?, password_salt = ?, must_change_password = 0, updated_at = datetime('now','+8 hours') WHERE id = ?", [newHash, newSalt, user.id]);
   _getDb().scheduleSave();
   var token = signToken({ id: user.id, username: req.user.username, role: req.user.role });
+  res.cookie('auth_token', token, COOKIE_OPTIONS);
   res.json({ ok: true, token: token });
 });
 
 // POST /api/logout
 router.post('/logout', function (req, res) {
+  res.clearCookie('auth_token');
   res.json({ ok: true });
 });
 
