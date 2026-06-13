@@ -16,7 +16,7 @@ app.use(cors({
   origin: function (origin, callback) {
     if (!origin) return callback(null, true);
     if (origin.indexOf('localhost') >= 0) return callback(null, true);
-    callback(null, true);
+    callback(new Error('Not allowed by CORS'));
   },
   credentials: true
 }));

@@ -518,10 +518,10 @@ router.put('/product/:id', (req, res) => {
   run(`UPDATE products SET ${fields.join(', ')} WHERE uid = ?`, params);
 
   // 保存映射关系（手动设置 → source='manual'，已存在则递增count）
-  const product = getOne('SELECT category, title, custom_category FROM products WHERE uid = ?', [uid]);
-  if (req.body.customCategory && product && product.category) {
+  const prodInfo = getOne('SELECT category, title, custom_category FROM products WHERE uid = ?', [uid]);
+  if (req.body.customCategory && prodInfo && prodInfo.category) {
     try {
-      const cat = JSON.parse(product.category);
+      const cat = JSON.parse(prodInfo.category);
       const catName = cat.leafCategoryName || cat.categoryPath;
       if (catName) {
         cloudDb.saveMapping(catName, req.body.customCategory, 'manual');
@@ -764,12 +764,21 @@ router.post('/product/batch-status', (req, res) => {
   if (ids.length > 500) return res.status(400).json({ error: '单次最多操作 500 条' });
   const validUids = ids.filter(function (id) { return id && typeof id === 'string' && id.trim(); });
   if (!validUids.length) return res.json({ ok: true, updated: 0 });
-  if (status === -1) {
+  if (req.user && req.user.role !== 'admin') {
     const placeholders = validUids.map(() => '?').join(',');
-    run(`UPDATE products SET status = CASE WHEN status = 1 THEN 0 ELSE 1 END, updated_at = datetime('now', '+8 hours') WHERE uid IN (${placeholders})`, validUids);
+    if (status === -1) {
+      run(`UPDATE products SET status = CASE WHEN status = 1 THEN 0 ELSE 1 END, updated_at = datetime('now', '+8 hours') WHERE uid IN (${placeholders}) AND (owner = ? OR owner IS NULL OR owner = '')`, [...validUids, req.user.username]);
+    } else {
+      run(`UPDATE products SET status = ?, updated_at = datetime('now', '+8 hours') WHERE uid IN (${placeholders}) AND (owner = ? OR owner IS NULL OR owner = '')`, [status, ...validUids, req.user.username]);
+    }
   } else {
-    const placeholders = validUids.map(() => '?').join(',');
-    run(`UPDATE products SET status = ?, updated_at = datetime('now', '+8 hours') WHERE uid IN (${placeholders})`, [status, ...validUids]);
+    if (status === -1) {
+      const placeholders = validUids.map(() => '?').join(',');
+      run(`UPDATE products SET status = CASE WHEN status = 1 THEN 0 ELSE 1 END, updated_at = datetime('now', '+8 hours') WHERE uid IN (${placeholders})`, validUids);
+    } else {
+      const placeholders = validUids.map(() => '?').join(',');
+      run(`UPDATE products SET status = ?, updated_at = datetime('now', '+8 hours') WHERE uid IN (${placeholders})`, [status, ...validUids]);
+    }
   }
   res.json({ ok: true, updated: ids.length });
 });

@@ -4,6 +4,7 @@ const router = express.Router();
 
 var providers = require('./providers');
 var sec = require('../../crypto');
+var auth = require('../../middleware/auth');
 
 // 挂载子路由
 router.use(require('./image-gen'));
@@ -133,7 +134,7 @@ router.post('/configs', function (req, res) {
 });
 
 // 保存全局 key（兼容旧调用，追加到 zhipu_api_keys）
-router.post('/global-key', function (req, res) {
+router.post('/global-key', auth.requireRole('admin'), function (req, res) {
   var key = (req.body.apiKey || '').trim();
   if (!key) return res.status(400).json({ error: 'API Key 不能为空' });
   if (key.indexOf('****') !== -1) return res.status(400).json({ error: '请输入完整API Key' });

@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const { run, getOne, getAll, sseClients } = require('../db');
 const sec = require('../crypto');
+const auth = require('../middleware/auth');
 
 const router = Router();
 
@@ -37,7 +38,7 @@ router.get('/settings', (req, res) => {
 });
 
 // 批量更新配置
-router.put('/settings', (req, res) => {
+router.put('/settings', auth.requireRole('admin'), (req, res) => {
   const { items } = req.body;
   if (!Array.isArray(items) || !items.length) return res.json({ ok: true });
   for (const item of items) {
@@ -52,14 +53,14 @@ router.get('/settings/:key', (req, res) => {
   res.json(row ? { value: row.value } : {});
 });
 
-router.post('/settings/:key', (req, res) => {
+router.post('/settings/:key', auth.requireRole('admin'), (req, res) => {
   const { value } = req.body;
   run(`INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, datetime('now', '+8 hours'))`, [req.params.key, value || '']);
   res.json({ ok: true });
 });
 
 // 导出所有设置为 JSON 文件（解密敏感值，导出后为明文，导入后由本机重新加密）
-router.get('/settings-export', (req, res) => {
+router.get('/settings-export', auth.requireRole('admin'), (req, res) => {
   const rows = getAll('SELECT key, value FROM settings');
   const data = {};
   rows.forEach(r => {
@@ -71,7 +72,7 @@ router.get('/settings-export', (req, res) => {
 });
 
 // 导入设置 JSON
-router.post('/settings-import', (req, res) => {
+router.post('/settings-import', auth.requireRole('admin'), (req, res) => {
   const data = req.body;
   if (!data || typeof data !== 'object' || Array.isArray(data)) return res.status(400).json({ error: '无效数据' });
   // 排除内部迁移标记
@@ -195,6 +196,7 @@ router.post('/settings-import', (req, res) => {
 
 // SSE 实时推送
 router.get('/events', (req, res) => {
+  if (!req.user && !req.query.token) return res.status(401).json({ error: '未登录' });
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',

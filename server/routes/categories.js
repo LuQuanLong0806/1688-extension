@@ -1,8 +1,10 @@
 const { Router } = require('express');
 const { run, getOne, getAll, treeGetOne, scheduleSave } = require('../db');
 const cloudDb = require('../cloud/index');
+const auth = require('../middleware/auth');
 
 const router = Router();
+const opOnly = auth.requireRole('operator', 'admin');
 
 // 1688类目列表（带搜索、分页）
 router.get('/categories', (req, res) => {
@@ -128,7 +130,7 @@ function clearProductsByMapping(categoryName, customCategory) {
 }
 
 // 删除整个DXM类目映射（必须在 :id 之前）
-router.delete('/category-mappings/dxm/:name', (req, res) => {
+router.delete('/category-mappings/dxm/:name', opOnly, (req, res) => {
   const dxmName = decodeURIComponent(req.params.name);
   const bound = getAll("SELECT category_name FROM category_mappings WHERE custom_category = ? AND deleted = 0", [dxmName]);
   run("UPDATE category_mappings SET deleted = 1, updated_at = datetime('now', '+8 hours') WHERE custom_category = ?", [dxmName]);
@@ -143,7 +145,7 @@ router.delete('/category-mappings/dxm/:name', (req, res) => {
 });
 
 // 删除单条映射
-router.delete('/category-mappings/:id', (req, res) => {
+router.delete('/category-mappings/:id', opOnly, (req, res) => {
   const id = parseInt(req.params.id);
   const mapping = getOne('SELECT category_name, custom_category FROM category_mappings WHERE id = ? AND deleted = 0', [id]);
   var cleared = 0;
@@ -160,7 +162,7 @@ router.delete('/category-mappings/:id', (req, res) => {
 });
 
 // 新增映射（已存在则跳过）
-router.post('/category-mappings', (req, res) => {
+router.post('/category-mappings', opOnly, (req, res) => {
   const { categoryName, customCategory } = req.body;
   if (!categoryName || !customCategory) return res.status(400).json({ error: '参数不完整' });
   try {
@@ -178,7 +180,7 @@ router.post('/category-mappings', (req, res) => {
 });
 
 // ===== 已有数据回填关键词关联库 =====
-router.post('/keyword-rels/rebuild', (req, res) => {
+router.post('/keyword-rels/rebuild', opOnly, (req, res) => {
   console.log('[关联库回填] 开始从已有商品学习...');
   var products = getAll("SELECT title, category, custom_category FROM products WHERE custom_category IS NOT NULL AND custom_category != ''");
   if (!products.length) return res.json({ ok: true, learned: 0, message: '无可回填商品' });
@@ -229,7 +231,7 @@ router.get('/keyword-rels', (req, res) => {
 });
 
 // 标记关联为无效
-router.delete('/keyword-rels/:id', (req, res) => {
+router.delete('/keyword-rels/:id', opOnly, (req, res) => {
   const id = parseInt(req.params.id);
   const rel = getOne('SELECT keyword, category_name FROM keyword_category_rel WHERE id = ?', [id]);
   run(`UPDATE keyword_category_rel SET valid = 0, updated_at = datetime('now', '+8 hours') WHERE id = ?`, [id]);
@@ -240,7 +242,7 @@ router.delete('/keyword-rels/:id', (req, res) => {
 });
 
 // 批量删除（标记无效）关联
-router.post('/keyword-rels/batch-invalidate', (req, res) => {
+router.post('/keyword-rels/batch-invalidate', opOnly, (req, res) => {
   const ids = req.body.ids;
   if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ error: '请提供ids数组' });
   ids.forEach(id => {
@@ -268,7 +270,7 @@ router.get('/keyword-synonyms', (req, res) => {
 });
 
 // 新增同义词
-router.post('/keyword-synonyms', (req, res) => {
+router.post('/keyword-synonyms', opOnly, (req, res) => {
   const { wordA, wordB } = req.body;
   if (!wordA || !wordB) return res.status(400).json({ error: '请提供wordA和wordB' });
   try {
@@ -283,7 +285,7 @@ router.post('/keyword-synonyms', (req, res) => {
 });
 
 // 删除同义词
-router.delete('/keyword-synonyms/:id', (req, res) => {
+router.delete('/keyword-synonyms/:id', opOnly, (req, res) => {
   const id = parseInt(req.params.id);
   const syn = getOne('SELECT word_a, word_b FROM keyword_synonyms WHERE id = ?', [id]);
   run('DELETE FROM keyword_synonyms WHERE id = ?', [id]);
@@ -317,7 +319,7 @@ router.get('/keyword-blacklist', (req, res) => {
 });
 
 // 新增黑名单（count-aware upsert）
-router.post('/keyword-blacklist', (req, res) => {
+router.post('/keyword-blacklist', opOnly, (req, res) => {
   const { keyword, categoryName, reason } = req.body;
   if (!keyword || !categoryName) return res.status(400).json({ error: '请提供keyword和categoryName' });
   try {
@@ -329,7 +331,7 @@ router.post('/keyword-blacklist', (req, res) => {
 });
 
 // 删除黑名单
-router.delete('/keyword-blacklist/:id', (req, res) => {
+router.delete('/keyword-blacklist/:id', opOnly, (req, res) => {
   const id = parseInt(req.params.id);
   const bl = getOne('SELECT keyword, category_name FROM keyword_blacklist WHERE id = ?', [id]);
   run('DELETE FROM keyword_blacklist WHERE id = ?', [id]);
@@ -361,7 +363,7 @@ router.get('/category-config', function (req, res) {
 });
 
 // 保存分类配置项
-router.post('/category-config', function (req, res) {
+router.post('/category-config', opOnly, function (req, res) {
   var type = (req.body.type || '').trim();
   var value = (req.body.value || '').trim();
   var groupName = (req.body.group_name || '').trim();
@@ -384,7 +386,7 @@ router.post('/category-config', function (req, res) {
 });
 
 // 删除分类配置项（软删）
-router.delete('/category-config/:id', function (req, res) {
+router.delete('/category-config/:id', opOnly, function (req, res) {
   var id = parseInt(req.params.id);
   if (!id) return res.status(400).json({ error: '无效 ID' });
 
@@ -397,7 +399,7 @@ router.delete('/category-config/:id', function (req, res) {
 });
 
 // 批量删除分类配置项（软删）
-router.post('/category-config/batch-delete', function (req, res) {
+router.post('/category-config/batch-delete', opOnly, function (req, res) {
   var ids = req.body.ids;
   if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ error: '请提供ids数组' });
   ids.forEach(function (id) {

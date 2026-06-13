@@ -1,10 +1,12 @@
 const { Router } = require('express');
 const { treeRun, treeGetOne, treeGetAll } = require('../db');
+const auth = require('../middleware/auth');
 
 const router = Router();
+const opOnly = auth.requireRole('operator', 'admin');
 
 // 收集店小秘类目
-router.post('/dxm-category/collect', (req, res) => {
+router.post('/dxm-category/collect', opOnly, (req, res) => {
   const { path, leafName } = req.body;
   if (!path || !leafName) return res.status(400).json({ error: 'Missing path or leafName' });
   const cleanPath = path.replace(/\s+/g, '');
@@ -20,7 +22,7 @@ router.post('/dxm-category/collect', (req, res) => {
 });
 
 // 批量同步分类节点
-router.post('/dxm-tree/sync', (req, res) => {
+router.post('/dxm-tree/sync', opOnly, (req, res) => {
   const { categories } = req.body;
   if (!Array.isArray(categories) || !categories.length) return res.json({ ok: true, saved: 0 });
   let saved = 0;

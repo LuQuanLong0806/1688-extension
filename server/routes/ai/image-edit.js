@@ -8,6 +8,10 @@ var lamaService = require('../../services/inpaint');
 var comfyuiInpaint = null;
 try { comfyuiInpaint = require('../../services/comfyui-inpaint'); } catch (e) {}
 var sizeAnnotate = require('../../services/size-annotate');
+var auth = require('../../middleware/auth');
+
+// 所有图片编辑操作限 operator+
+router.use(auth.requireRole('operator', 'admin'));
 
 // AI消除/小区域修复 → LaMa（快、精准），场景图生成 → ComfyUI inpaint
 var settingsDb;

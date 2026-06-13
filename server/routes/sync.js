@@ -2,6 +2,10 @@
 const express = require('express');
 const router = express.Router();
 const cloudDb = require('../cloud/index');
+const auth = require('../middleware/auth');
+
+// 所有 sync 操作限 admin
+router.use(auth.requireRole('admin'));
 
 // 获取同步配置（脱敏）
 router.get('/config', (req, res) => {
