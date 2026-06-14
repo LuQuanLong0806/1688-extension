@@ -1,5 +1,6 @@
 Vue.component('page-users', {
   data: function () {
+    var self = this;
     return {
       loading: false,
       users: [],
@@ -24,11 +25,10 @@ Vue.component('page-users', {
           return h('span', { style: { color: params.row.disabled ? '#ff4d4f' : '#36b37e' } }, params.row.disabled ? '已禁用' : '正常');
         }},
         { title: '操作', width: 180, align: 'center', render: function (h, params) {
-          var vm = this;
           var btns = [];
-          btns.push(h('i-button', { props: { size: 'small', type: 'primary' }, style: { marginRight: '4px' }, on: { click: function () { vm.$parent.editUser(params.row); } } }, '编辑'));
+          btns.push(h('i-button', { props: { size: 'small', type: 'primary' }, style: { marginRight: '4px' }, on: { click: function () { self.editUser(params.row); } } }, '编辑'));
           if (!params.row.disabled) {
-            btns.push(h('i-button', { props: { size: 'small', type: 'error' }, on: { click: function () { vm.$parent.disableUser(params.row); } } }, '禁用'));
+            btns.push(h('i-button', { props: { size: 'small', type: 'error' }, on: { click: function () { self.disableUser(params.row); } } }, '禁用'));
           }
           return h('div', btns);
         }}
