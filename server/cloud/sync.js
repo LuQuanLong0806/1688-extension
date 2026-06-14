@@ -476,13 +476,13 @@ module.exports = function (cloud, db) {
       localKeyParams: function (r) { return [r.username]; },
       localInsert: `INSERT OR IGNORE INTO users (username, password_hash, password_salt, display_name, role, last_login, must_change_password, disabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '+8 hours'), ?)`,
       localInsertParams: function (r) { return [r.username, r.password_hash, r.password_salt, r.display_name, r.role, r.last_login, r.must_change_password, r.disabled || 0, r.updated_at || '']; },
-      localUpdate: `UPDATE users SET display_name = ?, role = ?, disabled = ?, updated_at = ? WHERE id = ?`,
-      localUpdateParams: function (r, localRow) { return [r.display_name, r.role, r.disabled || 0, r.updated_at || '', localRow.id]; },
+      localUpdate: `UPDATE users SET password_hash = ?, password_salt = ?, display_name = ?, role = ?, last_login = ?, must_change_password = ?, disabled = ?, updated_at = ? WHERE id = ?`,
+      localUpdateParams: function (r, localRow) { return [r.password_hash, r.password_salt, r.display_name, r.role, r.last_login, r.must_change_password || 0, r.disabled || 0, r.updated_at || '', localRow.id]; },
       cloudTable: 'users',
       cloudInsert: `INSERT OR IGNORE INTO users (username, password_hash, password_salt, display_name, role, last_login, must_change_password, disabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '+8 hours'), ?)`,
       cloudInsertParams: function (r) { return [r.username, r.password_hash, r.password_salt, r.display_name, r.role, r.last_login, r.must_change_password, r.disabled || 0, r.updated_at || '']; },
-      cloudUpdate: `UPDATE users SET display_name = ?, role = ?, disabled = ?, updated_at = ? WHERE id = ?`,
-      cloudUpdateParams: function (r, cloudRow) { return [r.display_name, r.role, r.disabled || 0, r.updated_at || '', cloudRow.id]; },
+      cloudUpdate: `UPDATE users SET password_hash = ?, password_salt = ?, display_name = ?, role = ?, last_login = ?, must_change_password = ?, disabled = ?, updated_at = ? WHERE id = ?`,
+      cloudUpdateParams: function (r, cloudRow) { return [r.password_hash, r.password_salt, r.display_name, r.role, r.last_login, r.must_change_password || 0, r.disabled || 0, r.updated_at || '', cloudRow.id]; },
       label: '用户'
     }
   };
@@ -525,6 +525,13 @@ module.exports = function (cloud, db) {
             pushed++;
           } else { skipped++; }
         }
+      } else if (tableKey === 'users') {
+        var cloudRowU = await cloud.getOne('SELECT updated_at FROM ' + def.cloudTable + ' WHERE id = ?', [cloudExisting.id]);
+        var localNewerU = r.updated_at && (!cloudRowU.updated_at || r.updated_at > cloudRowU.updated_at);
+        if (localNewerU) {
+          await cloud.run(def.cloudUpdate, def.cloudUpdateParams(r, cloudExisting));
+          pushed++;
+        } else { skipped++; }
       } else {
         skipped++;
       }
@@ -566,11 +573,10 @@ module.exports = function (cloud, db) {
           db.run('UPDATE keyword_category_rel SET weight = ?, match_count = ? WHERE id = ?', [maxW, maxM, local.id]);
           updated++;
         }
-      } else if (tableKey === 'keyword-rels') {
-        var maxW = Math.max(local.weight || 1.0, r.weight || 1.0);
-        var maxM = Math.max(local.match_count || 1, r.match_count || 1);
-        if (maxW > local.weight || maxM > local.match_count) {
-          db.run('UPDATE keyword_category_rel SET weight = ?, match_count = ? WHERE id = ?', [maxW, maxM, local.id]);
+      } else if (tableKey === 'users') {
+        var cloudNewerU = r.updated_at && (!local.updated_at || r.updated_at > local.updated_at);
+        if (cloudNewerU) {
+          db.run(def.localUpdate, def.localUpdateParams(r, local));
           updated++;
         }
       }
@@ -592,6 +598,9 @@ module.exports = function (cloud, db) {
           if (tableKey === 'mappings') {
             // 映射表用逻辑删除，不物理删除
             db.run('UPDATE category_mappings SET deleted = 1 WHERE ' + delWhere, localKeyVals);
+          } else if (tableKey === 'users') {
+            // 用户表用 disabled 软删除，防止误删导致登录锁死
+            db.run('UPDATE users SET disabled = 1 WHERE ' + delWhere, localKeyVals);
           } else {
             db.run('DELETE FROM ' + def.cloudTable + ' WHERE ' + delWhere, localKeyVals);
           }
