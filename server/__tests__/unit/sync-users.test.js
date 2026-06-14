@@ -254,3 +254,39 @@ describe('【更新】updated_at 时间戳冲突解决', function () {
     expect(r2.updated).toBe(0); // updated_at 相同，不重复更新
   });
 });
+
+describe('【启动同步】ensureAdmin 默认密码不会覆盖云端真实密码', function () {
+  test('本地刚创建 admin（updated_at=空）→ pull 时被云端覆盖', function () {
+    // 模拟 ensureAdmin：本地新建 admin，updated_at='' （空字符串）
+    dbRun(localDb, "INSERT INTO users (username, password_hash, password_salt, must_change_password, updated_at) VALUES ('admin', 'default_hash', 'default_salt', 1, '')");
+
+    // 云端已有 admin（机器 A 之前改过密码）
+    dbRun(cloudDb, "INSERT INTO users (username, password_hash, password_salt, updated_at) VALUES ('admin', 'real_password_hash', 'real_salt', '2026-06-13 10:00:00')");
+
+    pullUsersMock();
+
+    var after = dbGetOne(localDb, "SELECT password_hash, must_change_password FROM users WHERE username = 'admin'");
+    expect(after.password_hash).toBe('real_password_hash'); // 云端密码覆盖本地默认
+  });
+
+  test('本地刚创建 admin（updated_at=空）→ push 不覆盖云端', function () {
+    dbRun(localDb, "INSERT INTO users (username, password_hash, password_salt, must_change_password, updated_at) VALUES ('admin', 'default_hash', 'default_salt', 1, '')");
+    dbRun(cloudDb, "INSERT INTO users (username, password_hash, password_salt, updated_at) VALUES ('admin', 'real_password_hash', 'real_salt', '2026-06-13 10:00:00')");
+
+    pushUsersMock();
+
+    var cloud = dbGetOne(cloudDb, "SELECT password_hash FROM users WHERE username = 'admin'");
+    expect(cloud.password_hash).toBe('real_password_hash'); // 云端不被默认密码覆盖
+  });
+
+  test('云端无 admin 时，本地默认 admin 推送到云端（首次部署场景）', function () {
+    dbRun(localDb, "INSERT INTO users (username, password_hash, password_salt, must_change_password, updated_at) VALUES ('admin', 'default_hash', 'default_salt', 1, '')");
+
+    var result = pushUsersMock();
+
+    expect(result.pushed).toBe(1); // 首次 insert，不判断 updated_at
+    var cloud = dbGetOne(cloudDb, "SELECT password_hash FROM users WHERE username = 'admin'");
+    expect(cloud).toBeTruthy();
+    expect(cloud.password_hash).toBe('default_hash');
+  });
+});

@@ -168,7 +168,7 @@ function ensureAdmin() {
     if (!existing) {
       var salt = generateSalt();
       var hash = hashPassword('admin123', salt);
-      _getDb().run("INSERT INTO users (username, password_hash, password_salt, display_name, role, must_change_password, created_at, updated_at) VALUES ('admin', ?, ?, '管理员', 'admin', 1, datetime('now','+8 hours'), datetime('now','+8 hours'))", [hash, salt]);
+      _getDb().run("INSERT INTO users (username, password_hash, password_salt, display_name, role, must_change_password, created_at, updated_at) VALUES ('admin', ?, ?, '管理员', 'admin', 1, datetime('now','+8 hours'), '')", [hash, salt]);
       _getDb().scheduleSave();
       console.log('[Auth] 已自动创建管理员账户 admin/admin123');
     }

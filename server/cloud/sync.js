@@ -192,7 +192,18 @@ module.exports = function (cloud, db) {
     if (!cloud.connected) return { ok: false, error: '未连接' };
     var pull = await downloadCloudToLocal();
     var push = await uploadLocalToCloud();
-    return { ok: true, pull: pull.counts, push: push.counts };
+    // 用户表必须同步：密码/角色/禁用等关键数据，防止跨机器登录失败
+    var usersPull = await pullTable('users');
+    var usersPush = await pushTable('users');
+    return {
+      ok: true,
+      pull: pull.counts,
+      push: push.counts,
+      users: {
+        pull: { added: usersPull.added, updated: usersPull.updated, purged: usersPull.purged },
+        push: { pushed: usersPush.pushed, skipped: usersPush.skipped }
+      }
+    };
   }
 
   // ===== 分类树同步 =====
