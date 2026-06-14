@@ -330,9 +330,8 @@ async function doRecommendAndSave(title, aliCat, attrs, productId, imageUrl) {
 router.get('/product/check', (req, res) => {
   const offerId = (req.query.offerId || '').trim();
   if (!offerId) return res.json({ exists: false });
-  // 转义 LIKE 通配符，防止 offerId 中的 %/_ 被误解析
-  const escaped = offerId.replace(/[%_]/g, '\\$&');
-  const row = getOne('SELECT id, uid, title, status FROM products WHERE deleted = 0 AND source_url LIKE ? LIMIT 1', ['%' + offerId + '%']);
+  const escaped = offerId.replace(/[%_\\]/g, '\\$&');
+  const row = getOne("SELECT id, uid, title, status FROM products WHERE deleted = 0 AND source_url LIKE ? ESCAPE '\\' LIMIT 1", ['%' + escaped + '%']);
   if (row) {
     res.json({ exists: true, id: row.id, title: row.title, status: row.status });
   } else {
@@ -367,22 +366,25 @@ router.get('/product', (req, res) => {
   }
 
   if (keyword) {
-    where.push('title LIKE ?');
-    params.push(`%${keyword}%`);
+    var escapedKw = keyword.replace(/[%_\\]/g, '\\$&');
+    where.push("title LIKE ? ESCAPE '\\'");
+    params.push('%' + escapedKw + '%');
   }
   if (status !== undefined && status !== '' && status !== 'all') {
     where.push('status = ?');
     params.push(parseInt(status));
   }
   if (category) {
-    where.push('category LIKE ?');
-    params.push(`%${category}%`);
+    var escapedCat = category.replace(/[%_\\]/g, '\\$&');
+    where.push("category LIKE ? ESCAPE '\\'");
+    params.push('%' + escapedCat + '%');
   }
   if (dxmCategory === '_none') {
     where.push("(custom_category IS NULL OR custom_category = '')");
   } else if (dxmCategory) {
-    where.push('custom_category LIKE ?');
-    params.push('%' + dxmCategory + '%');
+    var escapedDxm = dxmCategory.replace(/[%_\\]/g, '\\$&');
+    where.push("custom_category LIKE ? ESCAPE '\\'");
+    params.push('%' + escapedDxm + '%');
   }
 
   // 按自动化阶段筛选

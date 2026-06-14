@@ -2,9 +2,13 @@
 const express = require('express');
 const router = express.Router();
 
+var auth = require('../../middleware/auth');
 var dbModule = require('../../db');
 var cloudDb = require('../../cloud/index');
 var providers = require('./providers');
+
+// 全局守卫：分类推荐端点至少 operator+
+router.use(auth.requireRole('operator', 'admin'));
 
 // ===== 互斥组配置 =====
 

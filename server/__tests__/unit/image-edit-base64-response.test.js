@@ -49,6 +49,8 @@ jest.mock('../../routes/ai/providers', () => ({
 function createApp() {
   const app = express();
   app.use(express.json({ limit: '50mb' }));
+  // 注入 operator 身份以通过 router.use(auth.requireRole('operator', 'admin')) 守卫
+  app.use(function (req, res, next) { req.user = { id: 1, username: 'op', role: 'operator' }; next(); });
   app.use('/api/ai', require('../../routes/ai/image-edit'));
   return app;
 }
@@ -167,6 +169,7 @@ describe('doCogViewFallback — 错误处理', () => {
 
     const app = express();
     app.use(express.json({ limit: '50mb' }));
+    app.use(function (req, res, next) { req.user = { id: 1, username: 'op', role: 'operator' }; next(); });
     app.use('/api/ai', require('../../routes/ai/image-edit'));
 
     const res = await request(app).post('/api/ai/img2img').send({

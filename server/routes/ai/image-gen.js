@@ -6,7 +6,11 @@ const https = require('https');
 const path = require('path');
 const fs = require('fs');
 
+var auth = require('../../middleware/auth');
 var providers = require('./providers');
+
+// 全局守卫：图片生成端点至少 operator+
+router.use(auth.requireRole('operator', 'admin'));
 
 var UPLOADS_DIR = path.join(__dirname, '..', '..', 'public', 'uploads');
 

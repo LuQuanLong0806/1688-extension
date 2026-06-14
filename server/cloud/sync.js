@@ -397,7 +397,9 @@ module.exports = function (cloud, db) {
     var sql = 'INSERT INTO products (uid, source_url, title, main_images, desc_images, detail_images, attrs, skus, category, custom_category, dxm_category, manual_category, status, deleted, owner, claim_at, created_at, updated_at, automation_stage, automation_log, automation_issues, automation_started_at, automation_finished_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, \'\', ?, ?, \'\', \'\', \'\', NULL, NULL) ON CONFLICT(uid) DO UPDATE SET ' + sets.join(', ');
     cloud.run(sql,
       [uid, sourceUrl || '', title || '', mainImages || '', descImages || '', detailImages || '', attrs || '', skus || '', category || '', customCategory || '', dxmCategory || '', manualCategory || '', 0, owner || '', createdAt || '', updatedAt]
-    ).catch(function () {});
+    ).catch(function (e) {
+      console.error('[云同步] 单商品推送失败 uid=' + uid + ':', e.message);
+    });
   }
 
   // ===== 单表同步 =====

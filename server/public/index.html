@@ -75,7 +75,7 @@
               <span class="menu-text">仪表盘</span>
             </li>
             <li class="menu-group-title" style="margin-top:8px">系统设置</li>
-            <li class="menu-item" :class="{ active: currentView === 'page-api-keys' }" @click="switchView('page-api-keys')">
+            <li class="menu-item" v-if="currentUser && currentUser.role === 'admin'" :class="{ active: currentView === 'page-api-keys' }" @click="switchView('page-api-keys')">
               <i class="menu-icon">🔑</i>
               <span class="menu-text">AI模型配置</span>
             </li>

@@ -12,7 +12,9 @@ router.use(require('./image-edit'));
 var categoryRouter = require('./category-recommend');
 router.use(categoryRouter);
 
-// ===== API 密钥管理端点 =====
+// ===== API 密钥管理端点（admin only）=====
+// 以下端点涉及密钥读取/写入，全部要求 admin
+router.use(auth.requireRole('admin'));
 
 // 检查API密钥
 router.get('/check-key', function (req, res) {

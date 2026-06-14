@@ -29,6 +29,8 @@ const sec = require('../../crypto');
 function createApp() {
   const app = express();
   app.use(express.json());
+  // 注入 operator 身份以通过 router.use(auth.requireRole('operator', 'admin')) 守卫
+  app.use(function (req, res, next) { req.user = { id: 1, username: 'op', role: 'operator' }; next(); });
   app.use('/api/ai', router);
   return app;
 }

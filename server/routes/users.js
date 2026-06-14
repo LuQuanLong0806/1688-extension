@@ -59,10 +59,14 @@ router.post('/plugin-login', function (req, res) {
   var username = (req.body.username || '').trim();
   var password = req.body.password || '';
   if (!username || !password) return res.status(400).json({ error: '请输入用户名和密码' });
-  var user = _getDb().getOne('SELECT id, username, password_hash, password_salt, display_name, role FROM users WHERE username = ? AND disabled = 0', [username]);
+  var user = _getDb().getOne('SELECT id, username, password_hash, password_salt, display_name, role, must_change_password FROM users WHERE username = ? AND disabled = 0', [username]);
   if (!user) return res.status(401).json({ error: '用户名或密码错误' });
   var hash = hashPassword(password, user.password_salt);
   if (hash !== user.password_hash) return res.status(401).json({ error: '用户名或密码错误' });
+  // 首次登录强制改密码的场景：扩展端登录也必须先改密（admin/admin123 不能直接用）
+  if (user.must_change_password) {
+    return res.status(403).json({ error: '请先在管理平台修改初始密码', must_change_password: 1 });
+  }
   _getDb().run("UPDATE users SET last_login = datetime('now','+8 hours') WHERE id = ?", [user.id]);
   _getDb().scheduleSave();
   var token = signToken(user);

@@ -1,7 +1,18 @@
 const { Router } = require('express');
-const { run, getOne, getAll, sseClients } = require('../db');
+const _realDb = require('../db');
+const { sseClients } = require('../db');
 const sec = require('../crypto');
 const auth = require('../middleware/auth');
+
+let _customDb = null;
+function _getDb() { return _customDb || _realDb; }
+function _run(sql, params) { return _getDb().run(sql, params); }
+function _getOne(sql, params) { return _getDb().getOne(sql, params); }
+function _getAll(sql, params) { return _getDb().getAll(sql, params); }
+// 兼容旧代码直接调 run/getOne/getAll
+const run = _run;
+const getOne = _getOne;
+const getAll = _getAll;
 
 const router = Router();
 
@@ -29,11 +40,16 @@ router.post('/clear-signal', (req, res) => {
   res.json({ ok: true });
 });
 
-// 获取所有配置
-router.get('/settings', (req, res) => {
-  const rows = getAll('SELECT key, value, updated_at FROM settings');
+// 获取所有配置（过滤敏感字段，所有登录用户可读 — 扩展配置同步需要）
+router.get('/settings', auth.requireRole('viewer', 'operator', 'admin'), (req, res) => {
+  const rows = _getAll('SELECT key, value, updated_at FROM settings');
   const result = {};
-  rows.forEach(r => { result[r.key] = { value: r.value, updated_at: r.updated_at }; });
+  rows.forEach(r => {
+    // 过滤敏感字段（jwt_secret 等明文存储的密钥）防止 token 伪造
+    if (r.key === 'jwt_secret') return;
+    if (sec.isSensitive(r.key)) return; // 加密字段也不直接返回（settings-export 才解密）
+    result[r.key] = { value: r.value, updated_at: r.updated_at };
+  });
   res.json(result);
 });
 
@@ -42,26 +58,31 @@ router.put('/settings', auth.requireRole('admin'), (req, res) => {
   const { items } = req.body;
   if (!Array.isArray(items) || !items.length) return res.json({ ok: true });
   for (const item of items) {
-    run(`INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, datetime('now', '+8 hours'))`, [item.key, item.value]);
+    _run(`INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, datetime('now', '+8 hours'))`, [item.key, item.value]);
   }
   res.json({ ok: true });
 });
 
-// 单个配置读写（GET/POST）
-router.get('/settings/:key', (req, res) => {
-  const row = getOne('SELECT value FROM settings WHERE key = ?', [req.params.key]);
+// 单个配置读（敏感字段 admin only，普通字段所有登录用户）
+router.get('/settings/:key', auth.requireRole('viewer', 'operator', 'admin'), (req, res) => {
+  var key = req.params.key;
+  var isSensitiveKey = (key === 'jwt_secret' || sec.isSensitive(key));
+  if (isSensitiveKey && (!req.user || req.user.role !== 'admin')) {
+    return res.status(403).json({ error: '敏感字段需要管理员权限' });
+  }
+  const row = _getOne('SELECT value FROM settings WHERE key = ?', [key]);
   res.json(row ? { value: row.value } : {});
 });
 
 router.post('/settings/:key', auth.requireRole('admin'), (req, res) => {
   const { value } = req.body;
-  run(`INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, datetime('now', '+8 hours'))`, [req.params.key, value || '']);
+  _run(`INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, datetime('now', '+8 hours'))`, [req.params.key, value || '']);
   res.json({ ok: true });
 });
 
 // 导出所有设置为 JSON 文件（解密敏感值，导出后为明文，导入后由本机重新加密）
 router.get('/settings-export', auth.requireRole('admin'), (req, res) => {
-  const rows = getAll('SELECT key, value FROM settings');
+  const rows = _getAll('SELECT key, value FROM settings');
   const data = {};
   rows.forEach(r => {
     data[r.key] = sec.isSensitive(r.key) ? sec.decrypt(r.value) : r.value;
@@ -211,3 +232,4 @@ router.get('/events', (req, res) => {
 });
 
 module.exports = router;
+module.exports._setDb = function (d) { _customDb = d; };
