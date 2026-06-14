@@ -228,17 +228,29 @@ initDb().then(() => initTreeDb()).then(() => {
     cloudDb.connect().then(function (ok) {
       if (ok) {
         console.log('[云同步] Turso 已连接，知识库云端模式');
-        // 启动时自动同步：仅拉取最近3天的商品，知识库全量
+
+        // 用户表同步（最优先，独立 try，不被商品同步失败影响）
+        cloudDb.bidirectionalSync().then(function (r) {
+          if (r && r.ok) {
+            console.log('[云同步] 启动同步-知识库: 拉取', JSON.stringify(r.pull), '推送', JSON.stringify(r.push));
+            if (r.users) console.log('[云同步] 启动同步-用户: 拉取', JSON.stringify(r.users.pull), '推送', JSON.stringify(r.users.push));
+          }
+        }).catch(function (e) {
+          console.error('[云同步] 启动同步-知识库/用户失败:', e.message, e.stack);
+        });
+
+        // 商品同步（独立，最近 3 天）
         var recentDate = new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString().replace('T', ' ').substring(0, 19);
         cloudDb.downloadProducts({ since: recentDate }).then(function (r) {
           console.log('[云同步] 启动同步-拉取商品(最近3天): 新增', r.added, '跳过', r.skipped, '删除同步', r.deletedSynced || 0);
-          return cloudDb.bidirectionalSync();
-        }).then(function (r) {
-          if (r && r.ok) console.log('[云同步] 启动同步-知识库: 拉取', JSON.stringify(r.pull), '推送', JSON.stringify(r.push));
         }).catch(function (e) {
-          console.error('[云同步] 启动同步失败:', e.message);
+          console.error('[云同步] 启动同步-商品失败:', e.message, e.stack);
         });
+      } else {
+        console.warn('[云同步] Turso 连接失败，users 表不会同步');
       }
+    }).catch(function (e) {
+      console.error('[云同步] Turso 连接异常:', e.message);
     });
 
     // Uploads 定期清理（7天过期，每6小时扫描）
