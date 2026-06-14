@@ -1,0 +1,22 @@
+阶段九补：users 表启动时自动同步 + 默认密码不覆盖云端
+
+修复用户反馈"用户表也需要云同步 不能丢数据"：
+
+1. bidirectionalSync 加入 users 表 pull+push
+   - 之前启动同步只覆盖知识库 5 张表（category_mappings 等）
+   - users 表只能手动 API 触发，密码改了重启也不会传播
+   - 现在启动后自动双向同步 users（密码/角色/禁用状态）
+
+2. ensureAdmin 创建默认 admin 时 updated_at 设为空字符串
+   - 防止首启时本地 admin/admin123（updated_at=now）push 到云端
+     覆盖其他机器之前改过的真实密码
+   - updated_at='' 时 pullTable 检测到云端任意非空 updated_at 都会覆盖本地
+   - pushTable 检测到本地 updated_at 为 falsy 时不会反向覆盖云端
+   - 仅当云端确实没有 admin 时本地默认值才会被 insert 到云端（首次部署场景）
+
+新增 3 个测试覆盖启动同步保护：
+- 本地默认 admin 被 pull 时被云端覆盖
+- 本地默认 admin push 时不会覆盖云端
+- 云端无 admin 时本地默认值正常推送到云端
+
+Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>
