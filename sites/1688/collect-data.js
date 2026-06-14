@@ -71,6 +71,14 @@
     }
   }
 
+  // fetch 前确保已拿到 token；拿不到（管理平台未登录）直接 callback 报错
+  function ensureToken(callback) {
+    autoGetToken(function (token) {
+      if (token) { callback(null, token); }
+      else { callback(new Error('未登录管理平台，无法鉴权')); }
+    });
+  }
+
   // 启动时自动获取 token
   autoGetToken(function (token) {
     if (!token) console.log('[1688] 未检测到管理平台登录');
@@ -85,12 +93,22 @@
     var offerId = getOfferId();
     if (!offerId) { callback({ exists: false }); return; }
     var serverUrl = getServerUrl();
-    fetch(serverUrl + '/api/product/check?offerId=' + offerId, {
-      headers: authHeaders()
-    })
-    .then(function (r) { handleAuthError(r); return r.json(); })
-    .then(function (res) { callback(res); })
-    .catch(function () { callback({ exists: false }); });
+    ensureToken(function (err) {
+      if (err) { callback({ exists: false, error: 'auth' }); return; }
+      fetch(serverUrl + '/api/product/check?offerId=' + offerId, {
+        headers: authHeaders()
+      })
+      .then(function (r) {
+        if (r.status === 401) {
+          handleAuthError(r);
+          callback({ exists: false, error: 'auth' });
+          return null;
+        }
+        return r.json();
+      })
+      .then(function (res) { if (res) callback(res); })
+      .catch(function () { callback({ exists: false, error: 'network' }); });
+    });
   }
 
   // ========== 数据采集 ==========
@@ -513,17 +531,20 @@
 
   function saveToServer(data, callback) {
     var serverUrl = getServerUrl();
-    fetch(serverUrl + '/api/product', {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(data)
-    })
-    .then(function (r) { handleAuthError(r); return r.json(); })
-    .then(function (res) {
-      if (callback) callback(null, res);
-    })
-    .catch(function (err) {
-      if (callback) callback(err);
+    ensureToken(function (err) {
+      if (err) { if (callback) callback(err); return; }
+      fetch(serverUrl + '/api/product', {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(data)
+      })
+      .then(function (r) { handleAuthError(r); return r.json(); })
+      .then(function (res) {
+        if (callback) callback(null, res);
+      })
+      .catch(function (err) {
+        if (callback) callback(err);
+      });
     });
   }
 

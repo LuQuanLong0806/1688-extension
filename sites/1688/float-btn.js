@@ -412,6 +412,23 @@
 
     CollectData.checkExists(function (checkRes) {
       _log('检查结果:', checkRes);
+      if (checkRes.error === 'auth') {
+        isCollecting = false;
+        signEl.classList.remove('no-swing');
+        setCollectState('', '采集');
+        showBubble('❌ 请先登录管理平台', 'err');
+        showToast('采集失败：请先登录管理平台', 'err');
+        setTimeout(hideBubble, 3000);
+        return;
+      }
+      if (checkRes.error === 'network') {
+        isCollecting = false;
+        signEl.classList.remove('no-swing');
+        setCollectState('', '采集');
+        showBubble('❌ 无法连接服务器', 'err');
+        setTimeout(hideBubble, 3000);
+        return;
+      }
       if (checkRes.exists) {
         var statusText = checkRes.status === 1 ? '已用' : '未用';
         showConfirm(

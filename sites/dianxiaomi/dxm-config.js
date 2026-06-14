@@ -76,6 +76,14 @@
     }
   }
 
+  // fetch 前确保 token 已拿到，拿不到直接报错（避免静默 401）
+  function withAuth(callback) {
+    autoGetToken(function (token) {
+      if (token) { callback(null, token); }
+      else { callback(new Error('未登录管理平台，无法鉴权')); }
+    });
+  }
+
   // 启动时自动获取 token
   autoGetToken(function (token) {
     if (!token) console.log('[店小蜜] 未检测到管理平台登录');
@@ -583,6 +591,7 @@
     getCachedToken: getCachedToken,
     authHeaders: authHeaders,
     handleAuthError: handleAuthError,
+    withAuth: withAuth,
     setInputValue: setInputValue,
     applyFilters: applyFilters,
     findVisibleModal: findVisibleModal,
