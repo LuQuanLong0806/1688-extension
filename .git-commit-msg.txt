@@ -1,22 +1,34 @@
-阶段九补：users 表启动时自动同步 + 默认密码不覆盖云端
+阶段十：扩展自动登录审核文档复审 + 真实问题修复
 
-修复用户反馈"用户表也需要云同步 不能丢数据"：
+依据 docs/extension-auto-auth-audit-2026-06-13.md 复审，结合实际场景：
 
-1. bidirectionalSync 加入 users 表 pull+push
-   - 之前启动同步只覆盖知识库 5 张表（category_mappings 等）
-   - users 表只能手动 API 触发，密码改了重启也不会传播
-   - 现在启动后自动双向同步 users（密码/角色/禁用状态）
+【文档核对】Step 1-7 全部属实，无虚构
+【异议评估】4 项可优化点里 2 项描述不准、2 项无异议
 
-2. ensureAdmin 创建默认 admin 时 updated_at 设为空字符串
-   - 防止首启时本地 admin/admin123（updated_at=now）push 到云端
-     覆盖其他机器之前改过的真实密码
-   - updated_at='' 时 pullTable 检测到云端任意非空 updated_at 都会覆盖本地
-   - pushTable 检测到本地 updated_at 为 falsy 时不会反向覆盖云端
-   - 仅当云端确实没有 admin 时本地默认值才会被 insert 到云端（首次部署场景）
+【修复 A】collect-data.js + dxm-config.js fetch 前等 token
+- 根因：启动时 autoGetToken 异步，用户立即操作时 localStorage 可能没 token
+  → fetch 不带 Authorization → 静默 401
+- 新增 ensureToken (collect-data) / withAuth (dxm-config) helper
+- saveToServer / checkExists 包一层 ensureToken
 
-新增 3 个测试覆盖启动同步保护：
-- 本地默认 admin 被 pull 时被云端覆盖
-- 本地默认 admin push 时不会覆盖云端
-- 云端无 admin 时本地默认值正常推送到云端
+【修复 B】checkExists 区分错误类型
+- 之前 catch 无差别 callback({exists:false})，让上层无法区分
+  "真不存在" vs "鉴权失败" vs "网络异常"
+- 改为 callback({exists:false, error:'auth'|'network'})
+- float-btn.js 处理 auth/network 错误显式提示
+
+【修复 C】服务端 cookie 行为单元测试（防回归）
+- 现有 login/plugin-auth 测试完全不验证 res.cookie
+- 新建 cookie-auth.test.js 7 个测试：
+  login/plugin-login/change-password/logout 的 Set-Cookie
+  HttpOnly/SameSite=Lax/Max-Age=604800 属性
+  cookie.value === body.token 一致性
+
+文档生成：docs/extension-auto-auth-fix-2026-06-14.md
+
+未修复：
+- sameSite: lax → strict（无异议，lax 适合扩展场景）
+- token 主动检测定时器（7d maxAge + 被动刷新够用）
+- 17 处 dxm-* fetch 迁移到 withAuth（已加 authHeaders，风险大于收益）
 
 Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>
