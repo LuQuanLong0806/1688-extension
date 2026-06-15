@@ -11,8 +11,7 @@
       '<div id="__1688_grab_chain_l"></div>' +
       '<div id="__1688_grab_chain_r"></div>' +
       '<div id="__1688_grab_collect" title="采集商品数据到服务器">采集</div>' +
-    '</div>' +
-    '<div id="__1688_grab_settings" title="服务器地址设置" style="position:absolute;bottom:-20px;left:50%;transform:translateX(-50%);width:18px;height:18px;border-radius:50%;background:#607D8B;color:#fff;text-align:center;line-height:18px;font-size:11px;cursor:pointer;opacity:.6">⚙</div>';
+    '</div>';
 
   var dialogEl = document.createElement('div');
   dialogEl.id = '__1688_dialog_overlay';
@@ -96,28 +95,39 @@
     '#__1688_toast.err{border-left-color:#e53935}' +
     '#__1688_toast.visible{transform:translateX(-50%) translateY(0);opacity:1}' +
 
-    '#__1688_settings_panel{display:none;position:absolute;bottom:100%;left:50%;transform:translateX(-50%);' +
-    'margin-bottom:8px;background:#fff;border-radius:12px;padding:16px;box-shadow:0 4px 16px rgba(0,0,0,.15);' +
-    'border:1px solid #f0f0f0;width:240px;font:13px/1.6 "Microsoft YaHei",Arial,sans-serif;z-index:1}' +
-    '#__1688_settings_panel.show{display:block}' +
-    '#__1688_settings_panel label{display:block;font-size:12px;color:#999;margin-bottom:2px}' +
-    '#__1688_settings_panel input{width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:6px;' +
-    'font-size:13px;margin-bottom:8px;outline:none;transition:border-color .2s}' +
-    '#__1688_settings_panel input:focus{border-color:#43A047}' +
-    '#__1688_settings_panel .s-btn{width:100%;padding:7px 0;border:none;border-radius:6px;font-size:13px;' +
-    'font-weight:500;cursor:pointer;transition:all .2s}' +
-    '#__1688_settings_panel .s-btn-login{background:linear-gradient(135deg,#43A047,#2E7D32);color:#fff}' +
-    '#__1688_settings_panel .s-btn-login:hover{filter:brightness(1.08)}' +
-    '#__1688_settings_panel .s-btn-login:disabled{opacity:.6;cursor:not-allowed}' +
-    '#__1688_settings_panel .s-btn-logout{background:#f5f5f5;color:#666;border:1px solid #e0e0e0}' +
-    '#__1688_settings_panel .s-btn-logout:hover{background:#eee}' +
-    '#__1688_settings_panel .s-status{font-size:12px;margin-bottom:8px;text-align:center}' +
-    '#__1688_settings_panel .s-status.logged-in{color:#43A047}' +
-    '#__1688_settings_panel .s-status.logged-out{color:#999}' +
-    '#__1688_settings_panel .s-user-name{font-size:14px;font-weight:600;color:#333;text-align:center;margin-bottom:4px}' +
-    '#__1688_settings_panel .s-user-role{font-size:11px;color:#999;text-align:center;margin-bottom:8px}' +
-    '#__1688_settings_panel .s-divider{border-top:1px solid #f0f0f0;margin:8px 0}' +
-    '#__1688_grab_panel.at-right #__1688_settings_panel{left:auto;right:-20px;transform:none}';
+    '#__1688_grab_menu{display:none;position:fixed;z-index:2147483646;background:#fff;border-radius:12px;' +
+    'box-shadow:0 4px 20px rgba(0,0,0,.18);padding:14px;width:260px;' +
+    'font:13px/1.5 "Microsoft YaHei",Arial,sans-serif;color:#333}' +
+    '#__1688_grab_menu.show{display:block;animation:__1688_menu_in .18s ease}' +
+    '@keyframes __1688_menu_in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}' +
+    '#__1688_grab_menu_user{display:flex;align-items:center;gap:10px}' +
+    '#__1688_grab_menu .m-avatar{width:36px;height:36px;border-radius:50%;' +
+    'background:linear-gradient(135deg,#43A047,#2E7D32);color:#fff;font-size:15px;font-weight:600;' +
+    'display:flex;align-items:center;justify-content:center;flex-shrink:0}' +
+    '#__1688_grab_menu .m-user-info{flex:1;min-width:0}' +
+    '#__1688_grab_menu .m-user-name{font-size:14px;font-weight:600;color:#333;' +
+    'overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+    '#__1688_grab_menu .m-user-name.unlogged{color:#ff4d4f}' +
+    '#__1688_grab_menu .m-divider{height:1px;background:#f0f0f0;margin:12px 0}' +
+    '#__1688_grab_menu .m-label{display:block;font-size:12px;color:#999;margin-bottom:6px}' +
+    '#__1688_grab_menu .m-input-row{display:flex;align-items:center;gap:6px}' +
+    '#__1688_grab_menu .m-input{flex:1;padding:7px 10px;border:1px solid #e0e0e0;border-radius:6px;' +
+    'font-size:13px;font-family:inherit;outline:none;background:#f9f9f9;color:#666;' +
+    'transition:border-color .2s,background .2s,box-shadow .2s}' +
+    '#__1688_grab_menu .m-input.editable{background:#fff;color:#333;border-color:#43A047;' +
+    'box-shadow:0 0 0 2px rgba(67,160,71,.12)}' +
+    '#__1688_grab_menu .m-icon-btn{width:30px;height:30px;flex-shrink:0;border:1px solid #e0e0e0;background:#fff;' +
+    'border-radius:6px;font-size:13px;color:#666;cursor:pointer;' +
+    'display:flex;align-items:center;justify-content:center;transition:all .2s}' +
+    '#__1688_grab_menu .m-icon-btn:hover{border-color:#43A047;color:#43A047;background:#F1F8E9}' +
+    '#__1688_grab_menu .m-icon-btn.m-save{border-color:#43A047;' +
+    'background:linear-gradient(135deg,#43A047,#2E7D32);color:#fff}' +
+    '#__1688_grab_menu .m-icon-btn.m-save:hover{filter:brightness(1.08)}' +
+    '#__1688_grab_menu .m-icon-btn.m-save.saved{background:#66BB6A;border-color:#66BB6A}' +
+    '#__1688_grab_menu .m-feedback{font-size:11px;margin-top:6px;min-height:14px;opacity:0;transition:opacity .2s}' +
+    '#__1688_grab_menu .m-feedback.show{opacity:1}' +
+    '#__1688_grab_menu .m-feedback.ok{color:#43A047}' +
+    '#__1688_grab_menu .m-feedback.err{color:#ff4d4f}';
 
   document.head.appendChild(s);
   document.body.appendChild(panel);
@@ -127,18 +137,26 @@
   toastEl.id = '__1688_toast';
   document.body.appendChild(toastEl);
 
-  var settingsPanel = document.createElement('div');
-  settingsPanel.id = '__1688_settings_panel';
-  settingsPanel.innerHTML =
-    '<label>服务器地址</label>' +
-    '<input id="__1688_s_url" type="text" placeholder="http://localhost:3000">' +
-    '<div class="s-divider"></div>' +
-    '<div id="__1688_s_status" class="s-status logged-out">检测中...</div>' +
-    '<div id="__1688_s_user_info_wrap" style="display:none">' +
-      '<div id="__1688_s_user_name" class="s-user-name"></div>' +
-      '<div id="__1688_s_user_role" class="s-user-role"></div>' +
+  var menuEl = document.createElement('div');
+  menuEl.id = '__1688_grab_menu';
+  menuEl.innerHTML =
+    '<div id="__1688_grab_menu_user">' +
+      '<div class="m-avatar" id="__1688_grab_menu_avatar">?</div>' +
+      '<div class="m-user-info">' +
+        '<div class="m-user-name" id="__1688_grab_menu_user_name">检测中...</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="m-divider"></div>' +
+    '<div class="m-section">' +
+      '<label class="m-label">服务器地址</label>' +
+      '<div class="m-input-row">' +
+        '<input type="text" id="__1688_grab_menu_url" class="m-input" placeholder="http://localhost:3000" readonly>' +
+        '<button class="m-icon-btn" id="__1688_grab_menu_edit" title="编辑">✎</button>' +
+        '<button class="m-icon-btn m-save" id="__1688_grab_menu_save" title="保存" style="display:none">✓</button>' +
+      '</div>' +
+      '<div class="m-feedback" id="__1688_grab_menu_feedback"></div>' +
     '</div>';
-  panel.appendChild(settingsPanel);
+  document.body.appendChild(menuEl);
 
   var toastTimer = null;
   function showToast(text, type) {
@@ -360,72 +378,189 @@
     doRound();
   }
 
-  // ========== Settings panel ==========
-  var settingsBtn = document.getElementById('__1688_grab_settings');
-  var settingsVisible = false;
+  // ========== Right-click context menu ==========
+  var urlInput = document.getElementById('__1688_grab_menu_url');
+  var editBtn = document.getElementById('__1688_grab_menu_edit');
+  var saveBtn = document.getElementById('__1688_grab_menu_save');
+  var feedbackEl = document.getElementById('__1688_grab_menu_feedback');
+  var isEditing = false;
 
-  function updateLoginUI() {
-    var statusEl = document.getElementById('__1688_s_status');
-    var infoWrap = document.getElementById('__1688_s_user_info_wrap');
-    var userNameEl = document.getElementById('__1688_s_user_name');
-    var userRoleEl = document.getElementById('__1688_s_user_role');
-    var urlInput = document.getElementById('__1688_s_url');
-
+  function syncMenuServerUrl() {
     urlInput.value = CollectData.getServerUrl();
+  }
 
-    function showStatus(text, logged, name, role) {
-      statusEl.className = 's-status ' + (logged ? 'logged-in' : 'logged-out');
-      statusEl.textContent = text;
-      if (infoWrap) infoWrap.style.display = logged ? 'block' : 'none';
-      if (userNameEl) userNameEl.textContent = name || '';
-      if (userRoleEl) userRoleEl.textContent = role || '';
-    }
+  function refreshMenuUserInfo() {
+    var nameEl = document.getElementById('__1688_grab_menu_user_name');
+    var avatarEl = document.getElementById('__1688_grab_menu_avatar');
 
-    // 先从 cookie 获取 token
+    nameEl.textContent = '检测中...';
+    nameEl.className = 'm-user-name';
+    avatarEl.textContent = '?';
+
     CollectData.autoGetToken(function (token) {
       if (!token) {
-        showStatus('请先登录管理平台', false);
+        nameEl.textContent = '未登录';
+        nameEl.className = 'm-user-name unlogged';
+        avatarEl.textContent = '!';
         return;
       }
-
-      showStatus('验证中...', false);
       var serverUrl = CollectData.getServerUrl();
       fetch(serverUrl + '/api/me', { headers: { 'Authorization': 'Bearer ' + token } })
         .then(function (r) { return r.json(); })
         .then(function (res) {
           if (res.username) {
-            showStatus('已登录', true, res.display_name || res.username, res.role);
+            var displayName = res.display_name || res.username;
+            nameEl.textContent = displayName;
+            nameEl.className = 'm-user-name';
+            avatarEl.textContent = (displayName.charAt(0) || '?').toUpperCase();
           } else {
-            showStatus('Token 已过期，请重新登录管理平台', false);
+            nameEl.textContent = 'Token 已过期';
+            nameEl.className = 'm-user-name unlogged';
+            avatarEl.textContent = '!';
           }
         })
         .catch(function () {
-          showStatus('无法连接服务器', false);
+          nameEl.textContent = '无法连接服务器';
+          nameEl.className = 'm-user-name unlogged';
+          avatarEl.textContent = '!';
         });
     });
   }
 
-  settingsBtn.addEventListener('click', function (e) {
-    e.stopPropagation();
-    settingsVisible = !settingsVisible;
-    settingsPanel.classList.toggle('show', settingsVisible);
-    if (settingsVisible) updateLoginUI();
-  });
+  function showMenu() {
+    // 先在屏幕外显示以测量尺寸
+    menuEl.style.left = '-9999px';
+    menuEl.style.top = '-9999px';
+    menuEl.classList.add('show');
 
-  document.addEventListener('click', function (e) {
-    if (settingsVisible && !settingsPanel.contains(e.target) && e.target !== settingsBtn) {
-      settingsVisible = false;
-      settingsPanel.classList.remove('show');
+    var mw = menuEl.offsetWidth;
+    var mh = menuEl.offsetHeight;
+    var vw = window.innerWidth;
+    var vh = window.innerHeight;
+    var gap = 8;
+
+    // 基于小鹦鹉位置定位（避免被小鹦鹉本体遮挡）
+    var tr = toggle.getBoundingClientRect();
+    var rightSpace = vw - tr.right;    // 小鹦鹉右侧可用空间
+    var leftSpace = tr.left;            // 小鹦鹉左侧可用空间
+
+    // 水平：优先右侧；右侧放不下则左侧；两侧都放不下则贴宽侧边
+    var left;
+    if (rightSpace >= mw + gap) {
+      left = tr.right + gap;
+    } else if (leftSpace >= mw + gap) {
+      left = tr.left - mw - gap;
+    } else if (rightSpace >= leftSpace) {
+      left = vw - mw - gap;
+    } else {
+      left = gap;
     }
+    if (left < gap) left = gap;
+    if (left + mw > vw - gap) left = vw - mw - gap;
+
+    // 垂直：与小鹦鹉中心对齐，超出屏幕则夹紧
+    var toggleCenterY = tr.top + tr.height / 2;
+    var top = toggleCenterY - mh / 2;
+    if (top < gap) top = gap;
+    if (top + mh > vh - gap) top = vh - mh - gap;
+
+    menuEl.style.left = left + 'px';
+    menuEl.style.top = top + 'px';
+
+    syncMenuServerUrl();
+    refreshMenuUserInfo();
+  }
+
+  function hideMenu() {
+    menuEl.classList.remove('show');
+    exitEditMode(false);
+  }
+
+  function enterEditMode() {
+    isEditing = true;
+    urlInput.classList.add('editable');
+    urlInput.removeAttribute('readonly');
+    editBtn.style.display = 'none';
+    saveBtn.style.display = 'flex';
+    saveBtn.classList.remove('saved');
+    setTimeout(function () { urlInput.focus(); urlInput.select(); }, 50);
+  }
+
+  function exitEditMode(clearFeedback) {
+    isEditing = false;
+    urlInput.classList.remove('editable');
+    urlInput.setAttribute('readonly', '');
+    editBtn.style.display = 'flex';
+    saveBtn.style.display = 'none';
+    if (clearFeedback) {
+      feedbackEl.classList.remove('show', 'ok', 'err');
+      feedbackEl.textContent = '';
+    }
+  }
+
+  function showFeedback(text, type) {
+    feedbackEl.textContent = text;
+    feedbackEl.className = 'm-feedback show ' + type;
+    if (type === 'ok') {
+      setTimeout(function () { feedbackEl.classList.remove('show'); }, 2000);
+    }
+  }
+
+  function doSaveUrl() {
+    var url = urlInput.value.trim().replace(/\/+$/, '');
+    if (!url) { showFeedback('地址不能为空', 'err'); return; }
+    if (!/^https?:\/\//i.test(url)) { showFeedback('地址必须以 http:// 或 https:// 开头', 'err'); return; }
+    urlInput.value = url;
+    CollectData.setServerUrl(url);
+    saveBtn.classList.add('saved');
+    showFeedback('已保存', 'ok');
+    _log('服务器地址已保存: ' + url);
+    setTimeout(function () {
+      exitEditMode(false);
+      refreshMenuUserInfo();
+    }, 800);
+  }
+
+  // 右键打开菜单（拖动刚结束时不触发，防误触）
+  toggle.addEventListener('contextmenu', function (e) {
+    if (dragMoved) return;
+    e.preventDefault();
+    e.stopPropagation();
+    showMenu();
   });
 
-  settingsPanel.addEventListener('click', function (e) { e.stopPropagation(); });
+  editBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    enterEditMode();
+  });
 
-  // Save server URL on input change
-  settingsPanel.querySelector('#__1688_s_url').addEventListener('change', function () {
-    var url = this.value.trim().replace(/\/+$/, '');
-    CollectData.setServerUrl(url);
-    _log('服务器地址已保存: ' + url);
+  saveBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    doSaveUrl();
+  });
+
+  urlInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); doSaveUrl(); }
+    if (e.key === 'Escape') { exitEditMode(true); syncMenuServerUrl(); }
+  });
+
+  urlInput.addEventListener('click', function (e) {
+    if (isEditing) e.stopPropagation();
+  });
+
+  // 点击菜单内任意位置不关闭（除了编辑/保存按钮自己处理）
+  menuEl.addEventListener('click', function (e) { e.stopPropagation(); });
+  menuEl.addEventListener('contextmenu', function (e) { e.stopPropagation(); });
+
+  // 点击菜单外部或右键其他位置 → 关闭
+  document.addEventListener('click', function (e) {
+    if (!menuEl.contains(e.target) && e.target !== toggle) hideMenu();
+  });
+  document.addEventListener('contextmenu', function (e) {
+    if (!menuEl.contains(e.target) && e.target !== toggle) hideMenu();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && menuEl.classList.contains('show')) hideMenu();
   });
 
   // Auto auth: token managed by collect-data.js via cookie
