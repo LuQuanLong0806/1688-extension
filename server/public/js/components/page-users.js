@@ -29,6 +29,8 @@ Vue.component('page-users', {
           btns.push(h('i-button', { props: { size: 'small', type: 'primary' }, style: { marginRight: '4px' }, on: { click: function () { self.editUser(params.row); } } }, '编辑'));
           if (!params.row.disabled) {
             btns.push(h('i-button', { props: { size: 'small', type: 'error' }, on: { click: function () { self.disableUser(params.row); } } }, '禁用'));
+          } else {
+            btns.push(h('i-button', { props: { size: 'small', type: 'success' }, on: { click: function () { self.enableUser(params.row); } } }, '启用'));
           }
           return h('div', btns);
         }}
@@ -105,6 +107,22 @@ Vue.component('page-users', {
               if (d.error) { vm.$Message.error(d.error); return; }
               vm.loadUsers();
               vm.$Message.success('用户已禁用');
+            });
+        }
+      });
+    },
+    enableUser: function (row) {
+      var vm = this;
+      vm.$Modal.confirm({
+        title: '确认启用',
+        content: '确定要启用用户 "' + row.username + '" 吗？启用后可用原密码登录。',
+        onOk: function () {
+          apiFetch('/api/users/' + row.id + '/enable', { method: 'POST' })
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+              if (d.error) { vm.$Message.error(d.error); return; }
+              vm.loadUsers();
+              vm.$Message.success('用户已启用');
             });
         }
       });

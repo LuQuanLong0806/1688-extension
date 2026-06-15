@@ -67,9 +67,15 @@ new Vue({
         .then(function (d) { vm.stats = d; }).catch(function () {});
     },
     logout: function () {
-      localStorage.removeItem('jwt_token');
-      localStorage.removeItem('jwt_user');
-      window.location.href = '/login.html';
+      // 必须先调 /api/logout（带 token），让 server 写 token_invalid_at
+      // 否则 JWT 是无状态的，server 端不知道用户登出，旧 token 还能继续用
+      apiFetch('/api/logout', { method: 'POST' })
+        .catch(function () {})
+        .finally(function () {
+          localStorage.removeItem('jwt_token');
+          localStorage.removeItem('jwt_user');
+          window.location.href = '/login.html';
+        });
     },
     openDetail: function (id) {
       var vm = this;

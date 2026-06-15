@@ -27,8 +27,6 @@ function getSecret() {
 var WHITELIST = [
   { method: 'POST', path: '/api/login' },
   { method: 'POST', path: '/api/plugin-login' },
-  { method: 'POST', path: '/api/product' },
-  { method: 'GET', path: '/api/product/check' },
   { method: 'GET', path: '/api/events' },
   { method: 'GET', path: '/api/extension-version' },
   { method: 'POST', path: '/api/collage-import' },

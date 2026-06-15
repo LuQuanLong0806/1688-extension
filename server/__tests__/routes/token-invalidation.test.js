@@ -172,6 +172,51 @@ describe('A 方案：token_invalid_at 踢下线', () => {
     expect(meRes.status).toBe(401);
   });
 
+  test('admin 启用用户 → disabled=0 + token_invalid_at 清空，用户能用原密码登录', async () => {
+    var admin = insertUser({ username: 'admin' });
+    var target = insertUser({ username: 'victim', role: 'operator', disabled: 1, token_invalid_at: String(Math.floor(Date.now() / 1000) - 50) });
+    // 启用前：victim 登录失败（disabled=1）
+    var beforeLogin = await request(app)
+      .post('/api/login')
+      .send({ username: 'victim', password: 'admin123' });
+    expect(beforeLogin.status).toBe(401);
+    // admin 启用 victim
+    var enable = await request(app)
+      .post('/api/users/' + target.id + '/enable')
+      .set('Authorization', 'Bearer ' + signTokenFor(admin));
+    expect(enable.status).toBe(200);
+    // 云端应推送 disabled = 0 + token_invalid_at = ''
+    expect(mockCloudDbCalls.some(c => /disabled = 0,\s*token_invalid_at = ''/.test(c.sql))).toBe(true);
+    // 启用后：victim 能用原密码登录
+    var afterLogin = await request(app)
+      .post('/api/login')
+      .send({ username: 'victim', password: 'admin123' });
+    expect(afterLogin.status).toBe(200);
+    expect(afterLogin.body.token).toBeTruthy();
+    // 新 token 也能调 /api/me
+    var meRes = await request(app)
+      .get('/api/me')
+      .set('Authorization', 'Bearer ' + afterLogin.body.token);
+    expect(meRes.status).toBe(200);
+  });
+
+  test('非 admin 启用用户 → 403', async () => {
+    var op = insertUser({ username: 'op', role: 'operator' });
+    var target = insertUser({ username: 'victim', role: 'operator', disabled: 1 });
+    var res = await request(app)
+      .post('/api/users/' + target.id + '/enable')
+      .set('Authorization', 'Bearer ' + signTokenFor(op));
+    expect(res.status).toBe(403);
+  });
+
+  test('启用不存在的用户 → 404', async () => {
+    var admin = insertUser({ username: 'admin' });
+    var res = await request(app)
+      .post('/api/users/99999/enable')
+      .set('Authorization', 'Bearer ' + signTokenFor(admin));
+    expect(res.status).toBe(404);
+  });
+
   test('admin 编辑用户改密码 → 用户被踢下线', async () => {
     var admin = insertUser({ username: 'admin' });
     var target = insertUser({ username: 'op1', role: 'operator' });

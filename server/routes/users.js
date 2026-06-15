@@ -225,6 +225,22 @@ router.delete('/users/:id', auth.requireRole('admin'), function (req, res) {
   res.json({ ok: true });
 });
 
+// POST /api/users/:id/enable — admin only, re-enable a disabled user
+// 清掉 disabled + token_invalid_at；启用后用户能用原密码登录
+// （禁用时没有改密码，所以密码还是禁用前的）
+router.post('/users/:id/enable', auth.requireRole('admin'), function (req, res) {
+  var id = parseInt(req.params.id);
+  if (!id) return res.status(400).json({ error: '无效ID' });
+  var target = _getDb().getOne('SELECT username, disabled FROM users WHERE id = ?', [id]);
+  if (!target) return res.status(404).json({ error: '用户不存在' });
+  if (!target.disabled) return res.json({ ok: true });
+  var now = localNow();
+  _getDb().run("UPDATE users SET disabled = 0, token_invalid_at = '', updated_at = ? WHERE id = ?", [now, id]);
+  _getDb().scheduleSave();
+  pushUserCloud("UPDATE users SET disabled = 0, token_invalid_at = '', updated_at = ? WHERE username = ?", [now, target.username], 'enable-user ' + target.username);
+  res.json({ ok: true });
+});
+
 function ensureAdmin() {
   try {
     var existing = _getDb().getOne("SELECT id FROM users WHERE username = 'admin'");

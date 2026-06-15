@@ -41,10 +41,14 @@ describe('auth middleware', () => {
   test('isWhitelisted allows whitelisted routes', () => {
     expect(auth.isWhitelisted('POST', '/api/login')).toBe(true);
     expect(auth.isWhitelisted('POST', '/api/plugin-login')).toBe(true);
-    expect(auth.isWhitelisted('POST', '/api/product')).toBe(true);
-    expect(auth.isWhitelisted('GET', '/api/product/check')).toBe(true);
     expect(auth.isWhitelisted('GET', '/api/events')).toBe(true);
     expect(auth.isWhitelisted('GET', '/')).toBe(true);
+  });
+
+  test('采集接口不在白名单（必须带有效 token，否则踢下线失效）', () => {
+    // 历史：曾放在白名单里 → token_invalid_at 踢下线对采集接口形同虚设
+    expect(auth.isWhitelisted('POST', '/api/product')).toBe(false);
+    expect(auth.isWhitelisted('GET', '/api/product/check')).toBe(false);
   });
 
   test('isWhitelisted allows static assets', () => {
