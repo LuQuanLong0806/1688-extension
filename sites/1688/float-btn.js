@@ -149,6 +149,36 @@
     toastTimer = setTimeout(function () { toastEl.classList.remove('visible'); }, 3500);
   }
 
+  // 登录失效（token 被踢下线/未登录/换用户）→ 弹可点击的提示，点击跳到管理平台登录页
+  // 颜色沿用项目已用色系：警告红 #e53935 + 白色加粗文字（不引入新色系）
+  // 持续 8 秒（比 showToast 久，给用户反应和点击时间）
+  function showAuthExpired() {
+    clearTimeout(toastTimer);
+    var serverUrl = (window.CollectData && CollectData.getServerUrl) ? CollectData.getServerUrl() : 'http://localhost:3000';
+    toastEl.className = 'err';
+    toastEl.innerHTML = '<span style="color:#e53935">⚠</span> 登录已失效，<a href="#" id="__1688_auth_relogin" style="color:#fff;text-decoration:underline;font-weight:700;">点此重新登录</a>';
+    requestAnimationFrame(function () { toastEl.classList.add('visible'); });
+    var link = document.getElementById('__1688_auth_relogin');
+    if (link) {
+      link.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        window.open(serverUrl + '/login.html', '_blank');
+        toastEl.classList.remove('visible');
+      });
+    }
+    // 整个 toast 也可点击跳转（用户不一定点到链接上）
+    toastEl.onclick = function () {
+      window.open(serverUrl + '/login.html', '_blank');
+      toastEl.classList.remove('visible');
+      toastEl.onclick = null;
+    };
+    toastTimer = setTimeout(function () {
+      toastEl.classList.remove('visible');
+      toastEl.onclick = null;
+    }, 8000);
+  }
+
   var toggle = document.getElementById('__1688_grab_toggle');
   var bubble = document.getElementById('__1688_grab_bubble');
   var collectBtn = document.getElementById('__1688_grab_collect');
@@ -416,8 +446,8 @@
         isCollecting = false;
         signEl.classList.remove('no-swing');
         setCollectState('', '采集');
-        showBubble('❌ 请先登录管理平台', 'err');
-        showToast('采集失败：请先登录管理平台', 'err');
+        showBubble('❌ 登录已失效', 'err');
+        showAuthExpired();
         setTimeout(hideBubble, 3000);
         return;
       }
@@ -493,8 +523,14 @@
             CollectData.save(data, function (err, res) {
               if (err || !res || !res.ok) {
                 _log('保存失败:', err, res);
-                showBubble('❌ 保存失败: ' + (err ? err.message : '服务器错误'), 'err');
-                showToast('采集失败: ' + (err ? err.message : '服务器错误'), 'err');
+                if (err && err.authFailed) {
+                  // token 失效（改密/登出/被禁用/换用户）→ 弹"登录失效"提示，可点击跳转
+                  showBubble('❌ 登录已失效', 'err');
+                  showAuthExpired();
+                } else {
+                  showBubble('❌ 保存失败: ' + (err ? err.message : '服务器错误'), 'err');
+                  showToast('采集失败: ' + (err ? err.message : '服务器错误'), 'err');
+                }
                 isCollecting = false;
                 signEl.classList.remove('no-swing');
                 setCollectState('', '采集');

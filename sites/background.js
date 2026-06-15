@@ -15,6 +15,31 @@
   }, 3000);
 })();
 
+// 监听管理平台 auth_token cookie 变化（登录/退出/换用户）
+// 一旦变化，通知所有 1688/店小蜜 tab 清掉 localStorage 缓存的旧 token
+// 否则扩展端不会知道用户切换了，会继续用旧用户的 token 采集
+var AUTH_COOKIE_NAME = 'auth_token';
+var AUTH_COOKIE_URL = 'http://localhost:3000';
+function notifyTokenChanged() {
+  chrome.tabs.query({}, function (tabs) {
+    for (var i = 0; i < tabs.length; i++) {
+      try { chrome.tabs.sendMessage(tabs[i].id, { action: 'auth_token_changed' }); } catch (e) {}
+    }
+  });
+}
+try {
+  chrome.cookies.onChanged.addListener(function (change) {
+    var c = change.cookie;
+    if (!c) return;
+    // 同名 cookie 在不同 path/url 下可能触发多次，用 name + domain 过滤
+    if (c.name === AUTH_COOKIE_NAME && c.domain && AUTH_COOKIE_URL.indexOf(c.domain) >= 0) {
+      notifyTokenChanged();
+    }
+  });
+} catch (e) {
+  console.warn('[bg] cookies.onChanged 监听失败:', e.message);
+}
+
 var resultTabsMap = {};
 var collageMap = {}; // sourceId -> collageTabId (1:1)
 var cleanerMap = {}; // sourceId -> cleanerTabId (1:1)

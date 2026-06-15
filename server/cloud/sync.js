@@ -10,11 +10,17 @@ module.exports = function (cloud, db) {
     var mappings = db.getAll('SELECT category_name, custom_category, count, source, deleted, updated_at FROM category_mappings');
     for (var i = 0; i < mappings.length; i++) {
       var m = mappings[i];
-      var existing = await cloud.getOne('SELECT id, updated_at FROM category_mappings WHERE category_name = ? AND custom_category = ?', [m.category_name, m.custom_category]);
+      var existing = await cloud.getOne('SELECT id, deleted, updated_at FROM category_mappings WHERE category_name = ? AND custom_category = ?', [m.category_name, m.custom_category]);
       if (existing) {
         var localNewer = m.updated_at && (!existing.updated_at || m.updated_at > existing.updated_at);
+        var deletedDiffers = (m.deleted || 0) !== (existing.deleted || 0);
         if (localNewer) {
-          await cloud.run('UPDATE category_mappings SET count = ?, source = ?, deleted = ?, updated_at = ? WHERE id = ?', [m.count, m.source, m.deleted || 0, m.updated_at, existing.id]);
+          var mergedDeleted = Math.max(existing.deleted || 0, m.deleted || 0);
+          await cloud.run('UPDATE category_mappings SET count = ?, source = ?, deleted = ?, updated_at = ? WHERE id = ?', [m.count, m.source, mergedDeleted, m.updated_at, existing.id]);
+        } else if (deletedDiffers) {
+          // 时间戳相同/更旧但 deleted 不同：仍合并 deleted（删除传播）
+          var merged = Math.max(existing.deleted || 0, m.deleted || 0);
+          await cloud.run('UPDATE category_mappings SET deleted = ? WHERE id = ?', [merged, existing.id]);
         }
       } else {
         await cloud.run(`INSERT INTO category_mappings (category_name, custom_category, count, source, deleted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, datetime('now', '+8 hours'), ?)`,
@@ -113,11 +119,18 @@ module.exports = function (cloud, db) {
     var cloudMappings = await cloud.getAll('SELECT category_name, custom_category, count, source, deleted, updated_at FROM category_mappings');
     for (var i = 0; i < cloudMappings.length; i++) {
       var m = cloudMappings[i];
-      var local = db.getOne('SELECT id, updated_at FROM category_mappings WHERE category_name = ? AND custom_category = ?', [m.category_name, m.custom_category]);
+      var local = db.getOne('SELECT id, deleted, updated_at FROM category_mappings WHERE category_name = ? AND custom_category = ?', [m.category_name, m.custom_category]);
       if (local) {
         var cloudNewer = m.updated_at && (!local.updated_at || m.updated_at > local.updated_at);
+        var deletedDiffers = (m.deleted || 0) !== (local.deleted || 0);
         if (cloudNewer) {
-          db.run('UPDATE category_mappings SET count = ?, source = ?, deleted = ?, updated_at = ? WHERE id = ?', [m.count, m.source, m.deleted || 0, m.updated_at, local.id]);
+          // cloud 较新：取 cloud 的字段，deleted 用 MAX 合并（任一方删除即删除）
+          var mergedDeleted = Math.max(local.deleted || 0, m.deleted || 0);
+          db.run('UPDATE category_mappings SET count = ?, source = ?, deleted = ?, updated_at = ? WHERE id = ?', [m.count, m.source, mergedDeleted, m.updated_at, local.id]);
+        } else if (deletedDiffers) {
+          // 时间戳相同/更旧但 deleted 状态不同：仍合并 deleted（防止软删除卡住）
+          var merged = Math.max(local.deleted || 0, m.deleted || 0);
+          db.run('UPDATE category_mappings SET deleted = ? WHERE id = ?', [merged, local.id]);
         }
       } else {
         db.run(`INSERT INTO category_mappings (category_name, custom_category, count, source, deleted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, datetime('now', '+8 hours'), ?)`,
@@ -524,10 +537,17 @@ module.exports = function (cloud, db) {
         await cloud.run(def.cloudInsert, def.cloudInsertParams(r));
         pushed++;
       } else if (tableKey === 'mappings') {
-        var cloudRow = await cloud.getOne('SELECT updated_at FROM category_mappings WHERE id = ?', [cloudExisting.id]);
+        var cloudRow = await cloud.getOne('SELECT deleted, updated_at FROM category_mappings WHERE id = ?', [cloudExisting.id]);
         var localNewer = r.updated_at && (!cloudRow.updated_at || r.updated_at > cloudRow.updated_at);
+        var deletedDiffers = (r.deleted || 0) !== (cloudRow.deleted || 0);
         if (localNewer) {
-          await cloud.run(def.cloudUpdate, [r.count, r.source, r.deleted || 0, r.updated_at, cloudExisting.id]);
+          // deleted 用 MAX 合并：任一方删除即视为删除
+          var mergedDeleted = Math.max(cloudRow.deleted || 0, r.deleted || 0);
+          await cloud.run(def.cloudUpdate, [r.count, r.source, mergedDeleted, r.updated_at, cloudExisting.id]);
+          pushed++;
+        } else if (deletedDiffers) {
+          var merged = Math.max(cloudRow.deleted || 0, r.deleted || 0);
+          await cloud.run('UPDATE category_mappings SET deleted = ? WHERE id = ?', [merged, cloudExisting.id]);
           pushed++;
         } else { skipped++; }
       } else if (tableKey === 'keyword-rels') {
@@ -577,8 +597,15 @@ module.exports = function (cloud, db) {
         added++;
       } else if (tableKey === 'mappings') {
         var cloudNewer = r.updated_at && (!local.updated_at || r.updated_at > local.updated_at);
+        var deletedDiffers = (r.deleted || 0) !== (local.deleted || 0);
         if (cloudNewer) {
-          db.run(def.localUpdate, [r.count, r.source, r.deleted || 0, r.updated_at, local.id]);
+          // deleted 用 MAX 合并：任一方删除即视为删除
+          var mergedDeleted = Math.max(local.deleted || 0, r.deleted || 0);
+          db.run(def.localUpdate, [r.count, r.source, mergedDeleted, r.updated_at, local.id]);
+          updated++;
+        } else if (deletedDiffers) {
+          var merged = Math.max(local.deleted || 0, r.deleted || 0);
+          db.run('UPDATE category_mappings SET deleted = ? WHERE id = ?', [merged, local.id]);
           updated++;
         }
       } else if (tableKey === 'keyword-rels') {

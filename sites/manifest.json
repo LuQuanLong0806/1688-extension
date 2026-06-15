@@ -18,7 +18,7 @@
   "content_scripts": [
     {
       "matches": ["*://*.1688.com/*"],
-      "js": ["sites/1688/grab-core.js", "sites/1688/collect-data.js", "sites/1688/float-btn.js"]
+      "js": ["sites/build-info.js", "sites/1688/grab-core.js", "sites/1688/collect-data.js", "sites/1688/float-btn.js"]
     },
     {
       "matches": [
@@ -27,11 +27,11 @@
         "*://www.dianxiaomi.com/web/temu/edit*",
         "*://www.dianxiaomi.com/web/temu/quoteEdit*"
       ],
-      "js": ["sites/dianxiaomi/dxm-config.js", "sites/dianxiaomi/dxm-float-bee.js", "sites/dianxiaomi/dxm-config-ui.js", "sites/dianxiaomi/dxm-auto-clean.js", "sites/dianxiaomi/dxm-auto-fill.js", "sites/dianxiaomi/dxm-edit-desc.js", "sites/dianxiaomi/dxm-paste-img.js", "sites/dianxiaomi/dxm-sku.js", "sites/dianxiaomi/dxm-sku-table.js"]
+      "js": ["sites/build-info.js", "sites/dianxiaomi/dxm-config.js", "sites/dianxiaomi/dxm-float-bee.js", "sites/dianxiaomi/dxm-config-ui.js", "sites/dianxiaomi/dxm-auto-clean.js", "sites/dianxiaomi/dxm-auto-fill.js", "sites/dianxiaomi/dxm-edit-desc.js", "sites/dianxiaomi/dxm-paste-img.js", "sites/dianxiaomi/dxm-sku.js", "sites/dianxiaomi/dxm-sku-table.js"]
     },
     {
       "matches": ["*://www.dianxiaomi.com/imageEditor/*"],
-      "js": ["sites/dianxiaomi/dxm-image-editor.js"],
+      "js": ["sites/build-info.js", "sites/dianxiaomi/dxm-image-editor.js"],
       "all_frames": true
     }
   ]

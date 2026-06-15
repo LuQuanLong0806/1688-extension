@@ -84,6 +84,18 @@
     if (!token) console.log('[1688] 未检测到管理平台登录');
   });
 
+  // 监听 background 通知：管理平台 cookie 变化（登录/退出/换用户）
+  // 收到通知后清掉 localStorage 缓存，下次采集 autoGetToken 会拿最新 token
+  try {
+    chrome.runtime.onMessage.addListener(function (msg) {
+      if (msg && msg.action === 'auth_token_changed') {
+        localStorage.removeItem(TOKEN_KEY);
+        try { chrome.storage.local.remove(TOKEN_KEY); } catch (e) {}
+        console.log('[1688] 收到 token 变化通知，已清缓存');
+      }
+    });
+  } catch (e) {}
+
   function getOfferId() {
     var m = location.href.match(/offer\/(\d+)\.html/i);
     return m ? m[1] : '';
@@ -532,15 +544,31 @@
   function saveToServer(data, callback) {
     var serverUrl = getServerUrl();
     ensureToken(function (err) {
-      if (err) { if (callback) callback(err); return; }
+      if (err) {
+        // 没拿到 token（管理平台未登录）→ 明确告诉 callback 是 auth 错误
+        var authErr = new Error('未登录管理平台');
+        authErr.authFailed = true;
+        if (callback) callback(authErr);
+        return;
+      }
       fetch(serverUrl + '/api/product', {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(data)
       })
-      .then(function (r) { handleAuthError(r); return r.json(); })
+      .then(function (r) {
+        // 401 时让 callback 知道是 auth 失败（token 失效/被踢下线），不要走"服务器错误"分支
+        if (r.status === 401) {
+          handleAuthError(r);
+          var authErr = new Error('登录已失效');
+          authErr.authFailed = true;
+          if (callback) callback(authErr);
+          return null;
+        }
+        return r.json();
+      })
       .then(function (res) {
-        if (callback) callback(null, res);
+        if (res && callback) callback(null, res);
       })
       .catch(function (err) {
         if (callback) callback(err);

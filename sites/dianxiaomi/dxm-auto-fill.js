@@ -69,7 +69,7 @@
       'color:#E65100;font-weight:bold;font-size:14px'
     );
 
-    fetch(serverUrl + '/api/product/' + collectId, { headers: Config.authHeaders() })
+    fetch(serverUrl + '/api/product/' + collectId, { headers: C.authHeaders() })
       .then(function (r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return r.json();
@@ -789,7 +789,7 @@
       var serverUrl = localStorage.getItem(SERVER_KEY) || 'http://localhost:3000';
       fetch(serverUrl + '/api/ai/suggest-category', {
         method: 'POST',
-        headers: Config.authHeaders({ 'Content-Type': 'application/json' }),
+        headers: C.authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ title: title, ali_category: aliCategory })
       }).then(function (r) { return r.json(); }).then(function (result) {
         if (result.ok && result.category) {
@@ -832,7 +832,7 @@
     var serverUrl = localStorage.getItem(SERVER_KEY) || 'http://localhost:3000';
     fetch(serverUrl + '/api/ai/save-category-mapping', {
       method: 'POST',
-      headers: Config.authHeaders({ 'Content-Type': 'application/json' }),
+      headers: C.authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ ali_category: aliCategory, temu_category: temuCategory })
     }).then(function (r) { return r.json(); }).then(function (result) {
       if (result.ok) {

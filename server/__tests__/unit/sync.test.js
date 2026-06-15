@@ -221,6 +221,60 @@ describe('category_mappings 同步', () => {
     const cloudRow = dbGetOne(cloudDb, "SELECT count FROM category_mappings WHERE category_name = '毛巾'");
     expect(cloudRow.count).toBe(10);
   });
+
+  // ===== 软删除合并语义测试（防止"删不掉 一同步又回来"）=====
+  test('本地软删 + 云端较新但仍 deleted=0 → 下载时本地保持删除（不被复活）', async () => {
+    // 初始：双方都有，deleted=0
+    dbRun(localDb, "INSERT INTO category_mappings (category_name, custom_category, count, source, deleted, updated_at) VALUES ('毛巾', '家居/毛巾', 5, 'auto', 0, '2026-06-14 10:00:00')");
+    dbRun(cloudDb, "INSERT INTO category_mappings (category_name, custom_category, count, source, deleted, updated_at) VALUES ('毛巾', '家居/毛巾', 5, 'auto', 0, '2026-06-14 10:00:00')");
+    // 用户在本地删除
+    dbRun(localDb, "UPDATE category_mappings SET deleted = 1, updated_at = '2026-06-14 11:00:00' WHERE category_name = '毛巾'");
+    // 但 cloud push 失败 + 另一台机器更新了 count 让 cloud updated_at 反而更新（极端 case）
+    dbRun(cloudDb, "UPDATE category_mappings SET count = 99, updated_at = '2026-06-14 12:00:00' WHERE category_name = '毛巾'");
+    // 下载云端到本地
+    await syncModule.downloadCloudToLocal();
+    // 即使 cloud updated_at 更新（12:00 > 11:00），本地 deleted=1 不应被复活
+    const localRow = dbGetOne(localDb, "SELECT count, deleted FROM category_mappings WHERE category_name = '毛巾'");
+    expect(localRow.deleted).toBe(1);
+    // count 仍然合并
+    expect(localRow.count).toBe(99);
+  });
+
+  test('本地软删 → 上传时云端也变 deleted=1（删除传播）', async () => {
+    dbRun(localDb, "INSERT INTO category_mappings (category_name, custom_category, count, source, deleted, updated_at) VALUES ('毛巾', '家居/毛巾', 5, 'auto', 1, '2026-06-14 11:00:00')");
+    dbRun(cloudDb, "INSERT INTO category_mappings (category_name, custom_category, count, source, deleted, updated_at) VALUES ('毛巾', '家居/毛巾', 5, 'auto', 0, '2026-06-14 10:00:00')");
+    await syncModule.uploadLocalToCloud();
+    const cloudRow = dbGetOne(cloudDb, "SELECT deleted FROM category_mappings WHERE category_name = '毛巾'");
+    expect(cloudRow.deleted).toBe(1);
+  });
+
+  test('pullTable: 本地 deleted=1, 云端 deleted=0 但更新 → 仍保持删除', async () => {
+    dbRun(localDb, "INSERT INTO category_mappings (category_name, custom_category, count, source, deleted, updated_at) VALUES ('杯子', '家居/杯子', 10, 'auto', 1, '2026-06-14 11:00:00')");
+    dbRun(cloudDb, "INSERT INTO category_mappings (category_name, custom_category, count, source, deleted, updated_at) VALUES ('杯子', '家居/杯子', 50, 'manual', 0, '2026-06-14 12:00:00')");
+    await syncModule.pullTable('mappings');
+    const localRow = dbGetOne(localDb, "SELECT count, deleted FROM category_mappings WHERE category_name = '杯子'");
+    expect(localRow.deleted).toBe(1);
+    expect(localRow.count).toBe(50);
+  });
+
+  test('pushTable: 本地 deleted=1 → 推送到云端后云端也 deleted=1', async () => {
+    dbRun(localDb, "INSERT INTO category_mappings (category_name, custom_category, count, source, deleted, updated_at) VALUES ('牙刷', '家居/牙刷', 7, 'auto', 1, '2026-06-14 11:00:00')");
+    dbRun(cloudDb, "INSERT INTO category_mappings (category_name, custom_category, count, source, deleted, updated_at) VALUES ('牙刷', '家居/牙刷', 7, 'auto', 0, '2026-06-14 10:00:00')");
+    await syncModule.pushTable('mappings');
+    const cloudRow = dbGetOne(cloudDb, "SELECT deleted FROM category_mappings WHERE category_name = '牙刷'");
+    expect(cloudRow.deleted).toBe(1);
+  });
+
+  test('bidirectionalSync 后：本地删除的映射在云端也保持删除', async () => {
+    // 模拟用户场景：cloud 上残留 deleted=0 但本地已删
+    dbRun(localDb, "INSERT INTO category_mappings (category_name, custom_category, count, source, deleted, updated_at) VALUES ('E2E测试', '测试/类目', 1, 'manual', 1, '2026-06-14 11:00:00')");
+    dbRun(cloudDb, "INSERT INTO category_mappings (category_name, custom_category, count, source, deleted, updated_at) VALUES ('E2E测试', '测试/类目', 1, 'manual', 0, '2026-06-14 12:00:00')");
+    await syncModule.bidirectionalSync();
+    const localRow = dbGetOne(localDb, "SELECT deleted FROM category_mappings WHERE category_name = 'E2E测试'");
+    const cloudRow = dbGetOne(cloudDb, "SELECT deleted FROM category_mappings WHERE category_name = 'E2E测试'");
+    expect(localRow.deleted).toBe(1);
+    expect(cloudRow.deleted).toBe(1);
+  });
 });
 
 // ============================================================

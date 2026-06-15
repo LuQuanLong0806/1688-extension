@@ -54,12 +54,6 @@ Vue.component('page-products', {
           slot: 'statusDot'
         },
         {
-          title: '阶段',
-          width: 80,
-          align: 'center',
-          slot: 'automationStage'
-        },
-        {
           title: '预览',
           width: 80,
           align: 'center',
@@ -76,15 +70,21 @@ Vue.component('page-products', {
           slot: 'title'
         },
         {
+          title: '选择分类',
+          minWidth: 200,
+          slot: 'category'
+        },
+        {
           title: '1688类目',
           width: 160,
           align: 'center',
           slot: 'aliCategory'
         },
         {
-          title: '选择分类',
-          minWidth: 200,
-          slot: 'category'
+          title: '阶段',
+          width: 80,
+          align: 'center',
+          slot: 'automationStage'
         },
         {
           title: 'SKU',
@@ -750,13 +750,13 @@ Vue.component('page-products', {
           </template>
           <template slot="statusDot" slot-scope="{ row }">
 
-            <div class="status-dot-wrap" @click="toggleProductStatus(row)">
+            <tooltip :content="row.status === 1 ? '已发布' : '未发布'" placement="top">
+              <div class="status-dot-wrap" @click="toggleProductStatus(row)">
 
-              <div class="status-dot" :class="row.status === 1 ? 'status-dot-on' : 'status-dot-off'"></div>
+                <div class="status-dot" :class="row.status === 1 ? 'status-dot-on' : 'status-dot-off'"></div>
 
-              <span class="status-dot-text">{{ row.status === 1 ? '已发布' : '未发布' }}</span>
-
-            </div>
+              </div>
+            </tooltip>
 
           </template>
           <template slot="automationStage" slot-scope="{ row }">
