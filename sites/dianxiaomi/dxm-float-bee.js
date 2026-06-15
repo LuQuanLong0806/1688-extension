@@ -12,7 +12,6 @@
     '__dxm_bee_paste': '贴图',
     '__dxm_bee_resize': '尺寸',
     '__dxm_bee_clean': '去中文',
-    '__dxm_bee_sku_table': '填表',
     '__dxm_bee_sku': 'SKU',
     '__dxm_bee_package': '包装',
     '__dxm_bee_edit': '描述',

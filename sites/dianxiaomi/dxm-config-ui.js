@@ -8,7 +8,7 @@
   var s = document.createElement('style');
   s.textContent =
     // --- Context menu ---
-    '#__dxm_bee_menu{display:none;position:fixed;z-index:2147483646;background:#fff;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.18);padding:4px 0;font:12px/1.4 "Microsoft YaHei",Arial,sans-serif;color:#333;max-width:280px}' +
+    '#__dxm_bee_menu{display:none;position:fixed;z-index:2147483646;background:#fff;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.18);padding:0 0 8px;font:12px/1.4 "Microsoft YaHei",Arial,sans-serif;color:#333;min-width:260px;max-width:320px;overflow:hidden}' +
     '#__dxm_bee_menu.show{display:block}' +
     '#__dxm_bee_menu .menu-item{display:flex;align-items:center;justify-content:space-between;padding:6px 12px;transition:background .15s;flex-wrap:wrap}' +
     '#__dxm_bee_menu .menu-item:hover{background:#FFF8E1}' +
@@ -105,7 +105,37 @@
     '#__dxm_bee_btn_vis_panel .cfg-ck{width:14px;height:14px;border:1.5px solid #ccc;border-radius:3px;display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0}' +
     '#__dxm_bee_btn_vis_panel label:hover .cfg-ck{border-color:#FFA000}' +
     '#__dxm_bee_btn_vis_panel input:checked+.cfg-ck{background:#FFA000;border-color:#FFA000}' +
-    '#__dxm_bee_btn_vis_panel input:checked+.cfg-ck::after{content:\'\';width:3px;height:6px;border:solid #fff;border-width:0 1.5px 1.5px 0;transform:rotate(45deg);margin-top:-1px}';
+    '#__dxm_bee_btn_vis_panel input:checked+.cfg-ck::after{content:\'\';width:3px;height:6px;border:solid #fff;border-width:0 1.5px 1.5px 0;transform:rotate(45deg);margin-top:-1px}' +
+    // --- 顶部用户信息区 ---
+    '#__dxm_bee_menu .m-menu-user{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid #f0f0f0}' +
+    '#__dxm_bee_menu .m-avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#FFA000,#FF8F00);color:#fff;font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0}' +
+    '#__dxm_bee_menu .m-avatar.unlogged{background:linear-gradient(135deg,#bbb,#999)}' +
+    '#__dxm_bee_menu .m-user-info{flex:1;min-width:0}' +
+    '#__dxm_bee_menu .m-user-name{font-size:13px;font-weight:600;color:#333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+    '#__dxm_bee_menu .m-user-name.unlogged{color:#ff4d4f}' +
+    // --- 手风琴分组 ---
+    '#__dxm_bee_menu .m-group{border-top:1px solid #f5f5f5}' +
+    '#__dxm_bee_menu .m-group:first-of-type{border-top:none}' +
+    '#__dxm_bee_menu .m-group-header{display:flex;align-items:center;justify-content:space-between;padding:9px 14px 9px 12px;cursor:pointer;font-size:12px;color:#666;font-weight:600;background:transparent;border-left:3px solid transparent;transition:background .2s,color .2s,border-color .2s;user-select:none;position:relative}' +
+    '#__dxm_bee_menu .m-group-header:hover{background:linear-gradient(90deg,#FFF8E1 0%,rgba(255,248,225,0) 100%);color:#E65100;border-left-color:#FFD54F}' +
+    '#__dxm_bee_menu .m-group.expanded .m-group-header{background:linear-gradient(90deg,#FFF3E0 0%,rgba(255,243,224,0) 100%);color:#E65100;border-left-color:#FFA000}' +
+    '#__dxm_bee_menu .m-group-arrow{display:inline-block;width:7px;height:7px;border-right:1.5px solid #bbb;border-bottom:1.5px solid #bbb;transform:rotate(-45deg);transition:transform .25s cubic-bezier(.4,0,.2,1),border-color .2s;margin-right:3px;flex-shrink:0}' +
+    '#__dxm_bee_menu .m-group-header:hover .m-group-arrow{border-color:#FFA000}' +
+    '#__dxm_bee_menu .m-group.expanded .m-group-arrow{transform:rotate(45deg);border-color:#FFA000}' +
+    '#__dxm_bee_menu .m-group-body{height:0;overflow:hidden;transition:height .26s cubic-bezier(.4,0,.2,1)}' +
+    // --- 服务器地址 icon 编辑/保存/测试 ---
+    '#__dxm_bee_menu .m-server-input{flex:1;padding:6px 8px;border:1px solid #e0e0e0;border-radius:5px;font-size:12px;font-family:inherit;outline:none;background:#f9f9f9;color:#667;transition:all .2s}' +
+    '#__dxm_bee_menu .m-server-input.editable{background:#fff;color:#333;border-color:#FFA000;box-shadow:0 0 0 2px rgba(255,160,0,.12)}' +
+    '#__dxm_bee_menu .m-input-row{display:flex;align-items:center;gap:6px;width:100%;margin-top:4px}' +
+    '#__dxm_bee_menu .m-icon-btn{width:26px;height:26px;flex-shrink:0;border:1px solid #e0e0e0;background:#fff;border-radius:5px;font-size:12px;color:#666;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s}' +
+    '#__dxm_bee_menu .m-icon-btn:hover{border-color:#FFA000;color:#E65100;background:#FFF8E1}' +
+    '#__dxm_bee_menu .m-icon-btn.m-save{border-color:#FFA000;background:#FFA000;color:#fff}' +
+    '#__dxm_bee_menu .m-icon-btn.m-save:hover{background:#FF8F00}' +
+    '#__dxm_bee_menu .m-icon-btn.m-save.saved{background:#52c41a;border-color:#52c41a}' +
+    '#__dxm_bee_menu .m-feedback{font-size:11px;margin-top:4px;min-height:14px;opacity:0;transition:opacity .2s}' +
+    '#__dxm_bee_menu .m-feedback.show{opacity:1}' +
+    '#__dxm_bee_menu .m-feedback.ok{color:#52c41a}' +
+    '#__dxm_bee_menu .m-feedback.err{color:#ff4d4f}';
   document.head.appendChild(s);
 
   // ========== Context Menu ==========
@@ -119,39 +149,88 @@
   var autoResize = Config.loadAutoResize();
   var shopId = Config.loadShopId();
   menu.innerHTML =
-    '<div class="menu-item clickable" id="__dxm_bee_menu_filter"><span class="menu-label clickable" id="__dxm_bee_menu_filter_text">📝 标题过滤</span><div class="switch ' + (filterEnabled ? 'on' : '') + '" id="__dxm_bee_menu_filter_switch"></div><div class="menu-desc">点击文字打开配置弹窗，开启后自动过滤标题违规文字</div></div>' +
-    '<div class="menu-item clickable" id="__dxm_bee_menu_sku_filter"><span class="menu-label clickable" id="__dxm_bee_menu_sku_filter_text">🏷️ SKU变种属性过滤</span><div class="switch ' + (skuFilterEnabled ? 'on' : '') + '" id="__dxm_bee_menu_sku_filter_switch"></div><div class="menu-desc">点击文字打开配置弹窗，开启后自动过滤SKU变种属性违规文字</div></div>' +
-    '<div class="menu-item"><span class="menu-label">🔢 自动SKU高级</span><div class="switch ' + (autoSkuNo ? 'on' : '') + '" id="__dxm_bee_menu_sku_no_switch"></div><div class="menu-desc">开启后SKU工作流自动执行高级SKU货号生成</div></div>' +
-    '<div class="menu-item"><span class="menu-label">📐 自动批量修改图片尺寸</span><div class="switch ' + (autoResize ? 'on' : '') + '" id="__dxm_bee_menu_auto_resize_switch"></div><div class="menu-desc">开启后自动填充和贴图完成后自动批量修改图片尺寸</div></div>' +
-    '<div class="menu-item clickable" id="__dxm_bee_menu_store"><span class="menu-label">🏪 选择店铺</span><span class="menu-value" id="__dxm_bee_menu_store_name">' + (currentStore || '未选择') + '</span><span class="menu-arrow">▸</span><div class="menu-desc">选择工作流自动填写的店铺名称</div></div>' +
-    '<div class="menu-item"><span class="menu-label">📍 省份选择</span><input type="text" class="menu-input" id="__dxm_bee_menu_province_input" value="' + province + '" maxlength="10" placeholder="广东省"><div class="menu-desc">工作流填写的省份，须以省/市/自治区结尾</div></div>' +
-    '<div class="menu-item"><span class="menu-label">🔑 店铺ID</span><input type="text" class="menu-input" id="__dxm_bee_menu_shopid_input" value="' + shopId + '" maxlength="20" placeholder="输入店铺ID"><div class="menu-desc">同步类目所需的店铺ID</div></div>' +
-    '<div class="menu-item clickable" id="__dxm_bee_menu_sync_cat"><span class="menu-label clickable">🌳 同步类目树</span><span class="menu-arrow">▸</span><div class="menu-desc">从店小秘递归采集全部分类，保存到独立数据库</div></div>' +
-    '<div class="menu-item"><span class="menu-label">🔗 服务器地址</span><div style="display:flex;align-items:center;gap:6px"><input type="text" class="menu-input" id="__dxm_bee_menu_server_input" style="width:140px" value="' + (Config.getServerUrl() || 'http://localhost:3000') + '" placeholder="http://localhost:3000"><button id="__dxm_bee_menu_server_save" style="padding:2px 8px;border:1px solid #FFA000;border-radius:5px;background:#fff;color:#E65100;font-size:11px;cursor:pointer;white-space:nowrap;transition:all .2s">保存</button><span id="__dxm_bee_menu_server_status" style="font-size:10px;color:#52c41a;display:none">✓</span></div><div class="menu-desc">管理端服务器地址，局域网内可填写IP地址</div></div>' +
-    '<div class="menu-item clickable" id="__dxm_bee_menu_btn_vis"><span class="menu-label">🎛️ 按钮显示方案</span><span class="menu-arrow">▸</span><div class="menu-desc">配置工具栏中显示哪些按钮</div></div>';
+    '<div class="m-menu-user">' +
+      '<div class="m-avatar" id="__dxm_bee_menu_avatar">?</div>' +
+      '<div class="m-user-info">' +
+        '<div class="m-user-name" id="__dxm_bee_menu_user_name">检测中...</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="m-group" data-group="filter">' +
+      '<div class="m-group-header"><span>内容过滤</span><span class="m-group-arrow"></span></div>' +
+      '<div class="m-group-body">' +
+        '<div class="menu-item clickable" id="__dxm_bee_menu_filter"><span class="menu-label clickable" id="__dxm_bee_menu_filter_text">📝 标题过滤</span><div class="switch ' + (filterEnabled ? 'on' : '') + '" id="__dxm_bee_menu_filter_switch"></div><div class="menu-desc">点击文字打开配置弹窗，开启后自动过滤标题违规文字</div></div>' +
+        '<div class="menu-item clickable" id="__dxm_bee_menu_sku_filter"><span class="menu-label clickable" id="__dxm_bee_menu_sku_filter_text">🏷️ SKU变种属性过滤</span><div class="switch ' + (skuFilterEnabled ? 'on' : '') + '" id="__dxm_bee_menu_sku_filter_switch"></div><div class="menu-desc">点击文字打开配置弹窗，开启后自动过滤SKU变种属性违规文字</div></div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="m-group" data-group="auto">' +
+      '<div class="m-group-header"><span>自动化</span><span class="m-group-arrow"></span></div>' +
+      '<div class="m-group-body">' +
+        '<div class="menu-item"><span class="menu-label">🔢 自动SKU高级</span><div class="switch ' + (autoSkuNo ? 'on' : '') + '" id="__dxm_bee_menu_sku_no_switch"></div><div class="menu-desc">开启后SKU工作流自动执行高级SKU货号生成</div></div>' +
+        '<div class="menu-item"><span class="menu-label">📐 自动批量修改图片尺寸</span><div class="switch ' + (autoResize ? 'on' : '') + '" id="__dxm_bee_menu_auto_resize_switch"></div><div class="menu-desc">开启后自动填充和贴图完成后自动批量修改图片尺寸</div></div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="m-group" data-group="business">' +
+      '<div class="m-group-header"><span>业务配置</span><span class="m-group-arrow"></span></div>' +
+      '<div class="m-group-body">' +
+        '<div class="menu-item clickable" id="__dxm_bee_menu_store"><span class="menu-label">🏪 选择店铺</span><span class="menu-value" id="__dxm_bee_menu_store_name">' + (currentStore || '未选择') + '</span><span class="menu-arrow">▸</span><div class="menu-desc">选择工作流自动填写的店铺名称</div></div>' +
+        '<div class="menu-item"><span class="menu-label">📍 省份选择</span><input type="text" class="menu-input" id="__dxm_bee_menu_province_input" value="' + province + '" maxlength="10" placeholder="广东省"><div class="menu-desc">工作流填写的省份，须以省/市/自治区结尾</div></div>' +
+        '<div class="menu-item"><span class="menu-label">🔑 店铺ID</span><input type="text" class="menu-input" id="__dxm_bee_menu_shopid_input" value="' + shopId + '" maxlength="20" placeholder="输入店铺ID"><div class="menu-desc">同步类目所需的店铺ID</div></div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="m-group expanded" data-group="system">' +
+      '<div class="m-group-header"><span>系统</span><span class="m-group-arrow"></span></div>' +
+      '<div class="m-group-body">' +
+        '<div class="menu-item clickable" id="__dxm_bee_menu_sync_cat" style="display:none"><span class="menu-label clickable">🌳 同步类目树</span><span class="menu-arrow">▸</span><div class="menu-desc">从店小秘递归采集全部分类，保存到独立数据库</div></div>' +
+        '<div class="menu-item m-server-row"><span class="menu-label">🔗 服务器地址</span><div class="m-input-row"><input type="text" class="m-server-input" id="__dxm_bee_menu_server_input" value="' + (Config.getServerUrl() || 'http://localhost:3000') + '" placeholder="http://localhost:3000" readonly><button class="m-icon-btn" id="__dxm_bee_menu_server_edit" title="编辑">✎</button><button class="m-icon-btn m-save" id="__dxm_bee_menu_server_save" title="保存" style="display:none">✓</button><button class="m-icon-btn" id="__dxm_bee_menu_server_test" title="测试连接">🔌</button></div><div class="m-feedback" id="__dxm_bee_menu_server_feedback"></div><div class="menu-desc">管理端服务器地址，局域网内可填写IP地址</div></div>' +
+        '<div class="menu-item clickable" id="__dxm_bee_menu_btn_vis"><span class="menu-label">🎛️ 按钮显示方案</span><span class="menu-arrow">▸</span><div class="menu-desc">配置工具栏中显示哪些按钮</div></div>' +
+      '</div>' +
+    '</div>';
   document.body.appendChild(menu);
 
   var menuStoreName = document.getElementById('__dxm_bee_menu_store_name');
+  var syncCatItem = document.getElementById('__dxm_bee_menu_sync_cat');
+  var cachedRole = null;  // 缓存当前用户角色，避免每次右击都 fetch
 
-  function showMenu(x, y) {
-    // 先在屏幕外显示以测量实际尺寸
+  function showMenu() {
+    // 先在屏幕外显示以测量尺寸
     menu.style.left = '-9999px';
     menu.style.top = '-9999px';
     menu.style.right = 'auto';
     menu.classList.add('show');
+    repositionMenu();
+    syncServerInput();
+    refreshMenuUserInfo();
+    refreshAdminItems();
+  }
 
+  function repositionMenu() {
+    if (!menu.classList.contains('show')) return;
     var mw = menu.offsetWidth;
     var mh = menu.offsetHeight;
-    var vh = window.innerHeight;
     var vw = window.innerWidth;
+    var vh = window.innerHeight;
     var gap = 8;
 
-    // 水平方向：右侧放不下则显示在左侧
-    var left = x + mw > vw - gap ? x - mw : x;
-    if (left < gap) left = gap;
+    // 基于小蜜蜂位置定位（避免被小蜜蜂本体遮挡）
+    var ir = icon.getBoundingClientRect();
+    var rightSpace = vw - ir.right;
+    var leftSpace = ir.left;
 
-    // 垂直方向：优先在点击位置居中，确保不超出屏幕
-    var top = y - mh / 2;
+    var left;
+    if (rightSpace >= mw + gap) {
+      left = ir.right + gap;
+    } else if (leftSpace >= mw + gap) {
+      left = ir.left - mw - gap;
+    } else if (rightSpace >= leftSpace) {
+      left = vw - mw - gap;
+    } else {
+      left = gap;
+    }
+    if (left < gap) left = gap;
+    if (left + mw > vw - gap) left = vw - mw - gap;
+
+    var iconCenterY = ir.top + ir.height / 2;
+    var top = iconCenterY - mh / 2;
     if (top < gap) top = gap;
     if (top + mh > vh - gap) top = vh - mh - gap;
 
@@ -159,8 +238,44 @@
     menu.style.top = top + 'px';
   }
 
+  function refreshMenuUserInfo() {
+    var nameEl = document.getElementById('__dxm_bee_menu_user_name');
+    var avatarEl = document.getElementById('__dxm_bee_menu_avatar');
+    nameEl.textContent = '检测中...';
+    nameEl.className = 'm-user-name';
+    avatarEl.textContent = '?';
+    avatarEl.className = 'm-avatar';
+    Config.getCurrentUser(function (user) {
+      if (!user) {
+        nameEl.textContent = '未登录';
+        nameEl.className = 'm-user-name unlogged';
+        avatarEl.textContent = '!';
+        avatarEl.className = 'm-avatar unlogged';
+        return;
+      }
+      var displayName = user.display_name || user.username;
+      nameEl.textContent = displayName;
+      avatarEl.textContent = (displayName.charAt(0) || '?').toUpperCase();
+      cachedRole = user.role;
+    });
+  }
+
+  function refreshAdminItems() {
+    if (cachedRole === 'admin') {
+      syncCatItem.style.display = '';
+      return;
+    }
+    // 未知或非 admin，先隐藏，等 fetch 回来再决定（保守策略）
+    syncCatItem.style.display = 'none';
+    Config.getCurrentUser(function (user) {
+      cachedRole = user ? user.role : null;
+      syncCatItem.style.display = (cachedRole === 'admin') ? '' : 'none';
+    });
+  }
+
   function hideMenu() {
     menu.classList.remove('show');
+    exitEditMode(true);
     if (typeof hideBtnVisPanel === 'function') hideBtnVisPanel();
   }
 
@@ -170,12 +285,80 @@
     icon.addEventListener('contextmenu', function (e) {
       e.preventDefault();
       e.stopPropagation();
-      showMenu(e.clientX, e.clientY);
+      showMenu();
     });
   }
 
+  // 手风琴分组点击展开/收起（用 height + scrollHeight 测量，丝滑过渡）
+  function setGroupHeight(body, auto) {
+    if (auto) {
+      body.style.height = 'auto';
+    } else {
+      body.style.height = body.scrollHeight + 'px';
+    }
+  }
+
+  // 动画期间逐帧重新定位菜单（防止动画过程中菜单整体跳动）
+  function animateReposition(duration) {
+    var start = performance.now();
+    function tick(now) {
+      repositionMenu();
+      if (now - start < duration) {
+        requestAnimationFrame(tick);
+      }
+    }
+    requestAnimationFrame(tick);
+  }
+
+  // 初始化：对默认展开的"系统"组直接设 auto（无动画）
+  menu.querySelectorAll('.m-group.expanded .m-group-body').forEach(function (body) {
+    body.style.height = 'auto';
+  });
+
+  menu.querySelectorAll('.m-group-header').forEach(function (header) {
+    header.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var group = header.closest('.m-group');
+      var body = group.querySelector('.m-group-body');
+      if (group.classList.contains('expanded')) {
+        // 收起：先把 auto 转成具体 px，下一帧再设为 0
+        setGroupHeight(body, false);
+        body.offsetHeight;  // 强制重排，确保 transition 生效
+        body.style.height = '0';
+        group.classList.remove('expanded');
+      } else {
+        // 展开：先设具体 px 触发动画，结束后转 auto 自适应
+        group.classList.add('expanded');
+        setGroupHeight(body, false);
+        body.offsetHeight;
+        // 动画结束后释放为 auto（防止后续菜单项内容变化导致裁剪）
+        setTimeout(function () {
+          if (group.classList.contains('expanded')) {
+            body.style.height = 'auto';
+          }
+        }, 280);
+      }
+      // 动画期间逐帧重新定位（避免 280ms 后才调整导致的跳跃）
+      animateReposition(300);
+    });
+  });
+
   document.addEventListener('click', function (e) {
     if (!menu.contains(e.target)) hideMenu();
+  });
+
+  // Esc 键：编辑态时取消编辑，非编辑态时关闭菜单
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    if (!menu.classList.contains('show')) return;
+    if (isEditing) {
+      exitEditMode(true);
+      syncServerInput();
+    } else if (btnVisOpen) {
+      hideBtnVisPanel();
+    } else {
+      hideMenu();
+    }
   });
 
   document.getElementById('__dxm_bee_menu_filter_text').addEventListener('click', function () {
@@ -266,45 +449,102 @@
     e.stopPropagation();
   });
 
-  // 服务器地址配置（保存按钮 + 反馈）
+  // 服务器地址配置（icon 编辑/保存/测试连接模式）
   var serverInput = document.getElementById('__dxm_bee_menu_server_input');
+  var serverEditBtn = document.getElementById('__dxm_bee_menu_server_edit');
   var serverSaveBtn = document.getElementById('__dxm_bee_menu_server_save');
-  var serverStatus = document.getElementById('__dxm_bee_menu_server_status');
+  var serverTestBtn = document.getElementById('__dxm_bee_menu_server_test');
+  var serverFeedback = document.getElementById('__dxm_bee_menu_server_feedback');
+  var isEditing = false;
 
-  function doSaveServerUrl() {
+  function syncServerInput() {
+    serverInput.value = Config.getServerUrl() || 'http://localhost:3000';
+  }
+
+  function enterEditMode() {
+    isEditing = true;
+    serverInput.classList.add('editable');
+    serverInput.removeAttribute('readonly');
+    serverEditBtn.style.display = 'none';
+    serverSaveBtn.style.display = 'flex';
+    serverSaveBtn.classList.remove('saved');
+    serverTestBtn.style.display = 'none';
+    setTimeout(function () { serverInput.focus(); serverInput.select(); }, 50);
+  }
+
+  function exitEditMode(clearFeedback) {
+    isEditing = false;
+    serverInput.classList.remove('editable');
+    serverInput.setAttribute('readonly', '');
+    serverEditBtn.style.display = 'flex';
+    serverSaveBtn.style.display = 'none';
+    serverTestBtn.style.display = 'flex';
+    if (clearFeedback) {
+      serverFeedback.classList.remove('show', 'ok', 'err');
+      serverFeedback.textContent = '';
+    }
+  }
+
+  function showFeedback(text, type) {
+    serverFeedback.textContent = text;
+    serverFeedback.className = 'm-feedback show ' + type;
+    if (type === 'ok') {
+      setTimeout(function () { serverFeedback.classList.remove('show'); }, 2000);
+    }
+  }
+
+  function doSaveUrl() {
     var url = serverInput.value.trim().replace(/\/+$/, '');
-    if (!url) return;
+    if (!url) { showFeedback('地址不能为空', 'err'); return; }
+    if (!/^https?:\/\//i.test(url)) { showFeedback('地址必须以 http:// 或 https:// 开头', 'err'); return; }
     serverInput.value = url;
     if (Config.setServerUrl) {
       Config.setServerUrl(url);
     } else {
       localStorage.setItem('1688_server_url', url);
     }
-    // 显示保存成功反馈
-    serverStatus.style.display = 'inline';
-    serverSaveBtn.textContent = '已保存';
-    serverSaveBtn.style.background = '#52c41a';
-    serverSaveBtn.style.color = '#fff';
-    serverSaveBtn.style.borderColor = '#52c41a';
-    setTimeout(function () {
-      serverStatus.style.display = 'none';
-      serverSaveBtn.textContent = '保存';
-      serverSaveBtn.style.background = '#fff';
-      serverSaveBtn.style.color = '#E65100';
-      serverSaveBtn.style.borderColor = '#FFA000';
-    }, 2000);
+    serverSaveBtn.classList.add('saved');
+    showFeedback('已保存', 'ok');
     console.log('%c[小蜜蜂] 服务器地址已保存: ' + url, 'color:#FFA000;font-weight:bold');
+    setTimeout(function () {
+      exitEditMode(false);
+      refreshMenuUserInfo();
+    }, 800);
   }
 
+  function doTestConnection() {
+    var url = Config.getServerUrl();
+    showFeedback('测试中...', 'ok');
+    Config.getCurrentUser(function (user) {
+      if (user) {
+        showFeedback('已连接：' + (user.display_name || user.username), 'ok');
+      } else {
+        // 区分：能连上服务器但未登录 vs 完全连不上
+        fetch(url + '/api/me')
+          .then(function () { showFeedback('服务器可达，但未登录或 token 失效', 'err'); })
+          .catch(function () { showFeedback('无法连接到服务器', 'err'); });
+      }
+    });
+  }
+
+  serverEditBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    enterEditMode();
+  });
   serverSaveBtn.addEventListener('click', function (e) {
     e.stopPropagation();
-    doSaveServerUrl();
+    doSaveUrl();
+  });
+  serverTestBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    doTestConnection();
   });
   serverInput.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter') { e.preventDefault(); doSaveServerUrl(); }
+    if (e.key === 'Enter') { e.preventDefault(); doSaveUrl(); }
+    if (e.key === 'Escape') { exitEditMode(true); syncServerInput(); }
   });
   serverInput.addEventListener('click', function (e) {
-    e.stopPropagation();
+    if (isEditing) e.stopPropagation();
   });
 
   // ========== Button Visibility Sub-Panel ==========
@@ -433,7 +673,24 @@
     syncOverlay.classList.remove('show');
   }
 
-  document.getElementById('__dxm_bee_menu_sync_cat').addEventListener('click', openSyncPopup);
+  document.getElementById('__dxm_bee_menu_sync_cat').addEventListener('click', function (e) {
+    e.stopPropagation();
+    // 运行时再次校验（防止右击后到点击期间被踢出 admin）
+    Config.getCurrentUser(function (user) {
+      if (!user) {
+        alert('请先登录管理平台'); return;
+      }
+      if (user.role !== 'admin') {
+        alert('仅管理员可同步类目树，当前角色：' + (user.role || '未知'));
+        cachedRole = user.role;
+        syncCatItem.style.display = 'none';
+        hideMenu();
+        return;
+      }
+      cachedRole = 'admin';
+      openSyncPopup();
+    });
+  });
   syncOverlay.addEventListener('click', function (e) { if (e.target === syncOverlay) closeSyncPopup(); });
   document.getElementById('__dxm_bee_sync_close').addEventListener('click', closeSyncPopup);
 

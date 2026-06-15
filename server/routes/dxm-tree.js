@@ -4,6 +4,7 @@ const auth = require('../middleware/auth');
 
 const router = Router();
 const opOnly = auth.requireRole('operator', 'admin');
+const adminOnly = auth.requireRole('admin');
 
 // 收集店小秘类目
 router.post('/dxm-category/collect', opOnly, (req, res) => {
@@ -21,8 +22,8 @@ router.post('/dxm-category/collect', opOnly, (req, res) => {
   res.json({ ok: true });
 });
 
-// 批量同步分类节点
-router.post('/dxm-tree/sync', opOnly, (req, res) => {
+// 批量同步分类节点（仅管理员）
+router.post('/dxm-tree/sync', adminOnly, (req, res) => {
   const { categories } = req.body;
   if (!Array.isArray(categories) || !categories.length) return res.json({ ok: true, saved: 0 });
   let saved = 0;

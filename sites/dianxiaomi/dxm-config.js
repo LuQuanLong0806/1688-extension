@@ -76,6 +76,16 @@
     }
   }
 
+  function getCurrentUser(callback) {
+    autoGetToken(function (token) {
+      if (!token) { callback(null); return; }
+      fetch(getServerUrl() + '/api/me', { headers: { 'Authorization': 'Bearer ' + token } })
+        .then(function (r) { return r.json(); })
+        .then(function (res) { callback(res && res.username ? res : null); })
+        .catch(function () { callback(null); });
+    });
+  }
+
   // fetch 前确保 token 已拿到，拿不到直接报错（避免静默 401）
   function withAuth(callback) {
     autoGetToken(function (token) {
@@ -592,6 +602,7 @@
     authHeaders: authHeaders,
     handleAuthError: handleAuthError,
     withAuth: withAuth,
+    getCurrentUser: getCurrentUser,
     setInputValue: setInputValue,
     applyFilters: applyFilters,
     findVisibleModal: findVisibleModal,
