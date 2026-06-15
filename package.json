@@ -5,7 +5,10 @@
   "scripts": {
     "build": "node sites/build.js",
     "watch": "node sites/watch.js",
-    "test": "jest --forceExit"
+    "test": "jest --forceExit",
+    "test:e2e": "npx playwright test",
+    "test:e2e:headed": "npx playwright test --headed",
+    "test:e2e:debug": "npx playwright test --debug"
   },
   "dependencies": {
     "ali-oss": "^6.23.0",
@@ -13,5 +16,24 @@
     "express-rate-limit": "^8.5.2",
     "helmet": "^8.2.0",
     "jsonwebtoken": "^9.0.3"
-  }
+  },
+  "description": "",
+  "main": "check-sku.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.60.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LuQuanLong0806/1688-extension.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/LuQuanLong0806/1688-extension/issues"
+  },
+  "homepage": "https://github.com/LuQuanLong0806/1688-extension#readme"
 }

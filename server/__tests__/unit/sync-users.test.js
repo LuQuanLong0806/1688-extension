@@ -10,7 +10,7 @@ var SQL;
 var localDb;
 var cloudDb;
 
-var USERS_DDL = `CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, password_salt TEXT NOT NULL, display_name TEXT DEFAULT '', role TEXT DEFAULT 'operator', last_login TEXT DEFAULT '', must_change_password INTEGER DEFAULT 0, disabled INTEGER DEFAULT 0, created_at TEXT DEFAULT '', updated_at TEXT DEFAULT '')`;
+var USERS_DDL = `CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, password_salt TEXT NOT NULL, display_name TEXT DEFAULT '', role TEXT DEFAULT 'operator', last_login TEXT DEFAULT '', must_change_password INTEGER DEFAULT 0, disabled INTEGER DEFAULT 0, token_invalid_at TEXT DEFAULT '', created_at TEXT DEFAULT '', updated_at TEXT DEFAULT '')`;
 
 function dbGetOne(database, sql, params) {
   var stmt = database.prepare(sql);

@@ -482,20 +482,22 @@ module.exports = function (cloud, db) {
       label: '分类配置'
     },
     users: {
-      localGet: function () { return db.getAll('SELECT username, password_hash, password_salt, display_name, role, last_login, must_change_password, disabled, created_at, updated_at FROM users'); },
-      cloudCols: 'username, password_hash, password_salt, display_name, role, last_login, must_change_password, disabled, created_at, updated_at',
+      localGet: function () { return db.getAll('SELECT username, password_hash, password_salt, display_name, role, last_login, must_change_password, disabled, token_invalid_at, created_at, updated_at FROM users'); },
+      cloudCols: 'username, password_hash, password_salt, display_name, role, last_login, must_change_password, disabled, token_invalid_at, created_at, updated_at',
       cloudKey: ['username'],
       localKeyMatch: function (r) { return 'SELECT id, updated_at FROM users WHERE username = ?'; },
       localKeyParams: function (r) { return [r.username]; },
-      localInsert: `INSERT OR IGNORE INTO users (username, password_hash, password_salt, display_name, role, last_login, must_change_password, disabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '+8 hours'), ?)`,
-      localInsertParams: function (r) { return [r.username, r.password_hash, r.password_salt, r.display_name, r.role, r.last_login, r.must_change_password, r.disabled || 0, r.updated_at || '']; },
-      localUpdate: `UPDATE users SET password_hash = ?, password_salt = ?, display_name = ?, role = ?, last_login = ?, must_change_password = ?, disabled = ?, updated_at = ? WHERE id = ?`,
-      localUpdateParams: function (r, localRow) { return [r.password_hash, r.password_salt, r.display_name, r.role, r.last_login, r.must_change_password || 0, r.disabled || 0, r.updated_at || '', localRow.id]; },
+      localInsert: `INSERT OR IGNORE INTO users (username, password_hash, password_salt, display_name, role, last_login, must_change_password, disabled, token_invalid_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '+8 hours'), ?)`,
+      localInsertParams: function (r) { return [r.username, r.password_hash, r.password_salt, r.display_name, r.role, r.last_login, r.must_change_password, r.disabled || 0, r.token_invalid_at || '', r.updated_at || '']; },
+      // last_login 用 MAX(local, cloud) 合并：每台机器各自维护登录时间，避免互相覆盖丢失最新值
+      // token_invalid_at 用 MAX：踢下线操作多机器同步，取最新时间戳保证最严限制
+      localUpdate: `UPDATE users SET password_hash = ?, password_salt = ?, display_name = ?, role = ?, last_login = MAX(last_login, ?), must_change_password = ?, disabled = ?, token_invalid_at = MAX(token_invalid_at, ?), updated_at = ? WHERE id = ?`,
+      localUpdateParams: function (r, localRow) { return [r.password_hash, r.password_salt, r.display_name, r.role, r.last_login || '', r.must_change_password || 0, r.disabled || 0, r.token_invalid_at || '', r.updated_at || '', localRow.id]; },
       cloudTable: 'users',
-      cloudInsert: `INSERT OR IGNORE INTO users (username, password_hash, password_salt, display_name, role, last_login, must_change_password, disabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '+8 hours'), ?)`,
-      cloudInsertParams: function (r) { return [r.username, r.password_hash, r.password_salt, r.display_name, r.role, r.last_login, r.must_change_password, r.disabled || 0, r.updated_at || '']; },
-      cloudUpdate: `UPDATE users SET password_hash = ?, password_salt = ?, display_name = ?, role = ?, last_login = ?, must_change_password = ?, disabled = ?, updated_at = ? WHERE id = ?`,
-      cloudUpdateParams: function (r, cloudRow) { return [r.password_hash, r.password_salt, r.display_name, r.role, r.last_login, r.must_change_password || 0, r.disabled || 0, r.updated_at || '', cloudRow.id]; },
+      cloudInsert: `INSERT OR IGNORE INTO users (username, password_hash, password_salt, display_name, role, last_login, must_change_password, disabled, token_invalid_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '+8 hours'), ?)`,
+      cloudInsertParams: function (r) { return [r.username, r.password_hash, r.password_salt, r.display_name, r.role, r.last_login, r.must_change_password, r.disabled || 0, r.token_invalid_at || '', r.updated_at || '']; },
+      cloudUpdate: `UPDATE users SET password_hash = ?, password_salt = ?, display_name = ?, role = ?, last_login = MAX(last_login, ?), must_change_password = ?, disabled = ?, token_invalid_at = MAX(token_invalid_at, ?), updated_at = ? WHERE id = ?`,
+      cloudUpdateParams: function (r, cloudRow) { return [r.password_hash, r.password_salt, r.display_name, r.role, r.last_login || '', r.must_change_password || 0, r.disabled || 0, r.token_invalid_at || '', r.updated_at || '', cloudRow.id]; },
       label: '用户'
     }
   };

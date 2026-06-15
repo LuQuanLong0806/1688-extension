@@ -4,10 +4,26 @@ var crypto = require('crypto');
 var jwt = require('jsonwebtoken');
 var auth = require('../middleware/auth');
 var db = require('../db');
+var cloudDb = require('../cloud/index');
 var _customDb = null;
 
 function _getDb() {
   return _customDb || db;
+}
+
+// 用户操作实时推送到云端（按 username 匹配，避免本地/云端 id 不一致）
+// ⚠️ users 表的每个写操作（登录/改密/CRUD）都必须调一次，否则多机器数据不一致
+function pushUserCloud(sql, params, label) {
+  if (!cloudDb.connected) return;
+  cloudDb.cloudRun(sql, params).catch(function (e) {
+    console.error('[云同步] 用户推送失败 ' + (label || '') + ':', e.message);
+  });
+}
+
+// 当前 Unix 秒级时间戳字符串 — 用于 token_invalid_at
+// JWT payload.iat 也是秒级，比较时直接 parseInt
+function utcNowSec() {
+  return String(Math.floor(Date.now() / 1000));
 }
 
 function generateSalt() {
@@ -37,8 +53,9 @@ router.post('/login', function (req, res) {
   if (!user) return res.status(401).json({ error: '用户名或密码错误' });
   var hash = hashPassword(password, user.password_salt);
   if (hash !== user.password_hash) return res.status(401).json({ error: '用户名或密码错误' });
-  _getDb().run("UPDATE users SET last_login = datetime('now','+8 hours') WHERE id = ?", [user.id]);
+  _getDb().run("UPDATE users SET last_login = ?, token_invalid_at = '' WHERE id = ?", [localNow(), user.id]);
   _getDb().scheduleSave();
+  pushUserCloud("UPDATE users SET last_login = MAX(last_login, ?), token_invalid_at = '' WHERE username = ?", [localNow(), user.username], 'login');
   var token = signToken(user);
   res.cookie('auth_token', token, COOKIE_OPTIONS);
   res.json({
@@ -67,8 +84,9 @@ router.post('/plugin-login', function (req, res) {
   if (user.must_change_password) {
     return res.status(403).json({ error: '请先在管理平台修改初始密码', must_change_password: 1 });
   }
-  _getDb().run("UPDATE users SET last_login = datetime('now','+8 hours') WHERE id = ?", [user.id]);
+  _getDb().run("UPDATE users SET last_login = ?, token_invalid_at = '' WHERE id = ?", [localNow(), user.id]);
   _getDb().scheduleSave();
+  pushUserCloud("UPDATE users SET last_login = MAX(last_login, ?), token_invalid_at = '' WHERE username = ?", [localNow(), user.username], 'plugin-login');
   var token = signToken(user);
   res.cookie('auth_token', token, COOKIE_OPTIONS);
   res.json({ ok: true, token: token, user: { username: user.username, display_name: user.display_name, role: user.role } });
@@ -94,16 +112,28 @@ router.post('/change-password', function (req, res) {
   if (hashPassword(oldPassword, user.password_salt) !== user.password_hash) return res.status(401).json({ error: '旧密码错误' });
   var newSalt = generateSalt();
   var newHash = hashPassword(newPassword, newSalt);
-  _getDb().run("UPDATE users SET password_hash = ?, password_salt = ?, must_change_password = 0, updated_at = datetime('now','+8 hours') WHERE id = ?", [newHash, newSalt, user.id]);
+  var now = localNow();
+  // 改密后 token_invalid_at = now：旧 token（包括其他机器）全部失效，必须重新登录
+  var invAt = utcNowSec();
+  _getDb().run("UPDATE users SET password_hash = ?, password_salt = ?, must_change_password = 0, token_invalid_at = ?, updated_at = ? WHERE id = ?", [newHash, newSalt, invAt, now, user.id]);
   _getDb().scheduleSave();
+  pushUserCloud("UPDATE users SET password_hash = ?, password_salt = ?, must_change_password = 0, token_invalid_at = MAX(token_invalid_at, ?), updated_at = ? WHERE username = ?", [newHash, newSalt, invAt, now, req.user.username], 'change-password');
   var token = signToken({ id: user.id, username: req.user.username, role: req.user.role });
   res.cookie('auth_token', token, COOKIE_OPTIONS);
   res.json({ ok: true, token: token });
 });
 
 // POST /api/logout
+// 设置 token_invalid_at = now：让本机和其他机器上的旧 token 立即失效
+// （JWT 是无状态的，仅 clearCookie 不能让已签发的 token 失效）
 router.post('/logout', function (req, res) {
   res.clearCookie('auth_token');
+  if (req.user) {
+    var invAt = utcNowSec();
+    _getDb().run("UPDATE users SET token_invalid_at = ? WHERE id = ?", [invAt, req.user.id]);
+    _getDb().scheduleSave();
+    pushUserCloud("UPDATE users SET token_invalid_at = MAX(token_invalid_at, ?) WHERE username = ?", [invAt, req.user.username], 'logout');
+  }
   res.json({ ok: true });
 });
 
@@ -126,8 +156,10 @@ router.post('/users', auth.requireRole('admin'), function (req, res) {
   if (existing) return res.status(400).json({ error: '用户名已存在' });
   var salt = generateSalt();
   var hash = hashPassword(password, salt);
-  _getDb().run("INSERT INTO users (username, password_hash, password_salt, display_name, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, datetime('now','+8 hours'), datetime('now','+8 hours'))", [username, hash, salt, displayName, role]);
+  var now = localNow();
+  _getDb().run("INSERT INTO users (username, password_hash, password_salt, display_name, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)", [username, hash, salt, displayName, role, now, now]);
   _getDb().scheduleSave();
+  pushUserCloud("INSERT OR IGNORE INTO users (username, password_hash, password_salt, display_name, role, must_change_password, disabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?)", [username, hash, salt, displayName, role, now, now], 'create-user');
   res.json({ ok: true });
 });
 
@@ -135,10 +167,11 @@ router.post('/users', auth.requireRole('admin'), function (req, res) {
 router.put('/users/:id', auth.requireRole('admin'), function (req, res) {
   var id = parseInt(req.params.id);
   if (!id) return res.status(400).json({ error: '无效ID' });
-  var user = _getDb().getOne('SELECT id FROM users WHERE id = ?', [id]);
+  var user = _getDb().getOne('SELECT id, username FROM users WHERE id = ?', [id]);
   if (!user) return res.status(404).json({ error: '用户不存在' });
   var updates = [];
   var params = [];
+  var passwordChanged = false;
   if (req.body.display_name !== undefined) { updates.push('display_name = ?'); params.push(req.body.display_name); }
   if (req.body.role !== undefined && ['admin', 'operator', 'viewer'].indexOf(req.body.role) >= 0) { updates.push('role = ?'); params.push(req.body.role); }
   if (req.body.password) {
@@ -147,12 +180,32 @@ router.put('/users/:id', auth.requireRole('admin'), function (req, res) {
     var newHash = hashPassword(req.body.password, newSalt);
     updates.push('password_hash = ?'); params.push(newHash);
     updates.push('password_salt = ?'); params.push(newSalt);
+    passwordChanged = true;
   }
   if (!updates.length) return res.json({ ok: true });
-  updates.push("updated_at = datetime('now','+8 hours')");
+  var now = localNow();
+  updates.push('updated_at = ?');
+  params.push(now);
+  // 改了密码就强制踢下线（旧 token 失效，必须用新密码重新登录）
+  if (passwordChanged) {
+    var invAt = utcNowSec();
+    updates.push('token_invalid_at = ?');
+    params.push(invAt);
+  }
   params.push(id);
   _getDb().run('UPDATE users SET ' + updates.join(', ') + ' WHERE id = ?', params);
   _getDb().scheduleSave();
+  // 云端：如果改了密码，把 token_invalid_at 加进去（用 MAX 合并）
+  var cloudUpdates = updates.slice();
+  if (passwordChanged) {
+    // 把本地 'token_invalid_at = ?' 替换成云端 'token_invalid_at = MAX(token_invalid_at, ?)'
+    cloudUpdates = cloudUpdates.map(function (s) {
+      return s === 'token_invalid_at = ?' ? 'token_invalid_at = MAX(token_invalid_at, ?)' : s;
+    });
+  }
+  var cloudParams = params.slice(0, params.length - 1); // 去掉最后的 id
+  cloudParams.push(user.username);
+  pushUserCloud('UPDATE users SET ' + cloudUpdates.join(', ') + ' WHERE username = ?', cloudParams, 'edit-user ' + user.username);
   res.json({ ok: true });
 });
 
@@ -161,8 +214,14 @@ router.delete('/users/:id', auth.requireRole('admin'), function (req, res) {
   var id = parseInt(req.params.id);
   if (!id) return res.status(400).json({ error: '无效ID' });
   if (req.user && req.user.id === id) return res.status(400).json({ error: '不能禁用自己' });
-  _getDb().run("UPDATE users SET disabled = 1, updated_at = datetime('now','+8 hours') WHERE id = ?", [id]);
+  var target = _getDb().getOne('SELECT username FROM users WHERE id = ?', [id]);
+  if (!target) return res.status(404).json({ error: '用户不存在' });
+  var now = localNow();
+  var invAt = utcNowSec();
+  // 禁用时同时踢下线（双保险，disabled=1 已经能拦截，但 token_invalid_at 让旧 token 立即失效）
+  _getDb().run("UPDATE users SET disabled = 1, token_invalid_at = ?, updated_at = ? WHERE id = ?", [invAt, now, id]);
   _getDb().scheduleSave();
+  pushUserCloud("UPDATE users SET disabled = 1, token_invalid_at = MAX(token_invalid_at, ?), updated_at = ? WHERE username = ?", [invAt, now, target.username], 'disable-user ' + target.username);
   res.json({ ok: true });
 });
 

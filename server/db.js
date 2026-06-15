@@ -200,6 +200,7 @@ var LOCAL_TABLE_DEFS = [
       last_login TEXT DEFAULT '',
       must_change_password INTEGER DEFAULT 0,
       disabled INTEGER DEFAULT 0,
+      token_invalid_at TEXT DEFAULT '',
       created_at TEXT DEFAULT '',
       updated_at TEXT DEFAULT ''
     )`

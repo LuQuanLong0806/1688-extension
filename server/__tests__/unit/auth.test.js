@@ -7,6 +7,8 @@ let testDb;
 beforeAll(async () => {
   testDb = await initTestDb();
   run("INSERT OR REPLACE INTO settings (key, value) VALUES ('jwt_secret', 'test-secret-key-for-jest')");
+  // authMiddleware 现在会查 users 表的 token_invalid_at/disabled 字段，需要存在 user 行
+  run("INSERT OR REPLACE INTO users (id, username, password_hash, password_salt, display_name, role, must_change_password, disabled, token_invalid_at) VALUES (1, 'admin', 'x', 'y', '管理员', 'admin', 0, 0, '')");
   auth = require('../../middleware/auth');
   auth._setDb({ getOne: getOne, run: run, scheduleSave: function () {} });
   auth._resetSecret();
@@ -85,7 +87,7 @@ describe('auth middleware', () => {
     let called = false;
     auth.authMiddleware(req, res, () => { called = true; });
     expect(called).toBe(true);
-    expect(req.user).toEqual({ id: 1, username: 'admin', role: 'admin' });
+    expect(req.user).toMatchObject({ id: 1, username: 'admin', role: 'admin' });
   });
 
   test('authMiddleware reads token from query param', () => {

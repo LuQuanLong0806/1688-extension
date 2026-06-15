@@ -15,9 +15,20 @@ const PORT = 3000;
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({
   origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-    if (origin.indexOf('localhost') >= 0) return callback(null, true);
-    callback(new Error('Not allowed by CORS'));
+    // ⚠️ 不要改成白名单兜底拒绝（callback(new Error('Not allowed by CORS'))）！
+    //
+    // 历史教训：曾因公网化顾虑把兜底改成拒绝，结果扩展 content script 从
+    // https://detail.1688.com / https://www.dianxiaomi.com 等电商页面跨域调用
+    // localhost:3000 时全部被浏览器 CORS 拦截，去中文/采集/自动填表等核心功能瘫痪。
+    //
+    // 正确的安全模型：
+    //   - 服务监听 127.0.0.1，外部网络根本访问不到，CORS 严格化收益 ≈ 0
+    //   - 扩展必须能从任意电商页面发请求，origin 不可枚举
+    //   - 真正的访问控制在 auth.js 中间件 + requireRole，不靠 CORS
+    //
+    // 如果要做公网部署，请改用反向代理 + 网络层 ACL（iptables / nginx allow/deny），
+    // 而不是在这里加 origin 白名单。
+    callback(null, true);
   },
   credentials: true
 }));

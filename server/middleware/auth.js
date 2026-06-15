@@ -62,8 +62,26 @@ function authMiddleware(req, res, next) {
   if (token) {
     try {
       var decoded = jwt.verify(token, getSecret());
-      req.user = { id: decoded.id, username: decoded.username, role: decoded.role };
+      req.user = { id: decoded.id, username: decoded.username, role: decoded.role, iat: decoded.iat };
     } catch (e) {}
+  }
+  // token_invalid_at 检查：登出/改密/禁用后，旧 token 立即失效
+  // JWT 是无状态的，clearCookie 不能让已签发的 token 失效，所以用 DB 字段二次校验
+  if (req.user && req.user.id) {
+    try {
+      var row = _getDb().getOne('SELECT token_invalid_at, disabled FROM users WHERE id = ?', [req.user.id]);
+      if (row) {
+        if (row.disabled) { req.user = null; }
+        else if (row.token_invalid_at && req.user.iat && parseInt(req.user.iat) < parseInt(row.token_invalid_at)) {
+          req.user = null; // iat 早于踢下线时间戳 → 视为未登录
+        }
+      } else {
+        req.user = null; // 用户不存在（被物理删除？）
+      }
+    } catch (e) {
+      // DB 查询失败时降级：保留 req.user（避免服务异常导致全员被踢）
+      console.error('[Auth] token_invalid_at 查询失败，降级放行:', e.message);
+    }
   }
   if (isWhitelisted(req.method, req.path)) return next();
   if (!req.user) return res.status(401).json({ error: '未登录' });
