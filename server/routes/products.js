@@ -331,7 +331,23 @@ router.get('/product/check', (req, res) => {
   const offerId = (req.query.offerId || '').trim();
   if (!offerId) return res.json({ exists: false });
   const escaped = offerId.replace(/[%_\\]/g, '\\$&');
-  const row = getOne("SELECT id, uid, title, status FROM products WHERE deleted = 0 AND source_url LIKE ? ESCAPE '\\' LIMIT 1", ['%' + escaped + '%']);
+  // 多用户隔离：admin 看全部；非 admin 只看"自己的 + 无主的"
+  // 跟商品列表 (line 397-411) 的默认 scope 保持一致，避免换用户后还能查到别人的商品
+  var ownerClause;
+  var ownerParams = ['%' + escaped + '%'];
+  if (req.user && req.user.role === 'admin') {
+    ownerClause = '';
+  } else if (req.user && req.user.username) {
+    ownerClause = " AND (owner = ? OR owner IS NULL OR owner = '')";
+    ownerParams.push(req.user.username);
+  } else {
+    // 未登录（理论上 authMiddleware 已拦截，这里兜底）
+    ownerClause = " AND (owner IS NULL OR owner = '')";
+  }
+  const row = getOne(
+    "SELECT id, uid, title, status FROM products WHERE deleted = 0 AND source_url LIKE ? ESCAPE '\\'" + ownerClause + " LIMIT 1",
+    ownerParams
+  );
   if (row) {
     res.json({ exists: true, id: row.id, title: row.title, status: row.status });
   } else {
