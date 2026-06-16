@@ -65,7 +65,7 @@ new Vue({
     },
     loadStats: function () {
       var vm = this;
-      apiFetch('/api/product/stats').then(function (r) { return r.json(); })
+      apiFetch('/api/product/stats?scope=mine').then(function (r) { return r.json(); })
         .then(function (d) { vm.stats = d; }).catch(function () {});
     },
     logout: function () {
