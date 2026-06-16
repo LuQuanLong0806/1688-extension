@@ -32,7 +32,7 @@ app.use(cors({
   },
   credentials: true
 }));
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '15mb' }));
 app.use(cookieParser());
 
 // Rate limiting
@@ -173,6 +173,7 @@ app.use('/api', require('./routes/categories'));
 app.use('/api', require('./routes/dxm-tree'));
 app.use('/api/ai', require('./routes/ai/index'));
 app.use('/api/sync', require('./routes/sync'));
+app.use('/api/upload-config', require('./routes/upload-config'));
 app.use('/api', usersRoute);
 
 // Start

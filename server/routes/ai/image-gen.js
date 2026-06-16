@@ -160,27 +160,33 @@ function getImgbbKey() {
 }
 
 // 统一上传接口
-router.post('/image-upload', function (req, res) {
-  var imageBase64 = req.body.image_base64;
-  if (!imageBase64) return res.status(400).json({ error: '请先加载图片' });
+var uploadLimits = require('../../middleware/upload-limits');
 
-  imgbbUpload.uploadToImgBB(imageBase64, {
-    name: req.body.name || ''
-  }).then(function (result) {
-    res.json(result);
-  }).catch(function (err) {
-    res.status(502).json({ error: err.message });
-  });
-});
+function doUpload(req, res) {
+  var transformed = req._uploadTransformed;
+  var imageData, nameParam = req.body.name || '';
 
-// 旧接口兼容: 直接复用上传逻辑
-router.post('/smms-upload', function (req, res) {
-  var imageBase64 = req.body.image_base64;
-  if (!imageBase64) return res.status(400).json({ error: '请先加载图片' });
-  imgbbUpload.uploadToImgBB(imageBase64, { name: req.body.name || '' })
+  if (transformed) {
+    imageData = transformed.buffer; // Buffer（已通过 sharp 处理）
+    // 转码成 webp 后，文件名扩展名跟随
+    if (transformed.converted && nameParam) {
+      nameParam = nameParam.replace(/\.(png|jpe?g|bmp|tiff?)$/i, '.webp');
+    } else if (transformed.converted) {
+      nameParam = (nameParam ? nameParam.replace(/\.[^.]+$/, '') : Date.now() + '') + '.webp';
+    }
+  } else {
+    imageData = req.body.image_base64;
+  }
+
+  imgbbUpload.uploadToImgBB(imageData, { name: nameParam })
     .then(function (result) { res.json(result); })
     .catch(function (err) { res.status(502).json({ error: err.message }); });
-});
+}
+
+router.post('/image-upload', uploadLimits.preCheck, uploadLimits.transformHandler, doUpload);
+
+// 旧接口兼容: 直接复用上传逻辑
+router.post('/smms-upload', uploadLimits.preCheck, uploadLimits.transformHandler, doUpload);
 
 router.get('/smms-token', function (req, res) {
   var key = getImgbbKey();

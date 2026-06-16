@@ -13,6 +13,18 @@ Vue.component('page-api-keys', {
       imgbbStatus: { configured: false, masked: '', label: '' },
       ossStatus: { configured: false, masked: '', bucket: '', region: '', endpoint: '', label: '' },
       ossModal: { show: false, accessKeyId: '', accessKeySecret: '', bucket: '', region: '', endpoint: '', label: '' },
+      uploadCfg: {
+        upload_max_bytes: 10485760,
+        upload_max_pixels: 64000000,
+        upload_format_convert: 'auto',
+        upload_convert_threshold_bytes: 1048576,
+        upload_convert_threshold_pixels: 4000000,
+        upload_webp_quality: 85,
+        upload_mime_whitelist: 'png,jpeg,webp,gif,bmp',
+        upload_strip_exif: 'off'
+      },
+      uploadCfgEditing: false,
+      uploadCfgSaving: false,
       tursoUrl: '',
       tursoToken: '',
       tursoStatus: { connected: false, config: false },
@@ -37,6 +49,7 @@ Vue.component('page-api-keys', {
     this.loadDispatch();
     this.loadImgbb();
     this.loadOss();
+    this.loadUploadCfg();
     this.loadTurso();
     this.loadComfyui();
   },
@@ -306,6 +319,61 @@ Vue.component('page-api-keys', {
         }
       });
     },
+    // ===== 上传限制 =====
+    loadUploadCfg: function () {
+      var vm = this;
+      apiFetch('/api/upload-config').then(function (r) { return r.json(); }).then(function (d) {
+        vm.uploadCfg = Object.assign(vm.uploadCfg, d);
+        vm.uploadCfgEditing = false;
+      }).catch(function () {});
+    },
+    saveUploadCfg: function () {
+      var vm = this;
+      var c = vm.uploadCfg;
+      if (c.upload_max_bytes < 1024) { vm.$Message.warning('最大尺寸不能小于 1KB'); return; }
+      if (c.upload_max_pixels < 10000) { vm.$Message.warning('最大像素不能小于 1万像素'); return; }
+      if (c.upload_format_convert !== 'off') {
+        if (c.upload_webp_quality < 50 || c.upload_webp_quality > 100) { vm.$Message.warning('webp 质量必须在 50-100'); return; }
+        if (c.upload_convert_threshold_bytes < 1024) { vm.$Message.warning('字节阈值不能小于 1KB'); return; }
+        if (c.upload_convert_threshold_pixels < 10000) { vm.$Message.warning('像素阈值不能小于 1万像素'); return; }
+      }
+      vm.uploadCfgSaving = true;
+      apiFetch('/api/upload-config', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(vm.uploadCfg)
+      }).then(function (r) { return r.json(); }).then(function (d) {
+        vm.uploadCfgSaving = false;
+        if (d.ok) { vm.$Message.success('上传配置已保存'); vm.uploadCfg = Object.assign(vm.uploadCfg, d.config); vm.uploadCfgEditing = false; }
+        else vm.$Message.error(d.error || '保存失败');
+      }).catch(function () { vm.uploadCfgSaving = false; vm.$Message.error('保存失败'); });
+    },
+    resetUploadCfg: function () {
+      var vm = this;
+      vm.$Modal.confirm({
+        title: '恢复默认', content: '确定要将所有上传限制恢复为默认值吗？', okText: '恢复', cancelText: '取消',
+        onOk: function () {
+          apiFetch('/api/upload-config/defaults').then(function (r) { return r.json(); }).then(function (defaults) {
+            vm.uploadCfg = Object.assign({}, defaults);
+            vm.uploadCfgEditing = true;
+            vm.$Message.info('已加载默认值，点保存生效');
+          }).catch(function () { vm.$Message.error('加载默认值失败'); });
+        }
+      });
+    },
+    fmtBytes: function (bytes) {
+      var n = Number(bytes) || 0;
+      if (n >= 1048576) return (n / 1048576).toFixed(1) + ' MB';
+      if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+      return n + ' B';
+    },
+    fmtPixels: function (pixels) {
+      return ((Number(pixels) || 0) / 10000).toFixed(0) + ' 万';
+    },
+    fmtConvert: function (mode) {
+      if (mode === 'off') return '关闭';
+      return '智能 → webp';
+    },
+    fmtStrip: function (v) { return v === 'off' ? '保留' : '剥除'; },
     // ===== ComfyUI =====
     loadComfyui: function () {
       var vm = this;
@@ -605,6 +673,81 @@ Vue.component('page-api-keys', {
                 <i-button type="primary" size="small" @click="openSingleKeyModal('imgbb')"><icon type="md-add" style="margin-right:2px"></icon>{{ imgbbStatus.configured ? '替换' : '设置' }} Key</i-button>
               </div>
               <div v-if="!imgbbStatus.configured" class="ai-key-empty">未设置</div>
+            </div>
+          </div>
+          <!-- 上传限制 -->
+          <div class="ai-provider-row" style="flex-wrap:wrap;gap:10px">
+            <div style="display:flex;gap:10px;align-items:center;width:100%;justify-content:space-between">
+              <div class="ai-provider-info" style="min-width:auto">
+                <span class="ai-pname">上传限制</span>
+                <span style="font-size:12px;color:var(--text-muted)">MIME 白名单 / 尺寸 / 格式转换</span>
+              </div>
+              <div style="display:flex;gap:6px">
+                <template v-if="!uploadCfgEditing">
+                  <i-button size="small" @click="uploadCfgEditing = true">修改</i-button>
+                </template>
+                <template v-else>
+                  <i-button size="small" @click="resetUploadCfg()">恢复默认</i-button>
+                  <i-button size="small" @click="loadUploadCfg()">取消</i-button>
+                  <i-button type="primary" size="small" :loading="uploadCfgSaving" @click="saveUploadCfg()">保存</i-button>
+                </template>
+              </div>
+            </div>
+            <!-- 非编辑态：摘要 -->
+            <div v-if="!uploadCfgEditing" style="font-size:12px;color:var(--text-secondary);line-height:1.9;width:100%">
+              <div>最大尺寸 <b style="color:var(--text-primary)">{{ fmtBytes(uploadCfg.upload_max_bytes) }}</b> · 最大像素 <b style="color:var(--text-primary)">{{ fmtPixels(uploadCfg.upload_max_pixels) }}</b></div>
+              <div>格式转换 <b style="color:var(--text-primary)">{{ fmtConvert(uploadCfg.upload_format_convert) }}</b><span v-if="uploadCfg.upload_format_convert !== 'off'"> · 质量 q{{ uploadCfg.upload_webp_quality }}</span></div>
+              <div v-if="uploadCfg.upload_format_convert !== 'off'">触发阈值 <b style="color:var(--text-primary)">{{ fmtBytes(uploadCfg.upload_convert_threshold_bytes) }}</b> 或 <b style="color:var(--text-primary)">{{ fmtPixels(uploadCfg.upload_convert_threshold_pixels) }}</b></div>
+              <div>MIME <b style="color:var(--text-primary)">{{ uploadCfg.upload_mime_whitelist }}</b> · EXIF <b style="color:var(--text-primary)">{{ fmtStrip(uploadCfg.upload_strip_exif) }}</b></div>
+            </div>
+            <!-- 编辑态：表单 -->
+            <div v-else style="display:flex;flex-direction:column;gap:8px;width:100%">
+              <div style="display:flex;gap:10px;align-items:center">
+                <label style="width:130px;font-size:12px;color:var(--text-secondary)">最大尺寸 (字节)</label>
+                <i-input v-model="uploadCfg.upload_max_bytes" number size="small" style="flex:1">
+                  <span slot="append">{{ fmtBytes(uploadCfg.upload_max_bytes) }}</span>
+                </i-input>
+              </div>
+              <div style="display:flex;gap:10px;align-items:center">
+                <label style="width:130px;font-size:12px;color:var(--text-secondary)">最大像素 (px²)</label>
+                <i-input v-model="uploadCfg.upload_max_pixels" number size="small" style="flex:1">
+                  <span slot="append">{{ fmtPixels(uploadCfg.upload_max_pixels) }}</span>
+                </i-input>
+              </div>
+              <div style="display:flex;gap:10px;align-items:center">
+                <label style="width:130px;font-size:12px;color:var(--text-secondary)">格式转换</label>
+                <i-select v-model="uploadCfg.upload_format_convert" size="small" style="flex:1">
+                  <i-option value="off">关闭</i-option>
+                  <i-option value="auto">智能（按阈值）</i-option>
+                </i-select>
+              </div>
+              <div v-if="uploadCfg.upload_format_convert !== 'off'" style="display:flex;gap:10px;align-items:center">
+                <label style="width:130px;font-size:12px;color:var(--text-secondary)">字节阈值 (字节)</label>
+                <i-input v-model="uploadCfg.upload_convert_threshold_bytes" number size="small" style="flex:1">
+                  <span slot="append">{{ fmtBytes(uploadCfg.upload_convert_threshold_bytes) }}</span>
+                </i-input>
+              </div>
+              <div v-if="uploadCfg.upload_format_convert !== 'off'" style="display:flex;gap:10px;align-items:center">
+                <label style="width:130px;font-size:12px;color:var(--text-secondary)">像素阈值 (px²)</label>
+                <i-input v-model="uploadCfg.upload_convert_threshold_pixels" number size="small" style="flex:1">
+                  <span slot="append">{{ fmtPixels(uploadCfg.upload_convert_threshold_pixels) }}</span>
+                </i-input>
+              </div>
+              <div v-if="uploadCfg.upload_format_convert !== 'off'" style="display:flex;gap:10px;align-items:center">
+                <label style="width:130px;font-size:12px;color:var(--text-secondary)">webp 质量 (50-100)</label>
+                <i-input v-model="uploadCfg.upload_webp_quality" number size="small" style="flex:1"></i-input>
+              </div>
+              <div style="display:flex;gap:10px;align-items:center">
+                <label style="width:130px;font-size:12px;color:var(--text-secondary)">MIME 白名单</label>
+                <i-input v-model="uploadCfg.upload_mime_whitelist" size="small" style="flex:1" placeholder="png,jpeg,webp,gif,bmp"></i-input>
+              </div>
+              <div style="display:flex;gap:10px;align-items:center">
+                <label style="width:130px;font-size:12px;color:var(--text-secondary)">EXIF</label>
+                <i-select v-model="uploadCfg.upload_strip_exif" size="small" style="flex:1">
+                  <i-option value="off">保留（默认）</i-option>
+                  <i-option value="on">剥除</i-option>
+                </i-select>
+              </div>
             </div>
           </div>
           <!-- ComfyUI -->
