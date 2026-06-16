@@ -8,6 +8,7 @@ server/*.db
 server/*.db.*
 server/.crypto_key
 server/public/uploads/
+server/public/avatars/
 server/models/*.onnx
 server/.models/*.onnx
 

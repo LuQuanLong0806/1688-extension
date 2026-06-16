@@ -95,10 +95,100 @@ router.post('/plugin-login', function (req, res) {
 // GET /api/me
 router.get('/me', function (req, res) {
   if (!req.user) return res.status(401).json({ error: '未登录' });
-  var user = _getDb().getOne('SELECT id, username, display_name, role, last_login, must_change_password FROM users WHERE id = ?', [req.user.id]);
+  var user = _getDb().getOne('SELECT id, username, display_name, role, last_login, must_change_password, avatar_url, email, created_at FROM users WHERE id = ?', [req.user.id]);
   if (!user) return res.status(401).json({ error: '用户不存在' });
-  res.json({ id: user.id, username: user.username, display_name: user.display_name, role: user.role, last_login: user.last_login, must_change_password: user.must_change_password || 0 });
+  res.json({
+    id: user.id,
+    username: user.username,
+    display_name: user.display_name,
+    role: user.role,
+    last_login: user.last_login,
+    must_change_password: user.must_change_password || 0,
+    avatar_url: user.avatar_url || '',
+    email: user.email || '',
+    created_at: user.created_at || ''
+  });
 });
+
+// PUT /api/me/profile — 自助改 display_name + email（不能改 username/role）
+router.put('/me/profile', function (req, res) {
+  if (!req.user) return res.status(401).json({ error: '未登录' });
+  var displayName = (req.body.display_name || '').trim();
+  var email = (req.body.email || '').trim();
+  if (displayName.length > 32) return res.status(400).json({ error: '显示名最多 32 字符' });
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ error: '邮箱格式不正确' });
+  }
+  var now = localNow();
+  _getDb().run("UPDATE users SET display_name = ?, email = ?, updated_at = ? WHERE id = ?", [displayName, email, now, req.user.id]);
+  _getDb().scheduleSave();
+  pushUserCloud("UPDATE users SET display_name = ?, email = ?, updated_at = ? WHERE username = ?", [displayName, email, now, req.user.username], 'self-update-profile');
+  res.json({ ok: true, display_name: displayName, email: email });
+});
+
+// POST /api/me/avatar — 上传头像
+// 复用 upload-limits 中间件保护（MIME 白名单 + 字节上限 + 转码）
+// 存储：OSS 优先（路径 avatars/） / 本地 public/avatars/ 兜底（不走 7 天清理）
+router.post('/me/avatar',
+  require('../middleware/upload-limits').preCheck,
+  require('../middleware/upload-limits').transformHandler,
+  function (req, res) {
+    if (!req.user) return res.status(401).json({ error: '未登录' });
+    var transformed = req._uploadTransformed;
+    var imageData, ext = 'png';
+    if (transformed) {
+      imageData = transformed.buffer;
+      ext = transformed.ext || 'png';
+    } else {
+      imageData = req.body.image_base64;
+    }
+    var filename = 'avatar_' + req.user.id + '_' + Date.now() + '.' + ext;
+    var now = new Date();
+
+    function saveLocal(buf) {
+      var fs = require('fs');
+      var path = require('path');
+      var dir = path.join(__dirname, '..', 'public', 'avatars');
+      try { fs.mkdirSync(dir, { recursive: true }); } catch (e) {}
+      var filepath = path.join(dir, filename);
+      fs.writeFileSync(filepath, buf);
+      return '/avatars/' + filename;
+    }
+
+    function updateDbUrl(url) {
+      var nowStr = localNow();
+      _getDb().run("UPDATE users SET avatar_url = ?, updated_at = ? WHERE id = ?", [url, nowStr, req.user.id]);
+      _getDb().scheduleSave();
+      pushUserCloud("UPDATE users SET avatar_url = ?, updated_at = ? WHERE username = ?", [url, nowStr, req.user.username], 'self-update-avatar');
+      return url;
+    }
+
+    // 解码 buffer（imageData 可能是 Buffer 或 base64 字符串）
+    var buf = Buffer.isBuffer(imageData) ? imageData : Buffer.from(String(imageData).replace(/^data:image\/\w+;base64,/, ''), 'base64');
+
+    var oss = require('../services/oss-upload');
+    if (oss.isConfigured()) {
+      // OSS 路径：avatars/{date}/{filename}
+      var dateDir = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+      var cloudPath = 'avatars/' + dateDir + '/' + filename;
+      var config = oss.getOssConfig();
+      var OSS = require('ali-oss');
+      var clientOpts = { accessKeyId: config.accessKeyId, accessKeySecret: config.accessKeySecret, bucket: config.bucket, region: config.region };
+      if (config.endpoint) clientOpts.endpoint = config.endpoint;
+      var client = new OSS(clientOpts);
+      var mimeMap = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp' };
+      var mime = mimeMap['.' + ext] || 'image/png';
+      client.put(cloudPath, buf, { headers: { 'Content-Type': mime } }).then(function (result) {
+        var url = result.url || ('https://' + config.bucket + '.' + config.region + '.aliyuncs.com/' + cloudPath);
+        res.json({ ok: true, avatar_url: updateDbUrl(url) });
+      }).catch(function (e) {
+        console.error('[头像] OSS 上传失败，回退本地:', e.message);
+        res.json({ ok: true, avatar_url: updateDbUrl(saveLocal(buf)) });
+      });
+    } else {
+      res.json({ ok: true, avatar_url: updateDbUrl(saveLocal(buf)) });
+    }
+  });
 
 // POST /api/change-password
 router.post('/change-password', function (req, res) {

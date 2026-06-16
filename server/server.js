@@ -44,6 +44,9 @@ app.use('/api/plugin-login', loginLimiter);
 
 app.use(express.static(path.join(__dirname, 'public'), { etag: false, maxAge: 0 }));
 
+// /avatars 静态映射（用户头像，独立目录，不走 7 天清理）
+app.use('/avatars', express.static(path.join(__dirname, 'public', 'avatars'), { etag: false, maxAge: 0 }));
+
 // Dev mode: serve sites/ files with no-cache for dynamic extension loading
 app.use('/dev/sites', express.static(path.join(__dirname, '..', 'sites'), { etag: false, maxAge: 0, setHeaders: function (res) {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');

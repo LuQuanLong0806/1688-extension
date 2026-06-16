@@ -140,6 +140,7 @@ body {
   box-shadow: 0 1px 3px rgba(0,0,0,.12);
 }
 .header-user:hover .user-avatar { box-shadow: var(--shadow-accent, 0 4px 14px rgba(255,106,0,.25)); }
+.user-avatar-img { object-fit: cover; }
 
 .user-name {
   color: var(--text-secondary, #555770);
@@ -168,7 +169,7 @@ body {
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  min-width: 240px;
+  min-width: 180px;
   background: var(--bg-surface, #fff);
   border: 1px solid var(--border-subtle, #eef0f2);
   border-radius: var(--radius-lg, 10px);
@@ -2316,4 +2317,164 @@ body {
   color: #fff;
   background: var(--accent-gradient);
   border-color: transparent;
+}
+
+/* ===== 个人中心页（page-profile）—— 复用项目 CSS 变量 / .user-avatar ===== */
+.profile-page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 4px 0 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.profile-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md, 10px);
+  padding: 18px 22px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
+}
+.profile-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  padding-bottom: 12px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--border-subtle);
+  letter-spacing: .3px;
+}
+.profile-card-body { color: var(--text-primary); }
+.profile-info-grid {
+  display: flex;
+  gap: 28px;
+  align-items: flex-start;
+}
+.profile-avatar-wrap {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  position: relative;
+  cursor: pointer;
+  overflow: hidden;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(0,0,0,.12);
+}
+.profile-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.profile-avatar-letter {
+  width: 100% !important;
+  height: 100% !important;
+  font-size: 32px !important;
+  border-radius: 50%;
+}
+.profile-avatar-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,.5);
+  color: #fff;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity .15s;
+}
+.profile-avatar-wrap:hover .profile-avatar-overlay { opacity: 1; }
+.profile-avatar-wrap.uploading { opacity: .6; cursor: progress; }
+.profile-avatar-wrap.uploading .profile-avatar-overlay { opacity: 1; }
+
+.profile-info-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.profile-info-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  min-height: 26px;
+}
+.profile-info-label {
+  width: 70px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+.profile-info-value {
+  color: var(--text-primary);
+  word-break: break-all;
+}
+.profile-info-value.muted { color: var(--text-secondary); }
+
+.role-tag {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 18px;
+}
+.role-tag-admin { background: rgba(255,106,0,.12); color: var(--accent); }
+.role-tag-operator { background: rgba(24,144,255,.12); color: #1890ff; }
+.role-tag-viewer { background: rgba(136,136,136,.12); color: #888; }
+
+.profile-security-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.profile-security-label { font-size: 13px; color: var(--text-primary); font-weight: 500; }
+.profile-security-desc { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+
+.profile-theme-group { display: flex; gap: 8px; }
+.profile-theme-chip {
+  padding: 4px 14px;
+  font-size: 12px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+  transition: all .15s;
+}
+.profile-theme-chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.profile-theme-chip.active {
+  background: var(--accent-gradient);
+  border-color: transparent;
+  color: #fff;
+}
+
+.profile-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+.profile-stat-box {
+  background: var(--accent-subtle);
+  border-radius: var(--radius-sm, 6px);
+  padding: 16px;
+  text-align: center;
+}
+.profile-stat-num {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--accent);
+  line-height: 1.2;
+}
+.profile-stat-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 4px;
 }

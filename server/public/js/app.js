@@ -91,7 +91,8 @@ new Vue({
     },
     comingSoon: function () {
       this.userMenuOpen = false;
-      this.$Message.info('个人中心功能开发中');
+      this.currentView = 'page-profile';
+      localStorage.setItem('__current_view', 'page-profile');
     },
     openDetail: function (id) {
       var vm = this;

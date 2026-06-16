@@ -81,7 +81,15 @@ router.get('/product/trend', (req, res) => {
 
 // 统计概览
 router.get('/product/stats', (req, res) => {
-  const row = getOne('SELECT COUNT(*) as total, SUM(CASE WHEN status=0 THEN 1 ELSE 0 END) as unused, SUM(CASE WHEN status=1 THEN 1 ELSE 0 END) as used FROM products WHERE deleted = 0');
+  // 显式传 scope=mine → 仅当前用户的商品；不传或 scope=all → 全部（保持向后兼容）
+  var scope = req.query.scope;
+  var ownerClause = '';
+  var params = [];
+  if (scope === 'mine') {
+    ownerClause = 'AND owner = ?';
+    params.push(req.user ? req.user.username : '');
+  }
+  const row = getOne('SELECT COUNT(*) as total, SUM(CASE WHEN status=0 THEN 1 ELSE 0 END) as unused, SUM(CASE WHEN status=1 THEN 1 ELSE 0 END) as used FROM products WHERE deleted = 0 ' + ownerClause, params);
   const catRow = getOne('SELECT COUNT(*) as cnt FROM categories');
   res.json({
     total: row ? row.total : 0,
