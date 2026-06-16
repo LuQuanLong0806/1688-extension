@@ -33,6 +33,14 @@ new Vue({
       .then(function (d) {
         if (d.error || !d.id) { localStorage.removeItem('jwt_token'); window.location.href = '/login.html'; return; }
         vm.currentUser = d;
+        // 路由兜底：若上次离开时停在 admin 专属页（如用户管理/API 配置），换非 admin 账号登录后
+        // 菜单会隐藏，但 currentView 仍是 page-users/page-api-keys，组件照常渲染并触发 403
+        // 这里检测到权限不匹配就回退到商品页，避免触发 403 / 表格崩溃
+        var adminOnlyViews = ['page-users', 'page-api-keys'];
+        if (d.role !== 'admin' && adminOnlyViews.indexOf(vm.currentView) >= 0) {
+          vm.currentView = 'page-products';
+          localStorage.setItem('__current_view', 'page-products');
+        }
         vm.loadStats();
         vm.initTheme();
       }).catch(function () { window.location.href = '/login.html'; });

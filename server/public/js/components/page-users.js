@@ -45,8 +45,18 @@ Vue.component('page-users', {
       var vm = this;
       vm.loading = true;
       apiFetch('/api/users').then(function (r) { return r.json(); })
-        .then(function (d) { vm.users = d; vm.loading = false; })
-        .catch(function () { vm.loading = false; });
+        .then(function (d) {
+          // 403/错误响应 d 为 { error: '权限不足' }，不是数组
+          // 若直接赋值给 table，iView 会因 data.forEach 报错崩溃
+          if (Array.isArray(d)) {
+            vm.users = d;
+          } else {
+            vm.users = [];
+            if (d && d.error) vm.$Message.error(d.error);
+          }
+          vm.loading = false;
+        })
+        .catch(function () { vm.loading = false; vm.users = []; });
     },
     openCreate: function () {
       this.modalTitle = '创建用户';
