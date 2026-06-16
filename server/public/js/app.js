@@ -15,7 +15,9 @@ new Vue({
     previewList: [],
     previewIdx: 0,
     // collage modal
-    showCollageModal: false
+    showCollageModal: false,
+    // 用户下拉菜单
+    userMenuOpen: false
   },
   computed: {
     themeName: function () {
@@ -67,15 +69,29 @@ new Vue({
         .then(function (d) { vm.stats = d; }).catch(function () {});
     },
     logout: function () {
-      // 必须先调 /api/logout（带 token），让 server 写 token_invalid_at
-      // 否则 JWT 是无状态的，server 端不知道用户登出，旧 token 还能继续用
-      apiFetch('/api/logout', { method: 'POST' })
-        .catch(function () {})
-        .finally(function () {
-          localStorage.removeItem('jwt_token');
-          localStorage.removeItem('jwt_user');
-          window.location.href = '/login.html';
-        });
+      var vm = this;
+      vm.userMenuOpen = false;
+      vm.$Modal.confirm({
+        title: '确认退出',
+        content: '确定要退出登录吗？',
+        okText: '退出',
+        cancelText: '取消',
+        onOk: function () {
+          // 必须先调 /api/logout（带 token），让 server 写 token_invalid_at
+          // 否则 JWT 是无状态的，server 端不知道用户登出，旧 token 还能继续用
+          apiFetch('/api/logout', { method: 'POST' })
+            .catch(function () {})
+            .finally(function () {
+              localStorage.removeItem('jwt_token');
+              localStorage.removeItem('jwt_user');
+              window.location.href = '/login.html';
+            });
+        }
+      });
+    },
+    comingSoon: function () {
+      this.userMenuOpen = false;
+      this.$Message.info('个人中心功能开发中');
     },
     openDetail: function (id) {
       var vm = this;

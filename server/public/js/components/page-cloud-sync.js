@@ -13,7 +13,7 @@ Vue.component('page-cloud-sync', {
         {
           title: '大数据量',
           tables: [
-            { key: 'tree', label: '店小秘分类库', icon: '🌲', desc: '数千条分类数据，操作前弹窗确认', confirm: true },
+            { key: 'tree', label: '店小秘分类库', icon: '🌲', desc: '数千条分类数据，操作前弹窗确认', confirm: true, adminOnly: true },
             { key: 'product', label: '商品数据', icon: '📦', desc: '用商品链接去重，不覆盖已有状态', confirm: true }
           ]
         },
@@ -34,6 +34,9 @@ Vue.component('page-cloud-sync', {
     this.loadConfig();
   },
   computed: {
+    isAdmin: function () {
+      return this.$root.currentUser && this.$root.currentUser.role === 'admin';
+    },
     statusText: function () {
       if (this.status.connected) return '已连接';
       if (this.status.config) return '已配置（未连接）';
@@ -193,7 +196,7 @@ Vue.component('page-cloud-sync', {
           </div>\
         </div>\
         <div class="sync-banner-actions">\
-          <template v-if="status.connected">\
+          <template v-if="status.connected && isAdmin">\
             <Button type="error" :loading="isBusy(\'disconnect\')" @click="disconnectCloud">\
               <icon type="md-close-circle" style="margin-right:4px"></icon>断开连接\
             </Button>\
@@ -203,7 +206,7 @@ Vue.component('page-cloud-sync', {
               <icon type="md-cloud-done" style="margin-right:4px"></icon>连接\
             </Button>\
           </template>\
-          <Button v-if="status.connected" type="warning" :loading="isBusy(\'init\')" @click="initCloud">\
+          <Button v-if="status.connected && isAdmin" type="warning" :loading="isBusy(\'init\')" @click="initCloud">\
             <icon type="md-cloud-upload" style="margin-right:4px"></icon>初始化云端\
           </Button>\
           <Button v-if="status.connected" type="primary" :loading="isBusy(\'sync\')" @click="fullSync">\
@@ -227,18 +230,20 @@ Vue.component('page-cloud-sync', {
           <span class="sync-group-desc">分类库、商品数据，操作前需确认</span>\
         </div>\
         <div class="sync-grid">\
-          <div v-for="t in sections[0].tables" :key="t.key" class="sync-card">\
-            <div class="sync-card-icon">{{ t.icon }}</div>\
-            <div class="sync-card-body">\
-              <div class="sync-card-label">{{ t.label }}</div>\
-              <div class="sync-card-desc">{{ t.desc }}</div>\
+          <template v-for="t in sections[0].tables">\
+            <div v-if="!t.adminOnly || isAdmin" :key="t.key" class="sync-card">\
+              <div class="sync-card-icon">{{ t.icon }}</div>\
+              <div class="sync-card-body">\
+                <div class="sync-card-label">{{ t.label }}</div>\
+                <div class="sync-card-desc">{{ t.desc }}</div>\
+              </div>\
+              <div class="sync-card-actions">\
+                <Button :loading="isBusy(t.key + \'-push\')" @click="doAction(t, \'push\')">上传</Button>\
+                <Button :loading="isBusy(t.key + \'-pull\')" @click="doAction(t, \'pull\')">拉取</Button>\
+                <Button type="primary" :loading="isBusy(t.key + \'-sync\')" @click="doAction(t, \'sync\')">双向</Button>\
+              </div>\
             </div>\
-            <div class="sync-card-actions">\
-              <Button :loading="isBusy(t.key + \'-push\')" @click="doAction(t, \'push\')">上传</Button>\
-              <Button :loading="isBusy(t.key + \'-pull\')" @click="doAction(t, \'pull\')">拉取</Button>\
-              <Button type="primary" :loading="isBusy(t.key + \'-sync\')" @click="doAction(t, \'sync\')">双向</Button>\
-            </div>\
-          </div>\
+          </template>\
         </div>\
       </div>\
 \
