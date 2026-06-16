@@ -297,6 +297,8 @@ Vue.component('page-products', {
           if (uid) vm.$set(vm.recommending, uid, false);
           if (data.skipped) {
             vm.$Message.info('已有手动分类，跳过AI推荐');
+          } else if (data.error) {
+            vm.$Message.error(data.message || 'AI 推荐失败');
           } else if (data.source === 'manual_review') {
             vm.$Message.warning({ content: 'AI无法自动分类，请手动选择', duration: 5 });
           } else if (data.source === 'score_low') {

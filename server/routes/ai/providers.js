@@ -63,7 +63,7 @@ function getQwenVlKey() {
     var row = require('../../db').getOne("SELECT value FROM settings WHERE key = 'qwen_vl_api_key'");
     if (row && row.value) return sec.decrypt(row.value).trim();
   } catch (e) {}
-  return 'sk-ad9a93ab29e34635a92b75fd2d751f81'; // 内置默认key
+  return ''; // 未配置（曾硬编码内置 key，已移除 — 需用户在 AI模型配置页填写）
 }
 
 function saveQwenVlKey(key) {

@@ -52,7 +52,22 @@ function isWhitelisted(method, path) {
   return false;
 }
 
+// 检测请求是否来自本机（仅本机内部 HTTP 调用走 x-internal-call 旁路）
+// 服务监听 127.0.0.1，外部网络访问不到，本机回环可信任
+function isLocalhost(ip) {
+  if (!ip) return false;
+  if (ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1') return true;
+  return false;
+}
+
 function authMiddleware(req, res, next) {
+  // 内部调用旁路：localhost + 特殊 header → 注入 synthetic admin
+  // 用于服务自己调自己的 HTTP 端点（如 products.js → /api/ai/suggest-category）
+  // 服务监听 127.0.0.1，外部网络访问不到，可信任
+  if (req.headers['x-internal-call'] === '1' && isLocalhost(req.ip)) {
+    req.user = { id: 0, username: '__internal__', role: 'admin', iat: Math.floor(Date.now() / 1000) };
+    return next();
+  }
   var token = null;
   var authHeader = req.headers.authorization;
   if (authHeader && authHeader.indexOf('Bearer ') === 0) token = authHeader.slice(7);

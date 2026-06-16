@@ -2,6 +2,8 @@
 const dbModule = require('../db');
 const { run, getOne, getAll, scheduleSave, saveNow, sseBroadcast, parseRow, treeGetOne } = dbModule;
 const cloudDb = require('../cloud/index');
+const auth = require('../middleware/auth');
+const opOnly = auth.requireRole('operator', 'admin');
 
 function localNow() {
   var d = new Date();
@@ -148,7 +150,7 @@ router.get('/product/dxm-category-top', (req, res) => {
 });
 
 // 保存采集数据
-router.post('/product', (req, res) => {
+router.post('/product', opOnly, (req, res) => {
   const { sourceUrl, title, category, mainImages, descImages, detailImages, attrs, skus } = req.body;
   const owner = (req.user && req.user.username) || '';
 
@@ -229,13 +231,14 @@ router.post('/product', (req, res) => {
 });
 
 // 公共：本地 HTTP POST 请求（Promise 包装）
+// 注入 x-internal-call: 1 头，配合 authMiddleware 旁路（仅本机回环可触发）
 function localPost(path, body, timeoutMs) {
   return new Promise(function (resolve) {
     var httpMod = require('http');
     var postData = JSON.stringify(body);
     var reqOpts = {
       hostname: 'localhost', port: 3000, path: path,
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(postData) }
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(postData), 'X-Internal-Call': '1' }
     };
     var timer = setTimeout(function () { req.destroy(); resolve(null); }, timeoutMs || 60000);
     var req = httpMod.request(reqOpts, function (res) {
@@ -651,7 +654,7 @@ router.delete('/product/:id', (req, res) => {
 });
 
 // 手动触发分类推荐
-router.post('/product/:id/recommend-category', (req, res) => {
+router.post('/product/:id/recommend-category', opOnly, (req, res) => {
   var uid = req.params.id || '';
   var product = getOne('SELECT * FROM products WHERE uid = ?', [uid]);
   if (!product) return res.status(404).json({ error: '产品不存在' });
@@ -670,7 +673,7 @@ router.post('/product/:id/recommend-category', (req, res) => {
     port: 3000,
     path: '/api/ai/suggest-category',
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(postData) }
+    headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(postData), 'X-Internal-Call': '1' }
   };
 
   res.json({ ok: true, message: '推荐已触发' });
@@ -679,6 +682,12 @@ router.post('/product/:id/recommend-category', (req, res) => {
     var body = '';
     aiRes.on('data', function (chunk) { body += chunk; });
     aiRes.on('end', function () {
+      // 非 200 直接报错（含 401/500 等）—— 避免被当成"低置信度"误导用户
+      if (aiRes.statusCode !== 200) {
+        console.error('[AI分类推荐] 产品#' + parsed.id + ' AI 调用失败: HTTP ' + aiRes.statusCode + ' body=' + body.substring(0, 200));
+        sseBroadcast('product-category-updated', { uid: parsed.uid, category: '', source: 'error', error: true, message: 'AI 调用失败 (HTTP ' + aiRes.statusCode + ')' });
+        return;
+      }
       try {
         var result = JSON.parse(body);
         if (result.ok && result.category && result.confidence >= 0.25) {
@@ -754,7 +763,7 @@ router.post('/product/:id/recommend-category', (req, res) => {
   });
   aiReq.on('error', function (e) {
     console.error('[AI分类推荐] 产品#' + parsed.id + ' 请求失败:', e.message);
-    sseBroadcast('product-category-updated', { uid: parsed.uid, category: '', source: 'error' });
+    sseBroadcast('product-category-updated', { uid: parsed.uid, category: '', source: 'error', error: true, message: '网络请求失败: ' + e.message });
   });
   aiReq.write(postData);
   aiReq.end();
@@ -830,7 +839,6 @@ router.post('/products/claim', (req, res) => {
 });
 
 // admin 分配商品给指定用户
-var auth = require('../middleware/auth');
 router.post('/products/assign', auth.requireRole('admin'), (req, res) => {
   var uids = req.body.uids || [];
   var assignTo = (req.body.username || '').trim();

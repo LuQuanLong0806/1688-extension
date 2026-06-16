@@ -214,9 +214,9 @@ describe('getQwenVlKey', () => {
     expect(key).toBe('dedicated-vl-key-12345678');
   });
 
-  test('都没有时返回内置默认Key', () => {
+  test('都没有时返回空字符串（已移除硬编码兜底 key）', () => {
     var key = providers.getQwenVlKey();
-    expect(key).toBe('sk-ad9a93ab29e34635a92b75fd2d751f81');
+    expect(key).toBe('');
   });
 });
 
