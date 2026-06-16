@@ -63,6 +63,7 @@ Vue.component('page-users', {
     saveUser: function () {
       var vm = this;
       if (!vm.form.username) { vm.$Message.warning('请输入用户名'); return; }
+      if (!vm.editingId && vm.form.username.length < 3) { vm.$Message.warning('用户名至少 3 个字符'); return; }
       vm.saving = true;
       if (vm.editingId) {
         var body = { display_name: vm.form.display_name, role: vm.form.role };

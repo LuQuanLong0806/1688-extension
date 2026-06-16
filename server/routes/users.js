@@ -240,6 +240,7 @@ router.post('/users', auth.requireRole('admin'), function (req, res) {
   var displayName = (req.body.display_name || '').trim();
   var role = req.body.role || 'operator';
   if (!username || !password) return res.status(400).json({ error: '用户名和密码必填' });
+  if (username.length < 3) return res.status(400).json({ error: '用户名至少 3 个字符' });
   if (password.length < 6) return res.status(400).json({ error: '密码至少6个字符' });
   if (['admin', 'operator', 'viewer'].indexOf(role) < 0) role = 'operator';
   var existing = _getDb().getOne('SELECT id FROM users WHERE username = ?', [username]);
