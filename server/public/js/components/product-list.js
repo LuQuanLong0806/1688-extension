@@ -663,7 +663,7 @@ Vue.component('page-products', {
   },
   template: `
     <div class="list-card">
-      <div style="display:flex;gap:4px;margin-bottom:10px;">
+      <div style="display:none;">
         <span class="scope-tab" :class="{active: scopeFilter==='mine'}" @click="switchScope('mine')">我的商品</span>
         <span class="scope-tab" :class="{active: scopeFilter==='inbox'}" @click="switchScope('inbox')">采集箱</span>
         <span class="scope-tab" :class="{active: scopeFilter==='all'}" @click="switchScope('all')" v-if="$root.currentUser && $root.currentUser.role === 'admin'">全部</span>
