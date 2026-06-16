@@ -48,6 +48,12 @@
     C.showBubble(msg, type);
     setTimeout(C.hideBubble, 2000);
     C.finishWorkflow(type === 'ok');
+    // 贴图成功后清空剪贴板：避免下次点贴图按钮复用旧 URL
+    // （用户实际复制了新图片但剪贴板文本仍是上次写入的 URL，导致 readClipboardType 误判）
+    // 失败时不清空，保留 URL 供用户手动重试
+    if (type === 'ok' && navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText('').catch(function () {});
+    }
   }
 
   // ========== 去中文 → 压缩800px → 上传 ==========

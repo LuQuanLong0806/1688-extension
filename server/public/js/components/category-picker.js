@@ -27,6 +27,22 @@ Vue.component('category-picker', {
       this.currentPath = p || '';
     }
   },
+  mounted: function () {
+    // 下拉用 fixed 定位后，外部滚动会让下拉与输入框错位 → 跟随重定位
+    var vm = this;
+    this._onScrollOrResize = function () {
+      if (vm.dropdownVisible) vm.updateDropPos();
+    };
+    window.addEventListener('scroll', this._onScrollOrResize, true);
+    window.addEventListener('resize', this._onScrollOrResize);
+  },
+  beforeDestroy: function () {
+    if (this._onScrollOrResize) {
+      window.removeEventListener('scroll', this._onScrollOrResize, true);
+      window.removeEventListener('resize', this._onScrollOrResize);
+    }
+    clearTimeout(this._searchTimer);
+  },
   methods: {
     onInputChange: function () {
       var vm = this;
@@ -53,15 +69,19 @@ Vue.component('category-picker', {
       if (!input) return;
       var rect = input.getBoundingClientRect();
       var w = Math.max(360, rect.width);
+      var dropH = 260;
       var spaceBelow = window.innerHeight - rect.bottom;
-      var openUp = spaceBelow < 280;
+      var spaceAbove = rect.top;
+      var openUp = spaceBelow < dropH && spaceAbove >= dropH;
+      // 用 fixed 定位 → 脱离 .ivu-table-body 等祖先 overflow:hidden 的裁剪
+      // （单行表格场景 absolute 下拉会被表格遮挡）
       this.dropStyle = {
-        position: 'absolute',
-        top: openUp ? 'auto' : '34px',
-        bottom: openUp ? '34px' : 'auto',
-        left: '0px',
+        position: 'fixed',
+        top: openUp ? 'auto' : (rect.bottom + 4) + 'px',
+        bottom: openUp ? (window.innerHeight - rect.top + 4) + 'px' : 'auto',
+        left: rect.left + 'px',
         minWidth: w + 'px',
-        maxHeight: '260px',
+        maxHeight: dropH + 'px',
         zIndex: 9999
       };
     },

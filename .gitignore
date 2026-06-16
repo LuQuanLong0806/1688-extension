@@ -38,3 +38,9 @@ mcp-browser-use.py
 
 # Auto-generated build timestamp
 sites/build-info.js
+
+# Temp commit message scratch
+.git-commit-msg.txt
+
+# Local Claude Code settings
+.claude/settings.json

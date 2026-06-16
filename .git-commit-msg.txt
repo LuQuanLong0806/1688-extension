@@ -1,34 +1,20 @@
-阶段十：扩展自动登录审核文档复审 + 真实问题修复
+修复 category-picker 单行表格遮挡 + 贴图后清空剪贴板
 
-依据 docs/extension-auto-auth-audit-2026-06-13.md 复审，结合实际场景：
+1. category-picker.js
+   - 下拉改 position: fixed，脱离 .ivu-table-body 的 overflow:hidden
+     解决"单行商品列表里点选择分类下拉被表格裁剪"的问题
+   - mounted/beforeDestroy 加 scroll(capture=true)+resize 监听，
+     下拉打开时跟随输入框重定位，避免外部滚动错位
+   - openUp 阈值改为同时校验上方有足够空间，避免向上开被裁
 
-【文档核对】Step 1-7 全部属实，无虚构
-【异议评估】4 项可优化点里 2 项描述不准、2 项无异议
+2. dxm-paste-img.js
+   - 贴图成功后清空剪贴板，避免下次点贴图按钮复用旧 URL
+     场景：拖拽图片→上传→URL写回剪贴板→贴图完成；
+     之后用户复制新图片点贴图按钮时，readClipboardType 读到
+     旧 URL 误判走 URL 流程，而不是捕获新图片
+   - 仅 type==='ok' 时清空，失败保留 URL 供手动重试
 
-【修复 A】collect-data.js + dxm-config.js fetch 前等 token
-- 根因：启动时 autoGetToken 异步，用户立即操作时 localStorage 可能没 token
-  → fetch 不带 Authorization → 静默 401
-- 新增 ensureToken (collect-data) / withAuth (dxm-config) helper
-- saveToServer / checkExists 包一层 ensureToken
-
-【修复 B】checkExists 区分错误类型
-- 之前 catch 无差别 callback({exists:false})，让上层无法区分
-  "真不存在" vs "鉴权失败" vs "网络异常"
-- 改为 callback({exists:false, error:'auth'|'network'})
-- float-btn.js 处理 auth/network 错误显式提示
-
-【修复 C】服务端 cookie 行为单元测试（防回归）
-- 现有 login/plugin-auth 测试完全不验证 res.cookie
-- 新建 cookie-auth.test.js 7 个测试：
-  login/plugin-login/change-password/logout 的 Set-Cookie
-  HttpOnly/SameSite=Lax/Max-Age=604800 属性
-  cookie.value === body.token 一致性
-
-文档生成：docs/extension-auto-auth-fix-2026-06-14.md
-
-未修复：
-- sameSite: lax → strict（无异议，lax 适合扩展场景）
-- token 主动检测定时器（7d maxAge + 被动刷新够用）
-- 17 处 dxm-* fetch 迁移到 withAuth（已加 authHeaders，风险大于收益）
+附带：把 .git-commit-msg.txt 和 .claude/settings.json 加入
+.gitignore（前者历史遗留的临时文件，已删除）
 
 Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>
