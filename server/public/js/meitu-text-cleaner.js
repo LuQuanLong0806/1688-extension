@@ -57,7 +57,7 @@ function initMeituTextCleaner() {
   function checkServices() {
     var base = getServerBase();
     // OCR
-    fetch(base + '/api/ai/ocr-status').then(function (r) { return r.json(); }).then(function (d) {
+    apiFetch(base + '/api/ai/ocr-status').then(function (r) { return r.json(); }).then(function (d) {
       if (d.ocr && d.ocr.status === 'ok') {
         ocrStatusEl.textContent = 'OCR ✅';
         ocrStatusEl.className = 'status ok';
@@ -282,7 +282,7 @@ function initMeituTextCleaner() {
     // 如果有原始base64就直接用，否则用 data URL
     var imageBase64 = 'data:image/png;base64,' + currentImageBuf;
 
-    fetch(base + '/api/ai/inpaint', {
+    apiFetch(base + '/api/ai/inpaint', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ image_base64: imageBase64, mask_base64: maskBase64 })
@@ -413,7 +413,7 @@ function initMeituTextCleaner() {
     var expandPx = parseInt(document.getElementById('expandSlider').value);
     var base = getServerBase();
 
-    fetch(base + '/api/ai/detect-text', {
+    apiFetch(base + '/api/ai/detect-text', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -463,7 +463,7 @@ function initMeituTextCleaner() {
     var dilatePx = parseInt(document.getElementById('expandSlider').value) || 20;
     var enableVision = document.getElementById('chkVisionDetect').checked;
 
-    fetch(base + '/api/ai/auto-clean-chinese', {
+    apiFetch(base + '/api/ai/auto-clean-chinese', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -637,7 +637,7 @@ function initMeituTextCleaner() {
     progress.textContent = '⏳ 0/' + images.length + ' 处理中...';
     showToast('开始批量处理 ' + images.length + ' 张图片...', 'loading');
 
-    fetch(base + '/api/ai/batch-clean-chinese', {
+    apiFetch(base + '/api/ai/batch-clean-chinese', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -725,7 +725,7 @@ function initMeituTextCleaner() {
     showToast('开始批量处理 ' + images.length + ' 张图片 [' + modeLabel + ']', 'loading');
     showLoading();
 
-    fetch(base + '/api/ai/batch-clean', {
+    apiFetch(base + '/api/ai/batch-clean', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

@@ -1007,7 +1007,7 @@ function initMeituCollage() {
     if (!prompt || !prompt.value.trim()) { showToast('请输入图片描述', 'err'); return; }
     prompt = prompt.value.trim();
     showAiLoading('AI 文生图中...');
-    fetch(getServerBase() + '/api/ai/text-to-image', {
+    apiFetch(getServerBase() + '/api/ai/text-to-image', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ prompt: prompt, size: '1024x1024' })
@@ -1426,7 +1426,7 @@ function initMeituCollage() {
             var reader = new FileReader();
             b64 = await new Promise(function (resolve) { reader.onload = function () { resolve(reader.result); }; reader.readAsDataURL(blob); });
           }
-          var upRes = await fetch(getServerBase() + '/api/ai/image-upload', {
+          var upRes = await apiFetch(getServerBase() + '/api/ai/image-upload', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ image_base64: b64 })
@@ -1528,7 +1528,7 @@ function initMeituCollage() {
 
   // ===== 复制图片地址 =====
   function uploadToSmms(base64) {
-    return fetch(getServerBase() + '/api/ai/image-upload', {
+    return apiFetch(getServerBase() + '/api/ai/image-upload', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ image_base64: base64 })
@@ -2145,7 +2145,7 @@ function initMeituCollage() {
       editorMaskCtx.clearRect(0, 0, editorMaskCanvas.width, editorMaskCanvas.height);
       var imageBase64 = origCanvas.toDataURL('image/png');
       var maskBase64 = maskCtx.canvas.toDataURL('image/png');
-      return fetch(getServerBase() + '/api/ai/inpaint', {
+      return apiFetch(getServerBase() + '/api/ai/inpaint', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image_base64: imageBase64, mask_base64: maskBase64 })
@@ -2184,7 +2184,7 @@ function initMeituCollage() {
     var oldSrc = editorSrc;
     showEditorLoading('AI 白底图生成中...');
     urlToBase64(editorSrc).then(function (base64) {
-      return fetch(getServerBase() + '/api/ai/white-bg', {
+      return apiFetch(getServerBase() + '/api/ai/white-bg', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image_base64: base64 })
@@ -2218,7 +2218,7 @@ function initMeituCollage() {
     var oldSrc = editorSrc;
     showEditorLoading('AI 画质增强中...');
     urlToBase64(editorSrc).then(function (base64) {
-      return fetch(getServerBase() + '/api/ai/enhance', {
+      return apiFetch(getServerBase() + '/api/ai/enhance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image_base64: base64 })
@@ -2254,7 +2254,7 @@ function initMeituCollage() {
     showEditorLoading('AI 抠图中，请耐心等待...');
     var sourceSrc = editorSrc;
     urlToBase64(editorSrc).then(function (base64) {
-      return fetch(getServerBase() + '/api/ai/remove-bg-local', {
+      return apiFetch(getServerBase() + '/api/ai/remove-bg-local', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image_base64: base64 })
@@ -2368,7 +2368,7 @@ function initMeituCollage() {
     var ready = b64 ? Promise.resolve(b64) : urlToBase64(editorSrc);
 
     ready.then(function (base64) {
-      return fetch(getServerBase() + endpoint, {
+      return apiFetch(getServerBase() + endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -2415,7 +2415,7 @@ function initMeituCollage() {
   }
 
   function sendComposite(productBase64, oldSrc) {
-    fetch(getServerBase() + '/api/ai/replace-bg', {
+    apiFetch(getServerBase() + '/api/ai/replace-bg', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -2465,7 +2465,7 @@ function initMeituCollage() {
   });
 
   function prepareAndAdd(base64) {
-    fetch(getServerBase() + '/api/ai/prepare-main-image', {
+    apiFetch(getServerBase() + '/api/ai/prepare-main-image', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ image_base64: base64 })

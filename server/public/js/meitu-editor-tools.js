@@ -78,7 +78,7 @@ function initMeituEditorTools() {
       } else {
         payload = { images: [{ url: imgBase64 }], skip_upload: true };
       }
-      var cleanRes = await fetch(getServerBase() + '/api/ai/batch-clean', {
+      var cleanRes = await apiFetch(getServerBase() + '/api/ai/batch-clean', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(Object.assign({ enable_vision: false }, payload))
@@ -142,7 +142,7 @@ function initMeituEditorTools() {
       }
 
       editorProcessText.textContent = '批量处理 ' + images.length + ' 张图片...';
-      var cleanRes = await fetch(getServerBase() + '/api/ai/batch-clean', {
+      var cleanRes = await apiFetch(getServerBase() + '/api/ai/batch-clean', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ images: images, skip_upload: true, enable_vision: false, concurrency: 4 })
@@ -218,7 +218,7 @@ function initMeituEditorTools() {
             reader.readAsDataURL(blob);
           });
         }
-        var upRes = await fetch(getServerBase() + '/api/ai/image-upload', {
+        var upRes = await apiFetch(getServerBase() + '/api/ai/image-upload', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ image_base64: b64 })
@@ -312,7 +312,7 @@ function initMeituEditorTools() {
         }
 
         try {
-          var ocrRes = await fetch(getServerBase() + '/api/ai/detect-sizes', {
+          var ocrRes = await apiFetch(getServerBase() + '/api/ai/detect-sizes', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ image_base64: src })
@@ -392,7 +392,7 @@ function initMeituEditorTools() {
         });
       }
 
-      var annRes = await fetch(getServerBase() + '/api/ai/annotate-image', {
+      var annRes = await apiFetch(getServerBase() + '/api/ai/annotate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image_base64: src, width_cm: widthCm, height_cm: heightCm, unit: 'cm' })

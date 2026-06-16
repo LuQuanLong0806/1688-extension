@@ -97,7 +97,7 @@ function initMeituSizeAnnotate() {
     showToast('OCR 检测中...', 'loading');
 
     try {
-      var res = await fetch('/api/ai/detect-sizes', {
+      var res = await apiFetch('/api/ai/detect-sizes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image_base64: 'data:image/png;base64,' + currentImageBuf })
@@ -240,7 +240,7 @@ function initMeituSizeAnnotate() {
     showToast('生成标注图中...', 'loading');
 
     try {
-      var res = await fetch('/api/ai/annotate-image', {
+      var res = await apiFetch('/api/ai/annotate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -348,7 +348,7 @@ function initMeituSizeAnnotate() {
         } else {
           bodyData.image_url = item.src;
         }
-        var res = await fetch('/api/ai/annotate-image', {
+        var res = await apiFetch('/api/ai/annotate-image', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(bodyData)
@@ -380,7 +380,7 @@ function initMeituSizeAnnotate() {
     if (!annotatedImageBuf) { showToast('请先生成标注图', 'err'); return; }
     showToast('上传中...', 'loading');
     try {
-      var res = await fetch('/api/ai/image-upload', {
+      var res = await apiFetch('/api/ai/image-upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image_base64: 'data:image/png;base64,' + annotatedImageBuf })
@@ -430,7 +430,7 @@ function initMeituSizeAnnotate() {
     var slot = currentQueueItem._slot;
     // 先上传到图床
     showToast('上传中...', 'loading');
-    fetch('/api/ai/image-upload', {
+    apiFetch('/api/ai/image-upload', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ image_base64: annotatedImageSrc })
@@ -601,7 +601,7 @@ function initMeituSizeAnnotate() {
         item.base64 = rawBase64;
 
         // 调用 OCR 检测尺寸
-        var ocrRes = await fetch('/api/ai/detect-sizes', {
+        var ocrRes = await apiFetch('/api/ai/detect-sizes', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ image_base64: b64 })
@@ -659,7 +659,7 @@ function initMeituSizeAnnotate() {
     var uploadedUrls = [];
 
     images.forEach(function (src) {
-      fetch('/api/ai/image-upload', {
+      apiFetch('/api/ai/image-upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image_base64: src })
