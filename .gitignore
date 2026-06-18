@@ -36,6 +36,11 @@ server/_test_result*
 test_mcp*.py
 mcp-browser-use.py
 
+# Test image output & debug artifacts
+server/scripts/out/
+server/server/
+server/public/_debug/
+
 # Auto-generated build timestamp
 sites/build-info.js
 

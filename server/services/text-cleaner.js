@@ -291,15 +291,21 @@ async function generateMask(imageWidth, imageHeight, regions, options) {
   var shapes = '';
   for (var i = 0; i < regions.length; i++) {
     var r = regions[i];
+    // 自适应膨胀：dilatePx 是全局上限，每个 region 实际膨胀按自身高度 30% 算
+    // 起因：固定 dilatePx=20/40 对窄文字条（28-30px 高）会膨胀 70-110px，
+    // 文字贴商品边缘时直接咬进商品。改为 height*0.3 后：
+    //   30px 文字 → dilate 9（vs 20）  100px 大字 → dilate 30  150px+ → 封顶 dilatePx
+    var regionH = r.height || 30;
+    var adaptiveDilate = Math.min(dilatePx, Math.max(4, Math.round(regionH * 0.3)));
     if (r.polygon && r.polygon.length >= 3) {
-      var expanded = expandPolygon(r.polygon, dilatePx);
+      var expanded = expandPolygon(r.polygon, adaptiveDilate);
       var points = expanded.map(function (p) { return p[0] + ',' + p[1]; }).join(' ');
       shapes += '<polygon points="' + points + '" fill="white" />';
     } else {
-      var ex = Math.max(0, (r.x || 0) - dilatePx);
-      var ey = Math.max(0, (r.y || 0) - dilatePx);
-      var ew = (r.width || 0) + dilatePx * 2;
-      var eh = (r.height || 0) + dilatePx * 2;
+      var ex = Math.max(0, (r.x || 0) - adaptiveDilate);
+      var ey = Math.max(0, (r.y || 0) - adaptiveDilate);
+      var ew = (r.width || 0) + adaptiveDilate * 2;
+      var eh = (r.height || 0) + adaptiveDilate * 2;
       shapes += '<rect x="' + ex + '" y="' + ey + '" width="' + ew + '" height="' + eh + '" fill="white" />';
     }
   }
@@ -310,10 +316,11 @@ async function generateMask(imageWidth, imageHeight, regions, options) {
     '</svg>';
 
   // Step 2: SVG → grayscale PNG → 边缘羽化（轻微模糊消除硬边）
+  // blur 2→1：减少 1px 羽化溢出，配合自适应膨胀进一步避免咬商品边缘
   var maskPng = await sharp(Buffer.from(svg))
     .resize(imageWidth, imageHeight)
     .grayscale()
-    .blur(2)
+    .blur(1)
     .png()
     .toBuffer();
 

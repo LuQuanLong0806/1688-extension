@@ -509,7 +509,9 @@ async function processProduct(uid, db) {
             try {
               var textCleaner = require('../services/text-cleaner');
               var cleanResult = await retryWrapper(
-                function () { return textCleaner.cleanImage(buf, { chineseOnly: false }); },
+                // chineseOnly: true —— 只去中文/水印，保留尺寸数字字母（24cm/26cm 等）
+                // false 会把英文数字一并 mask，叠加 dilate 容易咬商品边缘
+                function () { return textCleaner.cleanImage(buf, { chineseOnly: true }); },
                 { maxRetries: 1, stepName: 'clean', fallback: function () { return { cleaned: false }; } }
               );
               if (cleanResult.cleaned && cleanResult.imageBuffer) {
