@@ -693,7 +693,7 @@ function migrateDedicatedKeys() {
     var row = require('../../db').getOne("SELECT value FROM settings WHERE key = 'qwen_vl_api_key'");
     if (row && row.value) {
       var vlKey = sec.decrypt(row.value).trim();
-      if (vlKey && vlKey !== 'sk-ad9a93ab29e34635a92b75fd2d751f81') {
+      if (vlKey) {
         if (!qwenKeys.some(function(e) { return e.key === vlKey; })) {
           qwenKeys.push({ key: vlKey, label: '旧VL Key' });
           var cfg = getAIConfigs();

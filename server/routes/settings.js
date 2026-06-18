@@ -192,7 +192,7 @@ router.post('/settings-import', auth.requireRole('admin'), (req, res) => {
     // 通义千问：qwen_vl_api_key → ai_configs.providers.qwen.apiKeys
     if (data['qwen_vl_api_key']) {
       var vlKey = String(data['qwen_vl_api_key']).trim();
-      if (vlKey && vlKey !== 'sk-ad9a93ab29e34635a92b75fd2d751f81') {
+      if (vlKey) {
         if (!aiCfg.providers) aiCfg.providers = {};
         if (!aiCfg.providers.qwen) aiCfg.providers.qwen = {};
         if (!aiCfg.providers.qwen.apiKeys) aiCfg.providers.qwen.apiKeys = [];

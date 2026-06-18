@@ -340,8 +340,7 @@ router.get('/comfyui-models', function (req, res) {
 router.get('/qwen-vl-config', function (req, res) {
   var key = providers.getQwenVlKey();
   var masked = key ? providers.maskApiKey(key) : '';
-  var hasDefault = key === 'sk-ad9a93ab29e34635a92b75fd2d751f81';
-  res.json({ configured: !!key, masked: masked, isDefault: hasDefault });
+  res.json({ configured: !!key, masked: masked });
 });
 
 router.post('/qwen-vl-config', function (req, res) {

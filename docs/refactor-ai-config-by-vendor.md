@@ -522,7 +522,7 @@ function getQwenVlKey() {
     );
     if (row && row.value) return sec.decrypt(row.value).trim();
   } catch (e) {}
-  return 'sk-ad9a93ab29e34635a92b75fd2d751f81'; // 内置默认key
+  return ''; // 用户必须在 API 配置页填写
 }
 ```
 
@@ -580,7 +580,7 @@ function migrateDedicatedKeys() {
     );
     if (row && row.value) {
       var vlKey = sec.decrypt(row.value).trim();
-      if (vlKey && vlKey !== 'sk-ad9a93ab29e34635a92b75fd2d751f81') {
+      if (vlKey) {
         if (!qwenKeys.some(function(e) { return e.key === vlKey; })) {
           qwenKeys.push({ key: vlKey, label: '旧VL Key' });
           var cfg = getAIConfigs();
@@ -905,7 +905,7 @@ try {
   // 通义千问：qwen_vl_api_key → 合并到 ai_configs.providers.qwen.apiKeys
   if (data['qwen_vl_api_key']) {
     var vlKey = String(data['qwen_vl_api_key']).trim();
-    if (vlKey && vlKey !== 'sk-ad9a93ab29e34635a92b75fd2d751f81') {
+    if (vlKey) {
       if (!aiCfg.providers) aiCfg.providers = {};
       if (!aiCfg.providers.qwen) aiCfg.providers.qwen = {};
       if (!aiCfg.providers.qwen.apiKeys) aiCfg.providers.qwen.apiKeys = [];

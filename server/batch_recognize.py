@@ -12,7 +12,8 @@ from datetime import datetime
 from pathlib import Path
 
 # ============ CONFIG ============
-API_KEY = "sk-ad9a93ab29e34635a92b75fd2d751f81"
+# 历史泄露 key 已撤销，必须从环境变量读，不再硬编码
+API_KEY = os.environ.get("DASHSCOPE_API_KEY", "")
 MODEL = "qwen-vl-plus"
 BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
 DEFAULT_PROMPT = (
