@@ -1,0 +1,919 @@
+(function () {
+  if (window.__dxmImageEditor) return;
+  window.__dxmImageEditor = true;
+
+  var POS_KEY = '__dxm_editor_toolbar_pos';
+  var VIS_KEY = '__dxm_editor_btn_vis';
+
+  // 按钮标签配置（用于下拉菜单显示）
+  var BTN_LABELS = {
+    crop: '裁剪', resize: '调整尺寸',
+    erase: '消除笔', eraseRect: '框选消除',
+    pad: '图片补白',
+    mosaic: '马赛克笔', mosaicRect: '马赛克矩形', mosaicCircle: '马赛克圆形',
+    ruler: '标尺', watermark: '我的水印', flip: '批量翻转'
+  };
+
+  // ========== DOM ==========
+  var toolbar = document.createElement('div');
+  toolbar.id = '__dxm_editor_toolbar';
+  toolbar.innerHTML = `
+    <div class="__dxm_editor_drag" title="拖动移动位置">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
+        <circle cx="4" cy="3" r="1.5"/><circle cx="10" cy="3" r="1.5"/>
+        <circle cx="4" cy="7" r="1.5"/><circle cx="10" cy="7" r="1.5"/>
+        <circle cx="4" cy="11" r="1.5"/><circle cx="10" cy="11" r="1.5"/>
+      </svg>
+    </div>
+    <div class="__dxm_editor_dropdown"></div>
+    <div class="__dxm_editor_btn" data-action="crop" title="裁剪/旋转">
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 1v12h12M13 15V3H1"/></svg>
+      <span>裁剪</span>
+    </div>
+    <div class="__dxm_editor_sep"></div>
+    <div class="__dxm_editor_btn" data-action="resize" title="调整尺寸">
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 1h6v6H1zM9 9h6v6H9z"/><path d="M7 4h5v5"/></svg>
+      <span>调整尺寸</span>
+    </div>
+    <div class="__dxm_editor_sep"></div>
+    <div class="__dxm_editor_btn" data-action="erase" title="AI消除笔 - 涂抹去除水印/文字">
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 14l2-2L13 3l1 1L5 13l-2 1z"/><path d="M11 2l2 2"/></svg>
+      <span>消除笔</span>
+    </div>
+    <div class="__dxm_editor_btn" data-action="eraseRect" title="框选消除 - 框选区域自动去除">
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="1"/><path d="M5 5l6 6M11 5l-6 6"/></svg>
+      <span>框选消除</span>
+    </div>
+    <div class="__dxm_editor_sep"></div>
+    <div class="__dxm_editor_btn" data-action="pad" title="图片补白">
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="1"/><rect x="5" y="5" width="6" height="6" rx=".5"/></svg>
+      <span>图片补白</span>
+    </div>
+    <div class="__dxm_editor_sep"></div>
+    <div class="__dxm_editor_btn" data-action="mosaic" title="马赛克笔 - 涂抹添加马赛克">
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="1" width="6" height="6" rx=".5"/><rect x="9" y="1" width="6" height="6" rx=".5"/><rect x="1" y="9" width="6" height="6" rx=".5"/><rect x="9" y="9" width="6" height="6" rx=".5"/></svg>
+      <span>马赛克笔</span>
+    </div>
+    <div class="__dxm_editor_btn" data-action="mosaicRect" title="马赛克矩形 - 框选区域添加马赛克">
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="1"/><rect x="5" y="5" width="6" height="6" rx=".5"/></svg>
+      <span>马赛克矩形</span>
+    </div>
+    <div class="__dxm_editor_btn" data-action="mosaicCircle" title="马赛克圆形 - 圆形区域添加马赛克">
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="1"/><circle cx="8" cy="8" r="3.5"/></svg>
+      <span>马赛克圆形</span>
+    </div>
+    <div class="__dxm_editor_sep"></div>
+    <div class="__dxm_editor_btn" data-action="ruler" title="显示/隐藏标尺参考线">
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="4" width="14" height="8" rx="1"/><path d="M4 4v3M7 4v5M10 4v3M13 4v5"/></svg>
+      <span>标尺</span>
+    </div>
+    <div class="__dxm_editor_sep"></div>
+    <div class="__dxm_editor_btn" data-action="watermark" title="我的水印 - 批量添加水印">
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2C5 2 2 5 2 8s3 6 6 6 6-3 6-6-3-6-6-6z"/><path d="M6 8h4M8 6v4"/></svg>
+      <span>我的水印</span>
+    </div>
+    <div class="__dxm_editor_sep"></div>
+    <div class="__dxm_editor_btn" data-action="flip" title="批量水平翻转图片">
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1v14M5 4L2 8l3 4M11 4l3 4-3 4"/></svg>
+      <span>批量翻转</span>
+    </div>`;
+
+  // ========== Styles ==========
+  var style = document.createElement('style');
+  style.textContent = `
+    #__dxm_editor_toolbar {
+      position: fixed; z-index: 2147483647;
+      display: flex; align-items: center; gap: 2px;
+      padding: 6px 8px;
+      background: rgba(255,255,255,0.88);
+      backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(0,0,0,0.08);
+      border-radius: 28px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.06);
+      font-family: -apple-system, "Microsoft YaHei", "PingFang SC", sans-serif;
+      font-size: 13px; color: #333;
+      user-select: none;
+      transition: box-shadow .2s, transform .15s;
+    }
+    #__dxm_editor_toolbar:hover {
+      box-shadow: 0 6px 28px rgba(0,0,0,0.14), 0 2px 6px rgba(0,0,0,0.08);
+    }
+    #__dxm_editor_toolbar.__dxm_dragging {
+      box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+      transform: scale(1.02);
+      cursor: grabbing;
+    }
+    #__dxm_editor_toolbar * { margin: 0; padding: 0; box-sizing: border-box; }
+    #__dxm_editor_toolbar .__dxm_editor_sep { margin: 0 6px; }
+    .__dxm_editor_drag {
+      display: flex; align-items: center; justify-content: center;
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      color: #aaa;
+      cursor: grab;
+      transition: background .15s, color .15s;
+      flex-shrink: 0;
+    }
+    .__dxm_editor_drag:hover { background: rgba(0,0,0,0.06); color: #666; }
+    .__dxm_editor_btn {
+      display: flex; align-items: center; gap: 5px;
+      padding: 7px 14px;
+      border-radius: 20px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background .15s, transform .15s, color .15s;
+      font-size: 13px; font-weight: 500;
+      color: #555;
+    }
+    .__dxm_editor_btn:hover {
+      background: rgba(0,0,0,0.05);
+      color: #222;
+      transform: scale(1.04);
+    }
+    .__dxm_editor_btn:active {
+      transform: scale(0.97);
+      background: rgba(0,0,0,0.08);
+    }
+    .__dxm_editor_btn.__active {
+      background: rgba(64,158,255,0.12);
+      color: #409eff;
+    }
+    .__dxm_editor_btn.__working {
+      background: rgba(255,160,0,0.12);
+      color: #e6a23c;
+      pointer-events: none;
+    }
+    .__dxm_editor_sep {
+      width: 1px; height: 18px;
+      background: rgba(0,0,0,0.10);
+      margin: 0 6px;
+      flex-shrink: 0;
+    }
+    .__dxm_editor_toast {
+      position: fixed; top: 60px; left: 50%; transform: translateX(-50%);
+      z-index: 2147483647;
+      padding: 10px 24px;
+      background: rgba(48,48,48,0.88);
+      backdrop-filter: blur(8px);
+      color: #fff; font-size: 13px;
+      border-radius: 20px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      opacity: 0; transition: opacity .3s, top .3s;
+      pointer-events: none;
+    }
+    .__dxm_editor_toast.show { opacity: 1; top: 52px; }
+    .__dxm_editor_dropdown {
+      position: absolute; top: calc(100% + 10px); left: 0;
+      min-width: 160px;
+      background: #fff;
+      border: 1px solid rgba(0,0,0,0.06);
+      border-radius: 12px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.13), 0 1px 4px rgba(0,0,0,0.06);
+      padding: 8px 6px;
+      display: none;
+      z-index: 10;
+    }
+    .__dxm_editor_dropdown.show { display: block; }
+    .__dxm_editor_dropdown .dd-title {
+      font-size: 11px; color: #aaa; padding: 2px 10px 8px;
+      letter-spacing: .3px; font-weight: 500;
+    }
+    .__dxm_editor_dropdown label {
+      display: flex; align-items: center; gap: 10px;
+      padding: 7px 10px;
+      margin-bottom: 2px;
+      border-radius: 8px;
+      font-size: 13px; color: #333;
+      cursor: pointer;
+      transition: background .12s;
+    }
+    .__dxm_editor_dropdown label:last-child { margin-bottom: 0; }
+    .__dxm_editor_dropdown label:hover { background: #f0f5ff; }
+    .__dxm_editor_dropdown .ck-box {
+      width: 16px; height: 16px;
+      border: 1.5px solid #ccc;
+      border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+      transition: all .15s;
+      flex-shrink: 0;
+    }
+    .__dxm_editor_dropdown label:hover .ck-box { border-color: #409eff; }
+    .__dxm_editor_dropdown input:checked + .ck-box {
+      background: #409eff; border-color: #409eff;
+    }
+    .__dxm_editor_dropdown input:checked + .ck-box::after {
+      content: ''; width: 4px; height: 7px;
+      border: solid #fff; border-width: 0 1.5px 1.5px 0;
+      transform: rotate(45deg); margin-top: -1px;
+    }
+    .__dxm_editor_dropdown input { display: none; }
+    .__dxm_editor_btn + .__dxm_editor_btn { margin-left: 2px; }
+  `;
+
+  document.head.appendChild(style);
+  document.body.appendChild(toolbar);
+
+  // ========== 位置恢复 ==========
+  function applyPos(left, top) {
+    toolbar.style.left = left + 'px';
+    toolbar.style.top = top + 'px';
+    toolbar.style.transform = 'none';
+  }
+
+  function savePos() {
+    var rect = toolbar.getBoundingClientRect();
+    try { localStorage.setItem(POS_KEY, JSON.stringify({ left: rect.left, top: rect.top })); } catch (e) {}
+  }
+
+  function restorePos() {
+    try {
+      var saved = JSON.parse(localStorage.getItem(POS_KEY));
+      if (saved && typeof saved.left === 'number' && typeof saved.top === 'number') {
+        applyPos(saved.left, saved.top);
+        return;
+      }
+    } catch (e) {}
+    // 默认顶部居中
+    requestAnimationFrame(function () {
+      var w = toolbar.offsetWidth;
+      applyPos((window.innerWidth - w) / 2, 12);
+    });
+  }
+
+  restorePos();
+
+  // ========== 拖动 + 下拉菜单 ==========
+  var dragging = false, dragMoved = false;
+  var startX, startY, origX, origY;
+  var dropdown = toolbar.querySelector('.__dxm_editor_dropdown');
+  var dropdownOpen = false;
+
+  var handle = toolbar.querySelector('.__dxm_editor_drag');
+
+  handle.addEventListener('mousedown', function (e) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    dragging = true;
+    dragMoved = false;
+    startX = e.clientX;
+    startY = e.clientY;
+    var rect = toolbar.getBoundingClientRect();
+    origX = rect.left;
+    origY = rect.top;
+    toolbar.classList.add('__dxm_dragging');
+  });
+
+  document.addEventListener('mousemove', function (e) {
+    if (!dragging) return;
+    var dx = e.clientX - startX;
+    var dy = e.clientY - startY;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dragMoved = true;
+    if (!dragMoved) return;
+    if (dropdownOpen) { dropdown.classList.remove('show'); dropdownOpen = false; }
+    var maxX = window.innerWidth - toolbar.offsetWidth;
+    var maxY = window.innerHeight - toolbar.offsetHeight;
+    var nx = Math.max(0, Math.min(maxX, origX + dx));
+    var ny = Math.max(0, Math.min(maxY, origY + dy));
+    applyPos(nx, ny);
+  });
+
+  document.addEventListener('mouseup', function () {
+    if (!dragging) return;
+    dragging = false;
+    toolbar.classList.remove('__dxm_dragging');
+    if (dragMoved) {
+      savePos();
+    } else {
+      toggleDropdown();
+    }
+  });
+
+  // 点击外部关闭下拉
+  document.addEventListener('mousedown', function (e) {
+    if (dropdownOpen && !toolbar.contains(e.target)) {
+      dropdown.classList.remove('show');
+      dropdownOpen = false;
+    }
+  });
+
+  // ========== 下拉菜单 ==========
+  function getBtnVis() {
+    try {
+      var saved = JSON.parse(localStorage.getItem(VIS_KEY));
+      if (saved && typeof saved === 'object') return saved;
+    } catch (e) {}
+    return null;
+  }
+
+  function saveBtnVis(vis) {
+    try { localStorage.setItem(VIS_KEY, JSON.stringify(vis)); } catch (e) {}
+  }
+
+  function buildDropdown() {
+    var html = '<div class="dd-title">显示按钮</div>';
+    var keys = Object.keys(BTN_LABELS);
+    var vis = getBtnVis();
+    keys.forEach(function (key) {
+      var checked = vis ? !!vis[key] : true;
+      html += '<label><input type="checkbox" data-vis="' + key + '"' + (checked ? ' checked' : '') + '><span class="ck-box"></span>' + BTN_LABELS[key] + '</label>';
+    });
+    dropdown.innerHTML = html;
+    // 绑定 change 事件
+    dropdown.querySelectorAll('input[type="checkbox"]').forEach(function (cb) {
+      cb.addEventListener('change', function () {
+        applyBtnVisibility();
+      });
+    });
+  }
+
+  function toggleDropdown() {
+    if (dropdownOpen) {
+      dropdown.classList.remove('show');
+      dropdownOpen = false;
+    } else {
+      buildDropdown();
+      // 定位到拖动按钮下方
+      var handleRect = handle.getBoundingClientRect();
+      var tbRect = toolbar.getBoundingClientRect();
+      dropdown.style.left = (handleRect.left - tbRect.left) + 'px';
+      dropdown.classList.add('show');
+      dropdownOpen = true;
+    }
+  }
+
+  function applyBtnVisibility() {
+    var vis = {};
+    dropdown.querySelectorAll('input[type="checkbox"]').forEach(function (cb) {
+      var key = cb.getAttribute('data-vis');
+      vis[key] = cb.checked;
+      var btn = toolbar.querySelector('[data-action="' + key + '"]');
+      if (btn) btn.style.display = cb.checked ? '' : 'none';
+    });
+    updateSeparators();
+    saveBtnVis(vis);
+  }
+
+  // 分隔线：每对相邻可见按钮之间只显示第一个分隔线
+  function updateSeparators() {
+    var children = Array.prototype.slice.call(toolbar.children);
+    // 先隐藏所有分隔线
+    for (var i = 0; i < children.length; i++) {
+      if (children[i].classList.contains('__dxm_editor_sep')) children[i].style.display = 'none';
+    }
+    // 找到每对相邻可见按钮，显示它们之间的第一个分隔线
+    var lastBtnIdx = -1;
+    for (var i = 0; i < children.length; i++) {
+      var el = children[i];
+      if (el.classList.contains('__dxm_editor_drag') || el.classList.contains('__dxm_editor_dropdown') || el.classList.contains('__dxm_editor_sep')) continue;
+      if (el.style.display === 'none') continue;
+      if (lastBtnIdx >= 0) {
+        for (var j = lastBtnIdx + 1; j < i; j++) {
+          if (children[j].classList.contains('__dxm_editor_sep')) {
+            children[j].style.display = '';
+            break;
+          }
+        }
+      }
+      lastBtnIdx = i;
+    }
+  }
+
+  // 初始化按钮可见性
+  function initBtnVisibility() {
+    var vis = getBtnVis();
+    if (!vis) return;
+    var keys = Object.keys(BTN_LABELS);
+    keys.forEach(function (key) {
+      if (!vis[key]) {
+        var btn = toolbar.querySelector('[data-action="' + key + '"]');
+        if (btn) btn.style.display = 'none';
+      }
+    });
+    updateSeparators();
+  }
+
+  initBtnVisibility();
+
+  // ========== Toast ==========
+  var toastEl = document.createElement('div');
+  toastEl.className = '__dxm_editor_toast';
+  document.body.appendChild(toastEl);
+  var toastTimer = null;
+
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.classList.remove('show'); }, 2000);
+  }
+
+  // ========== 工具分类 ==========
+  // 调整 tab: 裁剪/旋转、调整尺寸、消除笔/框选消除、图片补白、马赛克(笔/矩形/圆形)、标尺、批量翻转
+  // 水印 tab: 我的水印
+  var TOOL_TAB = {
+    crop:         { tab: 'Adjust',   module: '裁剪/旋转', defaultSize: '1000 x 1000' },
+    resize:       { tab: 'Adjust',   module: '调整尺寸', defaultSize: '800 x 800' },
+    erase:        { tab: 'Adjust',   module: '消除笔',   shapeIcon: '.icon-shape_5' },
+    eraseRect:    { tab: 'Adjust',   module: '消除笔',   shapeIcon: '.icon-shape_1' },
+    pad:          { tab: 'Adjust',   module: '图片补白' },
+    mosaic:       { tab: 'Adjust',   module: '马赛克',   shapeIcon: '.icon-shape_5' },
+    mosaicRect:   { tab: 'Adjust',   module: '马赛克',   shapeIcon: '.icon-shape_1' },
+    mosaicCircle: { tab: 'Adjust',   module: '马赛克',   shapeIcon: '.icon-shape_2' },
+    ruler:        { tab: 'Adjust',   module: '标尺' },
+    flip:         { tab: 'Adjust',   module: null },        // 批量翻转走独立流程
+    watermark:    { tab: 'Watermark', module: null }         // 我的水印走独立流程
+  };
+
+  // ========== Helpers ==========
+  function $(sel) { return document.querySelector(sel); }
+  function $$(sel) { return document.querySelectorAll(sel); }
+
+  function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  // 轮询等待元素出现，最多等 maxMs，每 intervalMs 检查一次
+  function waitFor(selector, maxMs, intervalMs) {
+    maxMs = maxMs || 3000;
+    intervalMs = intervalMs || 100;
+    return new Promise(function (resolve) {
+      var el = document.querySelector(selector);
+      if (el) return resolve(el);
+      var start = Date.now();
+      var timer = setInterval(function () {
+        el = document.querySelector(selector);
+        if (el || Date.now() - start > maxMs) {
+          clearInterval(timer);
+          resolve(el || null);
+        }
+      }, intervalMs);
+    });
+  }
+
+  // 轮询等待模块出现
+  function waitForModule(name, maxMs) {
+    maxMs = maxMs || 3000;
+    return new Promise(function (resolve) {
+      var mod = findModuleByName(name);
+      if (mod) return resolve(mod);
+      var start = Date.now();
+      var timer = setInterval(function () {
+        mod = findModuleByName(name);
+        if (mod || Date.now() - start > maxMs) {
+          clearInterval(timer);
+          resolve(mod || null);
+        }
+      }, 100);
+    });
+  }
+
+  function click(el) {
+    if (!el) return false;
+    el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    return true;
+  }
+
+  // 等待编辑器页面渲染完成
+  async function waitForEditor(maxMs) {
+    maxMs = maxMs || 10000;
+    var el = await waitFor('.side_tools .tools .tool', maxMs);
+    if (!el) console.error(LOG, '等待编辑器超时(' + maxMs + 'ms)');
+    return !!el;
+  }
+
+  // 等待图片切换完成（通过 body 的 loading 类判断）
+  async function waitForImageLoad(maxMs) {
+    maxMs = maxMs || 5000;
+    var start = Date.now();
+    // 先等 loading 出现
+    while (!document.body.classList.contains('el-loading-parent--hidden')) {
+      if (Date.now() - start > 1000) break; // 最多等1秒loading出现
+      await wait(50);
+    }
+    // 再等 loading 消失
+    while (document.body.classList.contains('el-loading-parent--hidden')) {
+      if (Date.now() - start > maxMs) break;
+      await wait(50);
+    }
+  }
+
+  function findModuleByName(name) {
+    var modules = $$('.side_tools .content .module');
+    for (var i = 0; i < modules.length; i++) {
+      var nameEl = modules[i].querySelector('.name');
+      if (nameEl && nameEl.textContent.trim() === name) return modules[i];
+    }
+    return null;
+  }
+
+  // ========== 批量翻转 ==========
+  var isWorking = false;
+  var LOG = '[小秘美图]';
+
+  function updateFlipProgress(current, total) {
+    var btn = toolbar.querySelector('[data-action="flip"] span');
+    if (btn) btn.textContent = current + '/' + total;
+  }
+
+  async function doBatchFlip() {
+    if (isWorking) return;
+    isWorking = true;
+    var flipBtn = toolbar.querySelector('[data-action="flip"]');
+    flipBtn.classList.add('__working');
+    console.log(LOG, '===== 批量翻转开始 =====');
+
+    if (!(await waitForEditor())) {
+      toast('编辑器未加载完成');
+      flipBtn.classList.remove('__working');
+      isWorking = false;
+      return;
+    }
+
+    // 调试：测试各种选择器
+    console.log(LOG, 'querySelectorAll .side_tools:', document.querySelectorAll('.side_tools').length);
+    console.log(LOG, 'querySelectorAll .side_tools .tools:', document.querySelectorAll('.side_tools .tools').length);
+    console.log(LOG, 'querySelectorAll .side_tools .tools .tool:', document.querySelectorAll('.side_tools .tools .tool').length);
+    console.log(LOG, 'querySelectorAll .tool.Adjust:', document.querySelectorAll('.tool.Adjust').length);
+    console.log(LOG, 'querySelector .img_list:', document.querySelector('.img_list'));
+    console.log(LOG, 'querySelectorAll .img_list img:', document.querySelectorAll('.img_list img').length);
+
+    // 1. 点击左侧"调整"tab
+    var adjustTab = $('.side_tools .tools .tool.Adjust');
+    console.log(LOG, '调整tab:', adjustTab ? '找到' : '未找到', adjustTab && adjustTab.classList.contains('selected') ? '(已选中)' : '(未选中)');
+    if (!adjustTab || !adjustTab.classList.contains('selected')) {
+      click(adjustTab);
+      console.log(LOG, '点击调整tab, 等待内容加载...');
+      await waitFor('.side_tools .content .module', 3000);
+    }
+
+    // 2. 等待右侧图片列表出现
+    console.log(LOG, '等待图片列表...');
+    await waitFor('.img_list img', 5000);
+
+    // 3. 获取右侧图片列表
+    var imgs = $$('.img_list .type .value img');
+    var total = imgs.length;
+    console.log(LOG, '图片列表:', total, '张', imgs.length > 0 ? '第一张src=' + (imgs[0].src || '').substring(0, 60) + '...' : '');
+    if (!total) {
+      toast('未找到图片');
+      flipBtn.classList.remove('__working');
+      isWorking = false;
+      return;
+    }
+
+    toast('开始批量翻转 ' + total + ' 张图片');
+
+    for (var i = 0; i < total; i++) {
+      updateFlipProgress(i + 1, total);
+
+      // 重新获取图片列表（DOM可能刷新）
+      var currentImgs = $$('.img_list .type .value img');
+      if (i >= currentImgs.length) { console.warn(LOG, '图片列表变短, 跳出'); break; }
+
+      // 点击第i张图片
+      console.log(LOG, '[' + (i + 1) + '/' + total + '] 点击图片');
+      click(currentImgs[i]);
+      await waitForImageLoad(5000);
+      await wait(100);
+
+      // 等待"裁剪/旋转"出现
+      var cropModule = await waitForModule('裁剪/旋转', 3000);
+      if (!cropModule) { console.error(LOG, '未找到裁剪/旋转模块'); toast('未找到裁剪/旋转'); break; }
+      var cropOpen = cropModule.querySelector('.open');
+      console.log(LOG, '[' + (i + 1) + '/' + total + '] 点击裁剪/旋转');
+      click(cropOpen);
+
+      // 等待翻转按钮出现
+
+      // 等待翻转按钮出现
+      var flipIcon = await waitFor('.icon_btns .icon-flip_h', 3000);
+      if (!flipIcon) {
+        console.warn(LOG, 'icon-flip_h未找到, 尝试兜底');
+        var iconBtns = $('.icon_btns');
+        if (iconBtns) {
+          var spans = iconBtns.querySelectorAll('span');
+          console.log(LOG, 'icon_btns下span数量:', spans.length);
+          if (spans.length >= 3) flipIcon = spans[2];
+        }
+      }
+      if (flipIcon) {
+        console.log(LOG, '[' + (i + 1) + '/' + total + '] 点击翻转');
+        click(flipIcon);
+        await wait(200);
+      } else {
+        console.warn(LOG, '[' + (i + 1) + '/' + total + '] 未找到翻转按钮');
+      }
+    }
+
+    // 全部完成后关闭裁剪面板
+    var lastCropModule = findModuleByName('裁剪/旋转');
+    if (lastCropModule) {
+      var lastCropOpen = lastCropModule.querySelector('.open');
+      if (lastCropOpen) click(lastCropOpen);
+    }
+
+    updateFlipProgress();
+    var flipBtnSpan = toolbar.querySelector('[data-action="flip"] span');
+    if (flipBtnSpan) flipBtnSpan.textContent = '批量翻转';
+
+    console.log(LOG, '===== 批量翻转完成 =====');
+    toast('批量翻转完成 ' + total + ' 张');
+    flipBtn.classList.remove('__working');
+    isWorking = false;
+  }
+
+  // ========== 我的水印 ==========
+  async function doMyWatermark() {
+    console.log(LOG, '===== 我的水印 =====');
+    if (!(await waitForEditor())) { toast('编辑器未加载完成'); return; }
+    // 切换到水印tab，清除所有调整工具按钮的选中状态
+    toolbar.querySelectorAll('.__dxm_editor_btn.__active').forEach(function (b) { b.classList.remove('__active'); });
+    // 1. 点击"水印"tab
+    var watermarkTab = $('.side_tools .tools .tool.Watermark');
+    console.log(LOG, '水印tab:', watermarkTab ? '找到' : '未找到');
+    if (!watermarkTab || !watermarkTab.classList.contains('selected')) {
+      click(watermarkTab);
+      await waitFor('.side_tools .content .el-radio-button', 3000);
+      await wait(50);
+    }
+
+    // 2. 点击"我的" radio
+    var radios = $$('.side_tools .content .el-radio-button');
+    console.log(LOG, 'radio按钮数量:', radios.length);
+    var myRadio = null;
+    for (var i = 0; i < radios.length; i++) {
+      var inner = radios[i].querySelector('.el-radio-button__inner');
+      console.log(LOG, 'radio[' + i + ']:', inner ? inner.textContent.trim() : '(空)');
+      if (inner && inner.textContent.trim() === '我的') {
+        myRadio = radios[i];
+        break;
+      }
+    }
+    if (myRadio && !myRadio.classList.contains('is-active')) {
+      console.log(LOG, '点击"我的"radio');
+      click(myRadio.querySelector('.el-radio-button__inner'));
+      await wait(50);
+    } else {
+      console.log(LOG, '"我的"已选中或未找到');
+    }
+  }
+
+  // ========== 消除笔/框选消除/马赛克（共享模块，需要先判断展开状态再点击子元素） ==========
+  var SHAPE_ACTIONS = ['erase', 'eraseRect', 'mosaic', 'mosaicRect', 'mosaicCircle'];
+  async function clickShapeTool(action) {
+    var info = TOOL_TAB[action];
+    var moduleName = info ? info.module : '';
+    var shapeIcon = info ? info.shapeIcon : '';
+    console.log(LOG, '===== ' + BTN_LABELS[action] + ' =====');
+    if (!(await waitForEditor())) { toast('编辑器未加载完成'); return; }
+    var adjustTab = $('.side_tools .tools .tool.Adjust');
+    if (!adjustTab || !adjustTab.classList.contains('selected')) {
+      console.log(LOG, '点击Adjust tab');
+      click(adjustTab);
+      await waitFor('.side_tools .content .module', 3000);
+      await wait(50);
+    }
+    var mod = await waitForModule(moduleName, 3000);
+    console.log(LOG, '模块:', mod ? '找到' : '未找到', '| 子元素:', shapeIcon || '无');
+    if (!mod) { toast('未找到' + moduleName + '模块'); return; }
+    var isOpen = !!mod.querySelector('.parameter');
+    var toolbarBtn = toolbar.querySelector('[data-action="' + action + '"]');
+    console.log(LOG, 'isOpen:', isOpen, 'toolbarBtn active:', toolbarBtn ? toolbarBtn.classList.contains('__active') : 'N/A');
+
+    // 清除其他调整工具按钮的选中状态
+    var adjustActions = Object.keys(TOOL_TAB).filter(function (a) { return TOOL_TAB[a].tab === 'Adjust' && a !== action; });
+    adjustActions.forEach(function (a) {
+      var otherBtn = toolbar.querySelector('[data-action="' + a + '"]');
+      if (otherBtn) otherBtn.classList.remove('__active');
+    });
+
+    var needScroll = true;
+    if (isOpen) {
+      if (toolbarBtn && toolbarBtn.classList.contains('__active')) {
+        console.log(LOG, '收起模块');
+        var openEl = mod.querySelector('.open');
+        click(openEl);
+        toolbarBtn.classList.remove('__active');
+        needScroll = false;
+      } else {
+        console.log(LOG, '模块已开，点击子元素:', shapeIcon);
+        if (shapeIcon) {
+          var shapeBtn = mod.querySelector('.shape_btns ' + shapeIcon);
+          console.log(LOG, '子元素:', shapeBtn ? '找到，点击' : '未找到');
+          if (shapeBtn) click(shapeBtn);
+        }
+        if (toolbarBtn) toolbarBtn.classList.add('__active');
+      }
+    } else {
+      console.log(LOG, '模块未开，展开后点击子元素:', shapeIcon);
+      var openEl = mod.querySelector('.open');
+      click(openEl);
+      await wait(150);
+      mod = await waitForModule(moduleName, 3000);
+      console.log(LOG, '重新获取模块:', mod ? '找到' : '未找到');
+      if (mod && shapeIcon) {
+        var shapeBtn = mod.querySelector('.shape_btns ' + shapeIcon);
+        console.log(LOG, '子元素:', shapeBtn ? '找到，点击' : '未找到');
+        if (shapeBtn) click(shapeBtn);
+      }
+      if (toolbarBtn) toolbarBtn.classList.add('__active');
+    }
+
+    // 滚动到模块可见
+    if (needScroll) {
+      var content = $('.side_tools .content');
+      if (content && mod) {
+        var contentTop = content.getBoundingClientRect().top;
+        var modTop = mod.getBoundingClientRect().top;
+        content.scrollTop += modTop - contentTop;
+      }
+    }
+    console.log(LOG, '完成');
+  }
+
+  // ========== 裁剪/调整尺寸（打开后自动选择默认尺寸） ==========
+  var BLOCK_ACTIONS = ['crop', 'resize'];
+  async function clickBlockTool(action) {
+    var info = TOOL_TAB[action];
+    var moduleName = info ? info.module : '';
+    var defaultSize = info ? info.defaultSize : '';
+    console.log(LOG, '===== ' + moduleName + ' =====');
+    if (!(await waitForEditor())) { toast('编辑器未加载完成'); return; }
+    var adjustTab = $('.side_tools .tools .tool.Adjust');
+    if (!adjustTab || !adjustTab.classList.contains('selected')) {
+      console.log(LOG, '点击Adjust tab');
+      click(adjustTab);
+      await waitFor('.side_tools .content .module', 3000);
+      await wait(50);
+    }
+    var mod = await waitForModule(moduleName, 3000);
+    console.log(LOG, '模块:', mod ? '找到' : '未找到', mod);
+    if (!mod) { toast('未找到' + moduleName + '模块'); return; }
+    var isOpen = !!mod.querySelector('.parameter');
+    var toolbarBtn = toolbar.querySelector('[data-action="' + action + '"]');
+    console.log(LOG, 'isOpen:', isOpen, 'toolbarBtn active:', toolbarBtn ? toolbarBtn.classList.contains('__active') : 'N/A');
+
+    // 清除其他调整工具按钮的选中状态
+    var adjustActions = Object.keys(TOOL_TAB).filter(function (a) { return TOOL_TAB[a].tab === 'Adjust' && a !== action; });
+    adjustActions.forEach(function (a) {
+      var otherBtn = toolbar.querySelector('[data-action="' + a + '"]');
+      if (otherBtn) otherBtn.classList.remove('__active');
+    });
+
+    var needScroll = true;
+    if (isOpen) {
+      if (toolbarBtn && toolbarBtn.classList.contains('__active')) {
+        console.log(LOG, '收起模块');
+        var openEl = mod.querySelector('.open');
+        click(openEl);
+        toolbarBtn.classList.remove('__active');
+        needScroll = false;
+      } else {
+        console.log(LOG, '模块已开，点击尺寸:', defaultSize);
+        if (toolbarBtn) toolbarBtn.classList.add('__active');
+        if (defaultSize) await clickBlockSize(mod, defaultSize);
+        if (action === 'resize') await clickResizeApply(mod);
+      }
+    } else {
+      console.log(LOG, '模块未开，展开后点击尺寸:', defaultSize);
+      var openEl = mod.querySelector('.open');
+      click(openEl);
+      await wait(150);
+      mod = await waitForModule(moduleName, 3000);
+      console.log(LOG, '重新获取模块:', mod ? '找到' : '未找到');
+      if (toolbarBtn) toolbarBtn.classList.add('__active');
+      if (mod && defaultSize) await clickBlockSize(mod, defaultSize);
+      if (mod && action === 'resize') await clickResizeApply(mod);
+    }
+
+    // 滚动到模块可见
+    if (needScroll) {
+      var content = $('.side_tools .content');
+      if (content && mod) {
+        var contentTop = content.getBoundingClientRect().top;
+        var modTop = mod.getBoundingClientRect().top;
+        content.scrollTop += modTop - contentTop;
+      }
+    }
+  }
+
+  async function clickBlockSize(mod, sizeText) {
+    var start = Date.now();
+    var blocks;
+    while (true) {
+      blocks = mod.querySelectorAll('.block_form .block');
+      if (blocks.length > 0) break;
+      if (Date.now() - start > 2000) {
+        console.log(LOG, 'clickBlockSize: 超时，未找到block');
+        return;
+      }
+      await wait(50);
+    }
+    console.log(LOG, 'clickBlockSize: 找到', blocks.length, '个block');
+    for (var i = 0; i < blocks.length; i++) {
+      var txt = (blocks[i].textContent || '');
+      console.log(LOG, 'block[' + i + ']:', txt.trim().substring(0, 30), 'selected:', blocks[i].classList.contains('selected'));
+      if (txt.indexOf(sizeText) !== -1) {
+        if (!blocks[i].classList.contains('selected')) {
+          console.log(LOG, '点击block:', sizeText);
+          click(blocks[i]);
+        } else {
+          console.log(LOG, 'block已选中，跳过:', sizeText);
+        }
+        break;
+      }
+    }
+  }
+
+  async function clickResizeApply(mod) {
+    await wait(200);
+    var applyBtn = mod.querySelector('.footer_btns .el-button--primary');
+    console.log(LOG, '应用按钮:', applyBtn ? '找到，点击' : '未找到');
+    if (applyBtn) click(applyBtn);
+  }
+
+  // ========== 通用：点击左侧tab再点击子工具 ==========
+  // toolName 模块名, action 按钮的 data-action
+  async function clickAdjustTool(toolName, action) {
+    console.log(LOG, '===== ' + (BTN_LABELS[action] || toolName) + ' =====');
+    if (!(await waitForEditor())) { toast('编辑器未加载完成'); return; }
+    var adjustTab = $('.side_tools .tools .tool.Adjust');
+    if (!adjustTab || !adjustTab.classList.contains('selected')) {
+      console.log(LOG, '点击Adjust tab');
+      click(adjustTab);
+      await waitFor('.side_tools .content .module', 3000);
+      await wait(50);
+    }
+    var mod = await waitForModule(toolName, 3000);
+    console.log(LOG, '模块:', mod ? '找到' : '未找到');
+    if (!mod) { toast('未找到 ' + toolName); return; }
+    var isOpen = !!mod.querySelector('.parameter');
+    var toolbarBtn = toolbar.querySelector('[data-action="' + action + '"]');
+    console.log(LOG, 'isOpen:', isOpen, 'toolbarBtn active:', toolbarBtn ? toolbarBtn.classList.contains('__active') : 'N/A');
+
+    // 清除其他调整工具按钮的选中状态
+    var adjustActions = Object.keys(TOOL_TAB).filter(function (a) { return TOOL_TAB[a].tab === 'Adjust' && a !== action; });
+    adjustActions.forEach(function (a) {
+      if (a !== action) {
+        var otherBtn = toolbar.querySelector('[data-action="' + a + '"]');
+        if (otherBtn) otherBtn.classList.remove('__active');
+      }
+    });
+    var openEl = mod.querySelector('.open');
+    click(openEl);
+    if (isOpen) {
+      console.log(LOG, '收起模块');
+      if (toolbarBtn) toolbarBtn.classList.remove('__active');
+    } else {
+      console.log(LOG, '展开模块');
+      if (toolbarBtn) toolbarBtn.classList.add('__active');
+    }
+    await wait(50);
+    // 重新获取模块（点击.open后DOM可能重新渲染）
+    mod = await waitForModule(toolName, 1000);
+    var content = $('.side_tools .content');
+    if (content && mod) {
+      var contentTop = content.getBoundingClientRect().top;
+      var modTop = mod.getBoundingClientRect().top;
+      content.scrollTop += modTop - contentTop;
+    }
+    console.log(LOG, '完成');
+  }
+
+  // ========== 按钮事件 ==========
+  var btns = toolbar.querySelectorAll('.__dxm_editor_btn');
+  btns.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var action = btn.getAttribute('data-action');
+      var label = BTN_LABELS[action] || action;
+      console.log(LOG, '>>> 点击按钮:', label);
+      var info = TOOL_TAB[action];
+      if (!info) return;
+
+      if (BLOCK_ACTIONS.indexOf(action) !== -1) {
+        clickBlockTool(action);
+      } else if (SHAPE_ACTIONS.indexOf(action) !== -1) {
+        clickShapeTool(action);
+      } else if (info.module) {
+        clickAdjustTool(info.module, action);
+      } else if (action === 'flip') {
+        doBatchFlip();
+      } else if (action === 'watermark') {
+        doMyWatermark();
+      }
+    });
+  });
+
+  // ========== 图片列表点击：切换图片时清除工具栏选中状态 ==========
+  document.addEventListener('click', function (e) {
+    // 切换图片时清除选中
+    if (e.target.closest('.img_list .type .value img')) {
+      btns.forEach(function (b) { b.classList.remove('__active'); });
+      return;
+    }
+    // 切换侧边tab时清除选中（捕获阶段，在编辑器更新selected之前检测）
+    var tabEl = e.target.closest('.tools .tool');
+    if (tabEl && !tabEl.classList.contains('selected')) {
+      btns.forEach(function (b) { b.classList.remove('__active'); });
+    }
+  }, true);
+
+})();
