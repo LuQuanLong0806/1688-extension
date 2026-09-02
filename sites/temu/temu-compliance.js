@@ -31,7 +31,7 @@
     return new Promise(function (r) { setTimeout(r, ms); });
   }
 
-  // 轮询等待 fn() 返回真值, 超时返回 null
+  // 轮询等待 fn() 返回真值, 超时返回 null (50ms 粒度, 减少检测延迟)
   function waitFor(fn, timeout) {
     var start = Date.now();
     return new Promise(function (resolve) {
@@ -39,7 +39,7 @@
         var v = fn();
         if (v) return resolve(v);
         if (Date.now() - start > (timeout || 3000)) return resolve(null);
-        setTimeout(check, 100);
+        setTimeout(check, 50);
       })();
     });
   }
@@ -101,6 +101,12 @@
 
   function txt(el) {
     return ((el && el.textContent) || '').trim();
+  }
+
+  // 元素是否已在可视区 (在则跳过滚动定位, 省去滚动等待)
+  function inViewport(el) {
+    var r = el.getBoundingClientRect();
+    return r.top >= 0 && r.bottom <= window.innerHeight && r.left >= 0 && r.right <= window.innerWidth;
   }
 
   // ============ 抽屉/区块定位 ============
@@ -252,8 +258,10 @@
     log('商品规格下拉 → 点「全选」(#' + input.id + ')');
     var selectEl = input.closest('.rocket-select');
     var selector = selectEl.querySelector('.rocket-select-selector');
-    selector.scrollIntoView({ block: 'center' });
-    await sleep(150);
+    if (!inViewport(selector)) {
+      selector.scrollIntoView({ block: 'center' });
+      await sleep(80);
+    }
 
     var list = await openSelect(input);
     if (!list) return 'no-dropdown';
@@ -293,7 +301,7 @@
       return 'skip';
     }
     fireClick(allOpt);
-    await sleep(250);
+    await sleep(150);
     closeDropdownByBlank();
     log('→ 已点击「全选」');
     return 'ok';
@@ -330,8 +338,10 @@
       return 'skip';
     }
 
-    selector.scrollIntoView({ block: 'center' });
-    await sleep(150);
+    if (!inViewport(selector)) {
+      selector.scrollIntoView({ block: 'center' });
+      await sleep(80);
+    }
 
     var list = await openSelect(input);
     if (!list) return 'no-dropdown';
@@ -344,11 +354,11 @@
       if (!ok && !input.readOnly) {
         log('→ 直接匹配失败, 输入搜索关键字「' + target + '」');
         setInputValue(input, target);
-        await sleep(400);
+        await sleep(300);
         for (var tries = 0; tries < 4 && !ok; tries++) {
           list = findOpenedList(input) || await openSelect(input);
           if (list) ok = clickOption(list, target);
-          if (!ok) await sleep(350);
+          if (!ok) await sleep(300);
         }
         log(ok ? '→ 搜索后匹配成功' : '→ 搜索后仍未匹配到「' + target + '」');
       } else if (!ok) {
@@ -360,14 +370,14 @@
     }
 
     // 多选模式点完不自动收起 → 点抽屉空白处收起; 单选自动关闭
-    await sleep(150);
+    await sleep(60);
     if (selectEl.classList.contains('rocket-select-multiple')) closeDropdownByBlank();
 
-    // 校验 (轮询 700ms 等待选中标签渲染)
+    // 校验 (轮询 600ms 等待选中标签渲染)
     var vals = await waitFor(function () {
       var v = getSelectedValues(selector);
       return v.length > 0 ? v : null;
-    }, 700);
+    }, 600);
     vals = vals || [];
     var pass = target ? hasValue(vals, target) : vals.length > 0;
     if (pass) {
@@ -453,7 +463,7 @@
         skuNote = '规格下拉控件缺失!';
       }
       log('规格全选结果: ' + skuNote);
-      await sleep(250);
+      await sleep(150);
     }
 
     // 需填写信息列 = 第二列, 内含材料表格
@@ -500,7 +510,7 @@
       if (r === 'not-found' || r === 'no-dropdown') {
         return { ok: false, msg: pre + label + ': 「' + tasks[t].label + '」' + (r === 'no-dropdown' ? '下拉打不开' : '未找到「' + tasks[t].target + '」') };
       }
-      await sleep(250);
+      await sleep(150);
     }
 
     // 包装材料重量 (g)
@@ -513,20 +523,20 @@
         if (isNaN(cur) || Math.abs(cur - want) > 0.0001) {
           wInput.focus();
           setInputValue(wInput, CONFIG.pack.weight);
-          await sleep(100);
+          await sleep(80);
           wInput.dispatchEvent(new Event('blur', { bubbles: true }));
         }
       }
     }
 
     // 一键填充其他规格
-    await sleep(300);
+    await sleep(200);
     var btns = cells[2].querySelectorAll('button');
     for (var b = 0; b < btns.length; b++) {
       if (txt(btns[b]).indexOf('一键填充其他规格') !== -1) {
         log('→ 点击「一键填充其他规格」按钮');
         fireClick(btns[b]);
-        await sleep(400);
+        await sleep(250);
         return { ok: skuOk, msg: pre + label + ' ✓(已传播其他规格)' };
       }
     }
@@ -559,7 +569,7 @@
     for (var i = 0; i < steps.length; i++) {
       log('═══ 步骤 ' + (i + 1) + '/' + steps.length + ': ' + steps[i][0] + ' ═══');
       bubble('【' + (i + 1) + '/' + steps.length + '】' + steps[i][0] + ' 填写中...');
-      await sleep(200);
+      await sleep(120);
       var r;
       try {
         r = await steps[i][1]();
@@ -569,7 +579,7 @@
       results.push(r);
       log((r.ok ? '步骤完成: ' : '步骤失败: ') + r.msg);
       bubble((r.ok ? '✅ ' : '❌ ') + r.msg);   // 常驻, 下一步开始时覆盖
-      await sleep(300);
+      await sleep(180);
     }
 
     var okCount = 0;
