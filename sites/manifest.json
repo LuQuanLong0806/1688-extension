@@ -36,6 +36,10 @@
       ],
       "js": ["sites/dianxiaomi/dxm-image-editor.js"],
       "all_frames": true
+    },
+    {
+      "matches": ["*://agentseller.temu.com/*"],
+      "js": ["sites/temu/temu-float-btn.js", "sites/temu/temu-compliance.js"]
     }
   ]
 }
