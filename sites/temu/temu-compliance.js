@@ -13,6 +13,10 @@
     drawerTitle: '编辑合规信息',
     // #4 加州65号提案 → 警示类型
     warningType: 'No Warning Applicable/无需警示',
+    // 韩国公示信息 / 其他合规信息 → 组内所有下拉: 有「该项目不适用该产品」选项就选它, 没有则保持原样
+    notApplicable: '该项目不适用该产品',
+    // 其他合规信息 → 商品识别码固定填写
+    productIdCode: 'H20260309',
     // #25 欧盟负责人 / #60 制造商信息 / #84 土耳其负责人 → 固定选下拉的第一个选项 (target 传 null)
     // #166 包装材料信息收集（商品规格下拉点「全选」; 第一行规格填好后点「一键填充其他规格」传播）
     pack: {
@@ -109,6 +113,13 @@
     return r.top >= 0 && r.bottom <= window.innerHeight && r.left >= 0 && r.right <= window.innerWidth;
   }
 
+  // 步骤开始时滚动到模块顶部 (便于人工跟随查看)
+  async function scrollToModule(el) {
+    if (!el) return;
+    el.scrollIntoView({ block: 'start' });
+    await sleep(120);
+  }
+
   // ============ 抽屉/区块定位 ============
 
   // 找到打开中的「编辑合规信息」抽屉
@@ -136,6 +147,19 @@
           if (node.id) return node;
           node = node.parentElement;
         }
+      }
+    }
+    return null;
+  }
+
+  // 按蓝色标题定位模块组根容器: 标题 → 头部行 → 组根节点 (要求组内含下拉, 防定位到共享外层)
+  function findGroupByTitle(drawer, titleText) {
+    var heads = drawer.querySelectorAll('.rocket-drawer-body div');
+    for (var i = 0; i < heads.length; i++) {
+      if (txt(heads[i]) === titleText && heads[i].style.borderLeft) {
+        var row = heads[i].parentElement;      // 头部行
+        var root = row && row.parentElement;   // 组根节点
+        if (root && root.querySelector('.rocket-select')) return root;
       }
     }
     return null;
@@ -415,11 +439,117 @@
       return { ok: false, msg: label + ': 区块缺失' };
     }
     log('── ' + label + ': 定位到区块#' + sec.id + ', 控件#' + input.id);
+    await scrollToModule(sec);
     var r = await fillSelect(input, target);
     if (r === 'ok') return { ok: true, msg: label + ' ✓' };
     if (r === 'skip') return { ok: true, msg: label + ' 已选 ✓' };
     if (r === 'unverified') return { ok: true, msg: label + ' 已点选(未验证) ~' };
     return { ok: false, msg: label + ': ' + (r === 'no-dropdown' ? '下拉打不开' : '未找到选项「' + target + '」') };
+  }
+
+  // 有指定选项就选, 没有则保持原样 (选项列表短, 不走搜索过滤)
+  async function fillSelectIfPresent(input, target) {
+    var selectEl = input.closest('.rocket-select');
+    var selector = selectEl.querySelector('.rocket-select-selector');
+    var cur = getSelectedValues(selector);
+    log('检查下拉(#' + input.id + ') 当前已选=' + JSON.stringify(cur));
+    if (hasValue(cur, target)) {
+      log('→ 已选「' + target + '」, 跳过');
+      return 'skip';
+    }
+    if (!inViewport(selector)) {
+      selector.scrollIntoView({ block: 'center' });
+      await sleep(80);
+    }
+    var list = await openSelect(input);
+    if (!list) return 'no-dropdown';
+    var opts = getOptions(list);
+    var hit = null;
+    for (var i = 0; i < opts.length; i++) {
+      if (isOptDisabled(opts[i])) continue;
+      if (optionLabel(opts[i]) === target) { hit = opts[i]; break; }
+    }
+    if (!hit) {
+      log('→ 无「' + target + '」选项(共' + opts.length + '个), 保持原样');
+      closeDropdownByBlank();
+      return 'absent';
+    }
+    hit.click();
+    log('→ 已点击选项「' + target + '」');
+    await sleep(60);
+    if (selectEl.classList.contains('rocket-select-multiple')) closeDropdownByBlank();
+    var vals = await waitFor(function () {
+      var v = getSelectedValues(selector);
+      return v.length > 0 ? v : null;
+    }, 600);
+    return (vals && hasValue(vals, target)) ? 'ok' : 'unverified';
+  }
+
+  // 模块组(韩国公示信息/其他合规信息): 组内所有下拉, 有「不适用」选项就选, 没有保持原样
+  // 字段动态、个数不固定 → 不按字段名定位, 直接枚举组内全部 .rocket-select
+  async function fillGroupNotApplicable(drawer, titleText, label) {
+    var group = await waitFor(function () { return findGroupByTitle(drawer, titleText); }, 2000);
+    if (!group) {
+      log('⚠️ ' + label + ': 未找到模块(可能该商品不显示), 跳过');
+      return { ok: true, msg: label + ' 未显示(跳过)' };
+    }
+    await scrollToModule(group);
+    var inputs = group.querySelectorAll('.rocket-select-selection-search-input');
+    log(label + ': 组内下拉数=' + inputs.length);
+    if (!inputs.length) return { ok: false, msg: label + ': 无下拉控件' };
+    var selected = 0, absent = 0;
+    for (var i = 0; i < inputs.length; i++) {
+      var r = await fillSelectIfPresent(inputs[i], CONFIG.notApplicable);
+      if (r === 'ok' || r === 'skip' || r === 'unverified') selected++;
+      else if (r === 'absent') absent++;
+      else return { ok: false, msg: label + ': 下拉#' + inputs[i].id + ' 打不开' };
+      await sleep(150);
+    }
+    return {
+      ok: true,
+      msg: label + ' ✓(下拉' + inputs.length + '个: 选「' + CONFIG.notApplicable + '」×' + selected +
+        (absent ? ', 无该选项×' + absent + '(保持原样)' : '') + ')'
+    };
+  }
+
+  // 商品识别码: 按 label 文本定位输入框(不依赖动态 id), 固定填写
+  async function fillProductIdCode(drawer) {
+    var labels = drawer.querySelectorAll('.rocket-form-field-item-label label');
+    var field = null;
+    for (var i = 0; i < labels.length; i++) {
+      if (txt(labels[i]).indexOf('商品识别码') !== -1) {
+        field = labels[i].closest('.rocket-form-field-item');
+        break;
+      }
+    }
+    var input = field && field.querySelector('input.rocket-input');
+    if (!input) {
+      log('⚠️ 商品识别码: 输入框未找到');
+      return { ok: false, msg: '识别码: 控件缺失' };
+    }
+    if (input.value === CONFIG.productIdCode) {
+      log('→ 识别码已是 ' + CONFIG.productIdCode + ', 跳过');
+      return { ok: true, msg: '识别码 已填 ✓' };
+    }
+    if (!inViewport(input)) {
+      input.scrollIntoView({ block: 'center' });
+      await sleep(80);
+    }
+    input.focus();
+    setInputValue(input, CONFIG.productIdCode);
+    await sleep(80);
+    input.dispatchEvent(new Event('blur', { bubbles: true }));
+    var ok = input.value === CONFIG.productIdCode;
+    log('→ 识别码填写 ' + CONFIG.productIdCode + (ok ? ' ✓' : ' 失败(当前=' + input.value + ')'));
+    return { ok: ok, msg: ok ? '识别码 ✓' : '识别码: 填写失败' };
+  }
+
+  // 其他合规信息: 组内下拉处理完成后, 追加填写商品识别码
+  async function fillOtherCompliance(drawer) {
+    var r = await fillGroupNotApplicable(drawer, '其他合规信息', '其他合规信息');
+    if (r.msg.indexOf('未显示') !== -1) return r;   // 模块不存在, 识别码一并跳过
+    var c = await fillProductIdCode(drawer);
+    return { ok: r.ok && c.ok, msg: r.msg + ' | ' + c.msg };
   }
 
   // 包装材料信息收集: 填第一行规格 → 点「一键填充其他规格」
@@ -429,6 +559,7 @@
       return findSectionById(drawer, '166') || findSectionByTitle(drawer, '包装材料信息收集');
     }, 3000);
     if (!sec) return { ok: false, msg: label + ': 区块缺失' };
+    await scrollToModule(sec);
 
     // 最外层表格的规格行 (排除内嵌材料表格的行)
     var outerWrapper = sec.querySelector('.rocket-table-wrapper');
@@ -562,7 +693,9 @@
       ['欧盟负责人', function () { return fillSectionSelect(drawer, '25', '欧盟负责人', null, '欧盟负责人'); }],
       ['制造商信息', function () { return fillSectionSelect(drawer, '60', '制造商信息', null, '制造商信息'); }],
       ['土耳其负责人', function () { return fillSectionSelect(drawer, '84', '土耳其负责人', null, '土耳其负责人'); }],
-      ['包装材料', function () { return fillPackaging(drawer); }]
+      ['包装材料', function () { return fillPackaging(drawer); }],
+      ['韩国公示信息', function () { return fillGroupNotApplicable(drawer, '韩国公示信息', '韩国公示信息'); }],
+      ['其他合规信息', function () { return fillOtherCompliance(drawer); }]
     ];
 
     var results = [];
